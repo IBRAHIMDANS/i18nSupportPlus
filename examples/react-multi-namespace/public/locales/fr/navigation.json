@@ -1,0 +1,12 @@
+{
+  "menu": {
+    "home": "Accueil",
+    "dashboard": "Tableau de bord",
+    "profile": "Profil",
+    "settings": "Paramètres",
+    "logout": "Déconnexion"
+  },
+  "breadcrumb": {
+    "home": "Accueil"
+  }
+}

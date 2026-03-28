@@ -1,0 +1,21 @@
+{
+  "appName": "MyApp",
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "saxve": "common:actions.saxve",
+    "eddit": "common:actions.eddit"
+  },
+  "status": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "empty": "No data"
+  },
+  "pagination": {
+    "next": "Next",
+    "previous": "Previous",
+    "page": "Page {{current}} of {{total}}"
+  }
+}

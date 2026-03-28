@@ -1,0 +1,20 @@
+package com.ibrahimdans.i18n.plugin.key
+
+import com.ibrahimdans.i18n.plugin.key.lexer.Literal
+import com.ibrahimdans.i18n.plugin.utils.nullableToList
+
+/**
+ * Represents translation key
+ */
+data class FullKey(
+    val source: String,
+    val ns: Literal?,
+    val compositeKey:List<Literal>,
+    val namespaces: List<String>? = null,
+    val keyPrefix: List<Literal> = listOf(),
+    val keyPrefixSource: String? = null
+) {
+    fun allNamespaces(): List<String> {
+        return ns?.text.nullableToList() + (namespaces ?: listOf())
+    }
+}

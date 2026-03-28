@@ -1,0 +1,27 @@
+changelog:
+  exclude:
+    labels:
+      - stale
+      - dependencies
+  categories:
+    - title: '🚀 New Features'
+      labels:
+        - feature
+    - title: '🐛 Bug Fixes'
+      labels:
+        - bug
+    - title: '📖 Documentation'
+      labels:
+        - documentation
+    - title: '♻️ Refactoring'
+      labels:
+        - refactor
+    - title: '🧪 Tests'
+      labels:
+        - tests
+    - title: '⚙️ CI / Tooling'
+      labels:
+        - ci
+    - title: '🔧 Other Changes'
+      labels:
+        - '*'

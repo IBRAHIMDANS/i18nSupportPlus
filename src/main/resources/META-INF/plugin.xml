@@ -1,0 +1,165 @@
+<idea-plugin>
+    <id>com.ibrahimdans.i18n</id>
+    <name>I18n Support Plus</name>
+    <vendor email="ibrahima.dansoko@outlook.com" url="https://github.com/IBRAHIMDANS/i18nPlugin">ibrahimdans</vendor>
+    <depends>com.intellij.modules.platform</depends>
+    <description><![CDATA[
+    <h4>i18n Support Plus — i18next, vue-i18n, lingui for JS/TS/PHP</h4>
+    <p>Actively maintained fork of <a href="https://github.com/nyavro/i18nPlugin">i18nPlugin</a> by Evgeniy Nyavro.</p>
+    <p>This plugin provides:</p>
+    <ul>
+        <li>i18next, react-i18next (incl. <code>useTranslation</code> string and array form), vue-i18n, and lingui support</li>
+        <li>Annotation of invalid i18n keys with color-coded status (resolved / unresolved / missing file / object / plural / partial)</li>
+        <li>Navigation from keys to translation files and back (bidirectional references)</li>
+        <li>Code completion for i18n keys with full namespace support</li>
+        <li>JSON, YAML, and PO/POT (gettext) translation file support</li>
+        <li>Namespace extraction from <code>t(key, {ns: '...'})</code> options</li>
+        <li>Dynamic template literal support with intermediate wildcard resolution (<code>a.*.b</code>)</li>
+        <li>Multi-language translation hints on hover with locale table and PSI navigation</li>
+        <li>Inlay hints — displays resolved translation value inline after each key expression</li>
+        <li>Gutter badges showing key resolution status at a glance</li>
+        <li>Code folding — replace keys with translation values inline (Ctrl+Alt+Shift+T)</li>
+        <li>Rename refactoring for i18n keys across all files (Shift+F6)</li>
+        <li>Missing namespace/key quick fixes; create namespace on the fly</li>
+        <li>Text to translation extraction (Alt+Enter)</li>
+        <li>Tool Window with tree view, table view (orphan detection), stats per locale, and multi-module tab support</li>
+        <li>Setup wizard for first-time configuration</li>
+    </ul>
+    ]]></description>
+
+    <change-notes><![CDATA[
+        <div>
+            <h3>Unreleased</h3>
+            <p><b>Features</b></p>
+            <ul>
+                <li>Settings: gutterIconsEnabled toggle to disable gutter badges from Settings panel</li>
+            </ul>
+            <p><b>Bug Fixes</b></p>
+            <ul>
+                <li>Gutter: guard empty/malformed key (t(""), t(":")) before resolving</li>
+                <li>Gutter: relax isLeaf() to element != null — fixes false "missing" on intermediate JSON nodes</li>
+                <li>Gutter: use defaultNamespaces() as fallback before findAllSources() when namespace is absent</li>
+                <li>Gutter: synchronized cache read/write on document — prevents race condition with parallel language providers</li>
+                <li>Gutter: deduplicate sources by path — fixes "fr, fr, en, en" tooltip</li>
+                <li>Annotator: "Create translation file" quick fix now appears correctly for truly missing namespace files</li>
+            </ul>
+            <h3>1.0.0</h3>
+            <p><b>Fork &amp; Modernization</b></p>
+            <ul>
+                <li>Forked from <a href="https://github.com/nyavro/i18nPlugin">nyavro/i18nPlugin</a></li>
+                <li>Migrated to IntelliJ Platform 2024.3+ (Gradle IntelliJ Plugin v2, Kotlin 2.1, Java 21)</li>
+                <li>Added vue-i18n ($t, $tc, $te) and lingui (msg, i18n._) support with Vue SFC folding</li>
+                <li>Namespace extraction from t(key, {ns: '...'}) options</li>
+                <li>Dynamic template literal support with wildcard resolution; intermediate * wildcards (a.*.b)</li>
+                <li>Multi-language translation hints on hover with locale table and PSI navigation</li>
+                <li>JSX/TSX folding, annotation, and completion support</li>
+                <li>useTranslation array form useTranslation(['ns1', 'ns2']) — multi-namespace support</li>
+                <li>useTranslation string form useTranslation('ns') — namespace via scope walk fallback</li>
+            </ul>
+            <p><b>Tool Window</b></p>
+            <ul>
+                <li>Stats tab with translation coverage per locale</li>
+                <li>Real-time search field to filter translation keys</li>
+                <li>Keys synchronization action — propagates missing keys across all locales with batch fill</li>
+                <li>Orphan key detection — Usage column shows usage count; right-click to delete unused keys</li>
+                <li>Per-module tabs — one tab per configured module when 2+ modules are present</li>
+            </ul>
+            <p><b>Editor Features</b></p>
+            <ul>
+                <li>Gutter badges showing i18n key resolution status (resolved / partial / missing)</li>
+                <li>Show Translations Inline toggle (Ctrl+Alt+Shift+T)</li>
+                <li>Rename refactoring for i18n keys via Shift+F6</li>
+                <li>Inlay hints showing resolved translation value inline</li>
+                <li>Setup wizard for first-time configuration</li>
+            </ul>
+            <p><b>Quick Fixes &amp; Dialogs</b></p>
+            <ul>
+                <li>Create missing key / create translation file quick fixes</li>
+                <li>Namespace creation on the fly — + button in Create Translation dialog</li>
+                <li>Namespace filtering in Edit/Create Translation dialogs</li>
+            </ul>
+            <p><b>Bug Fixes</b></p>
+            <ul>
+                <li>Added i18next v4+ CLDR plural key support (key_one, key_other, key_zero, ...)</li>
+                <li>Excluded ternary condition strings from i18n key detection (false positives)</li>
+                <li>Replaced deprecated IntelliJ APIs with current equivalents</li>
+                <li>Added translationsRoot setting for custom translation file root</li>
+                <li>Fixed duplicate folding descriptors from multiple language builder calls</li>
+                <li>Guard project.isDisposed before resolving annotations</li>
+                <li>Skip unresolved annotations for dynamic template-literal-only keys</li>
+                <li>Fix repeated folding for spread arguments in t() calls</li>
+                <li>Fix useTranslation('ns') scope walk namespace resolution</li>
+                <li>Fix duplicate hints with multi-namespace useTranslation</li>
+                <li>Fixed StackOverflow on non-i18n template literals</li>
+                <li>Fixed AssertionError on startup (#207)</li>
+            </ul>
+        </div>
+    ]]>
+    </change-notes>
+
+    <depends>JavaScript</depends>
+    <depends optional="true" config-file="ymlConfig.xml">org.jetbrains.plugins.yaml</depends>
+    <depends optional="true" config-file="phpConfig.xml">com.jetbrains.php</depends>
+    <depends optional="true" config-file="vueConfig.xml">org.jetbrains.plugins.vue</depends>
+    <resource-bundle>messages.I18nBundle</resource-bundle>
+    <extensionPoints>
+        <extensionPoint interface="com.ibrahimdans.i18n.Localization" name="localization" dynamic="true"/>
+        <extensionPoint interface="com.ibrahimdans.i18n.Lang" name="lang" dynamic="true"/>
+        <extensionPoint interface="com.ibrahimdans.i18n.Technology" name="technology" dynamic="true"/>
+    </extensionPoints>
+    <extensions defaultExtensionNs="com.intellij">
+        <annotator language="JavaScript" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompositeKeyAnnotator"/>
+        <annotator language="JSX Harmony" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompositeKeyAnnotator"/>
+        <annotator language="TypeScript JSX" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompositeKeyAnnotator"/>
+        <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.lang.js.JsReferenceContributor"/>
+        <psi.referenceContributor language="JSX Harmony" implementation="com.ibrahimdans.i18n.extensions.lang.js.JsxReferenceContributor"/>
+        <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.localization.js.TsLocalizationReferenceContributor"/>
+        <psi.referenceContributor language="JSON" implementation="com.ibrahimdans.i18n.extensions.localization.json.JsonReferenceContributor"/>
+        <completion.contributor language="JavaScript" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompletionContributor"/>
+        <completion.contributor language="JSX Harmony" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompletionContributor"/>
+        <completion.contributor language="TypeScript JSX" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompletionContributor"/>
+        <projectService serviceImplementation="com.ibrahimdans.i18n.plugin.ide.settings.Settings"/>
+        <projectConfigurable groupId="tools" displayName="I18n Plugin Configuration" instance="com.ibrahimdans.i18n.plugin.ide.settings.Configurable"/>
+        <intentionAction>
+            <className>com.ibrahimdans.i18n.plugin.ide.actions.ExtractI18nIntentionAction</className>
+        </intentionAction>
+        <lang.foldingBuilder language="TypeScript" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder"/>
+        <lang.foldingBuilder language="JavaScript" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder"/>
+        <lang.foldingBuilder language="TypeScript JSX" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder"/>
+        <lang.documentationProvider language="JavaScript" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
+        <lang.documentationProvider language="JSX Harmony" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
+        <lang.documentationProvider language="TypeScript" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
+        <lang.documentationProvider language="TypeScript JSX" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
+        <codeInsight.inlayProvider language="JavaScript" implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"/>
+        <codeInsight.inlayProvider language="JSX Harmony" implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"/>
+        <codeInsight.inlayProvider language="TypeScript" implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"/>
+        <codeInsight.inlayProvider language="TypeScript JSX" implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"/>
+        <codeInsight.lineMarkerProvider language="JavaScript" implementationClass="com.ibrahimdans.i18n.plugin.ide.I18nGutterIconProvider"/>
+        <codeInsight.lineMarkerProvider language="JSX Harmony" implementationClass="com.ibrahimdans.i18n.plugin.ide.I18nGutterIconProvider"/>
+        <codeInsight.lineMarkerProvider language="TypeScript" implementationClass="com.ibrahimdans.i18n.plugin.ide.I18nGutterIconProvider"/>
+        <codeInsight.lineMarkerProvider language="TypeScript JSX" implementationClass="com.ibrahimdans.i18n.plugin.ide.I18nGutterIconProvider"/>
+        <postStartupActivity implementation="com.ibrahimdans.i18n.plugin.ide.settings.StartupAction"/>
+        <postStartupActivity implementation="com.ibrahimdans.i18n.plugin.ide.settings.SetupWizardStartupActivity"/>
+        <toolWindow id="I18n" anchor="bottom" icon="AllIcons.Nodes.ResourceBundle"
+                    factoryClass="com.ibrahimdans.i18n.plugin.ide.toolwindow.I18nToolWindowFactory"/>
+        <renameHandler implementation="com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler"/>
+    </extensions>
+    <actions>
+        <action id="com.ibrahimdans.i18n.ToggleFolding"
+                class="com.ibrahimdans.i18n.plugin.ide.actions.ToggleFoldingAction"
+                text="Show Translations Inline"
+                description="Toggle i18n key folding to show translations inline">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift T"/>
+        </action>
+    </actions>
+    <extensions defaultExtensionNs="com.ibrahimdans.i18n">
+        <localization implementation="com.ibrahimdans.i18n.extensions.localization.json.JsonLocalization"/>
+        <localization implementation="com.ibrahimdans.i18n.extensions.localization.js.TsLocalization"/>
+        <lang implementation="com.ibrahimdans.i18n.extensions.lang.js.JsLang"/>
+        <lang implementation="com.ibrahimdans.i18n.extensions.lang.js.JsxLang"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.technology.i18next.I18NextTechnology"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.technology.vuei18n.VueI18nTechnology"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.technology.lingui.LinguiTechnology"/>
+    </extensions>
+</idea-plugin>

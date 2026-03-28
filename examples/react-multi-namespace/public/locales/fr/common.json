@@ -1,0 +1,19 @@
+{
+  "appName": "MyApp",
+  "actions": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier"
+  },
+  "status": {
+    "loading": "Chargement...",
+    "error": "Une erreur s'est produite",
+    "empty": "Aucune donnée"
+  },
+  "pagination": {
+    "next": "Suivant",
+    "previous": "Précédent",
+    "page": "Page {{current}} sur {{total}}"
+  }
+}

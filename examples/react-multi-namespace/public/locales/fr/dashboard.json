@@ -1,0 +1,21 @@
+{
+  "title": "Tableau de bord",
+  "welcome": "Bon retour, {{name}} !",
+  "stats": {
+    "users": {
+      "label": "Utilisateurs",
+      "count_one": "{{count}} utilisateur",
+      "count_other": "{{count}} utilisateurs",
+      "count": "{{count}} utilisateurs"
+    },
+    "files": {
+      "label": "Fichiers",
+      "count_one": "{{count}} fichier",
+      "count_other": "{{count}} fichiers"
+    }
+  },
+  "emptyState": {
+    "title": "Rien ici pour l'instant",
+    "description": "Commencez par créer votre premier élément."
+  }
+}

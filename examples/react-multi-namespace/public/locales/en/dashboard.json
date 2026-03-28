@@ -1,0 +1,21 @@
+{
+  "title": "Dashboard",
+  "welcome": "Welcome back, {{name}}!",
+  "stats": {
+    "users": {
+      "label": "Users",
+      "count_one": "{{count}} user",
+      "count_other": "{{count}} users",
+      "count": "{{count}} users"
+    },
+    "files": {
+      "label": "Files",
+      "count_one": "{{count}} file",
+      "count_other": "{{count}} files"
+    }
+  },
+  "emptyState": {
+    "title": "Nothing here yet",
+    "description": "Start by creating your first item."
+  }
+}

@@ -1,0 +1,37 @@
+package com.ibrahimdans.i18n.extensions.lang.php
+
+import com.ibrahimdans.i18n.Lang
+import com.ibrahimdans.i18n.extensions.lang.php.extractors.PhpStringLiteralKeyExtractor
+import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
+import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
+import com.ibrahimdans.i18n.plugin.parser.RawKey
+import com.intellij.psi.PsiElement
+
+class PhpLang: Lang {
+    override fun canExtractKey(element: PsiElement, translationFunctionNames: List<String>): Boolean {
+        return extractRawKey(element) != null
+//        listOf("String").contains(element.type()) &&
+//                PlatformPatterns.or(
+//                    PhpPatternsExt.phpArgument("t", 0),
+//                    gettextPattern(Settings.getInstance(element.project).config())
+//                ).let { pattern ->
+//                    pattern.accepts(element) ||
+//                            pattern.accepts(PsiTreeUtil.findFirstParent(element, { it.parent?.type() == "Parameter list" }))
+//                }
+    }
+
+    override fun extractRawKey(element: PsiElement): RawKey? {
+        val extractor = PhpStringLiteralKeyExtractor()
+        return if (extractor.canExtract(element)) extractor.extract(element) else null
+    }
+
+    override fun foldingProvider(): FoldingProvider = PhpFoldingProvider()
+
+    override fun translationExtractor(): TranslationExtractor = PhpTranslationExtractor()
+
+    override fun resolveLiteral(entry: PsiElement): PsiElement? {
+        val typeName = entry.node.elementType.toString()
+        return if (typeName == "single quoted string") entry else null
+    }
+}
+

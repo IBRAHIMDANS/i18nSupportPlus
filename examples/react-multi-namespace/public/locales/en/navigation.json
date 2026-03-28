@@ -1,0 +1,12 @@
+{
+  "menu": {
+    "home": "Home",
+    "dashboard": "Dashboard",
+    "profile": "Profile",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "breadcrumb": {
+    "home": "Home"
+  }
+}

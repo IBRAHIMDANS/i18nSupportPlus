@@ -1,0 +1,70 @@
+## [Unreleased]
+
+### Features
+- [Settings] `gutterIconsEnabled` toggle — disable gutter badges from the Settings panel
+
+### Bug Fixes
+- [Gutter] Guard empty/malformed key (`t("")`, `t(":")`) before resolving — prevents phantom results
+- [Gutter] Relax `isLeaf()` to `element != null` — fixes false "missing" on intermediate JSON nodes
+- [Gutter] Use `config.defaultNamespaces()` as fallback before `findAllSources()` when namespace is absent
+- [Gutter] Synchronized cache read/write on document to prevent race condition with parallel language providers
+- [Gutter] Deduplicate sources by `displayPath` — fixes `fr, fr, en, en` tooltip
+- [Annotator] `findNamespaceFiles()` check — "Create translation file" quick fix now appears correctly for missing namespace files
+
+---
+
+## [1.0.0] - 2026-03-29
+
+### Fork & Modernization
+- Forked from [nyavro/i18nPlugin](https://github.com/nyavro/i18nPlugin)
+- Migrated to IntelliJ Platform 2024.3+ (Gradle IntelliJ Plugin v2, Kotlin 2.1, Java 21)
+- Renamed plugin ID from `com.eny.i18n` to `com.ibrahimdans.i18n`
+- Added vue-i18n framework support (`$t`, `$tc`, `$te`) with Vue SFC folding
+- Added lingui framework support (`msg`, `i18n._`)
+- Namespace extraction from `t(key, {ns: '...'})` options
+- Dynamic template literal support with wildcard resolution (fix #205)
+- Multi-language translation hints on hover with locale table, missing translations shown as "—", and navigation link (↗) to translation file
+- JSX/TSX full support (folding, annotations, completion)
+- Fixed StackOverflow on non-i18n template literals
+- Fixed AssertionError on startup (#207)
+
+### i18next / react-i18next
+- `useTranslation` array form: `const [t] = useTranslation(['ns1', 'ns2'])` — multi-namespace support in hints, folding, and annotations
+- `useTranslation` string form: `const [t] = useTranslation('ns')` — namespace resolved via scope walk fallback
+- `useTranslation` namespace included in code folding values
+
+### Tool Window
+- Stats tab with translation coverage per locale (total keys, translated count, missing count, percentage)
+- Real-time search field to filter translation keys
+- Keys synchronization action — propagates missing keys across all locales with batch placeholder fill
+- **Orphan key detection** — `Usage` column shows usage count per key; right-click to delete unused keys
+- **Per-module tabs** — one tab per configured module when 2+ modules are present, each with its own Tree/Table/Stats panels
+
+### Editor Features
+- Gutter badges showing i18n key resolution status (resolved / partial / missing)
+- "Show Translations Inline" toggle (`Ctrl+Alt+Shift+T`) to display i18n values inline
+- Rename refactoring for i18n keys via `Shift+F6` (`RenameI18nKeyHandler`)
+- Inlay hints showing resolved translation value inline after each key expression
+- Setup wizard guiding through configuration on first launch
+- **Wildcard traversal** — intermediate `*` wildcards in composite key resolution (e.g. `a.*.b`)
+- **psi_element:// navigation** — hover hint popup links (↗) navigate directly to the PSI element in the translation file
+
+### Quick Fixes & Dialogs
+- Create missing key quick fix from unresolved key annotation
+- Create translation file quick fix from missing namespace annotation
+- **Namespace creation on the fly** — `+` button in Create Translation dialog
+- **Namespace filtering** — Edit/Create Translation dialogs filter files by selected namespace
+
+### Bug Fixes & Improvements
+- Added i18next v4+ CLDR plural key support (`key_one`, `key_other`, `key_zero`, ...)
+- Fixed CLDR plural key resolution in hover hints and Ctrl+Click navigation
+- Excluded ternary condition strings from i18n key detection (false positive reduction)
+- Replaced deprecated IntelliJ APIs with current equivalents
+- Added `translationsRoot` setting for custom translation file root
+- Fixed duplicate folding values caused by IntelliJ invoking the folding builder once per language registration — resolved via cross-builder deduplication using host document user data
+- Guard `project.isDisposed` before resolving annotations — prevents IDE errors on project close
+- Skip unresolved annotations for template-literal-only keys (dynamic keys can't be statically resolved)
+- Fix repeated folding for spread arguments in `t()` calls
+- Fix `useTranslation('ns')` string form — scope walk fallback correctly resolves namespace when IntelliJ resolves `t` to the TypeScript type declaration
+- Fix duplicate hints with `useTranslation(['ns1', 'ns2'])` — deduplication via early return on unresolved keys
+- Removed non-functional PlainObject localization from settings UI

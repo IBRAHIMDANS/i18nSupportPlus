@@ -1,0 +1,38 @@
+bug:
+  - head-branch: ['fix/*', 'bug/*', 'hotfix/*']
+
+feature:
+  - head-branch: ['feat/*', 'feature/*']
+
+documentation:
+  - head-branch: ['docs/*']
+  - changed-files:
+    - any-glob-to-any-file:
+      - '*.md'
+      - 'docs/**'
+
+dependencies:
+  - head-branch: ['deps/*', 'dependabot/*']
+
+ci:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/**'
+
+tests:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/test/**'
+
+refactor:
+  - head-branch: ['refactor/*', 'chore/*']
+
+javascript:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/**/lang/js/**'
+
+php:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/**/lang/php/**'

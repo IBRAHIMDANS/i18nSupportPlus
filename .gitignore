@@ -1,0 +1,16 @@
+/*.iml
+/.idea/**
+/.gradle/**
+/build/**
+/out/**
+/examples/simple/.idea/**
+/examples/react-i18n-using-hooks/node_modules/**
+/examples/react-i18n-using-hooks/.idea/**
+/examples/php/.idea/**
+/.intellijPlatform/
+META-INF/
+*.class
+local.properties
+.kotlin/
+CLAUDE.md
+TODO.md

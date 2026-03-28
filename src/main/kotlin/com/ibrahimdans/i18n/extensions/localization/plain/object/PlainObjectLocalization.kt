@@ -1,0 +1,24 @@
+package com.ibrahimdans.i18n.extensions.localization.plain.`object`
+
+import com.ibrahimdans.i18n.*
+import com.ibrahimdans.i18n.plugin.tree.Tree
+import com.intellij.openapi.fileTypes.FileTypeManager
+import com.intellij.openapi.fileTypes.PlainTextFileType
+import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiElement
+
+class PlainObjectLocalization : Localization<PsiElement> {
+    override fun types(): List<LocalizationFileType> =
+        listOf(FileTypeManager
+            .getInstance()
+            .getStdFileType("Locale"))
+            .filter {it != PlainTextFileType.INSTANCE}
+            .map {LocalizationFileType(it, listOf("pot"))}
+    override fun contentGenerator(): ContentGenerator = PlainObjectContentGenerator()
+    override fun referenceAssistant(): TranslationReferenceAssistant<PsiElement> = PlainObjectReferenceAssistant()
+    override fun elementsTree(file: PsiElement): Tree<PsiElement> = PlainObjectTextTree(file)
+    override fun matches(localizationFileType: LocalizationFileType, file: VirtualFile?, fileNames: List<String>): Boolean {
+        return file?.parent?.name == "LC_MESSAGES"
+    }
+    override fun config(): LocalizationConfig = LocalizationConfigImpl("plainObject")
+}
