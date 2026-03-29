@@ -1,4 +1,8 @@
 import org.jetbrains.changelog.markdownToHTML
+import java.nio.file.Files
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 
 fun properties(key: String) = providers.gradleProperty(key)
 
@@ -147,15 +151,61 @@ tasks {
         useJUnitPlatform()
     }
 
-    // The PHP plugin 243.x ships split-mode modules (php-frontback.jar, frontend/)
-    // that duplicate extension points already declared in php.jar, causing
-    // PluginException in tests. Remove them after sandbox preparation.
+    // After sandbox preparation:
+    // 1. Symlink the bundled YAML plugin into plugins-test/ so IntelliJ loads it
+    //    and activates our optional ymlConfig.xml. Without this, -Dplugin.path only
+    //    lists our plugin and php-impl, leaving YAML unloaded and all YAML tests failing.
+    // 2. The PHP plugin 243.x ships split-mode modules (php-frontback.jar, frontend/)
+    //    whose META-INF descriptors duplicate extension points already declared in php.jar,
+    //    causing PluginException. Strip only the META-INF descriptors from php-frontback.jar
+    //    (keep the class files) so the PHP plugin loads cleanly as com.jetbrains.php,
+    //    activating our optional phpConfig.xml.
     named("prepareTestSandbox") {
         doLast {
+            // --- YAML: add bundled plugin to test sandbox ---
+            val yamlSrc = sourceSets["main"].compileClasspath.files
+                .firstOrNull { f ->
+                    f.parentFile?.name == "lib" &&
+                    f.parentFile?.parentFile?.name == "yaml" &&
+                    f.parentFile?.parentFile?.parentFile?.name == "plugins"
+                }
+                ?.parentFile  // lib/
+                ?.parentFile  // yaml/
+            if (yamlSrc != null && yamlSrc.exists()) {
+                val yamlDst = layout.buildDirectory
+                    .dir("idea-sandbox/IU-$effectivePlatformVersion/plugins-test/yaml")
+                    .get().asFile
+                if (!yamlDst.exists()) {
+                    Files.createSymbolicLink(yamlDst.toPath(), yamlSrc.toPath())
+                }
+            }
+
+            // --- PHP: strip META-INF descriptors from php-frontback.jar, keep classes ---
             val phpLib = layout.buildDirectory.dir("idea-sandbox/IU-$effectivePlatformVersion/plugins-test/php-impl/lib")
             val frontback = phpLib.get().file("php-frontback.jar").asFile
+            if (frontback.exists()) {
+                val patched = File(frontback.parent, "_php-frontback-patched.jar")
+                ZipInputStream(frontback.inputStream().buffered()).use { zin ->
+                    ZipOutputStream(patched.outputStream().buffered()).use { zout ->
+                        var entry = zin.nextEntry
+                        while (entry != null) {
+                            // Keep MANIFEST.MF and all class/resource files; drop plugin descriptors
+                            val keep = !entry.name.startsWith("META-INF/") ||
+                                       entry.name == "META-INF/MANIFEST.MF"
+                            if (keep) {
+                                zout.putNextEntry(ZipEntry(entry.name))
+                                zin.copyTo(zout)
+                                zout.closeEntry()
+                            }
+                            zin.closeEntry()
+                            entry = zin.nextEntry
+                        }
+                    }
+                }
+                frontback.delete()
+                patched.renameTo(frontback)
+            }
             val frontend = phpLib.get().dir("frontend").asFile
-            if (frontback.exists()) frontback.delete()
             if (frontend.exists()) frontend.deleteRecursively()
         }
     }
