@@ -38,7 +38,7 @@ internal class TranslationToCodeReferenceProvider : KeyComposer<PsiElement> {
         )
         @Suppress("DEPRECATION")
         if (PsiSearchHelper.SearchCostResult.FEW_OCCURRENCES ==
-                PsiSearchHelper.getInstance(project).isCheapEnoughToSearch(key, config.searchScope(project), null, null)
+                PsiSearchHelper.getInstance(project).isCheapEnoughToSearch(key, config.searchScope(project), null)
         ) {
             return listOf(TranslationToCodeReference(element, textRange, key))
         }

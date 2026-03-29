@@ -65,7 +65,7 @@ class I18NextTechnology : Technology {
                 val searchScope = config.searchScope(project)
                 val cfgFileNames = mutableListOf<String>()
                 @Suppress("DEPRECATION")
-                if (PsiSearchHelper.SearchCostResult.FEW_OCCURRENCES == PsiSearchHelper.getInstance(project).isCheapEnoughToSearch("translation", searchScope, null, null)) {
+                if (PsiSearchHelper.SearchCostResult.FEW_OCCURRENCES == PsiSearchHelper.getInstance(project).isCheapEnoughToSearch("translation", searchScope, null)) {
                     val processor = object : TextOccurenceProcessor {
                         override fun execute(element: PsiElement, offsetInElement: Int): Boolean {
                             (element.parent as? JSProperty)?.whenMatches { it.name == "translation" }?.containingFile?.also {

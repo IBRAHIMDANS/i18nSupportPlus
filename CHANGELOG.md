@@ -4,6 +4,7 @@
 - [Settings] `gutterIconsEnabled` toggle — disable gutter badges from the Settings panel
 
 ### Bug Fixes
+- [API] Use 3-param `isCheapEnoughToSearch(String, GlobalSearchScope, PsiFile?)` instead of deprecated 4-param variant in `I18NextTechnology` and `TranslationToCodeReferenceProvider`
 - [Gutter] Guard empty/malformed key (`t("")`, `t(":")`) before resolving — prevents phantom results
 - [Gutter] Relax `isLeaf()` to `element != null` — fixes false "missing" on intermediate JSON nodes
 - [Gutter] Use `config.defaultNamespaces()` as fallback before `findAllSources()` when namespace is absent
