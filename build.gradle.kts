@@ -45,7 +45,7 @@ dependencies {
     testCompileOnly("org.junit.jupiter:junit-jupiter-api:5.11.4")
     testCompileOnly("org.junit.jupiter:junit-jupiter-params:5.11.4")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
-    testImplementation("io.mockk:mockk:1.13.12")
+    testImplementation("io.mockk:mockk:1.14.9")
     testImplementation("com.jaliansystems:marathon-java-driver:5.4.0.0")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
 
