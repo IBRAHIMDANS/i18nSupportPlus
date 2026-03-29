@@ -22,7 +22,15 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Run tests
-        run: ./gradlew test
+        run: |
+          ./gradlew --stop || true
+          ./gradlew cleanTest test \
+            --no-daemon \
+            --no-build-cache \
+            --no-configuration-cache \
+            --stacktrace \
+            --info \
+            --max-workers=1
 
       - name: Upload test report
         if: failure()
