@@ -191,7 +191,7 @@ When 2+ modules are configured, the tool window displays a tab layer with one ta
 
 ## Configuration
 
-**File > Tools > I18n Plugin Configuration**
+**File > Tools > i18n Support Plus Configuration**
 
 ### General
 
@@ -258,10 +258,10 @@ Search for **"I18n Support Plus"** in **Settings > Plugins > Marketplace**.
 ### From Source
 
 ```bash
-git clone https://github.com/IBRAHIMDANS/i18nPlugin.git
-cd i18nPlugin
+git clone https://github.com/IBRAHIMDANS/i18nSupportPlus.git
+cd i18nSupportPlus
 ./gradlew buildPlugin
-# Output: build/distributions/i18n-*.zip
+# Output: build/distributions/i18nSupportPlus-*.zip
 ```
 
 Then install via **Settings > Plugins > ⚙️ > Install Plugin from Disk**.

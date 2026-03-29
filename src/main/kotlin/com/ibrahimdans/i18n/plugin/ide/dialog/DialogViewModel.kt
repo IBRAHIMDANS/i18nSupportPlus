@@ -10,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.CommandProcessor
 import com.intellij.openapi.command.UndoConfirmationPolicy
 import com.intellij.openapi.components.service
@@ -30,22 +31,23 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
      * Loads all localization sources and their current value for the given key.
      * Returns null for a source if the key is missing in that locale.
      */
-    fun loadTranslations(fullKey: FullKey): Map<LocalizationSource, String?> {
-        val sourceService = project.service<LocalizationSourceService>()
-        // Fall back to all sources when namespace lookup yields nothing (e.g. CREATE mode with empty FullKey,
-        // or projects using locale-named files like en.json/fr.json instead of namespace-named files).
-        val namespaces = listOfNotNull(fullKey.ns?.text)
-        val sources = sourceService.findSources(namespaces, project)
-            .ifEmpty { if (namespaces.isEmpty()) sourceService.findAllSources(project) else emptyList() }
-        return sources.associateWith { source ->
-            val ref = resolveCompositeKey(fullKey.compositeKey, source)
-            if (ref.unresolved.isEmpty() && ref.element != null) {
-                readPsiValue(ref.element.value())
-            } else {
-                null
+    fun loadTranslations(fullKey: FullKey): Map<LocalizationSource, String?> =
+        ReadAction.compute<Map<LocalizationSource, String?>, Throwable> {
+            val sourceService = project.service<LocalizationSourceService>()
+            // Fall back to all sources when namespace lookup yields nothing (e.g. CREATE mode with empty FullKey,
+            // or projects using locale-named files like en.json/fr.json instead of namespace-named files).
+            val namespaces = listOfNotNull(fullKey.ns?.text)
+            val sources = sourceService.findSources(namespaces, project)
+                .ifEmpty { if (namespaces.isEmpty()) sourceService.findAllSources(project) else emptyList() }
+            sources.associateWith { source ->
+                val ref = resolveCompositeKey(fullKey.compositeKey, source)
+                if (ref.unresolved.isEmpty() && ref.element != null) {
+                    readPsiValue(ref.element.value())
+                } else {
+                    null
+                }
             }
         }
-    }
 
     /**
      * Returns the distinct sorted list of namespaces available in the project

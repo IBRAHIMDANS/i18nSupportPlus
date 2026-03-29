@@ -4,6 +4,8 @@
 - [Settings] `gutterIconsEnabled` toggle — disable gutter badges from the Settings panel
 
 ### Bug Fixes
+- [Threading] `DialogViewModel.loadTranslations` now runs inside `ReadAction.compute {}` — fixes "Read access is allowed from inside read-action only" crash when clicking a key in the Tool Window tree
+- [YAML] `YamlContentGenerator.generateContent` no longer produces trailing spaces after intermediate mapping keys (e.g. `component: \n` → `component:\n`) — fixes CI test failures and malformed YAML generation
 - [API] Use 3-param `isCheapEnoughToSearch(String, GlobalSearchScope, PsiFile?)` instead of deprecated 4-param variant in `I18NextTechnology` and `TranslationToCodeReferenceProvider`
 - [Gutter] Guard empty/malformed key (`t("")`, `t(":")`) before resolving — prevents phantom results
 - [Gutter] Relax `isLeaf()` to `element != null` — fixes false "missing" on intermediate JSON nodes

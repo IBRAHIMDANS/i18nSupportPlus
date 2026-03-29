@@ -65,7 +65,7 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
     private val nextButton = JButton("Next")
 
     init {
-        title = "i18n Plugin — Setup Wizard"
+        title = "i18n Support Plus — Setup Wizard"
         isResizable = true
         init()
         setOKButtonText("Apply")
@@ -238,7 +238,7 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
             "<p><b>Translation files found:</b> $fileCount file(s)</p>" +
             (if (fileCount > 0) "<p>$fileSample$moreNote</p>" else "") +
             "<p style=\"color:gray\">Clicking <b>Apply</b> will store the detected translation root path " +
-            "in the plugin settings. You can adjust further in <i>Settings → Tools → I18n Plugin Configuration</i>.</p>" +
+            "in the plugin settings. You can adjust further in <i>Settings → Tools → i18n Support Plus Configuration</i>.</p>" +
             "</body></html>"
         summaryLabel.text = html
     }

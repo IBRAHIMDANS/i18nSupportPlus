@@ -48,7 +48,8 @@ private class YamlContentGenerator: ContentGenerator {
         compositeKey.foldRightIndexed(value, { i, key, acc ->
             val caret = if (i == 0) "" else "\n"
             val tab = tabChar.repeat(i)
-            "$caret$tab${key.text}: $acc"
+            val valuePart = if (acc.startsWith("\n")) acc else " $acc"
+            "$caret$tab${key.text}:$valuePart"
         })
 
     override fun getType(): FileType = YAMLFileType.YML

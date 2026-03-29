@@ -3,7 +3,6 @@ package com.ibrahimdans.i18n.plugin.ide.hint
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.utils.generator.code.*
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.JsonTranslationGenerator
-import com.intellij.codeInsight.documentation.DocumentationManager
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 
@@ -65,8 +64,7 @@ class HintTest: PlatformBaseTest() {
                 myFixture.configureByText("content.${cg.ext()}", cg.generate("\"test${index}:root.first.<caret>second\""))
                 read {
                     val codeElement = myFixture.file.findElementAt(myFixture.caretOffset)
-                    val hint = DocumentationManager.getProviderFromElement(codeElement)
-                        .generateDoc(myFixture.elementAtCaret, codeElement)
+                    val hint = HintProvider().generateDoc(null, codeElement)
                     assertTrue("Hint should contain the translation", hint?.contains(translation) == true)
                 }
         }

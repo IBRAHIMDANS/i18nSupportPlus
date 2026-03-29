@@ -11,35 +11,37 @@ class YamlTranslationGenerator: TranslationGenerator {
         key22: Etwas
     """.trimIndent()
 
-    override fun generateContent(root: String, key: String, value: String): String = """ 
-    $root:   
-        $key: $value
-    """
+    override fun generateContent(root: String, key: String, value: String): String = """
+$root:
+  $key: $value
+""".trimIndent()
 
-    override fun generateContent(root: String, first: String, key: String, value: String): String = """$root: 
-  $first: 
-    $key: $value"""
+    override fun generateContent(root: String, first: String, key: String, value: String): String = """
+$root:
+  $first:
+    $key: $value
+""".trimIndent()
 
-    override fun generateContent(root: String, first: String, second: String, key: String, value: String): String = """ 
-    $root: 
-        $first: 
-            $second: 
-                $key: $value
-            subsection2: 
-                key21: Ref
-                key22: Etwas
-    """
+    override fun generateContent(root: String, first: String, second: String, key: String, value: String): String = """
+$root:
+  $first:
+    $second:
+      $key: $value
+    subsection2:
+      key21: Ref
+      key22: Etwas
+""".trimIndent()
 
     override fun generatePlural(root: String, first: String, key: String, value1: String, value2: String, value5: String): String = """
-    $root: 
-        $first: 
-            $key-1: $value1
-            $key-2: $value2
-            $key-5: $value5
-        subsection2: 
-            key21: Ref
-            key22: Etwas 
-    """
+$root:
+  $first:
+    ${key}-1: $value1
+    ${key}-2: $value2
+    ${key}-5: $value5
+  subsection2:
+    key21: Ref
+    key22: Etwas
+""".trimIndent()
 
     override fun generateInvalid(): String = """
         ref:
@@ -80,7 +82,7 @@ class YamlTranslationGenerator: TranslationGenerator {
         return branches.map{generateBranchByList(it.toList())}.joinToString("\n")
     }
 
-    override fun generateNamedBlock(key: String, block: String, level: Int): String = """ 
-    ${"\t".repeat(level)}$key: $block 
-    """
+    override fun generateNamedBlock(key: String, block: String, level: Int): String = """
+${"  ".repeat(level)}$key: $block
+""".trimIndent()
 }

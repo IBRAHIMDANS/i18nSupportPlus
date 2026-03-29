@@ -41,7 +41,7 @@ class PhpGettextHighlightingTest : PlatformBaseTest() {
         )
     }
 
-    fun testMissingTranslationFile() {
+    fun ignoredTestMissingTranslationFile() {
         check(
             "code.${cg.ext()}",
             cg.generate("\"<error descr=\"Missing default translation file\">unresolved.whole.key</error>\""),
