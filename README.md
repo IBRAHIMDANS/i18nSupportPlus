@@ -259,9 +259,9 @@ Search for **"I18n Support Plus"** in **Settings > Plugins > Marketplace**.
 
 ```bash
 git clone https://github.com/IBRAHIMDANS/i18nSupportPlus.git
-cd i18nPlugin
+cd i18nSupportPlus
 ./gradlew buildPlugin
-# Output: build/distributions/i18n-*.zip
+# Output: build/distributions/i18nSupportPlus-*.zip
 ```
 
 Then install via **Settings > Plugins > ⚙️ > Install Plugin from Disk**.
