@@ -54,7 +54,7 @@ dependencies {
         because("Only needed to run tests in a version of IntelliJ IDEA that bundles older versions")
     }
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
-    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.11.4")
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:6.0.3")
 }
 
 // Set the JVM language level used to compile sources and generate files - Java 21 required since IntelliJ 2024.3
