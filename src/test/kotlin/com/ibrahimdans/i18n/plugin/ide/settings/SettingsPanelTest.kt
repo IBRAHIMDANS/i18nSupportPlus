@@ -7,11 +7,12 @@ import io.mockk.unmockkAll
 import net.sourceforge.marathon.javadriver.JavaDriver
 import net.sourceforge.marathon.javadriver.JavaProfile
 import org.junit.jupiter.api.AfterEach
-
+import org.junit.jupiter.api.Assumptions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.awt.GraphicsEnvironment
 import java.util.concurrent.DelayQueue
 import javax.swing.JFrame
 import javax.swing.SwingUtilities
@@ -23,6 +24,10 @@ class SettingsPanelTest {
 
     @BeforeEach
     fun setUp() {
+        Assumptions.assumeFalse(
+            GraphicsEnvironment.isHeadless(),
+            "Skipping Swing UI test in headless environment"
+        )
         driver = JavaDriver(JavaProfile(JavaProfile.LaunchMode.EMBEDDED))
     }
 
