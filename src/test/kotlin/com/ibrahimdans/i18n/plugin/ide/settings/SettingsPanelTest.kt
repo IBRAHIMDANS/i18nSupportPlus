@@ -175,7 +175,9 @@ class SettingsPanelTest {
         while(delayQueue.size>0) {
             delayQueue.poll()
         }
-        driver.quit()
+        if (::driver.isInitialized) {
+            driver.quit()
+        }
         unmockkAll()
     }
 }
