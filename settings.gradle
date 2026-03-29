@@ -10,4 +10,4 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
-rootProject.name = 'i18n'
+rootProject.name = 'i18n Support Plus'

@@ -190,9 +190,9 @@ class I18nToolWindowPanel(private val project: Project) : SimpleToolWindowPanel(
             }
         })
 
-        group.add(object : AnAction("Settings", "Open I18n plugin settings", AllIcons.General.Settings) {
+        group.add(object : AnAction("Settings", "Open i18n Support Plus settings", AllIcons.General.Settings) {
             override fun actionPerformed(e: AnActionEvent) {
-                ShowSettingsUtil.getInstance().showSettingsDialog(project, "I18n Plugin Configuration")
+                ShowSettingsUtil.getInstance().showSettingsDialog(project, "i18n Support Plus Configuration")
             }
         })
 

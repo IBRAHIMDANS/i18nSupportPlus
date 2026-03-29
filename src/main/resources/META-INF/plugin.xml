@@ -1,7 +1,7 @@
 <idea-plugin>
     <id>com.ibrahimdans.i18n</id>
     <name>I18n Support Plus</name>
-    <vendor email="ibrahima.dansoko@outlook.com" url="https://github.com/IBRAHIMDANS/i18nPlugin">ibrahimdans</vendor>
+    <vendor email="ibrahima.dansoko@outlook.com" url="https://github.com/IBRAHIMDANS/i18nSupportPlus">ibrahimdans</vendor>
     <depends>com.intellij.modules.platform</depends>
     <description><![CDATA[
     <h4>i18n Support Plus — i18next, vue-i18n, lingui for JS/TS/PHP</h4>
@@ -119,7 +119,7 @@
         <completion.contributor language="JSX Harmony" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompletionContributor"/>
         <completion.contributor language="TypeScript JSX" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompletionContributor"/>
         <projectService serviceImplementation="com.ibrahimdans.i18n.plugin.ide.settings.Settings"/>
-        <projectConfigurable groupId="tools" displayName="I18n Plugin Configuration" instance="com.ibrahimdans.i18n.plugin.ide.settings.Configurable"/>
+        <projectConfigurable groupId="tools" displayName="i18n Support Plus Configuration" instance="com.ibrahimdans.i18n.plugin.ide.settings.Configurable"/>
         <intentionAction>
             <className>com.ibrahimdans.i18n.plugin.ide.actions.ExtractI18nIntentionAction</className>
         </intentionAction>
