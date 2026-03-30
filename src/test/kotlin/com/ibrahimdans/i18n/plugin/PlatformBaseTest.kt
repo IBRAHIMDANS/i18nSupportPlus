@@ -6,8 +6,40 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.util.ThrowableRunnable
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.api.extension.ExtensionContext
+import org.junit.jupiter.api.extension.InvocationInterceptor
+import org.junit.jupiter.api.extension.ReflectiveInvocationContext
+import java.lang.reflect.Method
 import java.util.EnumSet
 
+// Dispatches each test method (and @ParameterizedTest template) to the EDT so that
+// IntelliJ PSI operations work correctly under the JUnit 5 engine.
+// BasePlatformTestCase.runTest() normally handles this EDT dispatch for the vintage
+// engine; this interceptor replicates that behaviour for JUnit 5.
+private class EdtTestInterceptor : InvocationInterceptor {
+    override fun interceptTestMethod(
+        invocation: InvocationInterceptor.Invocation<Void>,
+        invocationContext: ReflectiveInvocationContext<Method>,
+        extensionContext: ExtensionContext
+    ) = dispatchOnEdt { invocation.proceed() }
+
+    override fun interceptTestTemplateMethod(
+        invocation: InvocationInterceptor.Invocation<Void>,
+        invocationContext: ReflectiveInvocationContext<Method>,
+        extensionContext: ExtensionContext
+    ) = dispatchOnEdt { invocation.proceed() }
+
+    private fun dispatchOnEdt(block: () -> Unit) {
+        var caught: Throwable? = null
+        ApplicationManager.getApplication().invokeAndWait {
+            try { block() } catch (t: Throwable) { caught = t }
+        }
+        caught?.let { throw it }
+    }
+}
+
+@ExtendWith(EdtTestInterceptor::class)
 abstract class PlatformBaseTest: BasePlatformTestCase() {
 
     // Suppress known IntelliJ 2024.3 infrastructure errors that are not plugin regressions:
@@ -47,19 +79,6 @@ abstract class PlatformBaseTest: BasePlatformTestCase() {
         LoggedErrorProcessor.executeWith(suppressInfraErrors, ThrowableRunnable<RuntimeException> {
             tearDown()
         })
-    }
-
-    // Override to suppress infra errors during the test body itself (JUnit 4 vintage path).
-    override fun runTestRunnable(testRunnable: ThrowableRunnable<Throwable>) {
-        var caught: Throwable? = null
-        LoggedErrorProcessor.executeWith(suppressInfraErrors, ThrowableRunnable<RuntimeException> {
-            try {
-                super.runTestRunnable(testRunnable)
-            } catch (t: Throwable) {
-                caught = t
-            }
-        })
-        caught?.let { throw it }
     }
 
     fun read(block: () -> Unit) = ApplicationManager.getApplication().runReadAction(block)

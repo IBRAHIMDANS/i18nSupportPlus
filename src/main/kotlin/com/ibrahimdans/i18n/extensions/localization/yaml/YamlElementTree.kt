@@ -14,16 +14,17 @@ class YamlElementTree(val element: PsiElement): Tree<PsiElement> {
     override fun isTree(): Boolean = element is YAMLMapping
 
     override fun findChild(name: String): Tree<PsiElement>? =
-        (element as YAMLMapping)
-            .getKeyValueByKey(name)
+        (element as? YAMLMapping)
+            ?.getKeyValueByKey(name)
             ?.value
             ?.let(::YamlElementTree)
 
     override fun findChildren(prefix: String): List<Tree<PsiElement>> {
-        return (element as YAMLMapping)
-            .keyValues
-            .filter { it.key!!.text.startsWith(prefix) }
-            .map { YamlElementTree(it.key!!) }
+        return (element as? YAMLMapping)
+            ?.keyValues
+            ?.filter { it.key!!.text.startsWith(prefix) }
+            ?.map { YamlElementTree(it.key!!) }
+            ?: emptyList()
     }
     companion object {
         /**
@@ -31,7 +32,7 @@ class YamlElementTree(val element: PsiElement): Tree<PsiElement> {
          */
         fun create(file: PsiElement): YamlElementTree? {
             val fileRoot = PsiTreeUtil.getChildOfType(file, YAMLDocument::class.java)
-            return (PsiTreeUtil.getChildOfType(fileRoot, YAMLMapping::class.java) ?: fileRoot)?.let {YamlElementTree(it)}
+            return PsiTreeUtil.getChildOfType(fileRoot, YAMLMapping::class.java)?.let { YamlElementTree(it) }
         }
     }
 }

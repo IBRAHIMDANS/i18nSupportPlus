@@ -29,6 +29,7 @@ data class Config (
     val sortKeysAlphabetically: Boolean = false,
     val previewLocale: String = "",
     val translationsRoot: String = "",
+    val excludedDirectories: String = "",
     val gutterIconsEnabled: Boolean = true,
     val modules: List<ModuleConfig> = emptyList(),
     val rules: List<EditorRuleState> = emptyList()
@@ -53,6 +54,16 @@ data class Config (
     fun searchScope(project: Project): GlobalSearchScope =
         if (this.searchInProjectOnly) GlobalSearchScope.projectScope(project)
         else GlobalSearchScope.allScope(project)
+
+    /**
+     * Returns the set of directory names to exclude from translation file scanning.
+     */
+    fun excludedDirectorySet(): Set<String> =
+        excludedDirectories
+            .split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
 
     fun getLocalizationSetting(localizationId: String, setting: String): String? {
         return localizationConfig.get(localizationId + "/" + setting)

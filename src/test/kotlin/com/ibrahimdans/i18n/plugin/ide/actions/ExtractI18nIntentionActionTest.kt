@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
+import com.ibrahimdans.i18n.plugin.ide.JsCodeAndTranslationGenerators
 import com.ibrahimdans.i18n.plugin.ide.JsonYamlCodeGenerators
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.utils.generator.code.CodeGenerator
@@ -82,14 +83,16 @@ class ExtractI18nIntentionActionTest: ExtractionTestBase() {
         )
     }
 
+    // PHP excluded: bare string literals at file root are not valid PHP (missing <?php tags),
+    // so the PHP extractor never offers "Extract i18n key" for such content.
     @ParameterizedTest
-    @ArgumentsSource(JsonYamlCodeGenerators::class)
+    @ArgumentsSource(JsCodeAndTranslationGenerators::class)
     fun testRootSource(cg: CodeGenerator, tg: TranslationGenerator) {
         myFixture.runWithConfig(config(tg.ext())) {
             runTestCase(
                 "simple.${cg.ext()}",
-                "I want to <caret>move it to translation",
-                "i18n.t<caret>('test:ref.value3')",
+                "\"I want to <caret>move it to translation\"",
+                "i18n.t('test:ref.value3')",
                 "assets/test.${tg.ext()}",
                 tg.generate("ref", arrayOf("section", "key", "Reference in json")),
                 tg.generate("ref", arrayOf("section", "key", "Reference in json"), arrayOf("value3", "I want to move it to translation")),

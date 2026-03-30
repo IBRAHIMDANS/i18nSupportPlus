@@ -53,6 +53,7 @@ class CreateKeyTest: PlatformBaseTest() {
         )
     }
 
+    @Test
     fun testCreateKeyEmptyJson() {
         val cg = JsCodeGenerator()
         val tg = JsonTranslationGenerator()

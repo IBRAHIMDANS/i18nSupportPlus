@@ -58,7 +58,7 @@ dependencies {
         because("Only needed to run tests in a version of IntelliJ IDEA that bundles older versions")
     }
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
-    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:6.0.3")
+    // junit-vintage-engine removed: all IntelliJ platform tests now use JUnit 5 engine exclusively
 }
 
 // Set the JVM language level used to compile sources and generate files - Java 21 required since IntelliJ 2024.3
@@ -148,7 +148,9 @@ tasks {
     }
 
     test {
-        useJUnitPlatform()
+        useJUnitPlatform {
+            excludeEngines("junit-vintage")
+        }
     }
 
     // After sandbox preparation:
@@ -162,22 +164,18 @@ tasks {
     //    activating our optional phpConfig.xml.
     named("prepareTestSandbox") {
         doLast {
-            // --- YAML: add bundled plugin to test sandbox ---
-            val yamlSrc = sourceSets["main"].compileClasspath.files
-                .firstOrNull { f ->
-                    f.parentFile?.name == "lib" &&
-                    f.parentFile?.parentFile?.name == "yaml" &&
-                    f.parentFile?.parentFile?.parentFile?.name == "plugins"
-                }
-                ?.parentFile  // lib/
-                ?.parentFile  // yaml/
-            if (yamlSrc != null && yamlSrc.exists()) {
-                val yamlDst = layout.buildDirectory
-                    .dir("idea-sandbox/IU-$effectivePlatformVersion/plugins-test/yaml")
-                    .get().asFile
-                if (!yamlDst.exists()) {
-                    Files.createSymbolicLink(yamlDst.toPath(), yamlSrc.toPath())
-                }
+            // --- YAML: symlink bundled plugin from sandbox IDE into plugins-test ---
+            // IGPP v2 extracts the full IDE to idea-sandbox/IU-xxx/plugins/.
+            // YAML is bundled but not in plugins-test/, so its optional extensions
+            // (ymlConfig.xml) are never activated during tests. Symlinking it in
+            // plugins-test/ forces IntelliJ to load it as a regular plugin.
+            val sandboxBase = layout.buildDirectory
+                .dir("idea-sandbox/IU-$effectivePlatformVersion")
+                .get().asFile
+            val yamlSrc = File(sandboxBase, "plugins/yaml")
+            val yamlDst = File(sandboxBase, "plugins-test/yaml")
+            if (yamlSrc.exists() && !yamlDst.exists()) {
+                Files.createSymbolicLink(yamlDst.toPath(), yamlSrc.toPath())
             }
 
             // --- PHP: strip META-INF descriptors from php-frontback.jar, keep classes ---

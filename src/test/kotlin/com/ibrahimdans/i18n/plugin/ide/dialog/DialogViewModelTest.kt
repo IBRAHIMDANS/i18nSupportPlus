@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.intellij.openapi.application.ApplicationManager
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Test
 
 /**
  * Unit tests for DialogViewModel: JSON and YAML read/write operations.
@@ -31,15 +32,16 @@ class DialogViewModelTest : PlatformBaseTest() {
         )
 
     // -----------------------------------------------------------------------
-    // Sentinel — required by JUnit 3 runner (BasePlatformTestCase)
+    // Sentinel
     // -----------------------------------------------------------------------
 
     /**
-     * Placeholder so the JUnit 3 runner finds at least one test method.
+     * Placeholder so JUnit 5 finds at least one test method.
      * All real tests are renamed to ignoredTest* because they require the
      * com.ibrahimdans.i18n.localization extension point which is absent in the
      * headless light test container.
      */
+    @Test
     fun testPlaceholder() {
         assertTrue(true)
     }
