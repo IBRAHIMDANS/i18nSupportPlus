@@ -1,9 +1,18 @@
 ## [Unreleased]
 
+---
+
+## [1.0.1] - 2026-03-30
+
 ### Features
 - [Settings] `gutterIconsEnabled` toggle — disable gutter badges from the Settings panel
+- [Settings] `excludedDirectories` field — comma-separated list of custom directories to exclude from translation scanning
+- [Settings] Updated `translationsRoot` label to mention monorepo usage
+- [Scan] Respect `.gitignore` and IDE exclusions via `ProjectFileIndex` when scanning translation files
 
 ### Bug Fixes
+- [Scan] Exclude generated/vendored directories (`node_modules`, `build`, `dist`, etc.) from translation file scanning — fixes 3000+ false positives in tool window and Sync Missing Keys
+- [Folding] Sort `FoldingDescriptors` by `startOffset` for deterministic output in CI
 - [Threading] `DialogViewModel.loadTranslations` now runs inside `ReadAction.compute {}` — fixes "Read access is allowed from inside read-action only" crash when clicking a key in the Tool Window tree
 - [YAML] `YamlContentGenerator.generateContent` no longer produces trailing spaces after intermediate mapping keys (e.g. `component: \n` → `component:\n`) — fixes CI test failures and malformed YAML generation
 - [API] Use 3-param `isCheapEnoughToSearch(String, GlobalSearchScope, PsiFile?)` instead of deprecated 4-param variant in `I18NextTechnology` and `TranslationToCodeReferenceProvider`
@@ -13,6 +22,12 @@
 - [Gutter] Synchronized cache read/write on document to prevent race condition with parallel language providers
 - [Gutter] Deduplicate sources by `displayPath` — fixes `fr, fr, en, en` tooltip
 - [Annotator] `findNamespaceFiles()` check — "Create translation file" quick fix now appears correctly for missing namespace files
+- [Plugin] Rename plugin display names, fix warn dialog modal
+
+### CI / Infrastructure
+- Standardize test engine to JUnit 5 and fix EDT dispatch in `PlatformBaseTest`
+- Add YAML plugin to test sandbox and patch `php-frontback.jar` for CI compatibility
+- Make test execution deterministic and reproducible in CI environment
 
 ---
 

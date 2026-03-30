@@ -290,6 +290,7 @@ class SettingsPanel(val settings: Settings, val project: Project) {
         panel.add(checkbox(PluginBundle.getMessage("settings.sort.keys.alphabetically"), settings::sortKeysAlphabetically))
         panel.add(textInput(PluginBundle.getMessage("settings.preview.locale"), settings::previewLocale))
         panel.add(textInput(PluginBundle.getMessage("settings.translations.root"), settings::translationsRoot))
+        panel.add(textInput(PluginBundle.getMessage("settings.excluded.directories"), settings::excludedDirectories))
         panel.add(checkbox(PluginBundle.getMessage("settings.gutter.icons.enabled"), settings::gutterIconsEnabled))
         panel.add(modulesTable())
         panel.add(rulesTable())

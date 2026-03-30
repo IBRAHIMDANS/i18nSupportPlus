@@ -79,6 +79,7 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
                         }
                 }
             }
+            .sortedBy { it.range.startOffset }
             .toTypedArray()
     }
 

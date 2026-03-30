@@ -6,10 +6,12 @@ import com.ibrahimdans.i18n.plugin.utils.generator.translation.YamlTranslationGe
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.psi.PsiPolyVariantReference
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Test
 
 
 class YamlTranslationToCodeTest: PlatformBaseTest() {
 
+    @Test
     fun testSingleReference() {
         val cg = JsCodeGenerator()
         val key = "'test:ref.section.key0'"
@@ -24,6 +26,7 @@ class YamlTranslationToCodeTest: PlatformBaseTest() {
         assertEquals(key.unQuote(), element!!.references[0].resolve()?.text?.unQuote())
     }
 
+    @Test
     fun testInvalidTranslation() {
         val tg = YamlTranslationGenerator()
         myFixture.configureByText("invalid.${tg.ext()}", "item<caret> text")
@@ -32,6 +35,7 @@ class YamlTranslationToCodeTest: PlatformBaseTest() {
         assertTrue(element!!.references.isEmpty())
     }
 
+    @Test
     fun testNoReference() {
         val tg = YamlTranslationGenerator()
         myFixture.configureByText(
@@ -43,6 +47,7 @@ class YamlTranslationToCodeTest: PlatformBaseTest() {
         assertTrue(element!!.references.isEmpty())
     }
 
+    @Test
     fun testMultipleReferences() {
         val cg = JsCodeGenerator()
             val key = "'multiTest:ref.section.subsection1.key1'"
@@ -76,6 +81,7 @@ class YamlTranslationToCodeTest: PlatformBaseTest() {
             }
         }
 
+    @Test
     fun testObjectReference() {
         val cg = JsCodeGenerator()
         val tg = YamlTranslationGenerator()
@@ -105,6 +111,7 @@ class YamlTranslationToCodeTest: PlatformBaseTest() {
         )
     }
 
+    @Test
     fun testInvalidRange() {
         val tg = YamlTranslationGenerator()
         val cg = JsCodeGenerator()
@@ -128,6 +135,7 @@ class YamlTranslationToCodeTest: PlatformBaseTest() {
             assertTrue(element!!.references.isEmpty())
     }
 
+    @Test
     fun testClickOnValue() {
         val tg = YamlTranslationGenerator()
             myFixture.configureByText(
@@ -139,6 +147,7 @@ class YamlTranslationToCodeTest: PlatformBaseTest() {
             assertTrue(element!!.references.isEmpty())
     }
 
+    @Test
     fun testSingleReferenceQuoted() {
         val tg = YamlTranslationGenerator()
         val cg = JsCodeGenerator()

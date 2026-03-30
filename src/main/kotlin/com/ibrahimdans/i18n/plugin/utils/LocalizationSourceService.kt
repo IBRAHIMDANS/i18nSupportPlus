@@ -7,6 +7,8 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.roots.ProjectFileIndex
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.FileTypeIndex
@@ -14,6 +16,26 @@ import com.intellij.psi.util.PsiTreeUtil
 
 @Service
 class LocalizationSourceService {
+
+    companion object {
+        private val DEFAULT_EXCLUDED_DIRS = setOf(
+            "node_modules", "build", "dist", ".next", "out",
+            "storybook-static", ".nuxt", ".output", "coverage", ".cache", "vendor"
+        )
+    }
+
+    /**
+     * Returns true if the file resides in a directory that should be excluded from translation scanning.
+     * Uses IntelliJ's ProjectFileIndex first (respects .gitignore and IDE exclusions),
+     * then falls back to a hardcoded list + user-configured excluded directories.
+     */
+    private fun isExcludedPath(file: VirtualFile, project: Project): Boolean {
+        if (ProjectFileIndex.getInstance(project).isExcluded(file)) return true
+        val customExclusions = Settings.getInstance(project).config().excludedDirectorySet()
+        val allExclusions = DEFAULT_EXCLUDED_DIRS + customExclusions
+        val segments = file.path.split('/')
+        return segments.any { it in allExclusions }
+    }
 
     fun findSources(fileNames: List<String>, project: Project): List<LocalizationSource> {
         return (findVirtualFilesByName(project,
@@ -54,7 +76,7 @@ class LocalizationSourceService {
             localization.types().flatMap { localizationType ->
                 FileTypeIndex
                     .getFiles(localizationType.languageFileType, searchScope)
-                    .filter { file -> isIncluded(file, translationsRoot, basePath) }
+                    .filter { file -> !isExcludedPath(file, project) && isIncluded(file, translationsRoot, basePath) }
                     .mapNotNull { virtualFile ->
                         PsiManager.getInstance(project).findFile(virtualFile)?.let { file ->
                             LocalizationSource(
@@ -78,7 +100,7 @@ class LocalizationSourceService {
      * - Configured root: include only files whose path starts with basePath/translationsRoot.
      * - No root configured: heuristic — parent dir or stem must look like a locale code.
      */
-    private fun isIncluded(file: com.intellij.openapi.vfs.VirtualFile, translationsRoot: String, basePath: String): Boolean {
+    private fun isIncluded(file: VirtualFile, translationsRoot: String, basePath: String): Boolean {
         return if (translationsRoot.isNotBlank()) {
             val rootPath = "$basePath/$translationsRoot".trimEnd('/')
             file.path.startsWith(rootPath)
@@ -96,36 +118,6 @@ class LocalizationSourceService {
         return Extensions.TECHNOLOGY.extensionList.flatMap {it.findSourcesByConfiguration(project)}
     }
 
-//    private fun resolveJsRootsFromI18nObject(file: PsiFile?): List<LocalizationSource> {
-//        if (file == null) {
-//            return listOf()
-//        } else {
-//            val vueI18nObject = PsiTreeUtil.findChildOfType(
-//                PsiTreeUtil.findChildrenOfType(file, JSNewExpression::class.java).firstOrNull {
-//                    PsiTreeUtil.findChildOfType(it, JSReferenceExpression::class.java)?.text == "VueI18n"
-//                },
-//                JSObjectLiteralExpression::class.java
-//            )
-//            return (vueI18nObject?.findProperty("messages")?.value as? JSObjectLiteralExpressionImpl)?.properties?.map {
-//                LocalizationSource(it.value!!, it.name!!, file.name)
-//            } ?: listOf()
-//        }
-//    }
-
-//    private fun resolveJsRoots(file: PsiFile): List<LocalizationSource> {
-//        return PsiTreeUtil
-//            .findChildOfType(PsiTreeUtil.findChildOfType(file, ES6ExportDefaultAssignment::class.java), JSObjectLiteralExpression::class.java)
-//            ?.properties
-//            ?.mapNotNull {
-//                PsiTreeUtil.findChildOfType(
-//                    (it.value?.reference?.resolve() as? ES6ImportedBinding)?.findReferencedElements()?.firstOrNull(),
-//                    JSObjectLiteralExpression::class.java
-//                )?.let {
-//                    value -> LocalizationSource(value, it.name!!, file.name)
-//                }
-//            } ?: listOf()
-//    }
-
     //    Finds virtual files by names and type
     private fun findVirtualFilesByName(project: Project, fileNames: List<String>): List<LocalizationSource> {
         return Extensions.LOCALIZATION.extensionList.flatMap {findSourcesByFileType(project, fileNames, it)}
@@ -137,7 +129,7 @@ class LocalizationSourceService {
             localization.types().flatMap { localizationType ->
                 FileTypeIndex
                     .getFiles(localizationType.languageFileType, searchScope)
-                    .filter { file -> localization.matches(localizationType, file, fileNames) }
+                    .filter { file -> !isExcludedPath(file, project) && localization.matches(localizationType, file, fileNames) }
                     .mapNotNull { virtualFile ->
                         PsiManager.getInstance(project).findFile(virtualFile)?.let { file ->
                             LocalizationSource(

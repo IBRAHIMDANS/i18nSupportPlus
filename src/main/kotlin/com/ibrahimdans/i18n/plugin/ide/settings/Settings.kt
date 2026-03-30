@@ -35,6 +35,7 @@ class Settings : PersistentStateComponent<Settings> {
     internal var sortKeysAlphabetically = default.sortKeysAlphabetically
     internal var previewLocale = default.previewLocale
     internal var translationsRoot = default.translationsRoot
+    internal var excludedDirectories = default.excludedDirectories
     internal var gutterIconsEnabled = default.gutterIconsEnabled
     internal var modules: MutableList<ModuleConfig> = mutableListOf()
     internal var rules: MutableList<EditorRuleState> = mutableListOf()
@@ -66,6 +67,7 @@ class Settings : PersistentStateComponent<Settings> {
             sortKeysAlphabetically = sortKeysAlphabetically,
             previewLocale = previewLocale,
             translationsRoot = translationsRoot,
+            excludedDirectories = excludedDirectories,
             gutterIconsEnabled = gutterIconsEnabled,
             modules = modules.toList(),
             rules = rules.toList()
@@ -92,6 +94,7 @@ class Settings : PersistentStateComponent<Settings> {
         sortKeysAlphabetically = config.sortKeysAlphabetically
         previewLocale = config.previewLocale
         translationsRoot = config.translationsRoot
+        excludedDirectories = config.excludedDirectories
         gutterIconsEnabled = config.gutterIconsEnabled
         modules.clear()
         modules.addAll(config.modules.map { it.copy() })
