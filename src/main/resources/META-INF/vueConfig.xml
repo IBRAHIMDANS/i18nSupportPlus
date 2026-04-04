@@ -1,0 +1,9 @@
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <annotator language="Vue" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompositeKeyAnnotator"/>
+        <psi.referenceContributor language="Vue" implementation="com.ibrahimdans.i18n.extensions.lang.js.JsReferenceContributor"/>
+        <completion.contributor language="Vue" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompletionContributor"/>
+        <lang.foldingBuilder language="Vue" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder"/>
+        <lang.documentationProvider language="Vue" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
+    </extensions>
+</idea-plugin>

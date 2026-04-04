@@ -37,6 +37,8 @@ class Settings : PersistentStateComponent<Settings> {
     internal var translationsRoot = default.translationsRoot
     internal var excludedDirectories = default.excludedDirectories
     internal var gutterIconsEnabled = default.gutterIconsEnabled
+    internal var setupWizardEnabled = default.setupWizardEnabled
+    internal var wizardDismissed = false
     internal var modules: MutableList<ModuleConfig> = mutableListOf()
     internal var rules: MutableList<EditorRuleState> = mutableListOf()
 
@@ -69,6 +71,7 @@ class Settings : PersistentStateComponent<Settings> {
             translationsRoot = translationsRoot,
             excludedDirectories = excludedDirectories,
             gutterIconsEnabled = gutterIconsEnabled,
+            setupWizardEnabled = setupWizardEnabled,
             modules = modules.toList(),
             rules = rules.toList()
         )
@@ -96,6 +99,7 @@ class Settings : PersistentStateComponent<Settings> {
         translationsRoot = config.translationsRoot
         excludedDirectories = config.excludedDirectories
         gutterIconsEnabled = config.gutterIconsEnabled
+        setupWizardEnabled = config.setupWizardEnabled
         modules.clear()
         modules.addAll(config.modules.map { it.copy() })
         rules.clear()

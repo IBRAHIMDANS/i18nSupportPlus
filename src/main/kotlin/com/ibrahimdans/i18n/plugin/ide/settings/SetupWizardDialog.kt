@@ -63,6 +63,7 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
 
     private val backButton = JButton("Back")
     private val nextButton = JButton("Next")
+    private val skipButton = JButton("Skip")
 
     init {
         title = "i18n Support Plus — Setup Wizard"
@@ -80,12 +81,14 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
         buildStep3Panel()
 
         val navPanel = JPanel()
+        navPanel.add(skipButton)
         navPanel.add(backButton)
         navPanel.add(nextButton)
 
         backButton.isEnabled = false
         nextButton.text = "Next"
 
+        skipButton.addActionListener { doCancelAction() }
         backButton.addActionListener { navigateTo(currentStepIndex - 1) }
         nextButton.addActionListener {
             if (currentStepIndex < STEPS.size - 1) {
@@ -248,6 +251,7 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
      */
     override fun doOKAction() {
         val settings = Settings.getInstance(project)
+        settings.wizardDismissed = true
 
         // Determine the most common parent folder of found translation files
         if (foundFiles.isNotEmpty()) {
@@ -262,5 +266,10 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
         }
 
         super.doOKAction()
+    }
+
+    override fun doCancelAction() {
+        Settings.getInstance(project).wizardDismissed = true
+        super.doCancelAction()
     }
 }
