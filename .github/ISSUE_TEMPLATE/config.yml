@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: JetBrains Marketplace page
+    url: https://plugins.jetbrains.com/plugin/20538-i18n-support-plus
+    about: Rate the plugin or read user reviews
+  - name: GitHub Discussions
+    url: https://github.com/IBRAHIMDANS/i18nSupportPlus/discussions
+    about: Ask a general question or share feedback
