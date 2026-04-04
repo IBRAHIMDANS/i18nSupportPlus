@@ -2,7 +2,7 @@
 name: False positive / False negative
 about: The plugin incorrectly flags a valid key as missing, or misses an actual error
 title: '[Annotation] '
-labels: 'bug, annotation'
+labels: ['bug', 'annotation']
 assignees: ''
 
 ---
