@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.annotator
 
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.Lang
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
@@ -34,12 +35,12 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
             lang.extractRawKey(element)?.let { rawKey ->
                 RawKeyParser(element.project).parse(rawKey)
             }?.also {
-                annotateI18nLiteral(it, element, holder)
+                annotateI18nLiteral(it, element, holder, config)
             }
         }
     }
 
-    private fun annotateI18nLiteral(fullKey: FullKey, element: PsiElement, holder: AnnotationHolder) {
+    private fun annotateI18nLiteral(fullKey: FullKey, element: PsiElement, holder: AnnotationHolder, config: Config) {
         val annotationHelper = AnnotationHelper(
             holder,
             KeyRangesCalculator(element.textRange.shiftRight(element.text.unQuote().indexOf(fullKey.source)), element.text.isQuoted()),
@@ -61,7 +62,6 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
                     return
                 }
             }
-            val config = Settings.getInstance(element.project).config()
             val pluralSeparator = config.pluralSeparator
             val references = files.flatMap {resolve(fullKey.compositeKey, it, pluralSeparator)}
             val allEqual = references.zipWithNext().all { it.first.path == it.second.path }
