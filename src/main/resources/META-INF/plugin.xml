@@ -35,7 +35,6 @@
                 <li>Wizard: Skip button directly in the navigation bar (alongside Back / Next)</li>
                 <li>Wizard: choice persisted — wizard no longer reappears after Skip or Apply</li>
                 <li>Wizard: new "Show setup wizard on new projects" toggle in Settings</li>
-                <li>Plugin: custom icon now visible in Marketplace and IDE plugin list</li>
             </ul>
             <h3>1.0.1</h3>
             <p><b>Features</b></p>
