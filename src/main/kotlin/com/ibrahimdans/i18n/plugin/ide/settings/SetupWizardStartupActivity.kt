@@ -30,6 +30,8 @@ class SetupWizardStartupActivity : ProjectActivity {
      */
     private fun needsSetup(project: Project): Boolean {
         val settings = Settings.getInstance(project)
+        if (!settings.setupWizardEnabled) return false
+        if (settings.wizardDismissed) return false
         val defaultConfig = Config()
         return settings.modules.isEmpty()
             && settings.defaultNs == defaultConfig.defaultNs
