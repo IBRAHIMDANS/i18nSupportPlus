@@ -24,6 +24,12 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
      * Tries to parse element as i18n key and annotates it when succeeded
      */
     override fun annotate(element: PsiElement, holder: AnnotationHolder) {
+        val config = Settings.getInstance(element.project).config()
+        val excludedDirs = config.excludedDirectorySet()
+        if (excludedDirs.isNotEmpty()) {
+            val filePath = element.containingFile?.virtualFile?.path ?: return
+            if (filePath.split('/').any { it in excludedDirs }) return
+        }
         if(lang.canExtractKey(element, Extensions.TECHNOLOGY.extensionList.flatMap {it.translationFunctionNames()})) {
             lang.extractRawKey(element)?.let { rawKey ->
                 RawKeyParser(element.project).parse(rawKey)

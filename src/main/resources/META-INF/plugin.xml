@@ -35,7 +35,12 @@
                 <li>Wizard: Skip button directly in the navigation bar (alongside Back / Next)</li>
                 <li>Wizard: choice persisted — wizard no longer reappears after Skip or Apply</li>
                 <li>Wizard: new "Show setup wizard on new projects" toggle in Settings</li>
-                <li>Plugin: custom icon (pluginIcon.svg) now visible in JetBrains Marketplace and IDE plugin list</li>
+                <li>Plugin: custom icon (pluginIcon.svg + pluginIcon_dark.svg) now visible in JetBrains Marketplace and IDE plugin list</li>
+            </ul>
+            <p><b>Bug Fixes</b></p>
+            <ul>
+                <li>PHP: no longer flags regular strings as unresolved i18n keys — only strings inside translation function calls (t(), gettext aliases) are annotated</li>
+                <li>Settings: excluded directories now also prevent annotation of source files, not just translation file discovery</li>
             </ul>
             <h3>1.0.1</h3>
             <p><b>Features</b></p>

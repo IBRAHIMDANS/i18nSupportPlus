@@ -8,7 +8,7 @@
 /examples/react-i18n-using-hooks/.idea/**
 /examples/php/.idea/**
 /.intellijPlatform/
-META-INF/
+/META-INF/
 *.class
 local.properties
 .kotlin/

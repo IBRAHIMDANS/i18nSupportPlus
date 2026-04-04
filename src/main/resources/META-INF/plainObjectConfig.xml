@@ -1,0 +1,5 @@
+<idea-plugin>
+    <extensions defaultExtensionNs="com.ibrahimdans.i18n">
+        <localization implementation="com.ibrahimdans.i18n.extensions.localization.plain.object.PlainObjectLocalization"/>
+    </extensions>
+</idea-plugin>
