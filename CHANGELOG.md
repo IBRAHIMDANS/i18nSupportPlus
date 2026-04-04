@@ -8,7 +8,6 @@
 - [Wizard] Add Skip button directly in the wizard navigation bar (alongside Back / Next)
 - [Wizard] Persist user dismissal — wizard no longer reappears after Skip or Apply (`wizardDismissed` flag saved in project settings)
 - [Wizard] Add `setupWizardEnabled` toggle in Settings panel to disable the wizard globally (mirrors the gutter icons toggle)
-- [Plugin] Add plugin icon (`META-INF/pluginIcon.svg`) — visible in the Marketplace and IDE plugin list
 
 ---
 
