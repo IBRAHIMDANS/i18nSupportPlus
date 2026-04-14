@@ -49,7 +49,7 @@ jobs:
           PRIVATE_KEY_PASSWORD: ${{ secrets.PRIVATE_KEY_PASSWORD }}
 
       - name: Generate release notes
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         id: release-notes
         with:
           script: |
