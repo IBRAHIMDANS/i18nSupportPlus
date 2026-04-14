@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.settings
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
@@ -231,9 +232,10 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
             .keys
             .joinToString(", ")
             .ifEmpty { "(none)" }
+            .let { StringUtil.escapeXmlEntities(it) }
 
         val fileCount = foundFiles.size
-        val fileSample = foundFiles.take(5).joinToString("<br>") { "• $it" }
+        val fileSample = foundFiles.take(5).joinToString("<br>") { "• ${StringUtil.escapeXmlEntities(it)}" }
         val moreNote = if (fileCount > 5) "<br>... and ${fileCount - 5} more" else ""
 
         val hasPo = foundFiles.any { it.endsWith(".po") || it.endsWith(".pot") }
