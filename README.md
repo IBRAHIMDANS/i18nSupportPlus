@@ -19,7 +19,7 @@ displays translation values as inline hints, and supports key extraction from pl
 |-----------|----------------------|:------------:|
 | i18next / react-i18next | `t()`, `useTranslation()` | Yes |
 | vue-i18n | `$t()`, `$tc()`, `$te()` | No |
-| lingui | `msg()`, `i18n._()` | No |
+| lingui (`@lingui/core`, `@lingui/react`, `@lingui/macro`) | `msg()`, `i18n._()` | No |
 
 `useTranslation` supports both string form (`useTranslation('ns')`) and array form (`useTranslation(['ns1', 'ns2'])`).
 
@@ -53,7 +53,7 @@ displays translation values as inline hints, and supports key extraction from pl
 On first launch, a wizard guides you through configuration in 3 steps:
 
 1. **Framework detection** — auto-detects i18next, vue-i18n, or lingui in your project
-2. **Translation file discovery** — scans for `.json`/`.yaml` files in `locales/`, `i18n/`, `translations/` folders
+2. **Translation file discovery** — scans for `.json`, `.yaml`, `.po`, and `.pot` files in `locales/`, `i18n/`, `translations/` folders
 3. **Summary** — review and apply the configuration
 
 ![Setup Wizard step 1](docs/img/Setup-wizard-step-1.png)
