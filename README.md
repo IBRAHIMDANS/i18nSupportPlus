@@ -1,6 +1,6 @@
 # I18n Support Plus
 
-> **v1.0.0** — Actively maintained fork of [nyavro/i18nPlugin](https://github.com/nyavro/i18nPlugin) · [Changelog](CHANGELOG.md)
+> **v1.0.3** — Actively maintained fork of [nyavro/i18nPlugin](https://github.com/nyavro/i18nPlugin) · [Changelog](CHANGELOG.md)
 
 Plugin ID: `com.ibrahimdans.i18n`
 
