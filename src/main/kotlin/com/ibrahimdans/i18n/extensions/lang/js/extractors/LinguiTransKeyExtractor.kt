@@ -18,14 +18,19 @@ import com.intellij.psi.xml.XmlText
  */
 class LinguiTransKeyExtractor : KeyExtractor {
 
+    private fun isPlainTextTransTag(tag: XmlTag): Boolean {
+        return tag.name == "Trans" && tag.value.children.all { it is XmlText }
+    }
+
     override fun canExtract(element: PsiElement): Boolean {
         if (element !is XmlText) return false
         val tag = PsiTreeUtil.getParentOfType(element, XmlTag::class.java) ?: return false
-        return tag.name == "Trans"
+        return isPlainTextTransTag(tag)
     }
 
     override fun extract(element: PsiElement): RawKey {
-        val tag = PsiTreeUtil.getParentOfType(element, XmlTag::class.java)!!
+        val tag = PsiTreeUtil.getParentOfType(element, XmlTag::class.java) ?: return RawKey(emptyList())
+        if (!isPlainTextTransTag(tag)) return RawKey(emptyList())
         val msgid = tag.value.textElements.joinToString("") { it.text }.trim()
         return RawKey(listOf(KeyElement.literal(msgid)))
     }
