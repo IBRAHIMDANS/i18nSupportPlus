@@ -62,7 +62,7 @@ jobs:
           result-encoding: string
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           body: ${{ steps.release-notes.outputs.result }}
           files: build/distributions/*.zip
