@@ -2,6 +2,15 @@
 
 ---
 
+## [1.0.3] - 2026-04-14
+
+### CI / Infrastructure
+- Bump Gradle wrapper 8.11.1 → 9.4.1
+- Bump Kotlin 2.1.20 → 2.3.20 (language + API version updated to 2.3)
+- Fix `pluginVerification` DSL: replace removed `ide(type, version)` calls with `recommended()` (IGPP 2.14.0)
+
+---
+
 ## [1.0.2] - 2026-04-04
 
 ### Features
