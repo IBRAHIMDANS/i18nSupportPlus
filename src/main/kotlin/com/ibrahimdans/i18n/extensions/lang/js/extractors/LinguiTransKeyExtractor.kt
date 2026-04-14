@@ -14,11 +14,12 @@ import com.intellij.psi.xml.XmlText
  * Unlike key-based approaches (i18n._('key')), Lingui's source-based JSX component uses
  * the visible text directly as the lookup key in .po files.
  *
- * Simple:      <Trans>Hello world!</Trans>     → msgid "Hello world!"
- * Interpolated:<Trans>Hello {name}!</Trans>    → msgid "Hello {0}!" (ICU positional)
+ * Simple: <Trans>Hello world!</Trans> → msgid "Hello world!"
  *
- * Only triggers on the first XmlText child of <Trans> to avoid duplicate annotations
- * when the tag contains embedded JSX expressions.
+ * Interpolated <Trans> (e.g. <Trans>Hello {name}!</Trans>) is intentionally excluded:
+ * reconstructing the ICU msgid across multiple children would produce a string that does
+ * not match the XmlText element's own text, making CompositeKeyAnnotatorBase's
+ * element.text.indexOf(fullKey.source) return -1 and produce an invalid TextRange.
  */
 class LinguiTransKeyExtractor : KeyExtractor {
 
@@ -26,9 +27,13 @@ class LinguiTransKeyExtractor : KeyExtractor {
         if (element !is XmlText) return false
         val tag = PsiTreeUtil.getParentOfType(element, XmlTag::class.java) ?: return false
         if (tag.name != "Trans") return false
-        // Only the first XmlText child triggers extraction to avoid duplicate annotations
-        // when <Trans> contains embedded expressions (e.g. <Trans>Hello {name}!</Trans>)
-        return tag.value.children.filterIsInstance<XmlText>().firstOrNull() == element
+        val children = tag.value.children
+        // Reject interpolated <Trans> — non-text children (JSX expressions) would require
+        // cross-child reconstruction, producing a msgid that can't be located inside the
+        // XmlText element's text and causing an invalid TextRange in the annotator.
+        if (!children.all { it is XmlText }) return false
+        // Guard against multiple XmlText children to avoid duplicate annotations
+        return children.filterIsInstance<XmlText>().firstOrNull() == element
     }
 
     override fun extract(element: PsiElement): RawKey {
@@ -37,20 +42,9 @@ class LinguiTransKeyExtractor : KeyExtractor {
     }
 
     /**
-     * Assembles the Lingui msgid from all children of the <Trans> tag value.
-     * Non-text children (JSX expressions) are replaced with positional ICU placeholders {0}, {1}, …
+     * Assembles the Lingui msgid from the <Trans> tag value.
+     * Only called for tags whose children are exclusively XmlText (no JSX expressions).
      */
-    private fun buildMsgid(tag: XmlTag): String {
-        var expressionIndex = 0
-        val sb = StringBuilder()
-        for (child in tag.value.children) {
-            if (child is XmlText) {
-                sb.append(child.text)
-            } else {
-                sb.append("{$expressionIndex}")
-                expressionIndex++
-            }
-        }
-        return sb.toString().trim()
-    }
+    private fun buildMsgid(tag: XmlTag): String =
+        tag.value.children.filterIsInstance<XmlText>().joinToString("") { it.text }.trim()
 }

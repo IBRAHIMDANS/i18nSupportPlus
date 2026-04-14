@@ -53,7 +53,7 @@ class LinguiTransHighlightingTest : PlatformBaseTest() {
     }
 
     // GNU GetText plugin (org.jetbrains.plugins.localization) is not available for IntelliJ 243.x builds.
-    // Renamed to skip (JUnit3 convention: methods not starting with `test` are ignored by BasePlatformTestCase).
+    // These methods intentionally lack @Test so they are skipped by the JUnit 5 runner.
     fun ignoredTestResolvedFromPoFile() = myFixture.runWithConfig(Config(defaultNs = "messages")) {
         val tg = PoTranslationGenerator()
         myFixture.addFileToProject(

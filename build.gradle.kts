@@ -44,6 +44,11 @@ dependencies {
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
 
+    // kotlinx-coroutines 1.8.0-intellij (bundled with IU-2024.3.6) dropped
+    // install$kotlinx_coroutines_core() which Kotlin 2.1.20 stdlib requires.
+    // Force 1.9.0 so CoroutineDumpState.install() resolves at runtime.
+    testRuntimeOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.11.4")
     testCompileOnly("org.junit.jupiter:junit-jupiter-api:5.11.4")
