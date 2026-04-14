@@ -12,7 +12,7 @@ val effectivePlatformVersion: String
         ?: properties("platformVersion").get()
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "2.1.20"
+    id("org.jetbrains.kotlin.jvm") version "2.3.20"
     id("org.jetbrains.intellij.platform") version "2.14.0"
     id("org.jetbrains.changelog") version "2.5.0"
     id("jacoco")
@@ -95,8 +95,8 @@ kotlin {
         languageVersion.set(JavaLanguageVersion.of(21))
     }
     compilerOptions {
-        languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1)
-        apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1)
+        languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_3)
+        apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_3)
     }
 }
 

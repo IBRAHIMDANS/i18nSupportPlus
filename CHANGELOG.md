@@ -16,8 +16,9 @@
 - [Localization] Wire PO/POT file support for JS/Lingui projects via optional dependency on `org.jetbrains.plugins.localization`; `.po`/`.pot` files are now recognized anywhere in the project tree, not only inside `LC_MESSAGES/`
 
 ### CI / Infrastructure
-- Upgrade Gradle wrapper from 8.11.1 to 9.0.0 — required by IntelliJ Platform Gradle Plugin 2.14.0
-- Replace removed `ide(type, version)` DSL in `pluginVerification` with `recommended()`
+- Bump Gradle wrapper 9.0.0 → 9.4.1
+- Bump Kotlin 2.1.20 → 2.3.20 (language + API version updated to 2.3)
+- Fix `pluginVerification` DSL: replace removed `ide(type, version)` calls with `recommended()` (IGPP 2.14.0)
 
 ---
 
