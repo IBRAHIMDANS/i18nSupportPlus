@@ -9,29 +9,48 @@ import com.intellij.psi.xml.XmlTag
 import com.intellij.psi.xml.XmlText
 
 /**
- * Extracts i18n key from Lingui <Trans>source text</Trans> — the source text IS the msgid.
+ * Extracts msgid from Lingui <Trans>source text</Trans> — the source text IS the key.
  *
  * Unlike key-based approaches (i18n._('key')), Lingui's source-based JSX component uses
  * the visible text directly as the lookup key in .po files.
  *
- * Example: <Trans>Hello world!</Trans> → msgid "Hello world!"
+ * Simple:      <Trans>Hello world!</Trans>     → msgid "Hello world!"
+ * Interpolated:<Trans>Hello {name}!</Trans>    → msgid "Hello {0}!" (ICU positional)
+ *
+ * Only triggers on the first XmlText child of <Trans> to avoid duplicate annotations
+ * when the tag contains embedded JSX expressions.
  */
 class LinguiTransKeyExtractor : KeyExtractor {
-
-    private fun isPlainTextTransTag(tag: XmlTag): Boolean {
-        return tag.name == "Trans" && tag.value.children.all { it is XmlText }
-    }
 
     override fun canExtract(element: PsiElement): Boolean {
         if (element !is XmlText) return false
         val tag = PsiTreeUtil.getParentOfType(element, XmlTag::class.java) ?: return false
-        return isPlainTextTransTag(tag)
+        if (tag.name != "Trans") return false
+        // Only the first XmlText child triggers extraction to avoid duplicate annotations
+        // when <Trans> contains embedded expressions (e.g. <Trans>Hello {name}!</Trans>)
+        return tag.value.children.filterIsInstance<XmlText>().firstOrNull() == element
     }
 
     override fun extract(element: PsiElement): RawKey {
         val tag = PsiTreeUtil.getParentOfType(element, XmlTag::class.java) ?: return RawKey(emptyList())
-        if (!isPlainTextTransTag(tag)) return RawKey(emptyList())
-        val msgid = tag.value.textElements.joinToString("") { it.text }.trim()
-        return RawKey(listOf(KeyElement.literal(msgid)))
+        return RawKey(listOf(KeyElement.literal(buildMsgid(tag))))
+    }
+
+    /**
+     * Assembles the Lingui msgid from all children of the <Trans> tag value.
+     * Non-text children (JSX expressions) are replaced with positional ICU placeholders {0}, {1}, …
+     */
+    private fun buildMsgid(tag: XmlTag): String {
+        var expressionIndex = 0
+        val sb = StringBuilder()
+        for (child in tag.value.children) {
+            if (child is XmlText) {
+                sb.append(child.text)
+            } else {
+                sb.append("{$expressionIndex}")
+                expressionIndex++
+            }
+        }
+        return sb.toString().trim()
     }
 }
