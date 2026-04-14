@@ -19,6 +19,7 @@
 - Bump Gradle wrapper 9.0.0 → 9.4.1
 - Bump Kotlin 2.1.20 → 2.3.20 (language + API version updated to 2.3)
 - Fix `pluginVerification` DSL: replace removed `ide(type, version)` calls with `recommended()` (IGPP 2.14.0)
+- Extend `pluginVerification` to cover IntelliJ 2025.1 and 2025.2 in addition to the latest stable
 
 ---
 

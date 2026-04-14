@@ -1,4 +1,5 @@
 import org.jetbrains.changelog.markdownToHTML
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import java.nio.file.Files
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -148,6 +149,8 @@ intellijPlatform {
         // picks the current stable release, or local(path) for a specific install.
         ides {
             recommended()
+            create(IntelliJPlatformType.IntellijIdeaUltimate, "2025.1")
+            create(IntelliJPlatformType.IntellijIdeaUltimate, "2025.2")
         }
     }
 }
