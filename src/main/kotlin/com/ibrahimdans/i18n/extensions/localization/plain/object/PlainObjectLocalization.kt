@@ -18,7 +18,8 @@ class PlainObjectLocalization : Localization<PsiElement> {
     override fun referenceAssistant(): TranslationReferenceAssistant<PsiElement> = PlainObjectReferenceAssistant()
     override fun elementsTree(file: PsiElement): Tree<PsiElement> = PlainObjectTextTree(file)
     override fun matches(localizationFileType: LocalizationFileType, file: VirtualFile?, fileNames: List<String>): Boolean {
-        return file?.parent?.name == "LC_MESSAGES"
+        val ext = file?.extension?.lowercase()
+        return ext == "po" || ext == "pot"
     }
     override fun config(): LocalizationConfig = LocalizationConfigImpl("plainObject")
 }
