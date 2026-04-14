@@ -2,6 +2,20 @@
 
 ---
 
+## [1.0.3] - 2026-04-14
+
+### Bug Fixes
+- [Wizard] Detect `.po` and `.pot` files in `locales/`, `i18n/`, `translations/` folders (step 2)
+- [Wizard] Auto-detect Lingui projects using `@lingui/macro` or `@lingui/react/macro` imports (step 1)
+- [Wizard] Show warning in step 3 when PO/POT files are found — informs user that the **GNU GetText** plugin is required for full PO support
+- [Localization] Wire PO/POT file support for JS/Lingui projects via optional dependency on `org.jetbrains.plugins.localization`; `.po`/`.pot` files are now recognized anywhere in the project tree, not only inside `LC_MESSAGES/`
+
+### CI / Infrastructure
+- Upgrade Gradle wrapper from 8.11.1 to 9.0.0 — required by IntelliJ Platform Gradle Plugin 2.14.0
+- Replace removed `ide(type, version)` DSL in `pluginVerification` with `recommended()`
+
+---
+
 ## [1.0.2] - 2026-04-04
 
 ### Features
