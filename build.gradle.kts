@@ -44,6 +44,19 @@ dependencies {
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
 
+    // Kotlin 2.1.x stdlib calls DebugProbesImpl.install$kotlinx_coroutines_core() at startup.
+    // This method was added in core:1.9.0 but is absent from the 1.8.0-intellij version
+    // bundled with IU-2024.3.6. We CANNOT use core:1.9.0 entirely because CancellableContinuation
+    // changed tryResume from (T,Any?,Function1) to (T,Any?,Function3), breaking IntelliJ's
+    // internal binary code compiled against 1.8.0-intellij.
+    //
+    // Solution: src/test/java/kotlinx/coroutines/debug/internal/DebugProbesImpl.java is a
+    // compatibility stub that satisfies both:
+    //   - the legacy AgentPremain (getEnableCreationStackTraces, install, etc.)
+    //   - the Kotlin 2.1.x stdlib (install$kotlinx_coroutines_core)
+    // The test classloader loads test sources before bundled platform jars, so this stub
+    // shadows the bundled DebugProbesImpl without touching CancellableContinuation.
+
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.11.4")
     testCompileOnly("org.junit.jupiter:junit-jupiter-api:5.11.4")
@@ -59,6 +72,21 @@ dependencies {
     }
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
     // junit-vintage-engine removed: all IntelliJ platform tests now use JUnit 5 engine exclusively
+}
+
+// Exclude kotlinx-coroutines-core:1.9.0 that transitive dependencies (mockk BOM, etc.) pull in.
+// IntelliJ 2024.3.6 bundles kotlinx-coroutines-core 1.8.0-intellij on its platform classpath;
+// 1.9.0 renames several internal APIs (SelectKt.access$getSTATE_REG$p, CancellableContinuation
+// .tryResume signature, etc.) that IntelliJ's binary code compiled against 1.8.0-intellij still
+// calls → NoSuchMethodError deep in IntelliJ's coroutine-based startup sequence → test hang.
+//
+// The missing install$kotlinx_coroutines_core() is provided by the DebugProbesImpl stub in
+// src/test/java/kotlinx/coroutines/debug/internal/DebugProbesImpl.java, which is compiled into
+// the test jar and loaded before the bundled platform jar by IntelliJ's PathClassLoader.
+configurations.named("testRuntimeClasspath") {
+    exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core")
+    exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core-jvm")
+    exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-debug")
 }
 
 // Set the JVM language level used to compile sources and generate files - Java 21 required since IntelliJ 2024.3
@@ -115,12 +143,11 @@ intellijPlatform {
     }
 
     pluginVerification {
-        // Verify the built plugin against all supported IDE versions.
-        // These targets are independent of the build-time platformVersion.
+        // Verify the built plugin against supported IDE versions.
+        // ide(type, version) was removed in IGPP 2.14.0 — use recommended() which
+        // picks the current stable release, or local(path) for a specific install.
         ides {
-            ide(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2024.3")
-            ide(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.1")
-            ide(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.2")
+            recommended()
         }
     }
 }

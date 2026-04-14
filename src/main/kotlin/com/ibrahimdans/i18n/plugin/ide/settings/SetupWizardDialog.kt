@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.settings
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
@@ -16,7 +17,7 @@ import javax.swing.*
  * Setup wizard dialog shown on first launch when no i18n config is detected.
  * Guides the user through 3 steps:
  *   1. Framework detection (i18next / vue-i18n / lingui)
- *   2. Translation file discovery (.json/.yaml in locales, i18n, translations folders)
+ *   2. Translation file discovery (.json/.yaml/.po/.pot in locales, i18n, translations folders)
  *   3. Summary before applying configuration
  */
 class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
@@ -25,10 +26,10 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
         private val FRAMEWORK_KEYS = mapOf(
             "i18next" to listOf("i18next", "react-i18next"),
             "vue-i18n" to listOf("vue-i18n"),
-            "lingui" to listOf("@lingui/core", "@lingui/react")
+            "lingui" to listOf("@lingui/core", "@lingui/react", "@lingui/macro", "@lingui/react/macro")
         )
         private val TRANSLATION_FOLDER_NAMES = setOf("locales", "i18n", "translations")
-        private val TRANSLATION_EXTENSIONS = setOf("json", "yaml", "yml")
+        private val TRANSLATION_EXTENSIONS = setOf("json", "yaml", "yml", "po", "pot")
         private const val MAX_SCAN_DEPTH = 5
         private const val STEP_FRAMEWORK = "FRAMEWORK"
         private const val STEP_FILES = "FILES"
@@ -231,15 +232,23 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
             .keys
             .joinToString(", ")
             .ifEmpty { "(none)" }
+            .let { StringUtil.escapeXmlEntities(it) }
 
         val fileCount = foundFiles.size
-        val fileSample = foundFiles.take(5).joinToString("<br>") { "• $it" }
+        val fileSample = foundFiles.take(5).joinToString("<br>") { "• ${StringUtil.escapeXmlEntities(it)}" }
         val moreNote = if (fileCount > 5) "<br>... and ${fileCount - 5} more" else ""
+
+        val hasPo = foundFiles.any { it.endsWith(".po") || it.endsWith(".pot") }
+        val poNote = if (hasPo)
+            "<p style=\"color:#CC7700\">⚠ PO/POT files detected. Full support requires the " +
+            "<b>GNU GetText</b> plugin (<i>Settings → Plugins → Marketplace → \"GNU GetText files support\"</i>).</p>"
+        else ""
 
         val html = "<html><body style=\"font-family:sans-serif\">" +
             "<p><b>Frameworks detected:</b> $selectedFrameworks</p>" +
             "<p><b>Translation files found:</b> $fileCount file(s)</p>" +
             (if (fileCount > 0) "<p>$fileSample$moreNote</p>" else "") +
+            poNote +
             "<p style=\"color:gray\">Clicking <b>Apply</b> will store the detected translation root path " +
             "in the plugin settings. You can adjust further in <i>Settings → Tools → i18n Support Plus Configuration</i>.</p>" +
             "</body></html>"
@@ -256,7 +265,12 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
         // Determine the most common parent folder of found translation files
         if (foundFiles.isNotEmpty()) {
             val rootGuess = foundFiles
-                .mapNotNull { File(it).parentFile?.parentFile?.path }
+                .mapNotNull {
+                    val parent = File(it).parentFile
+                    // GetText layout: locale/LC_MESSAGES/file.po — go up one extra level to reach the locale root
+                    if (parent?.name == "LC_MESSAGES") parent.parentFile?.parentFile?.path
+                    else parent?.parentFile?.path
+                }
                 .groupBy { it }
                 .maxByOrNull { it.value.size }
                 ?.key ?: ""

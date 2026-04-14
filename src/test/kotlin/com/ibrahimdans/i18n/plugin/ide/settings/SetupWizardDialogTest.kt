@@ -37,7 +37,7 @@ class SetupWizardDialogTest : PlatformBaseTest() {
         val frameworkKeys = mapOf(
             "i18next" to listOf("i18next", "react-i18next"),
             "vue-i18n" to listOf("vue-i18n"),
-            "lingui" to listOf("@lingui/core", "@lingui/react")
+            "lingui" to listOf("@lingui/core", "@lingui/react", "@lingui/macro", "@lingui/react/macro")
         )
         return frameworkKeys
             .filter { (_, deps) -> deps.any { content.contains("\"$it\"") } }
@@ -117,7 +117,7 @@ class SetupWizardDialogTest : PlatformBaseTest() {
      */
     private fun scanTranslationFiles(base: File): List<String> {
         val translationFolderNames = setOf("locales", "i18n", "translations")
-        val translationExtensions = setOf("json", "yaml", "yml")
+        val translationExtensions = setOf("json", "yaml", "yml", "po", "pot")
         val maxScanDepth = 5
         val found = mutableListOf<String>()
 
@@ -215,6 +215,64 @@ class SetupWizardDialogTest : PlatformBaseTest() {
             val found = scanTranslationFiles(tempDir)
 
             assertTrue(found.isEmpty(), "Should find no translation files, got: $found")
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Lingui macro package detection
+    // -----------------------------------------------------------------------
+
+    @org.junit.jupiter.api.Test
+    fun `detectFrameworks detects lingui when only @lingui macro is present`() {
+        val content = """{"dependencies": {"@lingui/macro": "^4.0.0"}}"""
+
+        val detected = detectFrameworksFromContent(content)
+
+        assertTrue(detected.contains("lingui"), "@lingui/macro alone should trigger lingui detection")
+        assertFalse(detected.contains("i18next"))
+        assertFalse(detected.contains("vue-i18n"))
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `detectFrameworks detects lingui when only @lingui react macro is present`() {
+        val content = """{"dependencies": {"@lingui/react/macro": "^4.0.0"}}"""
+
+        val detected = detectFrameworksFromContent(content)
+
+        assertTrue(detected.contains("lingui"), "@lingui/react/macro alone should trigger lingui detection")
+    }
+
+    // -----------------------------------------------------------------------
+    // PO/POT file scanning
+    // -----------------------------------------------------------------------
+
+    @org.junit.jupiter.api.Test
+    fun `scanTranslationFiles finds po files in locales folder`() {
+        val tempDir = createTempDir("wizard-scan-po")
+        try {
+            val lcMessages = File(tempDir, "locales/fr/LC_MESSAGES").also { it.mkdirs() }
+            File(lcMessages, "messages.po").writeText("msgid \"\"\nmsgstr \"\"")
+
+            val found = scanTranslationFiles(tempDir)
+
+            assertTrue(found.any { it.contains("messages.po") }, "messages.po should be found, got: $found")
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `scanTranslationFiles finds pot files in locales folder`() {
+        val tempDir = createTempDir("wizard-scan-pot")
+        try {
+            val localesDir = File(tempDir, "locales").also { it.mkdirs() }
+            File(localesDir, "messages.pot").writeText("msgid \"\"\nmsgstr \"\"")
+
+            val found = scanTranslationFiles(tempDir)
+
+            assertTrue(found.any { it.contains("messages.pot") }, "messages.pot should be found, got: $found")
         } finally {
             tempDir.deleteRecursively()
         }
