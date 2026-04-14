@@ -4,9 +4,7 @@ import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.intellij.psi.PsiElement
-import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.xml.XmlTag
-import com.intellij.psi.xml.XmlText
 
 /**
  * Extracts msgid from Lingui <Trans>source text</Trans> — the source text IS the key.
@@ -16,35 +14,43 @@ import com.intellij.psi.xml.XmlText
  *
  * Simple: <Trans>Hello world!</Trans> → msgid "Hello world!"
  *
- * Interpolated <Trans> (e.g. <Trans>Hello {name}!</Trans>) is intentionally excluded:
- * reconstructing the ICU msgid across multiple children would produce a string that does
- * not match the XmlText element's own text, making CompositeKeyAnnotatorBase's
- * element.text.indexOf(fullKey.source) return -1 and produce an invalid TextRange.
+ * The extractor targets the XmlTag element (<Trans>…</Trans>) rather than its XmlText
+ * children. The JSX parser may split text nodes at word boundaries (e.g. "Hello world!"
+ * → ["Hello", " ", "world!"]), so attaching to a single XmlText token produces an
+ * element whose text does not contain the full msgid; CompositeKeyAnnotatorBase's
+ * indexOf(fullKey.source) then returns -1, causing an invalid TextRange.
+ *
+ * By targeting the XmlTag, element.text = "<Trans>Hello world!</Trans>" and
+ * indexOf("Hello world!") correctly locates the msgid within the element text,
+ * so the annotation range stays inside the element bounds.
+ *
+ * Interpolated <Trans> (e.g. <Trans>Hello {name}!</Trans>) uses trimmedText too,
+ * so "{name}" appears literally in the msgid — only pure-text <Trans> will match
+ * typical translation files.
  */
 class LinguiTransKeyExtractor : KeyExtractor {
 
     override fun canExtract(element: PsiElement): Boolean {
-        if (element !is XmlText) return false
-        val tag = PsiTreeUtil.getParentOfType(element, XmlTag::class.java) ?: return false
-        if (tag.name != "Trans") return false
-        val children = tag.value.children
-        // Reject interpolated <Trans> — non-text children (JSX expressions) would require
-        // cross-child reconstruction, producing a msgid that can't be located inside the
-        // XmlText element's text and causing an invalid TextRange in the annotator.
-        if (!children.all { it is XmlText }) return false
-        // Guard against multiple XmlText children to avoid duplicate annotations
-        return children.filterIsInstance<XmlText>().firstOrNull() == element
+        if (element !is XmlTag) return false
+        return element.name == "Trans" && buildMsgid(element).isNotEmpty()
     }
 
     override fun extract(element: PsiElement): RawKey {
-        val tag = PsiTreeUtil.getParentOfType(element, XmlTag::class.java) ?: return RawKey(emptyList())
-        return RawKey(listOf(KeyElement.literal(buildMsgid(tag))))
+        if (element !is XmlTag) return RawKey(emptyList())
+        return RawKey(listOf(KeyElement.literal(buildMsgid(element))))
     }
 
     /**
-     * Assembles the Lingui msgid from the <Trans> tag value.
-     * Only called for tags whose children are exclusively XmlText (no JSX expressions).
+     * Extracts the msgid from the raw element text by slicing between the first `>`
+     * (end of opening tag) and the last `</Trans>`. This avoids relying on
+     * XmlTagValue children, which may omit whitespace-only tokens in JSX, causing
+     * multi-word text like "Hello world!" to be joined without spaces.
      */
-    private fun buildMsgid(tag: XmlTag): String =
-        tag.value.children.filterIsInstance<XmlText>().joinToString("") { it.text }.trim()
+    private fun buildMsgid(tag: XmlTag): String {
+        val raw = tag.text
+        val contentStart = raw.indexOf('>') + 1
+        val contentEnd = raw.lastIndexOf("</${tag.name}>")
+        if (contentStart <= 0 || contentEnd < contentStart) return ""
+        return raw.substring(contentStart, contentEnd).trim()
+    }
 }
