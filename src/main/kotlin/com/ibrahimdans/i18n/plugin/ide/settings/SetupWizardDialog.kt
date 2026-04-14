@@ -16,7 +16,7 @@ import javax.swing.*
  * Setup wizard dialog shown on first launch when no i18n config is detected.
  * Guides the user through 3 steps:
  *   1. Framework detection (i18next / vue-i18n / lingui)
- *   2. Translation file discovery (.json/.yaml in locales, i18n, translations folders)
+ *   2. Translation file discovery (.json/.yaml/.po/.pot in locales, i18n, translations folders)
  *   3. Summary before applying configuration
  */
 class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
@@ -263,7 +263,12 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
         // Determine the most common parent folder of found translation files
         if (foundFiles.isNotEmpty()) {
             val rootGuess = foundFiles
-                .mapNotNull { File(it).parentFile?.parentFile?.path }
+                .mapNotNull {
+                    val parent = File(it).parentFile
+                    // GetText layout: locale/LC_MESSAGES/file.po — go up one extra level to reach the locale root
+                    if (parent?.name == "LC_MESSAGES") parent.parentFile?.parentFile?.path
+                    else parent?.parentFile?.path
+                }
                 .groupBy { it }
                 .maxByOrNull { it.value.size }
                 ?.key ?: ""
