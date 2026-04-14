@@ -236,10 +236,17 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
         val fileSample = foundFiles.take(5).joinToString("<br>") { "• $it" }
         val moreNote = if (fileCount > 5) "<br>... and ${fileCount - 5} more" else ""
 
+        val hasPo = foundFiles.any { it.endsWith(".po") || it.endsWith(".pot") }
+        val poNote = if (hasPo)
+            "<p style=\"color:#CC7700\">⚠ PO/POT files detected. Full support requires the " +
+            "<b>GNU GetText</b> plugin (<i>Settings → Plugins → Marketplace → \"GNU GetText files support\"</i>).</p>"
+        else ""
+
         val html = "<html><body style=\"font-family:sans-serif\">" +
             "<p><b>Frameworks detected:</b> $selectedFrameworks</p>" +
             "<p><b>Translation files found:</b> $fileCount file(s)</p>" +
             (if (fileCount > 0) "<p>$fileSample$moreNote</p>" else "") +
+            poNote +
             "<p style=\"color:gray\">Clicking <b>Apply</b> will store the detected translation root path " +
             "in the plugin settings. You can adjust further in <i>Settings → Tools → i18n Support Plus Configuration</i>.</p>" +
             "</body></html>"
