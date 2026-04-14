@@ -25,10 +25,10 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
         private val FRAMEWORK_KEYS = mapOf(
             "i18next" to listOf("i18next", "react-i18next"),
             "vue-i18n" to listOf("vue-i18n"),
-            "lingui" to listOf("@lingui/core", "@lingui/react")
+            "lingui" to listOf("@lingui/core", "@lingui/react", "@lingui/macro", "@lingui/react/macro")
         )
         private val TRANSLATION_FOLDER_NAMES = setOf("locales", "i18n", "translations")
-        private val TRANSLATION_EXTENSIONS = setOf("json", "yaml", "yml")
+        private val TRANSLATION_EXTENSIONS = setOf("json", "yaml", "yml", "po", "pot")
         private const val MAX_SCAN_DEPTH = 5
         private const val STEP_FRAMEWORK = "FRAMEWORK"
         private const val STEP_FILES = "FILES"
