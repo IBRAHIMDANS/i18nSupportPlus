@@ -28,6 +28,7 @@ class ToggleFoldingAction : ToggleAction(
         val project = e.project ?: return
         Settings.getInstance(project).foldingEnabled = state
         ApplicationManager.getApplication().invokeLater {
+            if (project.isDisposed) return@invokeLater
             val daemonCodeAnalyzer = DaemonCodeAnalyzer.getInstance(project)
             runReadAction {
                 val psiManager = PsiManager.getInstance(project)
