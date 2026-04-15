@@ -29,6 +29,29 @@
 
     <change-notes><![CDATA[
         <div>
+            <h3>1.0.5</h3>
+            <p><b>Bug Fixes</b></p>
+            <ul>
+                <li>Replace deprecated <code>ReadAction.compute&lt;T, Throwable&gt;</code> with <code>runReadAction {}</code> across all call sites (IU-261+ compatibility)</li>
+                <li>Replace deprecated <code>DaemonCodeAnalyzer.restart()</code> (no-arg) with targeted <code>restart(PsiFile)</code> over all open editors</li>
+                <li>Migrate inlay hints from experimental <code>InlayHintsProvider&lt;NoSettings&gt;</code> to stable declarative <code>InlayHintsProvider</code> + <code>SharedBypassCollector</code> + <code>HintFormat</code> API — reduces experimental API usages from ~90 to &lt;10 across all verified IDEs</li>
+            </ul>
+            <h3>1.0.4</h3>
+            <p><b>Bug Fixes</b></p>
+            <ul>
+                <li>Replace <code>ES6Property</code> (scheduled for removal) with <code>JSComputedPropertyNameOwner</code> — eliminates "scheduled for removal" warning in plugin verifier</li>
+                <li>Remove plugin signing step from release workflow</li>
+            </ul>
+            <h3>1.0.3</h3>
+            <p><b>Features</b></p>
+            <ul>
+                <li>Lingui: detect <code>.po</code>/<code>.pot</code> files and <code>@lingui/macro</code> imports in setup wizard</li>
+            </ul>
+            <p><b>Maintenance</b></p>
+            <ul>
+                <li>Upgrade Gradle 9.4.1, Kotlin 2.3.20</li>
+                <li>Extend plugin verification to cover IntelliJ 2025.1 and 2025.2</li>
+            </ul>
             <h3>1.0.2</h3>
             <p><b>Features</b></p>
             <ul>
