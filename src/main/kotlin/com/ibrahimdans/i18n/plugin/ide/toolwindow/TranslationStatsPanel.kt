@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader.extractL
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
 import com.intellij.ui.JBColor
@@ -134,7 +135,7 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
                 localeSources.first()
             }
 
-            val virtualFile = com.intellij.openapi.application.ReadAction.compute<com.intellij.openapi.vfs.VirtualFile?, Throwable> {
+            val virtualFile = runReadAction {
                 target.tree?.value()?.containingFile?.virtualFile
             } ?: return@executeOnPooledThread
             ApplicationManager.getApplication().invokeLater {

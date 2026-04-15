@@ -7,7 +7,7 @@ import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.intellij.json.psi.JsonProperty
 import com.intellij.json.psi.JsonStringLiteral
-import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
@@ -42,7 +42,7 @@ object TranslationDataLoader {
                 LOG.warn("loadAllTranslations: null tree for source '${source.displayPath}' (locale=$locale, ns=$namespace)")
                 continue
             }
-            ReadAction.compute<Unit, Throwable> {
+            runReadAction {
                 collectLeaves(tree, "", nsPrefix, locale, result)
             }
         }

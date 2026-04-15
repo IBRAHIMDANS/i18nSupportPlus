@@ -10,7 +10,7 @@ import com.ibrahimdans.i18n.plugin.utils.ellipsis
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.lang.documentation.DocumentationProvider
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -55,7 +55,7 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
             OpenFileDescriptor(project, virtualFile).navigate(true)
         }
         // findFile requires a read action when called from a background thread (IntelliJ 2024.3+)
-        return ReadAction.compute<com.intellij.psi.PsiFile?, Throwable> {
+        return runReadAction {
             psiManager.findFile(virtualFile)
         }
     }
