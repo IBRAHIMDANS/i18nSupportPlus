@@ -2,6 +2,16 @@
 
 ---
 
+## [1.0.4] - 2026-04-15
+
+### Bug Fixes
+- [JS] Replace `ES6Property` (scheduled for removal) with `JSComputedPropertyNameOwner` in `JsReferenceAssistant` — eliminates the "scheduled for removal API" warning reported by the Plugin Verifier
+
+### CI / Infrastructure
+- Remove plugin signing step from release workflow — signing secrets are no longer required
+
+---
+
 ## [1.0.3] - 2026-04-14
 
 ### Features

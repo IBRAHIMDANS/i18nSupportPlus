@@ -8,8 +8,8 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
 import com.ibrahimdans.i18n.plugin.utils.unQuote
-import com.intellij.lang.ecmascript6.psi.ES6Property
 import com.intellij.lang.javascript.patterns.JSPatterns
+import com.intellij.lang.javascript.psi.ecma6.JSComputedPropertyNameOwner
 import com.intellij.lang.javascript.psi.JSConditionalExpression
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.lang.javascript.psi.JSProperty
@@ -38,7 +38,7 @@ internal class JsReferenceAssistant: ReferenceAssistant {
             private fun isAlias(element: JSLiteralExpression): Boolean {
                 val config = Settings.getInstance(element.project).config()
                 return element.parents(false).toList()
-                    .mapNotNull {(it as? JSProperty)?.name ?: (it as? ES6Property)?.computedPropertyName?.let {it.expression?.reference?.resolve() as? TypeScriptEnumField }?.name}
+                    .mapNotNull {(it as? JSProperty)?.name ?: (it as? JSComputedPropertyNameOwner)?.computedPropertyName?.let {it.expression?.reference?.resolve() as? TypeScriptEnumField }?.name}
                     .reversed().joinToString(config.keySeparator).endsWith(element.text.unQuote())
             }
 
