@@ -4,7 +4,7 @@ import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.Localization
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
@@ -71,7 +71,7 @@ class LocalizationSourceService {
         translationsRoot: String,
         basePath: String
     ): List<LocalizationSource> {
-        return ReadAction.compute<List<LocalizationSource>, Throwable> {
+        return runReadAction {
             val searchScope = Settings.getInstance(project).config().searchScope(project)
             localization.types().flatMap { localizationType ->
                 FileTypeIndex
@@ -124,7 +124,7 @@ class LocalizationSourceService {
     }
 
     private fun findSourcesByFileType(project: Project, fileNames: List<String>, localization: Localization<PsiElement>): List<LocalizationSource> {
-        return ReadAction.compute<List<LocalizationSource>, Throwable> {
+        return runReadAction {
             val searchScope = Settings.getInstance(project).config().searchScope(project)
             localization.types().flatMap { localizationType ->
                 FileTypeIndex

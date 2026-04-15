@@ -144,10 +144,26 @@
         <lang.documentationProvider language="JSX Harmony" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
         <lang.documentationProvider language="TypeScript" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
         <lang.documentationProvider language="TypeScript JSX" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
-        <codeInsight.inlayProvider language="JavaScript" implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"/>
-        <codeInsight.inlayProvider language="JSX Harmony" implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"/>
-        <codeInsight.inlayProvider language="TypeScript" implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"/>
-        <codeInsight.inlayProvider language="TypeScript JSX" implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"/>
+        <codeInsight.declarativeInlayHintsProvider language="JavaScript"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"
+            providerId="i18n.translations.inlay"
+            bundle="messages.I18nBundle"
+            nameKey="inlay.hints.name"/>
+        <codeInsight.declarativeInlayHintsProvider language="JSX Harmony"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"
+            providerId="i18n.translations.inlay"
+            bundle="messages.I18nBundle"
+            nameKey="inlay.hints.name"/>
+        <codeInsight.declarativeInlayHintsProvider language="TypeScript"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"
+            providerId="i18n.translations.inlay"
+            bundle="messages.I18nBundle"
+            nameKey="inlay.hints.name"/>
+        <codeInsight.declarativeInlayHintsProvider language="TypeScript JSX"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"
+            providerId="i18n.translations.inlay"
+            bundle="messages.I18nBundle"
+            nameKey="inlay.hints.name"/>
         <codeInsight.lineMarkerProvider language="JavaScript" implementationClass="com.ibrahimdans.i18n.plugin.ide.I18nGutterIconProvider"/>
         <codeInsight.lineMarkerProvider language="JSX Harmony" implementationClass="com.ibrahimdans.i18n.plugin.ide.I18nGutterIconProvider"/>
         <codeInsight.lineMarkerProvider language="TypeScript" implementationClass="com.ibrahimdans.i18n.plugin.ide.I18nGutterIconProvider"/>
