@@ -72,9 +72,10 @@ class PoTranslationGenerator: TranslationGenerator {
 
     override fun generateInvalidRoot(): String = ""
 
-    override fun generate(root: String, vararg branches: Array<String>): String {
-        TODO("Not yet implemented")
-    }
+    override fun generate(root: String, vararg branches: Array<String>): String = """
+        $header
+        ${branches.map { generateEntry(arrayOf(root) + it) }}
+    """.trimIndent()
 
     override fun generate(vararg branches: Array<String>): String = """
         $header
@@ -82,6 +83,15 @@ class PoTranslationGenerator: TranslationGenerator {
     """.trimIndent()
 
     override fun generateNamedBlock(key: String, block: String, level: Int): String {
-        TODO("Not yet implemented")
+        val trimmed = block.trim()
+        return if (trimmed.contains("msgid ")) {
+            // block is already PO content — prefix key to all existing msgid values
+            trimmed.replace(Regex("""msgid "(.+?)"""")) { match ->
+                """msgid "$key.${match.groupValues[1]}""""
+            }
+        } else {
+            // block is a leaf value (quoted string) — produce a single entry
+            generateEntry(key, trimmed.removePrefix("\"").removeSuffix("\""))
+        }
     }
 }
