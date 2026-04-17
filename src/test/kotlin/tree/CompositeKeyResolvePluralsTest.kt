@@ -39,7 +39,7 @@ internal class CompositeKeyResolvePluralsTest {
             resolver.resolveCompositeKey(
                 listOf(Literal(base), Literal(sub), Literal(pl1)),
                 ls
-            ), "-",
+            )!!, "-",
             ls
         )
         assertEquals(3, properties.size)
@@ -79,7 +79,7 @@ internal class CompositeKeyResolvePluralsTest {
             resolver.resolveCompositeKey(
                 listOf(Literal(base), Literal(sub), Literal(pl2)),
                 ls
-            ),
+            )!!,
             "%",
             ls
         )
@@ -121,7 +121,7 @@ internal class CompositeKeyResolvePluralsTest {
             resolver.resolveCompositeKey(
                 listOf(Literal(base), Literal(sub), Literal(text)),
                 ls
-            ), "-",
+            )!!, "-",
             ls
         )
         assertEquals(1, properties.size)
@@ -159,7 +159,7 @@ internal class CompositeKeyResolvePluralsTest {
             resolver.resolveCompositeKey(
                 listOf(Literal(base), Literal(sub)),
                 ls
-            ), "-", ls
+            )!!, "-", ls
         )
         assertEquals(1, properties.size)
         val property = properties.first()
