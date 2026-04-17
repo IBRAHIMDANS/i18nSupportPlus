@@ -20,9 +20,11 @@
 - [Resolver] Prevent `NoSuchElementException` in `CompositeKeyResolver.resolveCompositeKey()` — use `firstOrNull()` with safe fallback instead of `first()` on empty list (#40, #43)
 - [Annotator] Guard empty references list in `CompositeKeyAnnotatorBase` — replace `maxByOrNull()!!` crash with safe guard when all keys are unresolved (#41)
 - [PO] Implement `PoTranslationGenerator.generate()` and `generateNamedBlock()` — flat PO format generation now complete (#42)
+- [PO] Implement `PlainObjectContentGenerator` — `generateContent()`, `generateTranslationEntry()`, and `isSuitable()` now produce valid `msgid`/`msgstr` entries via `PsiDocumentManager`; replaces no-op stubs (TASK-K, #46, #50)
 
 ### Tests
 - Activate `AsteriskKeyParserTest`, `InvalidExpressionTest`, `DefaultNsParserTest` — all three passed without code fixes needed (#45)
+- [YAML] Add `YamlEdgeCasesTest` — covers null key value, block scalars (`|`/`>`), special-char keys (`@`, `$`, `.`, `#`), and inline comments (TASK-L, #49)
 
 ### Refactoring
 - [TASK-F] Rename `ExpressionParserTest` → `ExpressionNormalizerTest` to reflect the tested class (`ExpressionNormalizer`)
