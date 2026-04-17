@@ -62,7 +62,7 @@ interface CompositeKeyResolver<T> {
     }
 
     /**
-     * Returns a single PropertyReference by composite key (first match), or null if the key is unresolved in all files.
+     * Returns a single PropertyReference by composite key (first match), or null if no match is found in this localization source.
      * For wildcard-aware multi-result resolution, use [resolveCompositeKeys].
      */
     fun resolveCompositeKey(compositeKey: List<Literal>, localizationSource: LocalizationSource): PropertyReference? {
