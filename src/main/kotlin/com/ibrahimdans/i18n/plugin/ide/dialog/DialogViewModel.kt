@@ -41,7 +41,7 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
                 .ifEmpty { if (namespaces.isEmpty()) sourceService.findAllSources(project) else emptyList() }
             sources.associateWith { source ->
                 val ref = resolveCompositeKey(fullKey.compositeKey, source)
-                if (ref.unresolved.isEmpty() && ref.element != null) {
+                if (ref != null && ref.unresolved.isEmpty() && ref.element != null) {
                     readPsiValue(ref.element.value())
                 } else {
                     null
@@ -155,7 +155,7 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
      * If the key is missing (unresolved), the key chain is created.
      */
     fun saveTranslation(source: LocalizationSource, fullKey: FullKey, value: String) {
-        val ref = resolveCompositeKey(fullKey.compositeKey, source)
+        val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return
         val generator = source.localization.contentGenerator()
         CommandProcessor.getInstance().executeCommand(
             project,

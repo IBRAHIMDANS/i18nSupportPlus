@@ -62,11 +62,11 @@ interface CompositeKeyResolver<T> {
     }
 
     /**
-     * Returns a single PropertyReference by composite key (first match).
+     * Returns a single PropertyReference by composite key (first match), or null if the key is unresolved in all files.
      * For wildcard-aware multi-result resolution, use [resolveCompositeKeys].
      */
-    fun resolveCompositeKey(compositeKey: List<Literal>, localizationSource: LocalizationSource): PropertyReference {
-        return resolveCompositeKeys(compositeKey, localizationSource).first()
+    fun resolveCompositeKey(compositeKey: List<Literal>, localizationSource: LocalizationSource): PropertyReference? {
+        return resolveCompositeKeys(compositeKey, localizationSource).firstOrNull()
     }
 
     /**
@@ -107,7 +107,7 @@ interface CompositeKeyResolver<T> {
      * Returns PsiElement by composite key from file's root node
      */
     fun resolveCompositeKeyProperty(compositeKey: List<Literal>, localizationSource: LocalizationSource): Tree<PsiElement>? =
-        resolveCompositeKey(compositeKey, localizationSource).let {ref -> if (ref.unresolved.isNotEmpty()) null else ref.element}
+        resolveCompositeKey(compositeKey, localizationSource)?.let { ref -> if (ref.unresolved.isNotEmpty()) null else ref.element }
 
     /**
      * Returns keys at current composite key position

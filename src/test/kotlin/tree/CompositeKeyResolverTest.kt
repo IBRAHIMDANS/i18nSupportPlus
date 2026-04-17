@@ -3,6 +3,7 @@ package tree
 import com.ibrahimdans.i18n.*
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
+import com.ibrahimdans.i18n.plugin.tree.PropertyReference
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.intellij.json.JsonFileType
 import com.intellij.openapi.vfs.VirtualFile
@@ -107,7 +108,7 @@ internal class CompositeKeyResolverTest {
                     )
                 )
             )
-        )
+        )!!
         assertNotNull(property.element)
         assertTrue(property.element?.isLeaf() ?: false)
         assertEquals(text, property.element?.value()?.toString())
@@ -133,7 +134,7 @@ internal class CompositeKeyResolverTest {
                         )
                     )
             )
-        )
+        )!!
         assertNotNull(property.element)
         assertTrue(property.element?.isTree() ?: false)
         assertEquals(key, property.element?.value()?.toString())
@@ -159,7 +160,7 @@ internal class CompositeKeyResolverTest {
                     )
                 )
             )
-        )
+        )!!
         assertNotNull(property.element)
         assertTrue(property.element?.isTree() ?: false)
         assertEquals(key, property.element?.value()?.toString())
@@ -186,7 +187,7 @@ internal class CompositeKeyResolverTest {
                         )
                     )
                 )
-        )
+        )!!
         assertNotNull(property.element)
         assertTrue(property.element?.isTree() ?: false)
         assertEquals(root, property.element?.value().toString())
@@ -217,7 +218,7 @@ internal class CompositeKeyResolverTest {
                     )
                 )
             )
-        )
+        )!!
         assertNotNull(property.element)
         assertTrue(property.element?.isTree() ?: false)
         assertEquals(key, property.element?.value().toString())
@@ -315,7 +316,7 @@ internal class CompositeKeyResolverUnresolvedTest {
                     )
                 )
             )
-        )
+        )!!
         assertNotNull(property.element)
         assertTrue(property.element?.isTree() ?: false)
         assertEquals(listOf(Literal(root), Literal(key), Literal(sub)), property.unresolved)
@@ -341,7 +342,7 @@ internal class CompositeKeyResolverUnresolvedTest {
                     )
                 )
             )
-        )
+        )!!
         assertNotNull(property.element)
         assertTrue(property.element?.isTree() ?: false)
         assertEquals("", property.element?.value().toString())
@@ -355,9 +356,25 @@ internal class CompositeKeyResolverUnresolvedTest {
         val property = resolver.resolveCompositeKey(
             listOf(Literal("root9"), Literal("key18"), Literal("subkey10")),
             localizationSource(null)
-        )
+        )!!
         assertEquals("", property.element?.value().toString())
         assertEquals(listOf(Literal("root9"), Literal("key18"), Literal("subkey10")), property.unresolved)
         assertTrue(property.path.isEmpty())
+    }
+
+    @Test
+    fun resolveCompositeKeyReturnsNullWhenNoKeysResolved() {
+        // Verifies TASK-G fix: if resolveCompositeKeys returns empty, resolveCompositeKey must not throw
+        val resolver = object : CompositeKeyResolver<String> {
+            override fun resolveCompositeKeys(
+                compositeKey: List<Literal>,
+                localizationSource: LocalizationSource
+            ): List<PropertyReference> = emptyList<PropertyReference>()
+        }
+        val result = resolver.resolveCompositeKey(
+            listOf(Literal("any")),
+            localizationSource(null)
+        )
+        assertNull(result)
     }
 }
