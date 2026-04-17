@@ -29,6 +29,26 @@
 
     <change-notes><![CDATA[
         <div>
+            <h3>1.0.6</h3>
+            <p><b>Features</b></p>
+            <ul>
+                <li>React-Intl / FormatJS / next-intl support — key extraction from <code>intl.formatMessage({ id })</code> and <code>&lt;FormattedMessage id="..." /&gt;</code></li>
+                <li>Angular <code>@ngx-translate</code> support — <code>translate.instant()</code>, <code>translate.get()</code>, and <code>| translate</code> pipe</li>
+                <li>Svelte i18n support — <code>$_('key')</code> and <code>_('key')</code></li>
+                <li>New inspection: placeholder consistency across locales — warns when <code>{placeholder}</code> is missing in a locale</li>
+                <li>New inspection: ICU message format validation — checks plural/select blocks for required forms</li>
+                <li>New inspection: unused translation key detection with "Delete key" quick fix (disabled by default)</li>
+                <li>New action: Batch Extract i18n Keys (Ctrl+Alt+Shift+B) — extract multiple hardcoded strings in one pass</li>
+            </ul>
+            <p><b>Bug Fixes</b></p>
+            <ul>
+                <li>Guard null <code>nextSibling</code> in <code>PlainObjectTextTree.value()</code> — prevents NPE on invalid PO nodes</li>
+                <li>Fix key creation in empty YAML files</li>
+                <li>Guard nullable <code>YAMLKeyValue.key</code> in <code>YamlLocalization</code></li>
+                <li>Prevent <code>NoSuchElementException</code> in <code>CompositeKeyResolver</code></li>
+                <li>Guard empty references list in <code>CompositeKeyAnnotatorBase</code></li>
+                <li>Implement <code>PoTranslationGenerator.generate()</code> and <code>generateNamedBlock()</code></li>
+            </ul>
             <h3>1.0.5</h3>
             <p><b>Bug Fixes</b></p>
             <ul>
@@ -196,6 +216,27 @@
         <toolWindow id="I18n" anchor="bottom" icon="AllIcons.Nodes.ResourceBundle"
                     factoryClass="com.ibrahimdans.i18n.plugin.ide.toolwindow.I18nToolWindowFactory"/>
         <renameHandler implementation="com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler"/>
+        <localInspection
+            groupName="i18n Support Plus"
+            displayName="Placeholder consistency across locales"
+            shortName="I18nPlaceholderConsistency"
+            enabledByDefault="true"
+            level="WARNING"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.PlaceholderConsistencyInspection"/>
+        <localInspection
+            groupName="i18n Support Plus"
+            displayName="ICU message format validation"
+            shortName="I18nIcuFormat"
+            enabledByDefault="true"
+            level="WARNING"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.IcuFormatInspection"/>
+        <localInspection
+            groupName="i18n Support Plus"
+            displayName="Unused translation key"
+            shortName="I18nUnusedKey"
+            enabledByDefault="false"
+            level="WARNING"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection"/>
     </extensions>
     <actions>
         <action id="com.ibrahimdans.i18n.ToggleFolding"
@@ -204,6 +245,13 @@
                 description="Toggle i18n key folding to show translations inline">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift T"/>
+        </action>
+        <action id="com.ibrahimdans.i18n.BatchExtractI18n"
+                class="com.ibrahimdans.i18n.plugin.ide.actions.BatchExtractI18nAction"
+                text="Batch Extract i18n Keys"
+                description="Extract multiple hardcoded strings as i18n keys in one pass">
+            <add-to-group group-id="CodeMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift B"/>
         </action>
     </actions>
     <extensions defaultExtensionNs="com.ibrahimdans.i18n">
@@ -214,5 +262,8 @@
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.i18next.I18NextTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.vuei18n.VueI18nTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.lingui.LinguiTechnology"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.technology.reactintl.ReactIntlTechnology"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.technology.ngxtranslate.NgxTranslateTechnology"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.technology.sveltei18n.SvelteI18nTechnology"/>
     </extensions>
 </idea-plugin>
