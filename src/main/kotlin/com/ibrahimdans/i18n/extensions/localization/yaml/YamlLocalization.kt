@@ -92,20 +92,24 @@ class YamlReferenceAssistant : TranslationReferenceAssistant<YAMLKeyValue> {
 
     override fun pattern(): ElementPattern<out YAMLKeyValue> = PlatformPatterns.psiElement(YAMLKeyValue::class.java)
 
-    private fun parents(element: YAMLKeyValue): List<String> =
-        element.parents(true).mapNotNull {
+    private fun parents(element: YAMLKeyValue): List<String>? {
+        val result = mutableListOf<String>()
+        for (psi in element.parents(true)) {
             when {
-                it is YAMLKeyValue -> it.key?.text?.unQuote()
-                it is YAMLFile -> it.name.substringBeforeLast(".")
-                else -> null
+                psi is YAMLKeyValue -> result.add(psi.key?.text?.unQuote() ?: return null)
+                psi is YAMLFile -> result.add(psi.name.substringBeforeLast("."))
             }
-        }.toList().reversed()
+        }
+        return result.reversed()
+    }
 
     private fun textRange(element: YAMLKeyValue): TextRange {
         val text = element.key?.text ?: return TextRange.EMPTY_RANGE
         return TextRange(if (text.startsWith("\"")) 1 else 0, text.length - (if (text.endsWith("\"")) 1 else 0))
     }
 
-    override fun references(element: YAMLKeyValue): List<PsiReference> =
-        provider.getReferences(element, textRange(element), parents(element))
+    override fun references(element: YAMLKeyValue): List<PsiReference> {
+        val path = parents(element) ?: return emptyList()
+        return provider.getReferences(element, textRange(element), path)
+    }
 }
