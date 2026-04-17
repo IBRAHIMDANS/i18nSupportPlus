@@ -4,8 +4,7 @@ import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.assertEquals
 
-//TODO rename class
-internal class ExpressionParserTest {
+internal class ExpressionNormalizerTest {
 
     @Test
     fun parse() {

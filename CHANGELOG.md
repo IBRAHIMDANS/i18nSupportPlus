@@ -2,6 +2,14 @@
 
 ---
 
+## [1.0.6] - 2026-04-17
+
+### Refactoring
+- [TASK-F] Rename `ExpressionParserTest` → `ExpressionNormalizerTest` to reflect the tested class (`ExpressionNormalizer`)
+- [TASK-F] Replace `"TODO-${fullKey.source}"` placeholder with `""` as neutral default in `ContentGenerator.generateContent()`
+
+---
+
 ## [1.0.5] - 2026-04-15
 
 ### Bug Fixes
