@@ -1,5 +1,11 @@
 <idea-plugin>
-    <extensions defaultExtensionNs="com.ibrahimdans.i18n">
+    <!--
+        PO/POT support is disabled: requires org.jetbrains.plugins.localization (GNU GetText),
+        which is not available for IntelliJ build 243.x+.
+        Re-enable once the plugin is available again on the JetBrains Marketplace.
+        See BLOCKED task in TODO.md.
+    -->
+    <!-- <extensions defaultExtensionNs="com.ibrahimdans.i18n">
         <localization implementation="com.ibrahimdans.i18n.extensions.localization.plain.object.PlainObjectLocalization"/>
-    </extensions>
+    </extensions> -->
 </idea-plugin>
