@@ -65,7 +65,10 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
             val pluralSeparator = config.pluralSeparator
             val references = files.flatMap {resolve(fullKey.compositeKey, it, pluralSeparator)}
             val allEqual = references.zipWithNext().all { it.first.path == it.second.path }
-            val mostResolvedReference = if (allEqual) references.first() else references.maxByOrNull { v -> v.path.size }!!
+            val mostResolvedReference = if (allEqual)
+                references.firstOrNull() ?: return
+            else
+                references.maxByOrNull { v -> v.path.size } ?: return
             if (mostResolvedReference.unresolved.isEmpty()) {
                 if (!allEqual && config.partialTranslationInspectionEnabled) {
                     annotationHelper.annotatePartiallyTranslated(fullKey, references)
