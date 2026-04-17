@@ -95,14 +95,14 @@ class YamlReferenceAssistant : TranslationReferenceAssistant<YAMLKeyValue> {
     private fun parents(element: YAMLKeyValue): List<String> =
         element.parents(true).mapNotNull {
             when {
-                it is YAMLKeyValue -> it.key!!.text.unQuote()
+                it is YAMLKeyValue -> it.key?.text?.unQuote() ?: return@mapNotNull null
                 it is YAMLFile -> it.name.substringBeforeLast(".")
                 else -> null
             }
         }.toList().reversed()
 
     private fun textRange(element: YAMLKeyValue): TextRange {
-        val text = element.key!!.text
+        val text = element.key?.text ?: return TextRange.EMPTY_RANGE
         return TextRange(if (text.startsWith("\"")) 1 else 0, text.length - (if (text.endsWith("\"")) 1 else 0))
     }
 
