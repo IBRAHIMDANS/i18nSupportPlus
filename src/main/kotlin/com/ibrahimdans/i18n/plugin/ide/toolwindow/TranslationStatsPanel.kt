@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin.ide.toolwindow
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader.extractLocale
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader.extractNamespace
+import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.intellij.icons.AllIcons
 import com.intellij.ide.DataManager
@@ -11,7 +12,6 @@ import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
-import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.ui.JBColor
@@ -36,6 +36,15 @@ import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.DefaultTableModel
 
 private val PERCENT_FORMAT = DecimalFormat("0.0")
+
+internal fun parseTranslationKey(fullKey: String): Pair<String?, List<String>> {
+    val ns = if (fullKey.contains(":")) fullKey.substringBefore(":") else null
+    val keyPath = if (ns != null) fullKey.substringAfter(":") else fullKey
+    return ns to keyPath.split(".")
+}
+
+internal fun selectReferenceLocale(stats: List<LocaleStats>): String? =
+    stats.maxByOrNull { it.translated }?.locale
 
 /**
  * Panel displaying translation coverage statistics per locale.
@@ -91,9 +100,6 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
         return panel
     }
 
-    /**
-     * Loads translation stats on a background thread and populates the table on the EDT.
-     */
     fun refresh() {
         statusLabel.text = "Loading..."
         ApplicationManager.getApplication().executeOnPooledThread {
@@ -131,7 +137,7 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
      * with the highest translation coverage).
      */
     private fun showMissingKeysPopup(rowStats: LocaleStats) {
-        val referenceLocale = stats.maxByOrNull { it.translated }?.locale ?: return
+        val referenceLocale = selectReferenceLocale(stats) ?: return
 
         val listModel = DefaultListModel<String>()
         rowStats.missingKeys.forEach { listModel.addElement(it) }
@@ -169,10 +175,7 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
             val service = project.getService(LocalizationSourceService::class.java)
             val allSources = service.findAllSources(project)
 
-            val ns = if (fullKey.contains(":")) fullKey.substringBefore(":") else null
-            val keyPath = if (ns != null) fullKey.substringAfter(":") else fullKey
-            val segments = keyPath.split(".")
-
+            val (ns, segments) = parseTranslationKey(fullKey)
             val refSources = allSources.filter { extractLocale(it) == referenceLocale }
             val target = if (ns != null) {
                 refSources.firstOrNull { extractNamespace(it) == ns } ?: refSources.firstOrNull()
@@ -182,7 +185,7 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
 
             val result = runReadAction {
                 val tree = target.tree ?: return@runReadAction null
-                var node = tree
+                var node: Tree<PsiElement> = tree
                 for (segment in segments) {
                     node = node.findChild(segment) ?: return@runReadAction fallbackFile(tree)
                 }
