@@ -6,7 +6,8 @@ import com.intellij.patterns.PlatformPatterns
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiReference
 
-// Plain Object support is not yet implemented — all methods are no-ops to prevent runtime crashes
+// Translation→code navigation requires PSI types from org.jetbrains.plugins.localization,
+// which has no build for IntelliJ 243.x+. References stay disabled until the plugin is available.
 class PlainObjectReferenceAssistant : TranslationReferenceAssistant<PsiElement> {
     override fun pattern(): ElementPattern<out PsiElement> = PlatformPatterns.alwaysFalse()
 
