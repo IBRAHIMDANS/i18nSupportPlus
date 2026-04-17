@@ -58,7 +58,7 @@ class YamlEdgeCasesTest : PlatformBaseTest() {
 
     @Test
     fun testKeyWithAtSign() {
-        // @ is valid in unquoted YAML keys. The plugin must not crash.
+        // @ must be quoted in YAML keys. The plugin must not crash.
         myFixture.configureByText(
             "atkey.${tg.ext()}",
             "section:\n  \"@<caret>key\": value\n"
