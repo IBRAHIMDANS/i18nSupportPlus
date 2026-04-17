@@ -4,7 +4,6 @@ import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
-//@Ignore
 internal class InvalidExpressionTest : ParserTestBase {
 
 //invalid:file:literal.ROOT.Key1.Key31
