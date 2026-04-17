@@ -66,7 +66,8 @@ interface CompositeKeyResolver<T> {
      * For wildcard-aware multi-result resolution, use [resolveCompositeKeys].
      */
     fun resolveCompositeKey(compositeKey: List<Literal>, localizationSource: LocalizationSource): PropertyReference {
-        return resolveCompositeKeys(compositeKey, localizationSource).first()
+        return resolveCompositeKeys(compositeKey, localizationSource).firstOrNull()
+            ?: PropertyReference(emptyList(), null, compositeKey, localizationSource)
     }
 
     /**
