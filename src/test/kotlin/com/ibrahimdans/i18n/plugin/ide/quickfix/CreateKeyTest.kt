@@ -137,9 +137,8 @@ class CreateKeyTest: PlatformBaseTest() {
     @Test
     fun testCreateKeyEmptyYaml() {
         val cg = JsCodeGenerator()
-        val tg = YamlTranslationGenerator()
         val hint = "Create i18n key"
-        val translationFileName = "test" + "." + tg.ext()
+        val translationFileName = "test.yaml"
         myFixture.addFileToProject(
                 translationFileName,
                 ""

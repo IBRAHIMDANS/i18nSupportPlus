@@ -23,7 +23,8 @@ class PlainObjectTextTree(val element: PsiElement): Tree<PsiElement> {
         return element == element.containingFile
     }
 
-    override fun value(): PsiElement = element.nextSibling.nextSibling.let{it.children.at(0) ?: it}
+    override fun value(): PsiElement =
+        element.nextSibling?.nextSibling?.let { it.children.at(0) ?: it } ?: element
 
     override fun findChildren(prefix: String): List<Tree<PsiElement>> = emptyList()
 }

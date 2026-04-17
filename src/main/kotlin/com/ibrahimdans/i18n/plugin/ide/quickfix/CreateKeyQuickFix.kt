@@ -98,7 +98,7 @@ class CreateKeyQuickFix(
         val ref = resolveCompositeKey(
             fullKey.compositeKey,
             target
-        )
+        ) ?: return
         if (ref.element != null) {
             CommandProcessor.getInstance().executeCommand(
                 project,
