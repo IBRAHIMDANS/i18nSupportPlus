@@ -8,11 +8,17 @@ import com.intellij.lang.Language
 import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.fileTypes.PlainTextFileType
 import com.intellij.openapi.fileTypes.PlainTextLanguage
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 
-// Plain Object support is not yet implemented — all methods are no-ops to prevent runtime crashes
+// PO is a flat key=value format. The GNU GetText PSI plugin (org.jetbrains.plugins.localization)
+// is unavailable on IntelliJ 243.x+, so we fall back to document-level text insertion.
 class PlainObjectContentGenerator : ContentGenerator {
-    override fun generateContent(compositeKey: List<Literal>, value: String): String = ""
+
+    override fun generateContent(compositeKey: List<Literal>, value: String): String {
+        val key = compositeKey.joinToString(".") { it.text }
+        return "msgid \"${key.escapePo()}\"\nmsgstr \"${value.escapePo()}\"\n"
+    }
 
     override fun getType(): FileType = PlainTextFileType.INSTANCE
 
@@ -20,14 +26,25 @@ class PlainObjectContentGenerator : ContentGenerator {
 
     override fun getDescription(): String = PluginBundle.getMessage("quickfix.create.plainObject.translation.files")
 
-    // isSuitable returns false so this generator is never selected for content creation
-    override fun isSuitable(element: PsiElement) = false
+    override fun isSuitable(element: PsiElement): Boolean {
+        val ext = element.containingFile?.virtualFile?.extension?.lowercase()
+        return ext == "po" || ext == "pot"
+    }
 
     override fun generateTranslationEntry(item: PsiElement, key: String, value: String) {
-        // no-op: not yet implemented
+        val file = item.containingFile ?: return
+        val manager = PsiDocumentManager.getInstance(item.project)
+        val document = manager.getDocument(file) ?: return
+        val existing = document.text
+        val separator = if (existing.isNotEmpty() && !existing.endsWith("\n\n")) "\n\n" else "\n"
+        document.insertString(document.textLength, "${separator}msgid \"${key.escapePo()}\"\nmsgstr \"${value.escapePo()}\"\n")
+        manager.commitDocument(document)
     }
 
     override fun generate(element: PsiElement, fullKey: FullKey, unresolved: List<Literal>, translationValue: String?) {
-        // no-op: not yet implemented
+        val key = unresolved.joinToString(".") { it.text }
+        generateTranslationEntry(element, key, translationValue ?: "")
     }
+
+    private fun String.escapePo(): String = replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
 }
