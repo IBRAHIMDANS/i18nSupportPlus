@@ -360,4 +360,18 @@ internal class CompositeKeyResolverUnresolvedTest {
         assertEquals(listOf(Literal("root9"), Literal("key18"), Literal("subkey10")), property.unresolved)
         assertTrue(property.path.isEmpty())
     }
+
+    @Test
+    fun resolveCompositeKeyFallsBackOnEmptyList() {
+        val compositeKey = listOf(Literal("root10"), Literal("key19"), Literal("subkey11"))
+        val source = localizationSource(null)
+        val resolver = object : CompositeKeyResolver<String> {
+            override fun resolveCompositeKeys(compositeKey: List<Literal>, localizationSource: LocalizationSource): List<PropertyReference> =
+                emptyList()
+        }
+        val property = resolver.resolveCompositeKey(compositeKey, source)
+        assertNull(property.element)
+        assertEquals(compositeKey, property.unresolved)
+        assertTrue(property.path.isEmpty())
+    }
 }
