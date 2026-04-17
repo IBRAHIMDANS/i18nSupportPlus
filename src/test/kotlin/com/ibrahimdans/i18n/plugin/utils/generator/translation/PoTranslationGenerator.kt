@@ -72,16 +72,17 @@ class PoTranslationGenerator: TranslationGenerator {
 
     override fun generateInvalidRoot(): String = ""
 
-    override fun generate(root: String, vararg branches: Array<String>): String {
-        TODO("Not yet implemented")
-    }
+    override fun generate(root: String, vararg branches: Array<String>): String = """
+        $header
+        ${branches.map { generateEntry(arrayOf(root, *it)) }}
+    """.trimIndent()
 
     override fun generate(vararg branches: Array<String>): String = """
         $header
         ${branches.map{generateEntry(it)}}
     """.trimIndent()
 
-    override fun generateNamedBlock(key: String, block: String, level: Int): String {
-        TODO("Not yet implemented")
-    }
+    // PO is a flat format — there is no block nesting. The key is already embedded in each msgid,
+    // so wrapping with a named block is a no-op.
+    override fun generateNamedBlock(key: String, block: String, level: Int): String = block
 }
