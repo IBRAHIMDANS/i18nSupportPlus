@@ -74,12 +74,12 @@ class PoTranslationGenerator: TranslationGenerator {
 
     override fun generate(root: String, vararg branches: Array<String>): String = """
         $header
-        ${branches.map { generateEntry(arrayOf(root, *it)) }}
+        ${branches.joinToString("\n\n") { generateEntry(arrayOf(root, *it)) }}
     """.trimIndent()
 
     override fun generate(vararg branches: Array<String>): String = """
         $header
-        ${branches.map{generateEntry(it)}}
+        ${branches.joinToString("\n\n") { generateEntry(it) }}
     """.trimIndent()
 
     // PO is a flat format — there is no block nesting. The key is already embedded in each msgid,
