@@ -6,22 +6,35 @@ import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.lang.Language
 import com.intellij.openapi.fileTypes.FileType
+import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.fileTypes.PlainTextFileType
 import com.intellij.openapi.fileTypes.PlainTextLanguage
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
+import javax.swing.Icon
 
 // PO is a flat list of msgid/msgstr entries with no nested blocks. The GNU GetText PSI plugin
 // (org.jetbrains.plugins.localization) is unavailable on IntelliJ 243.x+, so we fall back to
 // document-level text insertion.
 class PlainObjectContentGenerator : ContentGenerator {
 
+    private object PoFileType : FileType {
+        override fun getName(): String = "PO"
+        override fun getDescription(): String = "GNU GetText PO file"
+        override fun getDefaultExtension(): String = "po"
+        override fun getIcon(): Icon? = null
+        override fun isBinary(): Boolean = false
+    }
+
     override fun generateContent(compositeKey: List<Literal>, value: String): String {
         val key = compositeKey.joinToString(".") { it.text }
         return "msgid \"${key.escapePo()}\"\nmsgstr \"${value.escapePo()}\"\n"
     }
 
-    override fun getType(): FileType = PlainTextFileType.INSTANCE
+    override fun getType(): FileType {
+        val localeFileType = FileTypeManager.getInstance().getStdFileType("Locale")
+        return if (localeFileType != PlainTextFileType.INSTANCE) localeFileType else PoFileType
+    }
 
     override fun getLanguage(): Language = PlainTextLanguage.INSTANCE
 

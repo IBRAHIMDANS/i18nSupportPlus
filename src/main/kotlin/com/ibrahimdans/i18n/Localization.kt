@@ -63,7 +63,7 @@ interface ContentGenerator {
     /**
      * Generates content by given i18n key
      */
-    fun generateContent(fullKey: FullKey, value: String?): String = generateContent(fullKey.compositeKey, value ?: "TODO-${fullKey.source}")
+    fun generateContent(fullKey: FullKey, value: String?): String = generateContent(fullKey.compositeKey, value ?: fullKey.source)
 
     /**
      * Generates content by given composite key

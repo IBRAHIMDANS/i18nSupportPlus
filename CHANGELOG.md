@@ -2,6 +2,34 @@
 
 ---
 
+## [1.0.6] - 2026-04-17
+
+### Features
+- [React-Intl] Add `ReactIntlTechnology` + `ReactIntlExtractor` — key extraction from `intl.formatMessage({ id })` and `<FormattedMessage id="..." />` (TASK-M)
+- [NgxTranslate] Add `NgxTranslateTechnology` + `NgxTranslateExtractor` + `NgxTranslatePipeExtractor` — key extraction from `translate.instant()`, `translate.get()`, and `| translate` pipe (TASK-N)
+- [Svelte i18n] Add `SvelteI18nTechnology` + `SvelteI18nExtractor` — key extraction from `$_('key')` and `_('key')` (TASK-O)
+- [Inspections] Add `PlaceholderConsistencyInspection` — warns when `{placeholder}` present in reference locale is missing in another locale (TASK-R)
+- [Inspections] Add `IcuFormatInspection` — validates ICU plural/select blocks: balanced braces, required `other` form, at least `one` or `zero` for plurals (TASK-R)
+- [Inspections] Add `UnusedTranslationKeyInspection` — marks translation keys with no code references; quick fix deletes the key (disabled by default) (TASK-S)
+- [Actions] Add `BatchExtractI18nAction` (Ctrl+Alt+Shift+B) — scans current JS/TS file for unextracted strings, shows checkbox dialog, creates all selected keys in batch (TASK-T)
+
+### Bug Fixes
+- [PO] Guard null `nextSibling` in `PlainObjectTextTree.value()` — prevents NPE when navigating invalid PO nodes (#37)
+- [YAML] Fix key creation in empty YAML files — `YamlElementTree.create()` now accepts `YAMLDocument` as valid tree root when no `YAMLMapping` exists (#38, #39)
+- [YAML] Guard nullable `YAMLKeyValue.key` in `YamlLocalization` — replace `!!` with safe calls in `parents()` and `textRange()` to avoid crash on malformed YAML (#44)
+- [Resolver] Prevent `NoSuchElementException` in `CompositeKeyResolver.resolveCompositeKey()` — use `firstOrNull()` with safe fallback instead of `first()` on empty list (#40, #43)
+- [Annotator] Guard empty references list in `CompositeKeyAnnotatorBase` — replace `maxByOrNull()!!` crash with safe guard when all keys are unresolved (#41)
+- [PO] Implement `PoTranslationGenerator.generate()` and `generateNamedBlock()` — flat PO format generation now complete (#42)
+
+### Tests
+- Activate `AsteriskKeyParserTest`, `InvalidExpressionTest`, `DefaultNsParserTest` — all three passed without code fixes needed (#45)
+
+### Refactoring
+- [TASK-F] Rename `ExpressionParserTest` → `ExpressionNormalizerTest` to reflect the tested class (`ExpressionNormalizer`)
+- [TASK-F] Replace `"TODO-${fullKey.source}"` placeholder with `fullKey.source` as default in `ContentGenerator.generateContent()`
+
+---
+
 ## [1.0.5] - 2026-04-15
 
 ### Bug Fixes
