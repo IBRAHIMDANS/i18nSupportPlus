@@ -11,8 +11,9 @@ import com.intellij.openapi.fileTypes.PlainTextLanguage
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 
-// PO is a flat key=value format. The GNU GetText PSI plugin (org.jetbrains.plugins.localization)
-// is unavailable on IntelliJ 243.x+, so we fall back to document-level text insertion.
+// PO is a flat list of msgid/msgstr entries with no nested blocks. The GNU GetText PSI plugin
+// (org.jetbrains.plugins.localization) is unavailable on IntelliJ 243.x+, so we fall back to
+// document-level text insertion.
 class PlainObjectContentGenerator : ContentGenerator {
 
     override fun generateContent(compositeKey: List<Literal>, value: String): String {
@@ -36,8 +37,14 @@ class PlainObjectContentGenerator : ContentGenerator {
         val manager = PsiDocumentManager.getInstance(item.project)
         val document = manager.getDocument(file) ?: return
         val existing = document.text
-        val separator = if (existing.isNotEmpty() && !existing.endsWith("\n\n")) "\n\n" else "\n"
-        document.insertString(document.textLength, "${separator}msgid \"${key.escapePo()}\"\nmsgstr \"${value.escapePo()}\"\n")
+        val separator = when {
+            existing.isEmpty() -> ""
+            existing.endsWith("\n\n") -> ""
+            existing.endsWith("\n") -> "\n"
+            else -> "\n\n"
+        }
+        val entry = generateContent(listOf(Literal(key)), value)
+        document.insertString(document.textLength, separator + entry)
         manager.commitDocument(document)
     }
 
