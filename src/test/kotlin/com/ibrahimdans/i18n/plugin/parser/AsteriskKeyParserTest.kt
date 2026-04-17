@@ -4,7 +4,6 @@ import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.assertEquals
 
-//@Ignore
 internal class AsteriskKeyParserTest : ParserTestBase {
 
 //${fileExpa}:ROOT.Key1.Key31               / *         *{11}:ROOT{4}.Key1{4}.Key31{5}

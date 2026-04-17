@@ -55,7 +55,7 @@ class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiEleme
                 val translation = project.service<LocalizationSourceService>()
                     .findSources(fullKey.allNamespaces(), project)
                     .filter { it.parent == config.foldingPreferredLanguage }
-                    .map { resolveCompositeKey(fullKey.compositeKey, it) }
+                    .mapNotNull { resolveCompositeKey(fullKey.compositeKey, it) }
                     .firstOrNull { it.unresolved.isEmpty() && it.element?.isLeaf() == true }
                     ?.element?.value()?.text?.unQuote()
                     ?.ellipsis(config.foldingMaxLength)

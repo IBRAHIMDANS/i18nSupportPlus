@@ -164,4 +164,20 @@ class YamlTranslationToCodeTest: PlatformBaseTest() {
             assertNotNull(element)
             assertEquals(key.unQuote(), element!!.references[0].resolve()?.text?.unQuote())
     }
+
+    @Test
+    fun testNullKeyYamlProducesNoReferences() {
+        val tg = YamlTranslationGenerator()
+        // YAML with a mapping entry that has no key text (e.g. just ": value")
+        // which can produce a YAMLKeyValue with a null key in the PSI tree.
+        // The fix in YamlLocalization.parents() must return null in that case
+        // so that references() returns an empty list without throwing.
+        myFixture.configureByText(
+            "malformed.${tg.ext()}",
+            ": val<caret>ue"
+        )
+        val element = myFixture.file.findElementAt(myFixture.caretOffset)?.parent
+        assertNotNull(element)
+        assertTrue(element!!.references.isEmpty())
+    }
 }

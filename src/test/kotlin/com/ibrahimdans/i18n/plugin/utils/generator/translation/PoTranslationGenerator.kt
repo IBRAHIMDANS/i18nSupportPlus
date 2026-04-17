@@ -74,7 +74,7 @@ class PoTranslationGenerator: TranslationGenerator {
 
     override fun generate(root: String, vararg branches: Array<String>): String = """
         $header
-        ${branches.joinToString("\n\n") { generateEntry(arrayOf(root) + it) }}
+        ${branches.joinToString("\n\n") { generateEntry(arrayOf(root, *it)) }}
     """.trimIndent()
 
     override fun generate(vararg branches: Array<String>): String = """
@@ -82,16 +82,7 @@ class PoTranslationGenerator: TranslationGenerator {
         ${branches.joinToString("\n\n") { generateEntry(it) }}
     """.trimIndent()
 
-    override fun generateNamedBlock(key: String, block: String, level: Int): String {
-        val trimmed = block.trim()
-        return if (trimmed.contains("msgid ")) {
-            // block is already PO content — prefix key to all existing msgid values
-            trimmed.replace(Regex("""msgid "(.+?)"""")) { match ->
-                """msgid "$key.${match.groupValues[1]}""""
-            }
-        } else {
-            // block is a leaf value (quoted string) — produce a single entry
-            generateEntry(key, trimmed.removePrefix("\"").removeSuffix("\""))
-        }
-    }
+    // PO is a flat format — there is no block nesting. The key is already embedded in each msgid,
+    // so wrapping with a named block is a no-op.
+    override fun generateNamedBlock(key: String, block: String, level: Int): String = block
 }
