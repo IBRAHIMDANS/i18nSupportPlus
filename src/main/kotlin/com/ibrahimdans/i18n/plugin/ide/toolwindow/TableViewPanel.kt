@@ -373,7 +373,7 @@ private class OrphanKeyDeleter(private val project: Project) : CompositeKeyResol
             .ifEmpty { if (namespaces.isEmpty()) sourceService.findAllSources(project) else emptyList() }
 
         sources.forEach { source ->
-            val ref = resolveCompositeKey(fullKey.compositeKey, source)
+            val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@forEach
             if (ref.unresolved.isEmpty() && ref.element != null) {
                 val psiElement = ref.element.value()
                 WriteCommandAction.runWriteCommandAction(project, "Delete Orphan Key", null, {
