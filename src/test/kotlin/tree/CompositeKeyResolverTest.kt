@@ -1,13 +1,17 @@
 package tree
 
 import com.ibrahimdans.i18n.*
+import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.tree.PropertyReference
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.intellij.json.JsonFileType
+import com.intellij.lang.Language
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.patterns.PlatformPatterns
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiReference
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.*
@@ -31,32 +35,31 @@ internal fun localizationSource(tree: TestTree?): LocalizationSource {
     )
 }
 
+// not used in CompositeKeyResolver tests
 fun testLocalization(): Localization<PsiElement> {
-    return object: Localization<PsiElement> {
-        override fun types(): List<LocalizationFileType> {
-            TODO("Not yet implemented")
+    return object : Localization<PsiElement> {
+        override fun types(): List<LocalizationFileType> = emptyList()
+
+        override fun contentGenerator() = object : ContentGenerator {
+            override fun generateContent(compositeKey: List<Literal>, value: String) = ""
+            override fun getType() = JsonFileType.INSTANCE
+            override fun getLanguage(): Language = Language.ANY
+            override fun getDescription() = ""
+            override fun isSuitable(element: PsiElement) = false
+            override fun generateTranslationEntry(item: PsiElement, key: String, value: String) {}
+            override fun generate(element: PsiElement, fullKey: FullKey, unresolved: List<Literal>, translationValue: String?) {}
         }
 
-        override fun contentGenerator(): ContentGenerator {
-            TODO("Not yet implemented")
+        override fun referenceAssistant() = object : TranslationReferenceAssistant<PsiElement> {
+            override fun pattern() = PlatformPatterns.alwaysFalse<PsiElement>()
+            override fun references(element: PsiElement): List<PsiReference> = emptyList()
         }
 
-        override fun referenceAssistant(): TranslationReferenceAssistant<PsiElement> {
-            TODO("Not yet implemented")
-        }
+        override fun elementsTree(file: PsiElement): Tree<PsiElement>? = null
 
-        override fun elementsTree(file: PsiElement): Tree<PsiElement>? {
-            TODO("Not yet implemented")
-        }
+        override fun matches(localizationFileType: LocalizationFileType, file: VirtualFile?, fileNames: List<String>) = false
 
-        override fun matches(localizationFileType: LocalizationFileType, file: VirtualFile?, fileNames: List<String>): Boolean {
-            TODO("Not yet implemented")
-        }
-
-        override fun config(): LocalizationConfig {
-            TODO("Not yet implemented")
-        }
-
+        override fun config(): LocalizationConfig = LocalizationConfigImpl("test")
     }
 }
 
