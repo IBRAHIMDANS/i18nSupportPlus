@@ -35,7 +35,8 @@ internal fun localizationSource(tree: TestTree?): LocalizationSource {
     )
 }
 
-// not used in CompositeKeyResolver tests
+// Used to build LocalizationSource in CompositeKeyResolver tests; the stubbed localization
+// implementation details below (content generator, reference assistant, matches, etc.) are not exercised.
 fun testLocalization(): Localization<PsiElement> {
     return object : Localization<PsiElement> {
         override fun types(): List<LocalizationFileType> = emptyList()
