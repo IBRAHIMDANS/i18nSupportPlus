@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Features
+- [Stats] Missing keys popup in Translation Stats panel — clicking a locale row opens a resizable list of missing keys; each key navigates to its exact position in the reference locale file (TASK-P)
+
 ---
 
 ## [1.0.6] - 2026-04-17
