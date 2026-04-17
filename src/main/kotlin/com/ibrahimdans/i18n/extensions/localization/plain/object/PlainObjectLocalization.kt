@@ -7,6 +7,11 @@ import com.intellij.openapi.fileTypes.PlainTextFileType
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 
+/**
+ * NOT ACTIVE — registration disabled in plainObjectConfig.xml pending availability of
+ * org.jetbrains.plugins.localization (GNU GetText plugin) for IntelliJ build 243.x+.
+ * PlainObjectTextTree relies on PSI node types (SECTION, ID_LINE) provided by that plugin.
+ */
 class PlainObjectLocalization : Localization<PsiElement> {
     override fun types(): List<LocalizationFileType> =
         listOf(FileTypeManager

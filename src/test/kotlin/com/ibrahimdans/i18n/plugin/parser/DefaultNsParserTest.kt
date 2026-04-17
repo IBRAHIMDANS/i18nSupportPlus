@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Assertions.assertNull
 
 internal class CheckDefaultNs(val elements: List<KeyElement>, val expected: String)
 
-//@Ignore
 internal class DefaultNsParserTest : ParserTestBase {
 
     @Test
