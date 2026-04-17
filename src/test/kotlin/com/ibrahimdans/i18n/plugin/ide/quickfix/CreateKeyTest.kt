@@ -83,7 +83,6 @@ class CreateKeyTest: PlatformBaseTest() {
         )
     }
 
-    @Disabled("YAML empty file: YamlElementTree.create returns null, quick fix cannot create keys in empty YAML documents")
     @Test
     fun testCreateKeyEmptyYml() {
         val cg = JsCodeGenerator()
@@ -135,13 +134,11 @@ class CreateKeyTest: PlatformBaseTest() {
         )
     }
 
-    @Disabled("YAML empty file: YamlElementTree.create returns null, quick fix cannot create keys in empty YAML documents")
     @Test
     fun testCreateKeyEmptyYaml() {
         val cg = JsCodeGenerator()
-        val tg = YamlTranslationGenerator()
         val hint = "Create i18n key"
-        val translationFileName = "test" + "." + tg.ext()
+        val translationFileName = "test.yaml"
         myFixture.addFileToProject(
                 translationFileName,
                 ""

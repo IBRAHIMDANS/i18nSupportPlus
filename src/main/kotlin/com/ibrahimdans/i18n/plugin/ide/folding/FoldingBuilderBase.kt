@@ -100,7 +100,7 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
             .filter {
                 it.parent == config.foldingPreferredLanguage
             }
-            .map { resolveCompositeKey(fullKey.compositeKey, it)}
+            .mapNotNull { resolveCompositeKey(fullKey.compositeKey, it) }
             .firstOrNull { it.unresolved.isEmpty() && it.element?.isLeaf() == true }
             ?.let { ElementToReferenceBinding(element, it) }
     }
