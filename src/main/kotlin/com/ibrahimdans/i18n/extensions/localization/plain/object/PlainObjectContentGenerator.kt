@@ -13,9 +13,9 @@ import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import javax.swing.Icon
 
-// PO uses flat GNU gettext entries (`msgid`/`msgstr` pairs). The GNU GetText PSI plugin
-// (org.jetbrains.plugins.localization) is unavailable on IntelliJ 243.x+, so we fall back
-// to document-level text insertion.
+// PO is a flat list of msgid/msgstr entries with no nested blocks. The GNU GetText PSI plugin
+// (org.jetbrains.plugins.localization) is unavailable on IntelliJ 243.x+, so we fall back to
+// document-level text insertion.
 class PlainObjectContentGenerator : ContentGenerator {
 
     private object PoFileType : FileType {
@@ -56,7 +56,8 @@ class PlainObjectContentGenerator : ContentGenerator {
             existing.endsWith("\n") -> "\n"
             else -> "\n\n"
         }
-        document.insertString(document.textLength, "${separator}msgid \"${key.escapePo()}\"\nmsgstr \"${value.escapePo()}\"\n")
+        val entry = generateContent(listOf(Literal(key)), value)
+        document.insertString(document.textLength, separator + entry)
         manager.commitDocument(document)
     }
 
