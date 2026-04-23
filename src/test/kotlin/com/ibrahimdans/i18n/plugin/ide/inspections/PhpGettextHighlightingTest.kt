@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin.ide.inspections
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.utils.generator.code.PhpGetTextCodeGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.PoTranslationGenerator
+import org.junit.jupiter.api.Test
 
 class PhpGettextHighlightingTest : PlatformBaseTest() {
 
@@ -15,6 +16,7 @@ class PhpGettextHighlightingTest : PlatformBaseTest() {
         myFixture.checkHighlighting(true, true, true, true)
     }
 
+    @Test
     fun testUnresolved() {
         check(
             "defNsUnresolved.${cg.ext()}",
@@ -26,6 +28,7 @@ class PhpGettextHighlightingTest : PlatformBaseTest() {
         )
     }
 
+    @Test
     fun testNotArg() {
         check(
             "defNsUnresolved.${cg.ext()}",
@@ -37,6 +40,7 @@ class PhpGettextHighlightingTest : PlatformBaseTest() {
         )
     }
 
+    @Test
     fun testMissingTranslationFile() {
         check(
             "code.${cg.ext()}",

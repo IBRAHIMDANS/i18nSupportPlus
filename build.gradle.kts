@@ -45,16 +45,16 @@ dependencies {
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
 
-    // Kotlin 2.1.x stdlib calls DebugProbesImpl.install$kotlinx_coroutines_core() at startup.
+    // Kotlin 2.3.x stdlib calls DebugProbesImpl.install$kotlinx_coroutines_core() at startup.
     // This method was added in core:1.9.0 but is absent from the 1.8.0-intellij version
-    // bundled with IU-2024.3.6. We CANNOT use core:1.9.0 entirely because CancellableContinuation
+    // bundled with IU-2025.3.3. We CANNOT use core:1.9.0 entirely because CancellableContinuation
     // changed tryResume from (T,Any?,Function1) to (T,Any?,Function3), breaking IntelliJ's
     // internal binary code compiled against 1.8.0-intellij.
     //
     // Solution: src/test/java/kotlinx/coroutines/debug/internal/DebugProbesImpl.java is a
     // compatibility stub that satisfies both:
     //   - the legacy AgentPremain (getEnableCreationStackTraces, install, etc.)
-    //   - the Kotlin 2.1.x stdlib (install$kotlinx_coroutines_core)
+    //   - the Kotlin 2.3.x stdlib (install$kotlinx_coroutines_core)
     // The test classloader loads test sources before bundled platform jars, so this stub
     // shadows the bundled DebugProbesImpl without touching CancellableContinuation.
 
@@ -76,7 +76,7 @@ dependencies {
 }
 
 // Exclude kotlinx-coroutines-core:1.9.0 that transitive dependencies (mockk BOM, etc.) pull in.
-// IntelliJ 2024.3.6 bundles kotlinx-coroutines-core 1.8.0-intellij on its platform classpath;
+// IntelliJ 2025.3.3 bundles kotlinx-coroutines-core 1.8.0-intellij on its platform classpath;
 // 1.9.0 renames several internal APIs (SelectKt.access$getSTATE_REG$p, CancellableContinuation
 // .tryResume signature, etc.) that IntelliJ's binary code compiled against 1.8.0-intellij still
 // calls → NoSuchMethodError deep in IntelliJ's coroutine-based startup sequence → test hang.
@@ -182,7 +182,7 @@ tasks {
     // 1. Symlink the bundled YAML plugin into plugins-test/ so IntelliJ loads it
     //    and activates our optional ymlConfig.xml. Without this, -Dplugin.path only
     //    lists our plugin and php-impl, leaving YAML unloaded and all YAML tests failing.
-    // 2. The PHP plugin 243.x ships split-mode modules (php-frontback.jar, frontend/)
+    // 2. The PHP plugin 253.x ships split-mode modules (php-frontback.jar, frontend/)
     //    whose META-INF descriptors duplicate extension points already declared in php.jar,
     //    causing PluginException. Strip only the META-INF descriptors from php-frontback.jar
     //    (keep the class files) so the PHP plugin loads cleanly as com.jetbrains.php,
@@ -204,6 +204,20 @@ tasks {
             }
 
             // --- Localization: marketplace plugin, lands in plugins-test/ automatically — no patch needed ---
+
+            // --- Vue: flatten lib/modules/*.jar into lib/ to fix getPluginDistDirByClass ---
+            // In 2025.3+, bundled plugins use lib/modules/ for module JARs. The Vue plugin's
+            // LSP service (VueServicesKt.<clinit>) calls PluginPathManager.getPluginResource()
+            // which relies on getPluginDistDirByClass() expecting JARs directly in lib/.
+            // Moving module JARs to lib/ restores the expected layout without removing Vue support.
+            val vueModulesDir = File(sandboxBase, "plugins/vuejs-plugin/lib/modules")
+            if (vueModulesDir.isDirectory) {
+                val vueLibDir = vueModulesDir.parentFile
+                vueModulesDir.listFiles { f -> f.extension == "jar" }?.forEach { jar ->
+                    jar.renameTo(File(vueLibDir, jar.name))
+                }
+                vueModulesDir.delete()
+            }
 
             // --- PHP: strip META-INF descriptors from php-frontback.jar, keep classes ---
             val phpLib = layout.buildDirectory.dir("idea-sandbox/IU-$effectivePlatformVersion/plugins-test/php-impl/lib")

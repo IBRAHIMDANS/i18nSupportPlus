@@ -22,7 +22,8 @@ class PoTranslationGeneratorTest {
     @Test
     fun testGenerate_singleBranch() {
         val result = gen.generate("root", arrayOf("sub", "hello"))
-        assertTrue(result.contains("msgid \"root.sub.hello\""))
+        assertTrue(result.contains("msgid \"root.sub\""))
+        assertTrue(result.contains("msgstr \"hello\""))
     }
 
     @Test

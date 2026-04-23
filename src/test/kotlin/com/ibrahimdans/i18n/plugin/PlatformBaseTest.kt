@@ -13,10 +13,37 @@ import org.junit.jupiter.api.extension.ReflectiveInvocationContext
 import java.lang.reflect.Method
 import java.util.EnumSet
 
+// Suppress known IntelliJ infrastructure errors that are not plugin regressions.
+// TestLoggerFactory converts ERROR-level logs into test failures, so we redirect them to LOG only.
+// Active during setUp, tearDown, AND test body (see EdtTestInterceptor below).
+//
+// Known suppressions:
+//   1. PHP plugin split-mode: InstanceAlreadyRegisteredException on duplicate service registration
+//   2. JS stub index: js.global.symbol.index access during JSX/TSX indexing in tests
+//   3. Index rebuild noise
+//   4. Vue LSP (2025.3+): getPluginDistDirByClass() fails with lib/modules/ modular structure;
+//      VueLspServerSupportProvider cannot be instantiated in the test sandbox
+private val infraErrorSuppressor = object : LoggedErrorProcessor() {
+    override fun processError(
+        category: String,
+        message: String,
+        details: Array<String>,
+        t: Throwable?
+    ): Set<Action> {
+        if (message.contains("is already registered")) return EnumSet.of(Action.LOG)
+        if (message.contains("js.global.symbol.index") || message.contains("stub index")) return EnumSet.of(Action.LOG)
+        if (message.contains("updateWithMap") || message.contains("Index IdIndex will be rebuilt")) return EnumSet.of(Action.LOG)
+        if (message.contains("VueLspServerSupportProvider") || message.contains("VueLspTypeScriptService")) return EnumSet.of(Action.LOG)
+        return super.processError(category, message, details, t)
+    }
+}
+
 // Dispatches each test method (and @ParameterizedTest template) to the EDT so that
 // IntelliJ PSI operations work correctly under the JUnit 5 engine.
 // BasePlatformTestCase.runTest() normally handles this EDT dispatch for the vintage
 // engine; this interceptor replicates that behaviour for JUnit 5.
+// The infraErrorSuppressor is active for the duration of each test body so that
+// background-thread infrastructure errors (e.g. Vue LSP init) don't fail tests.
 private class EdtTestInterceptor : InvocationInterceptor {
     override fun interceptTestMethod(
         invocation: InvocationInterceptor.Invocation<Void>,
@@ -33,7 +60,9 @@ private class EdtTestInterceptor : InvocationInterceptor {
     private fun dispatchOnEdt(block: () -> Unit) {
         var caught: Throwable? = null
         ApplicationManager.getApplication().invokeAndWait {
-            try { block() } catch (t: Throwable) { caught = t }
+            LoggedErrorProcessor.executeWith(infraErrorSuppressor, ThrowableRunnable<RuntimeException> {
+                try { block() } catch (t: Throwable) { caught = t }
+            })
         }
         caught?.let { throw it }
     }
@@ -42,41 +71,16 @@ private class EdtTestInterceptor : InvocationInterceptor {
 @ExtendWith(EdtTestInterceptor::class)
 abstract class PlatformBaseTest: BasePlatformTestCase() {
 
-    // Suppress known IntelliJ 2024.3 infrastructure errors that are not plugin regressions:
-    // 1. PHP plugin split-mode service conflict: both Frontend and Backend variants of
-    //    BasicPhpStubElementTypesSupplierService register, causing InstanceAlreadyRegisteredException.
-    // 2. JS stub index errors: js.global.symbol.index access during JSX/TSX file indexing in tests.
-    // TestLoggerFactory converts ERROR-level logs into test failures, so we redirect them to LOG only.
-    private val suppressInfraErrors = object : LoggedErrorProcessor() {
-        override fun processError(
-            category: String,
-            message: String,
-            details: Array<String>,
-            t: Throwable?
-        ): Set<Action> {
-            if (message.contains("is already registered")) {
-                return EnumSet.of(Action.LOG)
-            }
-            if (message.contains("js.global.symbol.index") || message.contains("stub index")) {
-                return EnumSet.of(Action.LOG)
-            }
-            if (message.contains("updateWithMap") || message.contains("Index IdIndex will be rebuilt")) {
-                return EnumSet.of(Action.LOG)
-            }
-            return super.processError(category, message, details, t)
-        }
-    }
-
     @BeforeEach
     fun setFixtureUp() {
-        LoggedErrorProcessor.executeWith(suppressInfraErrors, ThrowableRunnable<RuntimeException> {
+        LoggedErrorProcessor.executeWith(infraErrorSuppressor, ThrowableRunnable<RuntimeException> {
             setUp()
         })
     }
 
     @AfterEach
     fun tearFixtureDown() {
-        LoggedErrorProcessor.executeWith(suppressInfraErrors, ThrowableRunnable<RuntimeException> {
+        LoggedErrorProcessor.executeWith(infraErrorSuppressor, ThrowableRunnable<RuntimeException> {
             tearDown()
         })
     }

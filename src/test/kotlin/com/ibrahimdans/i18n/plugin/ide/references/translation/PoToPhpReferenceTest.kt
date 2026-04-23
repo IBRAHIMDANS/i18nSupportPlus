@@ -5,13 +5,13 @@ import com.ibrahimdans.i18n.plugin.utils.at
 import com.ibrahimdans.i18n.plugin.utils.generator.code.PhpGetTextCodeGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.PoTranslationGenerator
 import com.intellij.psi.PsiPolyVariantReference
-import org.junit.Ignore
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Disabled
 
 // PO→Code navigation requires implementing PlainObjectReferenceAssistant.pattern() and references()
 // using PSI types from org.jetbrains.plugins.localization. The plugin is now available (build 251+)
 // but the assistant still returns alwaysFalse()/emptyList(). Re-enable once implemented.
-@Ignore
+@Disabled
 class PoToPhpReferenceTest: PlatformBaseTest() {
 
     private val cg = PhpGetTextCodeGenerator("gettext")
