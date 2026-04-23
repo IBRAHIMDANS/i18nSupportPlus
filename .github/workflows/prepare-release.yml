@@ -36,28 +36,21 @@ jobs:
         run: ./gradlew patchChangelog
 
       - name: Open release PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
         run: |
-          BRANCH="chore/release-${{ inputs.version }}"
+          BRANCH="chore/release-${VERSION}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
           git add gradle.properties CHANGELOG.md
-          git commit -m "chore(release): bump version to ${{ inputs.version }}"
+          git commit -m "chore(release): bump version to ${VERSION}"
           git push origin "$BRANCH"
+          printf '## Release %s\n\nChangements automatisés :\n- `pluginVersion` mis à jour dans `gradle.properties`\n- `[Unreleased]` promu en `[%s]` dans `CHANGELOG.md`\n- Nouveau `[Unreleased]` vide créé pour la prochaine itération\n\n**Après merge :** créer le tag `v%s` pour déclencher la publication.' \
+            "${VERSION}" "${VERSION}" "${VERSION}" > /tmp/pr-body.md
           gh pr create \
-            --title "chore(release): bump version to ${{ inputs.version }}" \
-            --body "$(cat <<'EOF'
-## Release ${{ inputs.version }}
-
-Changements automatisés :
-- `pluginVersion` mis à jour dans `gradle.properties`
-- `[Unreleased]` promu en `[${{ inputs.version }}]` dans `CHANGELOG.md`
-- Nouveau `[Unreleased]` vide créé pour la prochaine itération
-
-**Après merge :** créer le tag `v${{ inputs.version }}` pour déclencher la publication.
-EOF
-)" \
+            --title "chore(release): bump version to ${VERSION}" \
+            --body-file /tmp/pr-body.md \
             --base main \
             --head "$BRANCH"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
