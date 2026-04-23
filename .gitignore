@@ -10,6 +10,7 @@
 /.intellijPlatform/
 /META-INF/
 *.class
+*.hprof
 local.properties
 .kotlin/
 CLAUDE.md
