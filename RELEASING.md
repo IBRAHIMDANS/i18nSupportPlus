@@ -1,95 +1,86 @@
 # Releasing
 
-## Prérequis
+## Prerequisites
 
-- Secret `IJ_HUB_TOKEN` configuré dans les paramètres GitHub du repo (JetBrains Marketplace token)
-- Branche `main` à jour et stable (CI verte)
+- Secret `IJ_HUB_TOKEN` configured in the repository settings (JetBrains Marketplace token)
+- `main` branch up to date and stable (CI green)
 
 ---
 
-## Flux de release
+## Release flow
 
-### 1. Alimenter `[Unreleased]` au fil des PRs
+### 1. Keep `[Unreleased]` up to date as you work
 
-À chaque PR de feature ou de fix, mettre à jour la section `[Unreleased]` dans `CHANGELOG.md` :
+In every feature or fix PR, update the `[Unreleased]` section in `CHANGELOG.md`:
 
 ```markdown
 ## [Unreleased]
 
 ### Features
-- [Scope] Description courte (#PR)
+- [Scope] Short description (#PR)
 
 ### Bug Fixes
-- [Scope] Description courte (#PR)
+- [Scope] Short description (#PR)
 ```
 
-C'est le seul travail éditorial manuel — il doit être fait dans la PR elle-même, pas au moment de la release.
+This is the only manual editorial step — it belongs in the PR itself, not at release time.
 
 ---
 
-### 2. Lancer le workflow "Prepare Release"
+### 2. Trigger the "Prepare Release" workflow
 
-Depuis GitHub : **Actions → Prepare Release → Run workflow**
+Go to **GitHub → Actions → Prepare Release → Run workflow**, enter the target version and click **Run**.
 
-| Champ | Exemple |
+| Field | Example |
 |---|---|
-| Version à releaser | `1.0.7` |
+| Version | `1.0.7` |
 
-Le workflow crée automatiquement une PR `chore/release-1.0.7` qui contient :
-- `gradle.properties` : `pluginVersion = 1.0.7`
-- `CHANGELOG.md` : `[Unreleased]` promu en `[1.0.7] - YYYY-MM-DD`, nouveau `[Unreleased]` vide ajouté en tête
+The workflow automatically:
+- Sets `pluginVersion = 1.0.7` in `gradle.properties`
+- Runs `./gradlew patchChangelog` — promotes `[Unreleased]` to `[1.0.7] - YYYY-MM-DD` and creates a fresh empty `[Unreleased]` at the top
+- Commits both files to `main`
+- Creates and pushes tag `v1.0.7`
 
----
+The tag push automatically triggers the **Release** workflow, which:
+1. Builds the plugin (`./gradlew buildPlugin`)
+2. Publishes to JetBrains Marketplace (`./gradlew publishPlugin`)
+3. Extracts release notes from `CHANGELOG.md` for the tagged version
+4. Creates a GitHub Release with the plugin ZIP attached
 
-### 3. Merger la PR
-
-Relire le diff (version + changelog), puis merger la PR.
-
----
-
-### 4. Créer et pousser le tag
-
-```bash
-git checkout main && git pull
-git tag v1.0.7
-git push origin v1.0.7
-```
-
-Le tag déclenche automatiquement le workflow **Release** qui :
-1. Build le plugin (`./gradlew buildPlugin`)
-2. Publie sur JetBrains Marketplace (`./gradlew publishPlugin`)
-3. Extrait les notes de `CHANGELOG.md` pour la version taguée
-4. Crée la GitHub Release avec le ZIP en pièce jointe
+**That's it — one click, no manual steps.**
 
 ---
 
 ## Versioning
 
-Format : `MAJOR.MINOR.PATCH` — pas de préfixe `v` dans `gradle.properties`, le `v` n'apparaît que dans le tag git.
+Format: `MAJOR.MINOR.PATCH` — no `v` prefix in `gradle.properties`, the `v` only appears in the git tag.
 
-| Incrément | Quand |
+| Increment | When |
 |---|---|
-| `PATCH` | Bug fix, refactoring interne |
-| `MINOR` | Nouvelle fonctionnalité rétrocompatible |
-| `MAJOR` | Breaking change ou refonte majeure |
+| `PATCH` | Bug fix, internal refactoring |
+| `MINOR` | New backward-compatible feature |
+| `MAJOR` | Breaking change or major redesign |
 
-### Pré-releases
+### Pre-releases
 
-Un tag contenant `-beta` ou `-alpha` (ex: `v1.1.0-beta.1`) crée automatiquement une GitHub Release marquée **pre-release** et publie sur le canal correspondant du Marketplace.
+A tag containing `-beta` or `-alpha` (e.g. `v1.1.0-beta.1`) automatically creates a GitHub Release marked as **pre-release** and publishes to the corresponding Marketplace channel.
 
 ---
 
-## En cas de problème
+## Troubleshooting
 
-**Le workflow "Prepare Release" a échoué avant le push :** aucune PR créée, rien à nettoyer. Corriger et relancer.
+**"Prepare Release" workflow failed before pushing:**
+Nothing was committed or tagged. Fix the issue and re-run the workflow.
 
-**La PR a été mergée mais le tag pointe sur le mauvais commit :**
+**Tag points to the wrong commit:**
 ```bash
 git tag -d v1.0.7
 git push origin :refs/tags/v1.0.7
-# recréer le tag sur le bon commit
-git tag v1.0.7 <sha>
-git push origin v1.0.7
+# Re-run "Prepare Release" to recreate everything correctly
 ```
 
-**La publication Marketplace a échoué mais la GitHub Release est créée :** relancer manuellement `./gradlew publishPlugin` en local avec `IJ_HUB_TOKEN` exporté, ou relancer le job depuis l'interface GitHub Actions.
+**Marketplace publish failed but GitHub Release was created:**
+Re-run `publishPlugin` manually with `IJ_HUB_TOKEN` exported, or re-run the failed job from the GitHub Actions UI.
+
+**"Plugin already contains version X":**
+That version was already published to the Marketplace. Bump to the next version — you cannot overwrite a published release.
