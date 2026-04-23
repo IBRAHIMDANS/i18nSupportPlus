@@ -26,8 +26,7 @@ class YamlElementTree(val element: PsiElement): Tree<PsiElement> {
     override fun findChildren(prefix: String): List<Tree<PsiElement>> {
         return mapping()
             ?.keyValues
-            ?.filter { it.key!!.text.startsWith(prefix) }
-            ?.map { YamlElementTree(it.key!!) }
+            ?.mapNotNull { kv -> kv.key?.takeIf { it.text.startsWith(prefix) }?.let(::YamlElementTree) }
             ?: emptyList()
     }
     companion object {

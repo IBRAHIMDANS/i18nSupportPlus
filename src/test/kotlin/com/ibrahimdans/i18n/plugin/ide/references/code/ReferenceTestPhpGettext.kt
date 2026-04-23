@@ -7,12 +7,8 @@ import com.ibrahimdans.i18n.plugin.utils.generator.code.PhpGetTextCodeGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.PoTranslationGenerator
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.psi.PsiElement
-import org.junit.Ignore
 import org.junit.jupiter.api.Assertions.*
 
-// GNU GetText plugin (org.jetbrains.plugins.localization) is not available for IntelliJ 243.x builds.
-// All Gettext-based reference tests are disabled until the plugin is supported again.
-@Ignore
 class ReferenceTestPhpGettext : PlatformBaseTest() {
 
     private val cg = PhpGetTextCodeGenerator("gettext")

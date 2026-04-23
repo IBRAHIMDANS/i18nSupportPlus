@@ -19,19 +19,19 @@ internal class FoldingTestVue : PlatformBaseTest() {
 
     @Test
     fun testVueFolding() = myFixture.runWithConfig(testConfig) {
-        myFixture.configureByFiles("assets/ru/test.json", "assets/en/test.json")
+        configureByFiles("assets/ru/test.json", "assets/en/test.json")
         myFixture.testFolding("$testDataPath/vue/simpleTest.vue")
     }
 
     @Test
     fun testVueFoldingDefaultNs() = myFixture.runWithConfig(testConfig) {
-        myFixture.configureByFiles("assets/ru/translation.json", "assets/en/translation.json")
+        configureByFiles("assets/ru/translation.json", "assets/en/translation.json")
         myFixture.testFolding("$testDataPath/vue/defaultTestVue.vue")
     }
 
     @Test
     fun testVueFoldingDisabled() = myFixture.runWithConfig(Config(foldingPreferredLanguage = "fr")) {
-        myFixture.configureByFiles("assets/ru/test.json", "assets/en/test.json")
+        configureByFiles("assets/ru/test.json", "assets/en/test.json")
         myFixture.testFolding("$testDataPath/vue/noFoldingVue.vue")
     }
 }

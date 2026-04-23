@@ -21,7 +21,7 @@ class ReferencesTestVue : PlatformBaseTest() {
 
     @Test
     fun testReferenceInVueTemplate() {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/test.json",
             """{"ref": {"section": {"key": "Reference in json"}}}"""
         )
@@ -48,7 +48,7 @@ class ReferencesTestVue : PlatformBaseTest() {
 
     @Test
     fun testDefaultNsReferenceInVueTemplate() {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/translation.json",
             """{"ref": {"section": {"key": "Default ns reference"}}}"""
         )

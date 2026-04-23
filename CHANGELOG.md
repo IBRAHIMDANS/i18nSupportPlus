@@ -2,9 +2,24 @@
 
 ### Features
 - [Stats] Missing keys popup in Translation Stats panel — clicking a locale row opens a resizable list of missing keys; each key navigates to its exact position in the reference locale file (TASK-P)
+- [GNU GetText] Re-enable `PlainObjectLocalization` — `org.jetbrains.plugins.localization:253.28294.218` now available on Marketplace; extension uncommented in `plainObjectConfig.xml` (BLOCKED/GNU)
+- [GNU GetText] Re-enable PHP GetText tests (`PhpGettextHighlightingTest`, `ReferenceTestPhpGettext`) — `@Ignore` and `ignoredTest*` naming removed now that the plugin is loadable in test sandbox (BLOCKED/GNU)
+
+### Bug Fixes
+- [YAML] Fix NPE in `YamlElementTree.findChildren()` — replace double `!!` on `YAMLKeyValue.key` with a safe `mapNotNull` + `takeIf` chain (#56)
+- [Build] Fix test sandbox for IntelliJ 2025.3.3 — flatten Vue plugin `lib/modules/*.jar` into `lib/` so `getPluginDistDirByClass()` works with the new modular structure; prevents `IllegalStateException` that was failing all tests (#57)
+- [Tests] Extend `PlatformBaseTest` error suppressor coverage to test body execution (via `EdtTestInterceptor`) and add Vue LSP conditions as belt-and-suspenders (#57)
+
+### Tests
+- [PO] Add `PlainObjectContentGeneratorTest` and `PoTranslationGeneratorTest` — unit tests for PO content generation (TASK-K, TASK-B)
+- [Inspections] Add `IcuFormatInspectionTest` — covers valid plural/select, missing `other` form, missing `one`/`zero` form, unbalanced braces, JSON and YAML (#56)
+- [Inspections] Add `PlaceholderConsistencyInspectionTest` — covers same placeholders (no warn), missing placeholder, unbalanced brace, absent reference file, JSON and YAML (#56)
+- [Inspections] Add `UnusedTranslationKeyInspectionTest` — covers leaf string flagging, object/mapping properties skipped, JSON and YAML (#56)
 
 ### Refactoring
 - [Tests] Replace 6 `TODO` stubs in `testLocalization()` with neutral returns (`emptyList()`, `null`, `false`, minimal anonymous objects) — prevents runtime `NotImplementedError` if future tests invoke those paths (TASK-V)
+- [Build] Upgrade target platform to IntelliJ IDEA 2025.3.3 (build 253); update PHP plugin to `253.31033.19`; add build 2025.3 to verification matrix
+- [JS] Replace `JavascriptLanguage.INSTANCE` with `Language.findLanguageByID("JavaScript")` in `JsTranslationExtractor` and `JsxTranslationExtractor` — avoids compile-time binding to the JS plugin class (BLOCKED/GNU)
 
 ---
 

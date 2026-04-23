@@ -22,7 +22,7 @@ class ReferencesOptionsArgTest : PlatformBaseTest() {
     @ParameterizedTest
     @ValueSource(strings = ["js", "ts", "jsx", "tsx"])
     fun testNsStringInOptions(ext: String) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/common.${jsonTg.ext()}",
             jsonTg.generateContent("ref", "section", "key", "Value from common ns")
         )
@@ -45,7 +45,7 @@ class ReferencesOptionsArgTest : PlatformBaseTest() {
     @ParameterizedTest
     @ValueSource(strings = ["js", "ts", "jsx", "tsx"])
     fun testNsStringInOptionsYaml(ext: String) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/common.${yamlTg.ext()}",
             yamlTg.generateContent("ref", "section", "key", "Value from common ns yaml")
         )
@@ -70,7 +70,7 @@ class ReferencesOptionsArgTest : PlatformBaseTest() {
     @ParameterizedTest
     @ValueSource(strings = ["js", "ts", "jsx", "tsx"])
     fun testNsArrayInOptions(ext: String) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/common.${jsonTg.ext()}",
             jsonTg.generateContent("ref", "section", "key", "Value from array ns")
         )
@@ -95,7 +95,7 @@ class ReferencesOptionsArgTest : PlatformBaseTest() {
     @ParameterizedTest
     @ValueSource(strings = ["js", "ts", "jsx", "tsx"])
     fun testOptionsWithoutNsFallsBackToDefaultNs(ext: String) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/translation.${jsonTg.ext()}",
             jsonTg.generateContent("ref", "section", "key", "Default ns value")
         )
@@ -120,7 +120,7 @@ class ReferencesOptionsArgTest : PlatformBaseTest() {
     @ParameterizedTest
     @ValueSource(strings = ["js", "ts", "jsx", "tsx"])
     fun testNsWithOtherOptions(ext: String) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/common.${jsonTg.ext()}",
             jsonTg.generateContent("ref", "section", "key", "Value with extra options")
         )

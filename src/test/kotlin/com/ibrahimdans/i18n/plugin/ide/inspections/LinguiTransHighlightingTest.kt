@@ -29,7 +29,7 @@ class LinguiTransHighlightingTest : PlatformBaseTest() {
 
     @Test
     fun testUnresolvedTransKey() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
-        myFixture.addFileToProject("assets/translation.json", """{"other": "value"}""")
+        addFileToProject("assets/translation.json", """{"other": "value"}""")
         myFixture.configureByText(
             "test.${cg.ext()}",
             cg.generate("""<error descr="Unresolved key">Hello world!</error>""")
@@ -39,7 +39,7 @@ class LinguiTransHighlightingTest : PlatformBaseTest() {
 
     @Test
     fun testResolvedTransKeyJson() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
-        myFixture.addFileToProject("assets/translation.json", """{"Hello world!": "Bonjour monde!"}""")
+        addFileToProject("assets/translation.json", """{"Hello world!": "Bonjour monde!"}""")
         myFixture.configureByText("test.${cg.ext()}", cg.generate("Hello world!"))
         myFixture.checkHighlighting(true, true, true, true)
     }
@@ -47,7 +47,7 @@ class LinguiTransHighlightingTest : PlatformBaseTest() {
     @Test
     fun testNotInTransContext() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
         // Text inside a plain <div> must NOT trigger extraction
-        myFixture.addFileToProject("assets/translation.json", """{"Hello world!": "Bonjour monde!"}""")
+        addFileToProject("assets/translation.json", """{"Hello world!": "Bonjour monde!"}""")
         myFixture.configureByText("test.${cg.ext()}", cg.generateInvalid("Hello world!"))
         myFixture.checkHighlighting(true, true, true, true)
     }
@@ -56,7 +56,7 @@ class LinguiTransHighlightingTest : PlatformBaseTest() {
     // These methods intentionally lack @Test so they are skipped by the JUnit 5 runner.
     fun ignoredTestResolvedFromPoFile() = myFixture.runWithConfig(Config(defaultNs = "messages")) {
         val tg = PoTranslationGenerator()
-        myFixture.addFileToProject(
+        addFileToProject(
             "en-US/LC_MESSAGES/messages.${tg.ext()}",
             tg.generateContent("Hello world!", "Bonjour monde!")
         )
@@ -66,7 +66,7 @@ class LinguiTransHighlightingTest : PlatformBaseTest() {
 
     fun ignoredTestUnresolvedKeyInPoFile() = myFixture.runWithConfig(Config(defaultNs = "messages")) {
         val tg = PoTranslationGenerator()
-        myFixture.addFileToProject(
+        addFileToProject(
             "en-US/LC_MESSAGES/messages.${tg.ext()}",
             tg.generateContent("Other key", "Autre clé")
         )
