@@ -38,8 +38,9 @@ Go to **GitHub → Actions → Prepare Release → Run workflow**, enter the tar
 The workflow automatically:
 - Sets `pluginVersion = 1.0.7` in `gradle.properties`
 - Runs `./gradlew patchChangelog` — promotes `[Unreleased]` to `[1.0.7] - YYYY-MM-DD` and creates a fresh empty `[Unreleased]` at the top
-- Commits both files to `main`
+- Commits both files to a new branch `release/v1.0.7`
 - Creates and pushes tag `v1.0.7`
+- Opens a pull request `release/v1.0.7 → main`
 
 The tag push automatically triggers the **Release** workflow, which:
 1. Builds the plugin (`./gradlew buildPlugin`)
@@ -47,7 +48,9 @@ The tag push automatically triggers the **Release** workflow, which:
 3. Extracts release notes from `CHANGELOG.md` for the tagged version
 4. Creates a GitHub Release with the plugin ZIP attached
 
-**That's it — one click, no manual steps.**
+Once the Release workflow completes, merge the pull request to keep `main` up to date.
+
+**Two steps: one click to release, one merge to close the loop.**
 
 ---
 
