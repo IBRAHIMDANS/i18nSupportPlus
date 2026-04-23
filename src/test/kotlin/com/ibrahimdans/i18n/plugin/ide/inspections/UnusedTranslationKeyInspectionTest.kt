@@ -6,9 +6,10 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-// In the test environment no JS/code references are configured, so ReferencesSearch returns null
-// for all properties → every leaf string property is flagged as unused. This is the expected
-// baseline for verifying filter logic (object vs. leaf, scalar vs. mapping).
+// Baseline: in the test environment no IDE-level references are configured for
+// ReferencesSearch, so pure ReferencesSearch returns null for all properties.
+// The inspection also checks the plugin's own TranslationToCodeReference (nameElement.references),
+// which DOES work in tests when a code file is present — see testJsonKeyWithCodeReferenceNotFlagged.
 class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
 
     private companion object {
@@ -71,8 +72,23 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
             nested:
               key: value
         """.trimIndent()
-        val warnings = unusedWarningsFromFile(content, "en.yaml")
-        // "nested" → value is YAMLMapping → skipped; "key" → value is YAMLScalar → flagged
+    // JSON — a key that has a code reference is NOT flagged
+
+    @Test
+    fun testJsonKeyWithCodeReferenceNotFlagged() {
+        // Add a PHP code file that calls t('test:greeting'), establishing a reference to the "greeting" key
+        myFixture.addFileToProject("src/App.php", "<?php echo t('test:greeting');")
+        myFixture.enableInspections(UnusedTranslationKeyInspection::class.java)
+        val jsonFile = myFixture.addFileToProject(
+            "assets/test.json",
+            """{"greeting": "Hello!", "unused": "World"}"""
+        )
+        myFixture.configureFromExistingVirtualFile(jsonFile.virtualFile)
+        val warnings = myFixture.doHighlighting()
+            .mapNotNull { it.description }
+            .filter { it == UNUSED_MSG }
+        // "greeting" is referenced in PHP code → must NOT be flagged
+        // "unused" has no code reference → must be flagged
         assertEquals(1, warnings.size)
     }
 }

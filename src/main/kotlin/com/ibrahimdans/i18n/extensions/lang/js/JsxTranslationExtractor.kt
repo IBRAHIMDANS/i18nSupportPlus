@@ -49,5 +49,8 @@ internal class JsxTranslationExtractor : TranslationExtractor {
     override fun template(element: PsiElement): (argument: String) -> String = {
         "{i18n.t($it)}"
     }
-    private fun PsiElement.isJs(): Boolean = this.language == Language.findLanguageByID("JavaScript")
+    private fun PsiElement.isJs(): Boolean {
+        val jsLang = Language.findLanguageByID("JavaScript") ?: return false
+        return this.language.isKindOf(jsLang)
+    }
 }

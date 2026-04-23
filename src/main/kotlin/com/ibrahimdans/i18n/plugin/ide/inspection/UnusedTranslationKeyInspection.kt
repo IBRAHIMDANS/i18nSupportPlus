@@ -39,6 +39,7 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
         val nameElement = property.nameElement
         val hasRefs = runReadAction {
             ReferencesSearch.search(property).findFirst() != null
+                || nameElement.references.any { it.resolve() != null }
         }
         if (!hasRefs) {
             holder.registerProblem(nameElement, MESSAGE, DeleteUnusedKeyFix())
@@ -50,6 +51,7 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
         val keyElement = keyValue.key ?: return
         val hasRefs = runReadAction {
             ReferencesSearch.search(keyValue).findFirst() != null
+                || keyValue.references.any { it.resolve() != null }
         }
         if (!hasRefs) {
             holder.registerProblem(keyElement, MESSAGE, DeleteUnusedKeyFix())
