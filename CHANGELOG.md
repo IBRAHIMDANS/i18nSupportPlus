@@ -2,9 +2,16 @@
 
 ### Features
 - [Stats] Missing keys popup in Translation Stats panel — clicking a locale row opens a resizable list of missing keys; each key navigates to its exact position in the reference locale file (TASK-P)
+- [GNU GetText] Re-enable `PlainObjectLocalization` — `org.jetbrains.plugins.localization:253.28294.218` now available on Marketplace; extension uncommented in `plainObjectConfig.xml` (BLOCKED/GNU)
+- [GNU GetText] Re-enable PHP GetText tests (`PhpGettextHighlightingTest`, `ReferenceTestPhpGettext`) — `@Ignore` and `ignoredTest*` naming removed now that the plugin is loadable in test sandbox (BLOCKED/GNU)
+
+### Tests
+- [PO] Add `PlainObjectContentGeneratorTest` and `PoTranslationGeneratorTest` — unit tests for PO content generation (TASK-K, TASK-B)
 
 ### Refactoring
 - [Tests] Replace 6 `TODO` stubs in `testLocalization()` with neutral returns (`emptyList()`, `null`, `false`, minimal anonymous objects) — prevents runtime `NotImplementedError` if future tests invoke those paths (TASK-V)
+- [Build] Upgrade target platform to IntelliJ IDEA 2025.3.3 (build 253); update PHP plugin to `253.31033.19`; add build 2025.3 to verification matrix
+- [JS] Replace `JavascriptLanguage.INSTANCE` with `Language.findLanguageByID("JavaScript")` in `JsTranslationExtractor` and `JsxTranslationExtractor` — avoids compile-time binding to the JS plugin class (BLOCKED/GNU)
 
 ---
 

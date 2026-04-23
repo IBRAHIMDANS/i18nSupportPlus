@@ -35,12 +35,12 @@ dependencies {
         intellijIdeaUltimate(effectivePlatformVersion)
         bundledPlugin("JavaScript")
         bundledPlugin("org.jetbrains.plugins.yaml")
-        // PHP plugin is not bundled in IntelliJ Ultimate 2024.3.6 (build 243.26574)
-        plugin("com.jetbrains.php:243.26574.100")
-        // Vue.js plugin is bundled in IntelliJ Ultimate 2024.3.6
+        // PHP plugin is not bundled in IntelliJ Ultimate 2025.3.3 (build 253.31033)
+        plugin("com.jetbrains.php:253.31033.19")
+        // Vue.js plugin is bundled in IntelliJ Ultimate 2025.3.3
         bundledPlugin("org.jetbrains.plugins.vue")
-        // GNU GetText (org.jetbrains.plugins.localization) has no version for 243.x builds
-        // It is declared as optional in plugin.xml and requires no compile-time dependency
+        // GNU GetText support — available from build 251.x onwards
+        plugin("org.jetbrains.plugins.localization:253.28294.218")
 
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
@@ -145,6 +145,7 @@ intellijPlatform {
             recommended()
             create(IntelliJPlatformType.IntellijIdeaUltimate, "2025.1")
             create(IntelliJPlatformType.IntellijIdeaUltimate, "2025.2")
+            create(IntelliJPlatformType.IntellijIdeaUltimate, "2025.3")
         }
     }
 }
@@ -201,6 +202,8 @@ tasks {
             if (yamlSrc.exists() && !yamlDst.exists()) {
                 Files.createSymbolicLink(yamlDst.toPath(), yamlSrc.toPath())
             }
+
+            // --- Localization: marketplace plugin, lands in plugins-test/ automatically — no patch needed ---
 
             // --- PHP: strip META-INF descriptors from php-frontback.jar, keep classes ---
             val phpLib = layout.buildDirectory.dir("idea-sandbox/IU-$effectivePlatformVersion/plugins-test/php-impl/lib")

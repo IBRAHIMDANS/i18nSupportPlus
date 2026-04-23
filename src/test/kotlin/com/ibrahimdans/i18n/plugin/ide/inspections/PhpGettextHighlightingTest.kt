@@ -15,11 +15,7 @@ class PhpGettextHighlightingTest : PlatformBaseTest() {
         myFixture.checkHighlighting(true, true, true, true)
     }
 
-    // GNU GetText plugin (org.jetbrains.plugins.localization) is not available for IntelliJ 243.x builds.
-    // Without it, PlainObjectLocalization is not registered and .po files are not resolved,
-    // so the annotation becomes "Missing default translation file" instead of "Unresolved key".
-    // Renamed to skip: JUnit3-style TestCase ignores method-level @Ignore, only convention `test*` matters.
-    fun ignoredTestUnresolved() {
+    fun testUnresolved() {
         check(
             "defNsUnresolved.${cg.ext()}",
             cg.multiGenerate(
@@ -41,7 +37,7 @@ class PhpGettextHighlightingTest : PlatformBaseTest() {
         )
     }
 
-    fun ignoredTestMissingTranslationFile() {
+    fun testMissingTranslationFile() {
         check(
             "code.${cg.ext()}",
             cg.generate("\"<error descr=\"Missing default translation file\">unresolved.whole.key</error>\""),

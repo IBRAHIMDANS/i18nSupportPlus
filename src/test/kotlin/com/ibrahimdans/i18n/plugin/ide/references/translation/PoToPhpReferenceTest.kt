@@ -8,6 +8,9 @@ import com.intellij.psi.PsiPolyVariantReference
 import org.junit.Ignore
 import org.junit.jupiter.api.Assertions.*
 
+// PO→Code navigation requires implementing PlainObjectReferenceAssistant.pattern() and references()
+// using PSI types from org.jetbrains.plugins.localization. The plugin is now available (build 251+)
+// but the assistant still returns alwaysFalse()/emptyList(). Re-enable once implemented.
 @Ignore
 class PoToPhpReferenceTest: PlatformBaseTest() {
 

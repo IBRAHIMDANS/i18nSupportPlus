@@ -2,7 +2,7 @@ package com.ibrahimdans.i18n.extensions.lang.js
 
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.utils.toBoolean
-import com.intellij.lang.javascript.JavascriptLanguage
+import com.intellij.lang.Language
 import com.intellij.lang.javascript.patterns.JSPatterns
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
@@ -49,5 +49,5 @@ internal class JsxTranslationExtractor : TranslationExtractor {
     override fun template(element: PsiElement): (argument: String) -> String = {
         "{i18n.t($it)}"
     }
-    private fun PsiElement.isJs(): Boolean = this.language == JavascriptLanguage.INSTANCE
+    private fun PsiElement.isJs(): Boolean = this.language == Language.findLanguageByID("JavaScript")
 }
