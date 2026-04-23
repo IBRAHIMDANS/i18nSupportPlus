@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v6
@@ -37,14 +38,26 @@ jobs:
       - name: Patch CHANGELOG (Unreleased → version)
         run: ./gradlew patchChangelog
 
-      - name: Commit, tag and push
+      - name: Create release branch, commit, tag and push
         env:
           VERSION: ${{ inputs.version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "release/v${VERSION}"
           git add gradle.properties CHANGELOG.md
           git commit -m "chore(release): bump version to ${VERSION}"
           git tag "v${VERSION}"
-          git push origin main
+          git push origin "release/v${VERSION}"
           git push origin "v${VERSION}"
+
+      - name: Open PR into main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          gh pr create \
+            --title "chore(release): bump version to ${VERSION}" \
+            --body "Automated release preparation for v${VERSION}. Merge after the release workflow completes." \
+            --base main \
+            --head "release/v${VERSION}"
