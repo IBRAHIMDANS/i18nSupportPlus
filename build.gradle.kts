@@ -143,6 +143,19 @@ changelog {
 }
 
 tasks {
+    register("printChangelogItem") {
+        doLast {
+            print(
+                changelog.renderItem(
+                    changelog.run {
+                        getOrNull(properties("pluginVersion").get()) ?: getLatest()
+                    },
+                    org.jetbrains.changelog.Changelog.OutputType.MARKDOWN
+                )
+            )
+        }
+    }
+
     wrapper {
         gradleVersion = properties("gradleVersion").get()
     }

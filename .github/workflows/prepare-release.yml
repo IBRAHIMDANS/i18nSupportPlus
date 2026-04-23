@@ -1,0 +1,63 @@
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version à releaser (ex: 1.0.7)'
+        required: true
+        type: string
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Bump pluginVersion in gradle.properties
+        run: sed -i "s/^pluginVersion = .*/pluginVersion = ${{ inputs.version }}/" gradle.properties
+
+      - name: Patch CHANGELOG (Unreleased → version)
+        run: ./gradlew patchChangelog
+
+      - name: Open release PR
+        run: |
+          BRANCH="chore/release-${{ inputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add gradle.properties CHANGELOG.md
+          git commit -m "chore(release): bump version to ${{ inputs.version }}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "chore(release): bump version to ${{ inputs.version }}" \
+            --body "$(cat <<'EOF'
+## Release ${{ inputs.version }}
+
+Changements automatisés :
+- `pluginVersion` mis à jour dans `gradle.properties`
+- `[Unreleased]` promu en `[${{ inputs.version }}]` dans `CHANGELOG.md`
+- Nouveau `[Unreleased]` vide créé pour la prochaine itération
+
+**Après merge :** créer le tag `v${{ inputs.version }}` pour déclencher la publication.
+EOF
+)" \
+            --base main \
+            --head "$BRANCH"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
