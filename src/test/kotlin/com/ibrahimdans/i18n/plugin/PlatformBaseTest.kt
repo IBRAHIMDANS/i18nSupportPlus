@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin
 
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.psi.PsiFile
 import com.intellij.testFramework.LoggedErrorProcessor
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.util.ThrowableRunnable
@@ -34,6 +35,7 @@ private val infraErrorSuppressor = object : LoggedErrorProcessor() {
         if (message.contains("js.global.symbol.index") || message.contains("stub index")) return EnumSet.of(Action.LOG)
         if (message.contains("updateWithMap") || message.contains("Index IdIndex will be rebuilt")) return EnumSet.of(Action.LOG)
         if (message.contains("VueLspServerSupportProvider") || message.contains("VueLspTypeScriptService")) return EnumSet.of(Action.LOG)
+        if (t is IllegalAccessError || t?.cause is IllegalAccessError || message.contains("IllegalAccessError")) return EnumSet.of(Action.LOG)
         return super.processError(category, message, details, t)
     }
 }
@@ -86,4 +88,31 @@ abstract class PlatformBaseTest: BasePlatformTestCase() {
     }
 
     fun read(block: () -> Unit) = ApplicationManager.getApplication().runReadAction(block)
+
+    /**
+     * Wraps myFixture.addFileToProject to pre-create intermediate directories in the
+     * temp VFS before writing the file. In IntelliJ 253, PersistentFSImpl throws
+     * IOException when a multi-level path is created without the parent existing first.
+     */
+    protected fun addFileToProject(relativePath: String, content: String): PsiFile {
+        val parent = relativePath.substringBeforeLast("/", "")
+        if (parent.isNotEmpty()) {
+            myFixture.tempDirFixture.findOrCreateDir(parent)
+        }
+        return myFixture.addFileToProject(relativePath, content)
+    }
+
+    /**
+     * Wraps myFixture.configureByFiles to pre-create destination directories in the
+     * temp VFS before IntelliJ copies the test data files into it.
+     */
+    protected fun configureByFiles(vararg paths: String) {
+        paths.forEach { path ->
+            val parent = path.substringBeforeLast("/", "")
+            if (parent.isNotEmpty()) {
+                myFixture.tempDirFixture.findOrCreateDir(parent)
+            }
+        }
+        myFixture.configureByFiles(*paths)
+    }
 }

@@ -72,14 +72,19 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
             nested:
               key: value
         """.trimIndent()
+        val warnings = unusedWarningsFromFile(content, "en.yaml")
+        // "nested" → mapping value → skipped; "key" → scalar → flagged
+        assertEquals(1, warnings.size)
+    }
+
     // JSON — a key that has a code reference is NOT flagged
 
     @Test
     fun testJsonKeyWithCodeReferenceNotFlagged() {
         // Add a PHP code file that calls t('test:greeting'), establishing a reference to the "greeting" key
-        myFixture.addFileToProject("src/App.php", "<?php echo t('test:greeting');")
+        addFileToProject("src/App.php", "<?php echo t('test:greeting');")
         myFixture.enableInspections(UnusedTranslationKeyInspection::class.java)
-        val jsonFile = myFixture.addFileToProject(
+        val jsonFile = addFileToProject(
             "assets/test.json",
             """{"greeting": "Hello!", "unused": "World"}"""
         )

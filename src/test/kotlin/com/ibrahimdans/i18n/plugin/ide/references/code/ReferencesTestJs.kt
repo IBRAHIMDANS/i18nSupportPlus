@@ -18,7 +18,7 @@ class ReferencesTestJs : PlatformBaseTest() {
     @ParameterizedTest
     @ArgumentsSource(JsCodeAndTranslationGenerators::class)
     fun testReference(cg: CodeGenerator, tg: TranslationGenerator) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/test.${tg.ext()}",
             tg.generateContent("ref", "section", "key", "Reference in json"))
         myFixture.configureByText("resolved.${cg.ext()}", cg.generate("'test:ref.section.key<caret>'"))
@@ -33,11 +33,11 @@ class ReferencesTestJs : PlatformBaseTest() {
     @ParameterizedTest
     @ArgumentsSource(JsCodeAndTranslationGenerators::class)
     fun testMultiReference(cg: CodeGenerator, tg: TranslationGenerator) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/en/multi.${tg.ext()}",
             tg.generateContent("main", "header", "title", "Welcome")
         )
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/de/multi.${tg.ext()}",
             tg.generateContent("main", "header", "title", "Willkommen")
         )
@@ -52,11 +52,11 @@ class ReferencesTestJs : PlatformBaseTest() {
     @ParameterizedTest
     @ArgumentsSource(JsCodeAndTranslationGenerators::class)
     fun testMultiReferenceDefNs(cg: CodeGenerator, tg: TranslationGenerator) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/en/translation.${tg.ext()}",
             tg.generateContent("main", "header", "title", "Welcome")
         )
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/de/translation.${tg.ext()}",
             tg.generateContent("main", "header", "title", "Willkommen")
         )
@@ -76,12 +76,12 @@ class ReferencesTestJs : PlatformBaseTest() {
     fun testReferenceMultiDefaultNs(cg: CodeGenerator, tg: TranslationGenerator) {
         myFixture.runWithConfig(Config(defaultNs = genMultiNs(listOf("second","third","first")))) {
             //Resolves reference from key 'main.fruit' to three possible default ns (first,second,third):
-            myFixture.addFileToProject("assets/en/first.${tg.ext()}", tg.generateContent("main","fruit", "apple"))
-            myFixture.addFileToProject("assets/en/second.${tg.ext()}", tg.generateContent("main", "fruit", "orange"))
-            myFixture.addFileToProject("assets/en/third.${tg.ext()}", tg.generateContent("main", "fruit", "pear"))
-            myFixture.addFileToProject("assets/de/first.${tg.ext()}", tg.generateContent("main","fruit", "apfel"))
-            myFixture.addFileToProject("assets/de/second.${tg.ext()}", tg.generateContent("main", "fruit", "apfelsine"))
-            myFixture.addFileToProject("assets/de/third.${tg.ext()}", tg.generateContent("main", "fruit", "birne"))
+            addFileToProject("assets/en/first.${tg.ext()}", tg.generateContent("main","fruit", "apple"))
+            addFileToProject("assets/en/second.${tg.ext()}", tg.generateContent("main", "fruit", "orange"))
+            addFileToProject("assets/en/third.${tg.ext()}", tg.generateContent("main", "fruit", "pear"))
+            addFileToProject("assets/de/first.${tg.ext()}", tg.generateContent("main","fruit", "apfel"))
+            addFileToProject("assets/de/second.${tg.ext()}", tg.generateContent("main", "fruit", "apfelsine"))
+            addFileToProject("assets/de/third.${tg.ext()}", tg.generateContent("main", "fruit", "birne"))
             myFixture.configureByText("multiDefNs.${cg.ext()}", cg.generate("'main.fruit<caret>'"))
             read {
                 val element = myFixture.file.findElementAt(myFixture.caretOffset)?.parent
@@ -98,7 +98,7 @@ class ReferencesTestJs : PlatformBaseTest() {
     @ParameterizedTest
     @ArgumentsSource(JsCodeAndTranslationGenerators::class)
     fun testDefaultNsReference(cg: CodeGenerator, tg: TranslationGenerator) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/translation.${tg.ext()}",
             tg.generateContent("ref", "section", "key", "Default ns reference"))
         myFixture.configureByText("resolved.${cg.ext()}", cg.generate("'ref.section.key<caret>'"))
@@ -113,7 +113,7 @@ class ReferencesTestJs : PlatformBaseTest() {
     @ParameterizedTest
     @ArgumentsSource(JsCodeAndTranslationGenerators::class)
     fun testPartiallyResolvedReference(cg: CodeGenerator, tg: TranslationGenerator) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/test.${tg.ext()}",
             tg.generateContent("ref", "section", "key", "Default ns reference"))
         myFixture.configureByText("testPartiallyResolvedReference.${cg.ext()}", cg.generate("'test:ref.section<caret>.not.found'"))
@@ -128,7 +128,7 @@ class ReferencesTestJs : PlatformBaseTest() {
     @ParameterizedTest
     @ArgumentsSource(JsCodeAndTranslationGenerators::class)
     fun testExpressionReference(cg: CodeGenerator, tg: TranslationGenerator) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/test.${tg.ext()}",
             tg.generateContent("ref", "section", "key", "value"))
         myFixture.configureByText("testPartiallyResolvedReference.${cg.ext()}", cg.generate("`test:ref.section<caret>.\${b ? 'key' : 'key2'}`"))
@@ -143,7 +143,7 @@ class ReferencesTestJs : PlatformBaseTest() {
     @ParameterizedTest
     @ArgumentsSource(JsCodeAndTranslationGenerators::class)
     fun testExpressionMultiKeysReferences(cg: CodeGenerator, tg: TranslationGenerator) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/test.${tg.ext()}",
             tg.generate("ref", arrayOf("section", "key", "translation 1"), arrayOf("section2", "key", "translation 2"))
         )
@@ -159,7 +159,7 @@ class ReferencesTestJs : PlatformBaseTest() {
     @ParameterizedTest
     @ArgumentsSource(JsCodeAndTranslationGenerators::class)
     fun testInvalidTranslationRoot(cg: CodeGenerator, tg: TranslationGenerator) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/invalidRoot.${tg.ext()}",
             tg.generateInvalidRoot())
         myFixture.configureByText("testInvalidReference.${cg.ext()}", cg.generate("`invalidRoot:ref.section<caret>.\${b ? 'key' : 'key2'}`"))
@@ -173,7 +173,7 @@ class ReferencesTestJs : PlatformBaseTest() {
     @ParameterizedTest
     @ArgumentsSource(JsCodeAndTranslationGenerators::class)
     fun testInvalidTranslationValue(cg: CodeGenerator, tg: TranslationGenerator) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/invalidTranslationValue.${tg.ext()}",
             tg.generateContent("ref", "section", "key", "value"))
         myFixture.configureByText("testInvalidTranslationValue.${cg.ext()}", "t('invalidTranslationValue:ref.section<caret>.invalid')")
@@ -187,7 +187,7 @@ class ReferencesTestJs : PlatformBaseTest() {
     @ParameterizedTest
     @ArgumentsSource(JsCodeAndTranslationGenerators::class)
     fun testRootKeyDefNs(cg: CodeGenerator, tg: TranslationGenerator) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/translation.${tg.ext()}",
             tg.generateContent("ref", "Reference in json"))
         myFixture.configureByText("resolved.${cg.ext()}", cg.generate("'ref<caret>'"))
@@ -202,7 +202,7 @@ class ReferencesTestJs : PlatformBaseTest() {
     @ParameterizedTest
     @ArgumentsSource(JsCodeAndTranslationGenerators::class)
     fun testRootKey(cg: CodeGenerator, tg: TranslationGenerator) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/test.${tg.ext()}",
             tg.generateContent("ref", "Reference in json"))
         myFixture.configureByText("resolved.${cg.ext()}", cg.generate("'test:ref<caret>'"))
@@ -225,7 +225,7 @@ class ReferencesTestJs : PlatformBaseTest() {
 //    fun testTransReference() {
 //        val cg = ReactTransJsxContentGenerator()
 //        val tg = JsonTranslationGenerator()
-//        myFixture.addFileToProject(
+//        addFileToProject(
 //            "assets/test.${tg.ext()}",
 //            tg.generateContent("ref", "section", "key", "Reference in json"))
 //        myFixture.configureByText("resolved.${cg.ext()}", cg.generate("\"test:ref.section.key<caret>\""))

@@ -26,7 +26,7 @@ class ReferencesUseTranslationArrayTest : PlatformBaseTest() {
     @ParameterizedTest
     @ValueSource(strings = ["jsx", "tsx"])
     fun testSingleStringNamespace(ext: String) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/dashboard.${tg.ext()}",
             tg.generateContent("title", "Dashboard")
         )
@@ -48,7 +48,7 @@ class ReferencesUseTranslationArrayTest : PlatformBaseTest() {
     @ParameterizedTest
     @ValueSource(strings = ["jsx", "tsx"])
     fun testArrayNamespaceSingleEntry(ext: String) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/dashboard.${tg.ext()}",
             tg.generateContent("main", "title", "Dashboard Title")
         )
@@ -70,11 +70,11 @@ class ReferencesUseTranslationArrayTest : PlatformBaseTest() {
     @ParameterizedTest
     @ValueSource(strings = ["jsx", "tsx"])
     fun testArrayNamespaceBothResolve(ext: String) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/dashboard.${tg.ext()}",
             tg.generateContent("main", "title", "Dashboard Title")
         )
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/common.${tg.ext()}",
             tg.generateContent("actions", "save", "Save")
         )
@@ -97,11 +97,11 @@ class ReferencesUseTranslationArrayTest : PlatformBaseTest() {
     @ParameterizedTest
     @ValueSource(strings = ["jsx", "tsx"])
     fun testArrayNamespaceSecondary(ext: String) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/dashboard.${tg.ext()}",
             tg.generateContent("title", "Dashboard Title")
         )
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/common.${tg.ext()}",
             tg.generateContent("actions", "save", "Save")
         )
@@ -123,11 +123,11 @@ class ReferencesUseTranslationArrayTest : PlatformBaseTest() {
     @ParameterizedTest
     @ValueSource(strings = ["jsx", "tsx"])
     fun testArrayNamespaceWithExplicitPrefix(ext: String) {
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/dashboard.${tg.ext()}",
             tg.generateContent("title", "Dashboard Title")
         )
-        myFixture.addFileToProject(
+        addFileToProject(
             "assets/common.${tg.ext()}",
             tg.generateContent("actions", "save", "Save")
         )

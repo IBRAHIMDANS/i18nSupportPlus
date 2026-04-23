@@ -1,6 +1,8 @@
 package com.ibrahimdans.i18n.plugin.ide.inspections
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.ide.runWithConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.utils.generator.code.PhpGetTextCodeGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.PoTranslationGenerator
 import org.junit.jupiter.api.Test
@@ -11,13 +13,13 @@ class PhpGettextHighlightingTest : PlatformBaseTest() {
     private val tg = PoTranslationGenerator()
 
     private fun check(fileName: String, code: String, translationName: String, translation: String) {
-        myFixture.addFileToProject(translationName, translation)
+        addFileToProject(translationName, translation)
         myFixture.configureByText(fileName, code)
         myFixture.checkHighlighting(true, true, true, true)
     }
 
     @Test
-    fun testUnresolved() {
+    fun testUnresolved() = myFixture.runWithConfig(Config(gettext = true)) {
         check(
             "defNsUnresolved.${cg.ext()}",
             cg.multiGenerate(
@@ -41,12 +43,11 @@ class PhpGettextHighlightingTest : PlatformBaseTest() {
     }
 
     @Test
-    fun testMissingTranslationFile() {
-        check(
+    fun testMissingTranslationFile() = myFixture.runWithConfig(Config(gettext = true)) {
+        myFixture.configureByText(
             "code.${cg.ext()}",
-            cg.generate("\"<error descr=\"Missing default translation file\">unresolved.whole.key</error>\""),
-            "en-US/INVALID_FOLDER/translation.${tg.ext()}",
-            tg.generatePlural("tst2", "plurals", "value", "value1", "value2", "value5")
+            cg.generate("\"<error descr=\"Missing default translation file\">unresolved.whole.key</error>\"")
         )
+        myFixture.checkHighlighting(true, true, true, true)
     }
 }

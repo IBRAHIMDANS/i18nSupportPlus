@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test
 private fun CodeInsightTestFixture.customCheck(fileName: String, code: String, translationName: String, translation: String) = this.runWithConfig(
     Config(defaultNs = "translation")
 ) {
+    val parent = translationName.substringBeforeLast("/", "")
+    if (parent.isNotEmpty()) this.tempDirFixture.findOrCreateDir(parent)
     this.addFileToProject(translationName, translation)
     this.configureByText(fileName, code)
     this.checkHighlighting(true, true, true, true)
