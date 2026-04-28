@@ -1,11 +1,13 @@
 package com.ibrahimdans.i18n.extensions.lang.php
 
-import com.ibrahimdans.i18n.extensions.lang.js.extractors.StringLiteralKeyExtractor
 import com.ibrahimdans.i18n.plugin.factory.ReferenceAssistant
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
+import com.ibrahimdans.i18n.plugin.parser.RawKey
+import com.ibrahimdans.i18n.plugin.utils.KeyElement
+import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.patterns.ElementPattern
 import com.intellij.patterns.PlatformPatterns
 import com.intellij.psi.PsiElement
@@ -27,9 +29,9 @@ internal class PhpReferenceAssistant: ReferenceAssistant {
             } else
                 KeyParserBuilder.withSeparators(config.nsSeparator, config.keySeparator)
         ).build()
-        return listOf(StringLiteralKeyExtractor())
-            .find { it.canExtract(element) }
-            ?.let { parser.parse(it.extract(element)) }
+        val text = element.text.unQuote()
+        if (text.isBlank()) return null
+        return parser.parse(RawKey(listOf(KeyElement.literal(text))))
     }
 
     private fun gettextPattern(config: Config) =
