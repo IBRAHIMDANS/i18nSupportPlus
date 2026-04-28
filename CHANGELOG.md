@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.8 - 2026-04-28
+
 ### Bug Fixes
 
 - [JSON/YAML/TS] Fix `NoSuchElementException` in `generate()` when `unresolved` is empty — replace `unresolved.first()` with `unresolved.firstOrNull() ?: return` in `JsonContentGenerator`, `YamlContentGenerator`, and `TsContentGenerator` (TASK-BUG-B, TASK-BUG-I)
