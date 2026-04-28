@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.xml.XmlTag
 import org.junit.jupiter.api.Assertions.assertDoesNotThrow
+import org.junit.jupiter.api.Assumptions
 import org.junit.jupiter.api.Test
 
 class JsxTranslationExtractorTest : PlatformBaseTest() {
@@ -36,8 +37,8 @@ class JsxTranslationExtractorTest : PlatformBaseTest() {
         )
         val outerTag = PsiTreeUtil.findChildOfType(myFixture.file, XmlTag::class.java)
         val innerTag = outerTag?.let { PsiTreeUtil.findChildOfType(it, XmlTag::class.java) }
-        if (innerTag == null) return // JSX not parsed as XmlTag in this platform version — skip
-        assertDoesNotThrow { extractor.textRange(innerTag) }
+        Assumptions.assumeTrue(innerTag != null) // JSX not parsed as XmlTag in this platform version — skip
+        assertDoesNotThrow { extractor.textRange(innerTag!!) }
     }
 
     @Test
@@ -48,7 +49,7 @@ class JsxTranslationExtractorTest : PlatformBaseTest() {
         )
         val outerTag = PsiTreeUtil.findChildOfType(myFixture.file, XmlTag::class.java)
         val innerTag = outerTag?.let { PsiTreeUtil.findChildOfType(it, XmlTag::class.java) }
-        if (innerTag == null) return
-        assertDoesNotThrow { extractor.text(innerTag) }
+        Assumptions.assumeTrue(innerTag != null) // JSX not parsed as XmlTag in this platform version — skip
+        assertDoesNotThrow { extractor.text(innerTag!!) }
     }
 }

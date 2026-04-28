@@ -27,13 +27,20 @@ import com.intellij.util.ProcessingContext
 
 internal class JsReferenceAssistant: ReferenceAssistant {
 
+    companion object {
+        private val translationFunctionNames by lazy {
+            Extensions.TECHNOLOGY.extensionList
+                .flatMap { it.translationFunctionNames() }
+                .toSet()
+        }
+    }
+
     private fun isDirectOrConfiguredCall(element: PsiElement): Boolean {
         val callExpr = PsiTreeUtil.getParentOfType(element, JSCallExpression::class.java) ?: return true
         val refExpr = callExpr.methodExpression as? JSReferenceExpression ?: return true
         val qualifier = refExpr.qualifier ?: return true
         if (qualifier is JSThisExpression) return true
-        val fnNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
-        return refExpr.text in fnNames
+        return refExpr.text in translationFunctionNames
     }
 
     override fun pattern(): ElementPattern<out PsiElement> =
