@@ -58,10 +58,12 @@ class TsContentGenerator : ContentGenerator {
         obj.addAfter(element, anchor)
     }
 
-    override fun generate(element: PsiElement, fullKey: FullKey, unresolved: List<Literal>, translationValue: String?) =
+    override fun generate(element: PsiElement, fullKey: FullKey, unresolved: List<Literal>, translationValue: String?) {
+        val first = unresolved.firstOrNull() ?: return
         generateTranslationEntry(
             element,
-            unresolved.first().text,
+            first.text,
             generateContent(unresolved.drop(1), translationValue ?: fullKey.source)
         )
+    }
 }

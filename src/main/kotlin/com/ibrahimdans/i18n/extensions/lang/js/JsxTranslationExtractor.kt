@@ -1,9 +1,13 @@
 package com.ibrahimdans.i18n.extensions.lang.js
 
+import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.utils.toBoolean
 import com.intellij.lang.Language
 import com.intellij.lang.javascript.patterns.JSPatterns
+import com.intellij.lang.javascript.psi.JSCallExpression
+import com.intellij.lang.javascript.psi.JSReferenceExpression
+import com.intellij.lang.javascript.psi.JSThisExpression
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
@@ -23,28 +27,37 @@ internal class JsxTranslationExtractor : TranslationExtractor {
         } ?: false
     }
 
-    override fun isExtracted(element: PsiElement): Boolean =
-        element.isJs() && com.intellij.lang.javascript.patterns.JSPatterns.jsArgument("t", 0).accepts(element.parent)
+    override fun isExtracted(element: PsiElement): Boolean {
+        if (!element.isJs()) return false
+        if (!JSPatterns.jsArgument("t", 0).accepts(element.parent)) return false
+        return isDirectOrConfiguredCall(element)
+    }
 
-    override fun text(element: PsiElement): String =
-        if (element.parent is XmlAttributeValue) element.text
-        else PsiTreeUtil.getParentOfType(element, XmlTag::class.java)!!
-            .value
-            .textElements
-            .map {it.text}
-            .joinToString(" ")
+    private fun isDirectOrConfiguredCall(element: PsiElement): Boolean {
+        val callExpr = PsiTreeUtil.getParentOfType(element, JSCallExpression::class.java) ?: return true
+        val refExpr = callExpr.methodExpression as? JSReferenceExpression ?: return true
+        val qualifier = refExpr.qualifier ?: return true
+        if (qualifier is JSThisExpression) return true
+        val fnNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
+        return refExpr.text in fnNames
+    }
 
-    override fun textRange(element: PsiElement): TextRange =
-        if (element.parent is XmlAttributeValue) element.parent.textRange
-        else PsiTreeUtil.getParentOfType(element, XmlTag::class.java)!!
-            .value
-            .textElements
-            .let {
-                TextRange(
-                        it.first().textRange.startOffset,
-                        it.last().textRange.endOffset
-                )
-            }
+    override fun text(element: PsiElement): String {
+        if (element.parent is XmlAttributeValue) return element.text
+        return PsiTreeUtil.getParentOfType(element, XmlTag::class.java)
+            ?.value
+            ?.textElements
+            ?.joinToString(" ") { it.text }
+            ?: element.text
+    }
+
+    override fun textRange(element: PsiElement): TextRange {
+        if (element.parent is XmlAttributeValue) return element.parent.textRange
+        val textElements = PsiTreeUtil.getParentOfType(element, XmlTag::class.java)
+            ?.value?.textElements ?: return element.textRange
+        if (textElements.isEmpty()) return element.textRange
+        return TextRange(textElements.first().textRange.startOffset, textElements.last().textRange.endOffset)
+    }
 
     override fun template(element: PsiElement): (argument: String) -> String = {
         "{i18n.t($it)}"

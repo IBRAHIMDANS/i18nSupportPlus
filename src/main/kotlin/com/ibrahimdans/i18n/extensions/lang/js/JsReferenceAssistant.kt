@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.extensions.lang.js
 
+import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.LiteralKeyExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.ReactUseTranslationHookExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.TemplateKeyExtractor
@@ -9,18 +10,38 @@ import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.lang.javascript.patterns.JSPatterns
+import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.ecma6.JSComputedPropertyNameOwner
 import com.intellij.lang.javascript.psi.JSConditionalExpression
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.lang.javascript.psi.JSProperty
+import com.intellij.lang.javascript.psi.JSReferenceExpression
+import com.intellij.lang.javascript.psi.JSThisExpression
 import com.intellij.lang.javascript.psi.ecma6.TypeScriptEnumField
 import com.intellij.patterns.ElementPattern
 import com.intellij.patterns.ElementPatternCondition
 import com.intellij.psi.PsiElement
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.util.parents
 import com.intellij.util.ProcessingContext
 
 internal class JsReferenceAssistant: ReferenceAssistant {
+
+    companion object {
+        private val translationFunctionNames by lazy {
+            Extensions.TECHNOLOGY.extensionList
+                .flatMap { it.translationFunctionNames() }
+                .toSet()
+        }
+    }
+
+    private fun isDirectOrConfiguredCall(element: PsiElement): Boolean {
+        val callExpr = PsiTreeUtil.getParentOfType(element, JSCallExpression::class.java) ?: return true
+        val refExpr = callExpr.methodExpression as? JSReferenceExpression ?: return true
+        val qualifier = refExpr.qualifier ?: return true
+        if (qualifier is JSThisExpression) return true
+        return refExpr.text in translationFunctionNames
+    }
 
     override fun pattern(): ElementPattern<out PsiElement> =
         object : ElementPattern<PsiElement> {
@@ -51,13 +72,13 @@ internal class JsReferenceAssistant: ReferenceAssistant {
 
             override fun accepts(o: Any?): Boolean {
                 return JSPatterns.jsLiteralExpression().accepts(o) && isAlias(o as JSLiteralExpression)
-                    || v.accepts(o)
+                    || (v.accepts(o) && (o !is PsiElement || isDirectOrConfiguredCall(o)))
                     || (o is PsiElement && isLiteralInTernaryArg(o))
             }
 
             override fun accepts(o: Any?, context: ProcessingContext?): Boolean {
                 return JSPatterns.jsLiteralExpression().accepts(o) && isAlias(o as JSLiteralExpression)
-                    || v.accepts(o, context)
+                    || (v.accepts(o, context) && (o !is PsiElement || isDirectOrConfiguredCall(o)))
                     || (o is PsiElement && isLiteralInTernaryArg(o))
             }
 

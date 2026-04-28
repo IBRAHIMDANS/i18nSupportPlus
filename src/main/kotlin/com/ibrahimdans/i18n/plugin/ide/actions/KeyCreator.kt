@@ -26,7 +26,7 @@ class KeyCreator {
             val contentGenerator = Extensions.LOCALIZATION.extensionList.find {
                 it.config().id() == config.preferredLocalization
             }?.contentGenerator()
-            val fileName = i18nKey.ns?.text ?: config.defaultNamespaces().first()
+            val fileName = i18nKey.ns?.text ?: config.defaultNamespaces().firstOrNull() ?: "common"
             contentGenerator?.let{CreateTranslationFileQuickFix(i18nKey, it, fileName, source, onComplete)}
         } else {
             CreateKeyQuickFix(i18nKey, UserChoice(), PluginBundle.getMessage("quickfix.create.key"), source, onComplete)

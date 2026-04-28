@@ -1,11 +1,14 @@
 package com.ibrahimdans.i18n.extensions.lang.js.extractors
 
+import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
 import com.ibrahimdans.i18n.plugin.utils.default
 import com.intellij.lang.javascript.patterns.JSPatterns
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSLiteralExpression
+import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.lang.javascript.psi.JSSpreadExpression
+import com.intellij.lang.javascript.psi.JSThisExpression
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
@@ -15,9 +18,20 @@ import com.intellij.psi.util.PsiTreeUtil
 
 internal class JsFoldingProvider: FoldingProvider {
 
-    private fun isI18nArgument(element: PsiElement): Boolean =
-        JSPatterns.jsArgument("t", 0).accepts(element) ||
-        JSPatterns.jsArgument("\$t", 0).accepts(element)
+    private fun isI18nArgument(element: PsiElement): Boolean {
+        if (!JSPatterns.jsArgument("t", 0).accepts(element) &&
+            !JSPatterns.jsArgument("\$t", 0).accepts(element)) return false
+        return isDirectOrConfiguredCall(element)
+    }
+
+    private fun isDirectOrConfiguredCall(element: PsiElement): Boolean {
+        val callExpr = PsiTreeUtil.getParentOfType(element, JSCallExpression::class.java) ?: return true
+        val refExpr = callExpr.methodExpression as? JSReferenceExpression ?: return true
+        val qualifier = refExpr.qualifier ?: return true
+        if (qualifier is JSThisExpression) return true
+        val fnNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
+        return refExpr.text in fnNames
+    }
 
     /**
      * Returns true if [element] is nested inside a JSSpreadExpression before reaching

@@ -71,10 +71,9 @@ fun <T> Array<T>.at(index: Int): T? =
     if (this.size > index) this[index] else null
 
 fun <T, A> Collection<T>.foldWhileAccum(accum: A, block: (A, T) -> A?): A? {
-    var acc: A? = accum
+    var acc: A = accum
     for (item in this) {
-        acc = block(acc!!, item)
-        if(acc == null) break
+        acc = block(acc, item) ?: return null
     }
     return acc
 }
