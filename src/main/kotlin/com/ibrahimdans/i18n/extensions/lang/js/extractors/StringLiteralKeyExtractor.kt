@@ -13,7 +13,7 @@ import com.intellij.psi.PsiElement
 class StringLiteralKeyExtractor: KeyExtractor {
 
     override fun canExtract(element: PsiElement): Boolean =
-        listOf("JS:STRING_LITERAL", "String").any{element.type().contains(it)}
+        element.type() == "JS:STRING_LITERAL"
 
     override fun extract(element: PsiElement): RawKey =
         RawKey(
