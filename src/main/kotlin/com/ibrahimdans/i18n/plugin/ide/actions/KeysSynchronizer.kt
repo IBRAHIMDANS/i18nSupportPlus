@@ -166,7 +166,7 @@ class KeysSynchronizer {
      *   "menu.home"        → FullKey(ns=null, compositeKey=[menu, home])
      *   "common:menu.home" → FullKey(ns=common, compositeKey=[menu, home])
      */
-    private fun buildFullKey(key: String): FullKey {
+    internal fun buildFullKey(key: String): FullKey {
         val colonIdx = key.indexOf(':')
         val (ns, keyPath) = if (colonIdx > 0) {
             val nsText = key.substring(0, colonIdx)
@@ -176,7 +176,8 @@ class KeysSynchronizer {
             null to key
         }
 
-        val compositeKey = keyPath.split('.').map { Literal(it) }
+        if (keyPath.isBlank()) return FullKey(source = key, ns = ns, compositeKey = emptyList())
+        val compositeKey = keyPath.split('.').filter { it.isNotEmpty() }.map { Literal(it) }
         return FullKey(source = key, ns = ns, compositeKey = compositeKey)
     }
 }
