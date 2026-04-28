@@ -7,6 +7,9 @@ import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.utils.type
 import com.intellij.lang.javascript.patterns.JSPatterns
+import com.intellij.lang.javascript.psi.JSCallExpression
+import com.intellij.lang.javascript.psi.JSReferenceExpression
+import com.intellij.lang.javascript.psi.JSThisExpression
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 
@@ -20,7 +23,19 @@ open class JsLang : Lang {
                         !isInsideConditionalCondition(element) &&
                         pattern.accepts(PsiTreeUtil.findFirstParent(element) { it.parent?.type() == "JS:ARGUMENT_LIST" }))
             }
-        } && extractRawKey(element) != null
+        } && isDirectOrConfiguredCall(element, translationFunctionNames)
+          && extractRawKey(element) != null
+    }
+
+    // Returns false when the call has a non-`this` qualifier that is not in translationFunctionNames.
+    // Guards against false positives like toast.t('key') when only "t" is configured.
+    // this.$t is always accepted; i18n._ is accepted only if "i18n._" is a configured name.
+    protected fun isDirectOrConfiguredCall(element: PsiElement, translationFunctionNames: List<String>): Boolean {
+        val callExpr = PsiTreeUtil.getParentOfType(element, JSCallExpression::class.java) ?: return true
+        val refExpr = callExpr.methodExpression as? JSReferenceExpression ?: return true
+        val qualifier = refExpr.qualifier ?: return true
+        if (qualifier is JSThisExpression) return true
+        return refExpr.text in translationFunctionNames
     }
 
     private fun isNestedInsideTemplateExpression(element: PsiElement): Boolean {
