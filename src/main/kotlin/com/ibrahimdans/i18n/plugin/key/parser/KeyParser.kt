@@ -84,7 +84,7 @@ private class WaitingLiteral(private val file: Literal?, val key: List<Literal>)
             is Literal -> WaitingLiteralOrSeparator(file, key + token)
             is Separator -> Error("Invalid token $token")
         }
-    override fun fullKey(): CompositeKey = CompositeKey(file, key + Literal("", 0))
+    override fun fullKey(): CompositeKey? = null
 }
 
 /**

@@ -59,4 +59,16 @@ internal class InvalidExpressionTest : ParserTestBase {
         )
         assertNull(parse(invalidExpression))
     }
+
+// menu.
+    @Test
+    fun parseTrailingKeySeparator() {
+        assertNull(parse(listOf(KeyElement.literal("menu."))))
+    }
+
+// common:menu.
+    @Test
+    fun parseTrailingKeySeparatorWithNamespace() {
+        assertNull(parse(listOf(KeyElement.literal("common:menu."))))
+    }
 }
