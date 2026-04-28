@@ -79,13 +79,14 @@ class LocalizationSourceService {
                     .filter { file -> !isExcludedPath(file, project) && isIncluded(file, translationsRoot, basePath) }
                     .mapNotNull { virtualFile ->
                         PsiManager.getInstance(project).findFile(virtualFile)?.let { file ->
+                            val dir = file.containingDirectory ?: return@let null
                             LocalizationSource(
                                 localization.elementsTree(file),
                                 file.name,
-                                file.containingDirectory.name,
+                                dir.name,
                                 pathToRoot(
                                     file.project.basePath ?: "",
-                                    file.containingDirectory.virtualFile.path
+                                    dir.virtualFile.path
                                 ).trim('/') + '/' + file.name,
                                 localization
                             )
@@ -132,15 +133,14 @@ class LocalizationSourceService {
                     .filter { file -> !isExcludedPath(file, project) && localization.matches(localizationType, file, fileNames) }
                     .mapNotNull { virtualFile ->
                         PsiManager.getInstance(project).findFile(virtualFile)?.let { file ->
+                            val dir = file.containingDirectory ?: return@let null
                             LocalizationSource(
                                 localization.elementsTree(file),
                                 file.name,
-                                file.containingDirectory.name,
+                                dir.name,
                                 pathToRoot(
                                     file.project.basePath ?: "",
-                                    file.containingDirectory
-                                        .virtualFile
-                                        .path
+                                    dir.virtualFile.path
                                 ).trim('/') + '/' + file.name,
                                 localization
                             )
