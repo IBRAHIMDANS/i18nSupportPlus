@@ -6,12 +6,36 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import org.junit.jupiter.api.Test
 
 /**
- * Regression tests for BUG-G and BUG-H.
+ * Regression tests for BUG-F, BUG-G, and BUG-H.
  *
+ * BUG-F: t(variable) was annotated as "unresolved key" even though the key is fully dynamic.
  * BUG-G: t("key", { count }) was annotated as unresolved even when the key exists.
  * BUG-H: toast.t('key') was annotated as an i18n key (false positive on qualified calls).
  */
 class JsFalsePositiveTest : PlatformBaseTest() {
+
+    // ── BUG-F: fully dynamic key — t(variable) ───────────────────────────────
+
+    @Test
+    fun testTWithDynamicVariable_noAnnotation() {
+        // t(k) where k is a JSReferenceExpression must not be annotated.
+        // Before the fix, ReactUseTranslationHookExtractor.canExtract accepted any
+        // first argument to a t() call from useTranslation(), including plain variables.
+        myFixture.runWithConfig(Config(defaultNs = "translation")) {
+            myFixture.configureByText(
+                "TableHeader.tsx",
+                """
+                import { useTranslation } from 'react-i18next';
+                const keys = ["table.name", "table.email"];
+                export default function TableHeader() {
+                    const { t } = useTranslation();
+                    return keys.map((k: string) => t(k));
+                }
+                """.trimIndent()
+            )
+            myFixture.checkHighlighting(true, true, true, true)
+        }
+    }
 
     // ── BUG-H: qualified calls with non-i18n objects ──────────────────────────
 
