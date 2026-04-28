@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+- [JSON/YAML/TS] Fix `NoSuchElementException` in `generate()` when `unresolved` is empty — replace `unresolved.first()` with `unresolved.firstOrNull() ?: return` in `JsonContentGenerator`, `YamlContentGenerator`, and `TsContentGenerator` (TASK-BUG-B, TASK-BUG-I)
+- [Sources] Fix NPE on `containingDirectory` in `LocalizationSourceService` — guard both `findAllSourcesByFileType` and `findSourcesByFileType` with `file.containingDirectory ?: return@let null` before accessing `.name` and `.virtualFile.path` (TASK-BUG-C)
+- [Actions] Fix potential `NoSuchElementException` in `KeyCreator` when `defaultNamespaces()` is empty — replace `.first()` with `.firstOrNull() ?: "common"` (TASK-BUG-J)
+- [JSX] Fix NPE and `NoSuchElementException` in `JsxTranslationExtractor.text()` and `textRange()` — replace `!!` with safe calls, add guard for empty `textElements` (TASK-BUG-K)
+- [JS] Fix `StringLiteralKeyExtractor.canExtract` over-matching — replace `.contains("String")` with strict `== "JS:STRING_LITERAL"` check to avoid false positives on non-literal PSI nodes (TASK-BUG-G)
+- [JS] Fix false positives on qualified method calls (`toast.t()`, `router.get()`) — add qualifier guard in `JsLang`, `JsFoldingProvider`, `JsReferenceAssistant`, `JsTranslationExtractor`, `JsxTranslationExtractor`; calls with unknown qualifier are rejected unless the full expression matches a configured name (TASK-BUG-H)
+- [i18next] Add `"i18n.t"` to `I18NextTechnology.translationFunctionNames()` — aligns with `LinguiTechnology` pattern (`"i18n._"`) and ensures `i18n.t(key)` is correctly recognized by the qualifier guard (TASK-BUG-H)
+
+### Tests
+
+- [JSON] Add `JsonContentGeneratorTest` — `generate()` with `unresolved = emptyList()` must not throw (TASK-BUG-I)
+- [YAML] Add `YamlContentGeneratorTest` — `generate()` with `unresolved = emptyList()` must not throw (TASK-BUG-I)
+- [TS] Add `TsContentGeneratorTest` — `generate()` with `unresolved = emptyList()` must not throw (TASK-BUG-B)
+- [JSX] Add `JsxTranslationExtractorTest` — `text()`/`textRange()` with no parent XmlTag and with empty nested tag must not throw (TASK-BUG-K)
+- [Actions] Add `KeyCreatorTest` — `createKey()` with no ns in key must not throw (TASK-BUG-J)
+- [JS] Add `JsFalsePositiveTest` — `toast.t()` / `router.get()` produce no annotations; `t()` and `i18n.t()` are correctly recognized (TASK-BUG-G, TASK-BUG-H)
+
 ## 1.0.7 - 2026-04-23
 
 ### Features
