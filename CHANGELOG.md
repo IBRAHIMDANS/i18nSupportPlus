@@ -13,6 +13,8 @@
 - [i18next] Add `"i18n.t"` to `I18NextTechnology.translationFunctionNames()` — aligns with `LinguiTechnology` pattern (`"i18n._"`) and ensures `i18n.t(key)` is correctly recognized by the qualifier guard (TASK-BUG-H)
 - [Parser] Fix `WaitingLiteral.fullKey()` injecting a spurious empty `Literal("", 0)` on trailing-separator keys (`"menu."`, `"common:menu."`) — return `null` instead so `KeyParser.parse()` correctly rejects malformed keys (TASK-BUG-A)
 - [Synchronizer] Fix `buildFullKey` producing `[Literal("")]` for namespace-only keys (`"common:"`) — guard `keyPath.isBlank()` and filter empty segments from `split('.')` (TASK-BUG-E)
+- [Utils] Refactor `foldWhileAccum` — replace `acc!!` + `if (acc == null) break` with a non-nullable `acc: A` and `?: return null` early exit; makes the invariant explicit and eliminates the unsafe assertion (TASK-BUG-L)
+- [JS] Fix false positive on fully dynamic key `t(variable)` — add `JSLiteralExpression + isQuotedLiteral` guard in `ReactUseTranslationHookExtractor.canExtract` so variable references are rejected before extraction (TASK-BUG-F)
 
 ### Tests
 
@@ -24,6 +26,7 @@
 - [JS] Add `JsFalsePositiveTest` — `toast.t()` / `router.get()` produce no annotations; `t()` and `i18n.t()` are correctly recognized (TASK-BUG-G, TASK-BUG-H)
 - [Parser] Add `parseTrailingKeySeparator` / `parseTrailingKeySeparatorWithNamespace` in `InvalidExpressionTest`; update `ExpressionKeyParserTest` trailing-dot cases to expect `null` (TASK-BUG-A)
 - [Synchronizer] Add `KeysSynchronizerTest` — `buildFullKey("common:")` produces empty compositeKey, `buildFullKey("")` produces empty compositeKey (TASK-BUG-E)
+- [JS] Add `testTWithDynamicVariable_noAnnotation` in `JsFalsePositiveTest` — `t(k)` where `k` is a `JSReferenceExpression` produces no annotation (TASK-BUG-F)
 
 ## 1.0.7 - 2026-04-23
 
