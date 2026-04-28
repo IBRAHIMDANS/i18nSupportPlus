@@ -19,7 +19,11 @@ import com.intellij.psi.util.PsiTreeUtil
 class ReactUseTranslationHookExtractor: KeyExtractor {
 
     override fun canExtract(element: PsiElement): Boolean {
-        if (element !is JSLiteralExpression || !element.isQuotedLiteral) return false
+        // Accept both JSLiteralExpression and its direct leaf token (returned by findElementAt).
+        val literal = element as? JSLiteralExpression
+            ?: element.parent as? JSLiteralExpression
+            ?: return false
+        if (!literal.isQuotedLiteral) return false
         return resolveHook(element)?.methodExpression?.text == "useTranslation"
     }
 

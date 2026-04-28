@@ -15,6 +15,8 @@
 - [Synchronizer] Fix `buildFullKey` producing `[Literal("")]` for namespace-only keys (`"common:"`) — guard `keyPath.isBlank()` and filter empty segments from `split('.')` (TASK-BUG-E)
 - [Utils] Refactor `foldWhileAccum` — replace `acc!!` + `if (acc == null) break` with a non-nullable `acc: A` and `?: return null` early exit; makes the invariant explicit and eliminates the unsafe assertion (TASK-BUG-L)
 - [JS] Fix false positive on fully dynamic key `t(variable)` — add `JSLiteralExpression + isQuotedLiteral` guard in `ReactUseTranslationHookExtractor.canExtract` so variable references are rejected before extraction (TASK-BUG-F)
+- [PHP] Fix regression: PHP string references no longer resolved after `StringLiteralKeyExtractor` was tightened to `== "JS:STRING_LITERAL"` — `PhpReferenceAssistant` now extracts the key text directly instead of delegating to a JS-typed extractor (TASK-BUG-PHP)
+- [JS] Fix hint not shown when namespace comes from `useTranslation('ns')` or `useTranslation(['ns'])` — `ReactUseTranslationHookExtractor.canExtract` now accepts both the `JSLiteralExpression` node and its direct leaf token (returned by `findElementAt`), so the hook resolution works correctly in `HintProvider` (TASK-BUG-HINT)
 
 ### Tests
 
@@ -27,6 +29,8 @@
 - [Parser] Add `parseTrailingKeySeparator` / `parseTrailingKeySeparatorWithNamespace` in `InvalidExpressionTest`; update `ExpressionKeyParserTest` trailing-dot cases to expect `null` (TASK-BUG-A)
 - [Synchronizer] Add `KeysSynchronizerTest` — `buildFullKey("common:")` produces empty compositeKey, `buildFullKey("")` produces empty compositeKey (TASK-BUG-E)
 - [JS] Add `testTWithDynamicVariable_noAnnotation` in `JsFalsePositiveTest` — `t(k)` where `k` is a `JSReferenceExpression` produces no annotation (TASK-BUG-F)
+- [PHP] Covered by existing `ReferenceTestPhp` suite — all 32 PHP reference test cases now pass after `PhpReferenceAssistant` fix (TASK-BUG-PHP)
+- [JS/Hint] Covered by existing `HintTest` — `testHintWithUseTranslationNamespace`, `testHintWithUseTranslationArrayNamespace`, `testMultiNamespaceHintNoEmptyRows` now pass after leaf-token fix (TASK-BUG-HINT)
 
 ## 1.0.7 - 2026-04-23
 
