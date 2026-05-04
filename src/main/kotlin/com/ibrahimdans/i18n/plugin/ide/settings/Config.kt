@@ -30,6 +30,7 @@ data class Config (
     val previewLocale: String = "",
     val translationsRoot: String = "",
     val excludedDirectories: String = "",
+    val excludedFileExtensions: String = "",
     val gutterIconsEnabled: Boolean = true,
     val setupWizardEnabled: Boolean = true,
     val modules: List<ModuleConfig> = emptyList(),
@@ -63,6 +64,16 @@ data class Config (
         excludedDirectories
             .split(",")
             .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
+
+    /**
+     * Returns the set of file extensions to exclude from i18n scanning (without leading dot).
+     */
+    fun excludedFileExtensionSet(): Set<String> =
+        excludedFileExtensions
+            .split(",")
+            .map { it.trim().trimStart('.') }
             .filter { it.isNotEmpty() }
             .toSet()
 

@@ -15,7 +15,7 @@ class PhpLang: Lang {
         val functionNames = if (config.gettext) {
             config.gettextAliases.split(",").map { it.trim() }.filter { it.isNotEmpty() }
         } else {
-            translationFunctionNames
+            translationFunctionNames.filter { PhpPatternsExt.isValidPhpFunctionName(it) }
         }
         // The annotator receives leaf tokens (e.g. "double quoted string"), but phpArgument()
         // operates on PhpExpression nodes. Walk up to find the ancestor that is a direct child

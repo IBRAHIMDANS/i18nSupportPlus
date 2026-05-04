@@ -31,6 +31,11 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
             val filePath = element.containingFile?.virtualFile?.path ?: return
             if (filePath.split('/').any { it in excludedDirs }) return
         }
+        val excludedExts = config.excludedFileExtensionSet()
+        if (excludedExts.isNotEmpty()) {
+            val fileExt = element.containingFile?.virtualFile?.extension ?: ""
+            if (fileExt in excludedExts) return
+        }
         if(lang.canExtractKey(element, Extensions.TECHNOLOGY.extensionList.flatMap {it.translationFunctionNames()})) {
             lang.extractRawKey(element)?.let { rawKey ->
                 RawKeyParser(element.project).parse(rawKey)

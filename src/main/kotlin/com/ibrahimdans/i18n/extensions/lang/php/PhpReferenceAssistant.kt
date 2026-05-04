@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.extensions.lang.php
 
+import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.factory.ReferenceAssistant
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
@@ -21,7 +22,16 @@ internal class PhpReferenceAssistant: ReferenceAssistant {
     override fun extractKey(element: PsiElement): FullKey? {
         val config = Settings.getInstance(element.project).config()
         if (config.gettext) {
-            if (!gettextPattern(Settings.getInstance(element.project).config()).accepts(element)) return null
+            if (!gettextPattern(config).accepts(element)) return null
+        } else {
+            val functionNames = Extensions.TECHNOLOGY.extensionList
+                .flatMap { it.translationFunctionNames() }
+                .filter { PhpPatternsExt.isValidPhpFunctionName(it) }
+            if (functionNames.isEmpty()) return null
+            val pattern = PlatformPatterns.or(
+                *functionNames.map { PhpPatternsExt.phpArgument(it, 0) }.toTypedArray()
+            )
+            if (!pattern.accepts(element)) return null
         }
         val parser = (
             if (config.gettext) {

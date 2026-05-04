@@ -45,5 +45,13 @@ class PhpPatternsExt {
                             } ?: false
                 }
             )
+
+        /**
+         * Returns true when [name] is a plain PHP function/method name (no '$' prefix, no '.' qualifier).
+         * Names like "$t", "$tc" (Vue) or "i18n.t" (i18next) are JS-specific and should not be used
+         * to match PHP function calls.
+         */
+        fun isValidPhpFunctionName(name: String): Boolean =
+            !name.contains('$') && !name.contains('.')
     }
 }
