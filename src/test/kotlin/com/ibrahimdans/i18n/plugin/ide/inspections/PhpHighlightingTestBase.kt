@@ -10,6 +10,22 @@ import org.junit.jupiter.params.provider.ArgumentsSource
 
 class PhpHighlightingTestBase: PlatformBaseTest() {
 
+    /**
+     * Regression: $request->get('action') must not be flagged as an unresolved i18n key.
+     * The function name "get" (from Angular TranslateService) must not leak into PHP detection.
+     */
+    @Test
+    fun testNoFalsePositiveOnPhpMethodCall() = myFixture.customHighlightingCheck(
+        "falsePositive.php",
+        """
+        <?php
+            ${'$'}action = ${'$'}request->get('action', '');
+            ${'$'}id     = ${'$'}request->get('id', 0);
+        """.trimIndent(),
+        "assets/translation.json",
+        """{"key": "value"}"""
+    )
+
     @Test
     fun testNotInContext() = myFixture.customHighlightingCheck(
             "notInContext.php",

@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.extensions.lang.php
 
+import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.factory.ReferenceAssistant
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
@@ -11,6 +12,8 @@ import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.patterns.ElementPattern
 import com.intellij.patterns.PlatformPatterns
 import com.intellij.psi.PsiElement
+import com.jetbrains.php.lang.psi.elements.FunctionReference
+import com.jetbrains.php.lang.psi.elements.ParameterList
 
 internal class PhpReferenceAssistant: ReferenceAssistant {
 
@@ -22,6 +25,14 @@ internal class PhpReferenceAssistant: ReferenceAssistant {
         val config = Settings.getInstance(element.project).config()
         if (config.gettext) {
             if (!gettextPattern(Settings.getInstance(element.project).config()).accepts(element)) return null
+        } else {
+            val validNames = Extensions.TECHNOLOGY.extensionList
+                .flatMap { it.translationFunctionNames() }
+                .filter { PhpPatternsExt.isValidPhpFunctionName(it) }
+                .toSet()
+            val funcName = (element.parent as? ParameterList)?.parent
+                ?.let { it as? FunctionReference }?.name
+            if (funcName == null || funcName !in validNames) return null
         }
         val parser = (
             if (config.gettext) {

@@ -26,11 +26,12 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
      */
     override fun annotate(element: PsiElement, holder: AnnotationHolder) {
         val config = Settings.getInstance(element.project).config()
+        val virtualFile = element.containingFile?.virtualFile ?: return
+        val filePath = virtualFile.path
         val excludedDirs = config.excludedDirectorySet()
-        if (excludedDirs.isNotEmpty()) {
-            val filePath = element.containingFile?.virtualFile?.path ?: return
-            if (filePath.split('/').any { it in excludedDirs }) return
-        }
+        if (excludedDirs.isNotEmpty() && filePath.split('/').any { it in excludedDirs }) return
+        val excludedExts = config.excludedFileExtensionSet()
+        if (excludedExts.isNotEmpty() && virtualFile.extension?.lowercase() in excludedExts) return
         if(lang.canExtractKey(element, Extensions.TECHNOLOGY.extensionList.flatMap {it.translationFunctionNames()})) {
             lang.extractRawKey(element)?.let { rawKey ->
                 RawKeyParser(element.project).parse(rawKey)
