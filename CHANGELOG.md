@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.10 - 2026-05-05
+
 ### Bug Fixes
 
 - [PHP] Fix false positive annotations on PHP method calls — `$request->get('action')` was mistakenly treated as an i18n key because Angular's `get` function name leaked into PHP detection; `PhpLang` and `PhpReferenceAssistant` now filter out function names containing `$` or `.` (Vue's `$t`/`$tc`/`$te`, i18next's `i18n.t`) and `PhpReferenceAssistant` guards against non-i18n function names in non-gettext mode
