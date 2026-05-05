@@ -291,6 +291,7 @@ class SettingsPanel(val settings: Settings, val project: Project) {
         panel.add(textInput(PluginBundle.getMessage("settings.preview.locale"), settings::previewLocale))
         panel.add(textInput(PluginBundle.getMessage("settings.translations.root"), settings::translationsRoot))
         panel.add(textInput(PluginBundle.getMessage("settings.excluded.directories"), settings::excludedDirectories))
+        panel.add(textInput(PluginBundle.getMessage("settings.excluded.file.extensions"), settings::excludedFileExtensions))
         panel.add(checkbox(PluginBundle.getMessage("settings.gutter.icons.enabled"), settings::gutterIconsEnabled))
         panel.add(checkbox(PluginBundle.getMessage("settings.setup.wizard.enabled"), settings::setupWizardEnabled))
         panel.add(modulesTable())

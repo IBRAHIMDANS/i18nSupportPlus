@@ -13,6 +13,12 @@ import com.jetbrains.php.lang.psi.elements.PhpExpression
 class PhpPatternsExt {
     companion object {
         /**
+         * Rejects Vue ($t, $tc, $te) and i18next (i18n.t) names that are not valid bare PHP function names.
+         * PHP function names cannot contain '$' or '.'.
+         */
+        fun isValidPhpFunctionName(name: String): Boolean = !name.contains('$') && !name.contains('.')
+
+        /**
          * Captures argument of php function call
          */
         fun phpArgument(functionName: String, index: Int): PhpElementPattern.Capture<PhpExpression> =
