@@ -3,8 +3,6 @@ name: Plugin Compatibility
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
   schedule:
     # Run weekly to catch new IDE releases
     - cron: '0 8 * * 1'
