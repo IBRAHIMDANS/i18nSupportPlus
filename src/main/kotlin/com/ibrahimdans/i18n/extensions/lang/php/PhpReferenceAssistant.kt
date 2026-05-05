@@ -12,8 +12,6 @@ import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.patterns.ElementPattern
 import com.intellij.patterns.PlatformPatterns
 import com.intellij.psi.PsiElement
-import com.jetbrains.php.lang.psi.elements.FunctionReference
-import com.jetbrains.php.lang.psi.elements.ParameterList
 
 internal class PhpReferenceAssistant: ReferenceAssistant {
 
@@ -24,15 +22,16 @@ internal class PhpReferenceAssistant: ReferenceAssistant {
     override fun extractKey(element: PsiElement): FullKey? {
         val config = Settings.getInstance(element.project).config()
         if (config.gettext) {
-            if (!gettextPattern(Settings.getInstance(element.project).config()).accepts(element)) return null
+            if (!gettextPattern(config).accepts(element)) return null
         } else {
-            val validNames = Extensions.TECHNOLOGY.extensionList
+            val functionNames = Extensions.TECHNOLOGY.extensionList
                 .flatMap { it.translationFunctionNames() }
                 .filter { PhpPatternsExt.isValidPhpFunctionName(it) }
-                .toSet()
-            val funcName = (element.parent as? ParameterList)?.parent
-                ?.let { it as? FunctionReference }?.name
-            if (funcName == null || funcName !in validNames) return null
+            if (functionNames.isEmpty()) return null
+            val pattern = PlatformPatterns.or(
+                *functionNames.map { PhpPatternsExt.phpArgument(it, 0) }.toTypedArray()
+            )
+            if (!pattern.accepts(element)) return null
         }
         val parser = (
             if (config.gettext) {
