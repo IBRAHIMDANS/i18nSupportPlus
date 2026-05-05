@@ -8,7 +8,7 @@ import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.intellij.icons.AllIcons
 import com.intellij.ide.DataManager
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.runReadAction
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
@@ -183,14 +183,14 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
                 refSources.firstOrNull()
             } ?: return@executeOnPooledThread
 
-            val result = runReadAction {
-                val tree = target.tree ?: return@runReadAction null
+            val result = ReadAction.compute<Pair<VirtualFile, Int>?, RuntimeException> {
+                val tree = target.tree ?: return@compute null
                 var node: Tree<PsiElement> = tree
                 for (segment in segments) {
-                    node = node.findChild(segment) ?: return@runReadAction fallbackFile(tree)
+                    node = node.findChild(segment) ?: return@compute fallbackFile(tree)
                 }
                 val psi: PsiElement = node.value()
-                val vf = psi.containingFile?.virtualFile ?: return@runReadAction null
+                val vf = psi.containingFile?.virtualFile ?: return@compute null
                 vf to psi.textOffset
             } ?: return@executeOnPooledThread
 

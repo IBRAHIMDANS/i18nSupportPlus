@@ -7,9 +7,6 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.ToggleAction
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.runReadAction
-import com.intellij.openapi.fileEditor.FileEditorManager
-import com.intellij.psi.PsiManager
 
 class ToggleFoldingAction : ToggleAction(
     "Show Translations Inline",
@@ -29,13 +26,7 @@ class ToggleFoldingAction : ToggleAction(
         Settings.getInstance(project).foldingEnabled = state
         ApplicationManager.getApplication().invokeLater {
             if (project.isDisposed) return@invokeLater
-            val daemonCodeAnalyzer = DaemonCodeAnalyzer.getInstance(project)
-            runReadAction {
-                val psiManager = PsiManager.getInstance(project)
-                FileEditorManager.getInstance(project).openFiles.forEach { virtualFile ->
-                    psiManager.findFile(virtualFile)?.let { daemonCodeAnalyzer.restart(it) }
-                }
-            }
+            DaemonCodeAnalyzer.getInstance(project).restart()
         }
     }
 }
