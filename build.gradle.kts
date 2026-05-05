@@ -128,6 +128,7 @@ intellijPlatform {
 
     pluginVerification {
         // ide(type, version) removed in IGPP 2.14.0 — use recommended() or create()
+        freeArgs.addAll(listOf("--ignored-problems", file("verifier-ignored-problems.txt").absolutePath))
         ides {
             recommended()
             create(IntelliJPlatformType.IntellijIdeaUltimate, "2025.1")

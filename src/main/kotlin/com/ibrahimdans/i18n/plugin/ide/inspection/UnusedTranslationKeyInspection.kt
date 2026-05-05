@@ -6,7 +6,7 @@ import com.intellij.codeInspection.ProblemDescriptor
 import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.json.psi.JsonProperty
 import com.intellij.json.psi.JsonStringLiteral
-import com.intellij.openapi.application.runReadAction
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
@@ -37,7 +37,7 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
     private fun checkJsonProperty(property: JsonProperty, holder: ProblemsHolder) {
         if (property.value !is JsonStringLiteral) return
         val nameElement = property.nameElement
-        val hasRefs = runReadAction {
+        val hasRefs = ReadAction.compute<Boolean, RuntimeException> {
             ReferencesSearch.search(property).findFirst() != null
                 || nameElement.references.any { it.resolve() != null }
         }
@@ -49,7 +49,7 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
     private fun checkYamlKeyValue(keyValue: YAMLKeyValue, holder: ProblemsHolder) {
         if (keyValue.value !is YAMLScalar) return
         val keyElement = keyValue.key ?: return
-        val hasRefs = runReadAction {
+        val hasRefs = ReadAction.compute<Boolean, RuntimeException> {
             ReferencesSearch.search(keyValue).findFirst() != null
                 || keyValue.references.any { it.resolve() != null }
         }

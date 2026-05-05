@@ -1,0 +1,9 @@
+# ToolWindowFactory interface methods marked @Internal in 2024.3-2025.2.
+# These are implicit interface dispatch targets — our factory does not override
+# them explicitly; the platform reads icon/anchor from plugin.xml instead.
+# Reclassified as @Experimental in 2025.3+, so no action needed beyond XML config.
+ToolWindowFactory.getIcon()
+ToolWindowFactory.getAnchor()
+ToolWindowFactory.manage(
+ToolWindowFactory.isApplicable(
+ToolWindowFactory.isDoNotActivateOnStart(
