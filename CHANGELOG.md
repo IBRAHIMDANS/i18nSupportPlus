@@ -6,11 +6,13 @@
 
 - [Annotator] Stop flagging keys with a trailing dynamic template segment (e.g. ``t(`common:role.${role}`)``) as "Reference to object" — the dynamic part tokenizes to a terminal wildcard that legitimately resolves to its parent object at runtime, so no static error is reported
 - [Annotator] Stop flagging keys with a dynamic template segment in the middle (e.g. ``t(`common:role.${role}.label`)``) as "Unresolved key" — once resolution passes through the wildcard, the trailing static segments depend on the runtime value and cannot be verified statically
+- [i18next] Honor the explicit `t(key, { ns })` namespace when `t` comes from `useTranslation()` — `ReactUseTranslationHookExtractor` previously only read the (often empty) `useTranslation(...)` arguments and ignored the options namespace, causing keys to resolve against the default namespace and be falsely flagged
 
 ### Tests
 
 - [Annotator] Add `CodeHighlightingTestBase.testTrailingDynamicTemplateKeyNoObjectError` — `t(`common:role.${role}`)` with a typed union variable and an existing `role` object must produce no annotation
 - [Annotator] Add `CodeHighlightingTestBase.testMidKeyDynamicTemplateNoUnresolvedError` — `t(`common:role.${role}.label`)` must produce no annotation
+- [JS] Add `JsFalsePositiveTest.testTWithOptionsNamespace_overridesHookDefault_noError` — `t('user.name', { ns: 'profile' })` with `useTranslation()` resolves via the options namespace
 
 ## 1.0.10 - 2026-05-05
 
