@@ -3,15 +3,18 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.SetupWizardDialog
 import com.intellij.openapi.actionSystem.ActionUpdateThread
-import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.project.DumbAwareAction
 
 /**
  * Manually opens the Setup Wizard. The wizard otherwise only appears
  * automatically on first launch, leaving no way to reopen it once dismissed
  * or when a partial configuration already exists.
+ *
+ * DumbAware so it stays available while the project is still indexing —
+ * the action touches neither indexes nor PSI.
  */
-class SetupWizardAction : AnAction() {
+class SetupWizardAction : DumbAwareAction() {
 
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
 
