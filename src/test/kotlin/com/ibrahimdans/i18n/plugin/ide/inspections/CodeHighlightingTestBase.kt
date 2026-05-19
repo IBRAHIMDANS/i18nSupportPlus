@@ -181,6 +181,26 @@ class CodeHighlightingTestBase: PlatformBaseTest() {
         myFixture.checkHighlighting(true, true, true, true)
     }
 
+    /**
+     * Regression: a dynamic template segment in the MIDDLE of the key
+     * `t(`common:role.${'$'}{role}.label`)` resolves through a wildcard; the trailing
+     * static segment depends on the runtime value and must NOT be flagged "Unresolved key".
+     */
+    @Test
+    fun testMidKeyDynamicTemplateNoUnresolvedError() {
+        val tg = JsonTranslationGenerator()
+        myFixture.addFileToProject("en/common.${tg.ext()}",
+            """{"role":{"owner":"Owner","member":"Member","auditor":"Auditor","viewer":"Viewer"}}""")
+        myFixture.configureByText("roles.ts", """
+            import { TFunction } from 'i18next';
+            type WorkspaceRoleValue = 'owner' | 'member' | 'auditor' | 'viewer' | 'all';
+            export const getRoleLabel = (t: TFunction, role: WorkspaceRoleValue): string => {
+                return t(`common:role.${'$'}{role}.label`);
+            };
+        """.trimIndent())
+        myFixture.checkHighlighting(true, true, true, true)
+    }
+
     @ParameterizedTest
     @ArgumentsSource(JsCodeAndTranslationGeneratorsNs::class)
     fun testDefNsUnresolved(cg: CodeGenerator, tg: TranslationGenerator) = myFixture.customHighlightingCheck(
