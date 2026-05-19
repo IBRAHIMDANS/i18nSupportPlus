@@ -239,6 +239,15 @@
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection"/>
     </extensions>
     <actions>
+        <group id="com.ibrahimdans.i18n.ToolsMenu"
+               text="i18n Support Plus"
+               popup="true">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <action id="com.ibrahimdans.i18n.RunSetupWizard"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.SetupWizardAction"
+                    text="Run Setup Wizard"
+                    description="Open the i18n configuration wizard"/>
+        </group>
         <action id="com.ibrahimdans.i18n.ToggleFolding"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.ToggleFoldingAction"
                 text="Show Translations Inline"

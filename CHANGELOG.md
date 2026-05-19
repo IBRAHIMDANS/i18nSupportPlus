@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+- [Setup] Add **Tools > i18n Support Plus > Run Setup Wizard** action — the wizard previously only opened automatically on first launch, leaving no way to reopen it after dismissal or with a partial configuration (matches the documented "Run Setup Wizard" option that did not exist)
+
 ## 1.0.10 - 2026-05-05
 
 ### Bug Fixes
