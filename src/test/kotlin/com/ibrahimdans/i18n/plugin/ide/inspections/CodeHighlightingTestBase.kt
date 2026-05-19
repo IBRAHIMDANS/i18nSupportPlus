@@ -123,6 +123,84 @@ class CodeHighlightingTestBase: PlatformBaseTest() {
         myFixture.checkHighlighting(true, true, true, true)
     }
 
+    /**
+     * Repro: ternary inside t(...) with `const { t } = useTranslation('ns')`.
+     * Both branch keys exist in the hook namespace and must produce no annotation error.
+     */
+    @Test
+    fun testTernaryKeysWithUseTranslationNamespace() {
+        val tg = JsonTranslationGenerator()
+        myFixture.addFileToProject("en/dashboard.${tg.ext()}",
+            """{"status":{"active":"Active","inactive":"Inactive"}}""")
+        myFixture.configureByText("Status.tsx", """
+            import { useTranslation } from 'react-i18next';
+            export default function Status({ isActive }: { isActive: boolean }) {
+                const { t } = useTranslation('dashboard');
+                return t(isActive ? 'status.active' : 'status.inactive');
+            }
+        """.trimIndent())
+        myFixture.checkHighlighting(true, true, true, true)
+    }
+
+    /**
+     * Repro: ternary inside t(...) with `const { t } = useTranslation()` (no namespace)
+     * and explicit namespace prefix in both branch keys. Must produce no annotation error.
+     */
+    @Test
+    fun testTernaryKeysWithUseTranslationNoNamespace() {
+        val tg = JsonTranslationGenerator()
+        myFixture.addFileToProject("en/dashboard.${tg.ext()}",
+            """{"status":{"active":"Active","inactive":"Inactive"}}""")
+        myFixture.configureByText("Status.tsx", """
+            import { useTranslation } from 'react-i18next';
+            export default function Status({ isActive }: { isActive: boolean }) {
+                const { t } = useTranslation();
+                return t(isActive ? 'dashboard:status.active' : 'dashboard:status.inactive');
+            }
+        """.trimIndent())
+        myFixture.checkHighlighting(true, true, true, true)
+    }
+
+    /**
+     * Regression: a trailing dynamic template segment `t(`common:role.${'$'}{role}`)`
+     * tokenizes to a terminal wildcard that resolves to the parent object. It must NOT
+     * be flagged ("Reference to object"/"Unresolved key") since it is resolved at runtime.
+     */
+    @Test
+    fun testTrailingDynamicTemplateKeyNoObjectError() {
+        val tg = JsonTranslationGenerator()
+        myFixture.addFileToProject("en/common.${tg.ext()}",
+            """{"role":{"owner":"Owner","member":"Member","auditor":"Auditor","viewer":"Viewer"}}""")
+        myFixture.configureByText("roles.ts", """
+            import { TFunction } from 'i18next';
+            type WorkspaceRoleValue = 'owner' | 'member' | 'auditor' | 'viewer' | 'all';
+            export const getRoleLabel = (t: TFunction, role: WorkspaceRoleValue): string => {
+                return t(`common:role.${'$'}{role}`);
+            };
+        """.trimIndent())
+        myFixture.checkHighlighting(true, true, true, true)
+    }
+
+    /**
+     * Regression: a dynamic template segment in the MIDDLE of the key
+     * `t(`common:role.${'$'}{role}.label`)` resolves through a wildcard; the trailing
+     * static segment depends on the runtime value and must NOT be flagged "Unresolved key".
+     */
+    @Test
+    fun testMidKeyDynamicTemplateNoUnresolvedError() {
+        val tg = JsonTranslationGenerator()
+        myFixture.addFileToProject("en/common.${tg.ext()}",
+            """{"role":{"owner":"Owner","member":"Member","auditor":"Auditor","viewer":"Viewer"}}""")
+        myFixture.configureByText("roles.ts", """
+            import { TFunction } from 'i18next';
+            type WorkspaceRoleValue = 'owner' | 'member' | 'auditor' | 'viewer' | 'all';
+            export const getRoleLabel = (t: TFunction, role: WorkspaceRoleValue): string => {
+                return t(`common:role.${'$'}{role}.label`);
+            };
+        """.trimIndent())
+        myFixture.checkHighlighting(true, true, true, true)
+    }
+
     @ParameterizedTest
     @ArgumentsSource(JsCodeAndTranslationGeneratorsNs::class)
     fun testDefNsUnresolved(cg: CodeGenerator, tg: TranslationGenerator) = myFixture.customHighlightingCheck(

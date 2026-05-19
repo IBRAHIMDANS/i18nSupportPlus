@@ -137,4 +137,29 @@ class JsFalsePositiveTest : PlatformBaseTest() {
             myFixture.checkHighlighting(true, true, true, true)
         }
     }
+
+    // ── t(key, { ns }) overrides the useTranslation() default namespace ──────
+
+    @Test
+    fun testTWithOptionsNamespace_overridesHookDefault_noError() {
+        // const { t } = useTranslation(); t('user.name', { ns: 'profile' })
+        // The key lives in the `profile` namespace, supplied via the options
+        // object. Before the fix, ReactUseTranslationHookExtractor only read
+        // the (empty) useTranslation() args and ignored { ns }, so the key was
+        // resolved against the default namespace and falsely flagged.
+        myFixture.runWithConfig(Config(defaultNs = "translation")) {
+            myFixture.addFileToProject("en/profile.json", """{"user":{"name":"Name"}}""")
+            myFixture.configureByText(
+                "Profile.tsx",
+                """
+                import { useTranslation } from 'react-i18next';
+                export default function Profile() {
+                    const { t } = useTranslation();
+                    return t('user.name', { ns: 'profile' });
+                }
+                """.trimIndent()
+            )
+            myFixture.checkHighlighting(true, true, true, true)
+        }
+    }
 }

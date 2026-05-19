@@ -28,7 +28,7 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
     }
 
     override fun extract(element: PsiElement): RawKey {
-        val arguments = resolveHook(element)?.arguments
+        val hookNamespaces = resolveHook(element)?.arguments
             ?.flatMap { arg ->
                 when (arg) {
                     is JSLiteralExpression ->
@@ -41,7 +41,12 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
                     else -> emptyList()
                 }
             } ?: listOf()
-        return RawKey(listOf(KeyElement.literal(element.text.unQuote())), arguments)
+        // i18next: an explicit `t(key, { ns })` option overrides the hook default namespace.
+        val optionsNamespaces = OptionsExtractor.extractNamespaces(element)
+        return RawKey(
+            listOf(KeyElement.literal(element.text.unQuote())),
+            optionsNamespaces.ifEmpty { hookNamespaces }
+        )
     }
 
     private fun resolveTranslationFunctionDefinition(element: PsiElement): PsiElement? {
