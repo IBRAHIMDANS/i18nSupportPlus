@@ -54,6 +54,8 @@ On first launch, a wizard guides you through configuration in 3 steps:
 2. **Translation file discovery** — scans for `.json`, `.yaml`, `.po`, and `.pot` files in `locales/`, `i18n/`, `translations/` folders (PO/POT support requires the optional **GNU GetText** plugin — see Plugin Dependencies)
 3. **Summary** — review and apply the configuration
 
+You can reopen it at any time from **Tools > i18n Support Plus > Run Setup Wizard**.
+
 ![Setup Wizard step 1](docs/img/Setup-wizard-step-1.png)
 ![Setup Wizard step 2](docs/img/Setup-wizard-step-2.png)
 ![Setup Wizard step 3](docs/img/Setup-wizard-step-3.png)
