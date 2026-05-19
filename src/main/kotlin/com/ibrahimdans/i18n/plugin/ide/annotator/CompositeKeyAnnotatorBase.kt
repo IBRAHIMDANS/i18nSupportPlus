@@ -76,7 +76,10 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
                 } else {
                     if (mostResolvedReference.element?.isLeaf() ?: false) {
                         annotationHelper.annotateResolved(fullKey)
-                    } else {
+                    } else if (mostResolvedReference.path.lastOrNull()?.text != "*") {
+                        // A terminal wildcard (e.g. a dynamic `${expr}` segment) legitimately
+                        // points at the parent object and is resolved at runtime, so it must
+                        // not be reported as a static "Reference to object".
                         annotationHelper.annotateReferenceToObject(fullKey)
                     }
                 }

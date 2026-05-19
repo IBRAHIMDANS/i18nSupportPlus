@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+- [Annotator] Stop flagging keys with a trailing dynamic template segment (e.g. ``t(`common:role.${role}`)``) as "Reference to object" — the dynamic part tokenizes to a terminal wildcard that legitimately resolves to its parent object at runtime, so no static error is reported
+
+### Tests
+
+- [Annotator] Add `CodeHighlightingTestBase.testTrailingDynamicTemplateKeyNoObjectError` — `t(`common:role.${role}`)` with a typed union variable and an existing `role` object must produce no annotation
+
 ## 1.0.10 - 2026-05-05
 
 ### Bug Fixes
