@@ -76,7 +76,10 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
                 } else {
                     if (mostResolvedReference.element?.isLeaf() ?: false) {
                         annotationHelper.annotateResolved(fullKey)
-                    } else {
+                    } else if (mostResolvedReference.path.lastOrNull()?.text != "*") {
+                        // A terminal wildcard (e.g. a dynamic `${expr}` segment) legitimately
+                        // points at the parent object and is resolved at runtime, so it must
+                        // not be reported as a static "Reference to object".
                         annotationHelper.annotateReferenceToObject(fullKey)
                     }
                 }
@@ -86,7 +89,11 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
                 val onlyTemplateUnresolved = mostResolvedReference.unresolved.all {
                     it.text.startsWith("\${") && it.text.endsWith("}")
                 }
-                if (!onlyTemplateUnresolved) {
+                // A dynamic `${expr}` segment in the middle of the key tokenizes to a wildcard.
+                // Once resolution has passed through it, the remaining static segments depend on
+                // the runtime value and cannot be verified statically — so don't report them.
+                val resolvedViaDynamicWildcard = mostResolvedReference.path.any { it.text == "*" }
+                if (!onlyTemplateUnresolved && !resolvedViaDynamicWildcard) {
                     annotationHelper.unresolvedKey(fullKey, mostResolvedReference)
                 }
             }
