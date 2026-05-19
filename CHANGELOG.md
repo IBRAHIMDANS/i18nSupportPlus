@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+- [i18next] Honor the explicit `t(key, { ns })` namespace when `t` comes from `useTranslation()` — `ReactUseTranslationHookExtractor` previously only read the (often empty) `useTranslation(...)` arguments and ignored the options namespace, causing keys to resolve against the default namespace and be falsely flagged
+
+### Tests
+
+- [JS] Add `JsFalsePositiveTest.testTWithOptionsNamespace_overridesHookDefault_noError` — `t('user.name', { ns: 'profile' })` with `useTranslation()` resolves via the options namespace
+
 ## 1.0.10 - 2026-05-05
 
 ### Bug Fixes
