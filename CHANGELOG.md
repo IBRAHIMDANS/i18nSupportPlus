@@ -6,11 +6,13 @@
 
 - [Inspection] Add **Empty translation value** inspection — flags leaf translation entries (JSON/YAML) whose value is empty or blank, closing the loop with `KeysSynchronizer`/CreateMissingKeys, which intentionally insert missing keys with an empty value. Object/mapping-valued keys are skipped. Disabled by default to avoid noise during work-in-progress translation
 - [Inspection] Add **Duplicate translation value** inspection — flags leaf entries (JSON/YAML) that share the same non-blank value within a single locale file, helping translators spot copy-paste mistakes and keys that should be merged. File-scoped (same value across locale files is expected and never flagged); blank values are left to the empty-value inspection. Disabled by default
+- [Action] Add **Sort i18n Keys Alphabetically** action (editor popup) — reorders the keys of the current JSON translation file alphabetically (case-insensitive), recursively into nested objects. Conservative: each entry keeps its own value text and the file is reformatted afterwards. YAML is out of scope for now (block indentation requires a separate safe-reorder strategy)
 
 ### Tests
 
 - [Inspection] Add `EmptyTranslationValueInspectionTest` — covers empty/blank JSON strings, empty YAML scalars, non-empty values, and skipped object/mapping containers
 - [Inspection] Add `DuplicateTranslationValueInspectionTest` — covers JSON/YAML duplicates (pairs and triples), distinct values, ignored blank values, and cross-nesting duplicates
+- [Action] Add `SortI18nKeysActionTest` — top-level and nested sorting, case-insensitive order, already-sorted/single-key no-ops, and value preservation
 
 ### Build
 
