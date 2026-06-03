@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.0 - 2026-06-03
+
 ### New Features
 
 - [Action] Add **Move i18n Key to Namespace** action (`Ctrl+Alt+Shift+M` / editor popup) — moves an i18n key from its current namespace to another namespace atomically: copies the value to the sibling target file in every locale (creating the target file when missing, so no locale is silently dropped), deletes the source entry, and rewrites all code references with an explicit `targetNs:` prefix. The source namespace is derived from the *resolved* translation files, so keys whose namespace comes from a `useTranslation('ns')` or `useTranslation(['a','b'])` hook (no explicit prefix in the literal) are handled too. When the key resolves in several namespaces of a multi-namespace hook, the action first asks which namespace to move from. Code references are only rewritten when the literal actually carries the moved key (bare or `<ns>:`-prefixed), so an unexpectedly broad host element is never overwritten. If the key already exists in the target namespace, a confirmation dialog is shown before overwriting. The entire operation runs under a single `WriteCommandAction` (one undo step)
