@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Build
+
+- [deps] Bump JUnit from 5.11.4 to 6.1.0 (`junit-bom`, `junit-jupiter`, `junit-jupiter-api`, `junit-jupiter-params`, `junit-jupiter-engine`) — migrate test code to the new APIs: `InvocationInterceptor.Invocation<Void>` becomes nullable `Invocation<Void?>` in `PlatformBaseTest`, and `ArgumentsProvider.provideArguments` now takes the `ParameterDeclarations` parameter introduced in JUnit 6 across all providers in `TestDataProviders`
+
 ## 1.0.11 - 2026-05-19
 
 ### Bug Fixes

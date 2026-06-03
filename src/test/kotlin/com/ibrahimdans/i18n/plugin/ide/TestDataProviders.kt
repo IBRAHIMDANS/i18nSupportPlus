@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.utils.generator.translation.YamlTranslationGe
 import org.junit.jupiter.api.extension.ExtensionContext
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.ArgumentsProvider
+import org.junit.jupiter.params.support.ParameterDeclarations
 import java.util.stream.Stream
 
 private val tgs = listOf(JsonTranslationGenerator(), YamlTranslationGenerator())
@@ -18,7 +19,7 @@ fun translationGenerator(ext: String): TranslationGenerator? = tgs.find {it.ext(
 fun codeGenerator(ext: String): CodeGenerator? = cgs.find {it.ext() == ext}
 
 class CodeGeneratorsWithNs : ArgumentsProvider {
-    override fun provideArguments(context: ExtensionContext?): Stream<out Arguments> =
+    override fun provideArguments(parameters: ParameterDeclarations, context: ExtensionContext): Stream<out Arguments> =
         (cgs
             .flatMap {
                 listOf(Arguments.of(it, true), Arguments.of(it, false))
@@ -27,7 +28,7 @@ class CodeGeneratorsWithNs : ArgumentsProvider {
 }
 
 class JsonYamlCodeGenerators : ArgumentsProvider {
-    override fun provideArguments(context: ExtensionContext?): Stream<out Arguments> =
+    override fun provideArguments(parameters: ParameterDeclarations, context: ExtensionContext): Stream<out Arguments> =
         listOf(
             JsonTranslationGenerator(),
             YamlTranslationGenerator()).flatMap {
@@ -36,21 +37,21 @@ class JsonYamlCodeGenerators : ArgumentsProvider {
 }
 
 class JsCodeAndTranslationGenerators : ArgumentsProvider {
-    override fun provideArguments(context: ExtensionContext?): Stream<out Arguments> =
+    override fun provideArguments(parameters: ParameterDeclarations, context: ExtensionContext): Stream<out Arguments> =
         jsCgs.flatMap { cg -> tgs.map {Arguments.of(cg, it)}}.stream()
 }
 
 class JsCodeAndTranslationGeneratorsNs : ArgumentsProvider {
-    override fun provideArguments(context: ExtensionContext?): Stream<out Arguments> =
+    override fun provideArguments(parameters: ParameterDeclarations, context: ExtensionContext): Stream<out Arguments> =
         jsCgs.flatMap { cg -> tgs.map {Arguments.of(cg, it)}}.stream()
 }
 
 class PhpCodeAndTranslationGenerators : ArgumentsProvider {
-    override fun provideArguments(context: ExtensionContext?): Stream<out Arguments> =
+    override fun provideArguments(parameters: ParameterDeclarations, context: ExtensionContext): Stream<out Arguments> =
         listOf(PhpSingleQuoteCodeGenerator(), PhpDoubleQuoteCodeGenerator()).flatMap { cg -> tgs.map {Arguments.of(cg, it)}}.stream()
 }
 
 class CodeTranslationGenerators: ArgumentsProvider {
-    override fun provideArguments(context: ExtensionContext?): Stream<out Arguments> =
+    override fun provideArguments(parameters: ParameterDeclarations, context: ExtensionContext): Stream<out Arguments> =
         cgs.flatMap {cg -> tgs.map {Arguments.of(cg, it)}}.stream()
 }
