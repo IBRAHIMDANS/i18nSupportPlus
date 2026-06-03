@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.extensions.localization.json
 
 import com.ibrahimdans.i18n.*
+import com.ibrahimdans.i18n.plugin.ide.actions.JsonKeySorter
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
@@ -61,21 +62,26 @@ private class JsonContentGenerator: ContentGenerator {
         val props = obj.getPropertyList()
         if (props.isEmpty()) {
             obj.addAfter(keyValue, obj.findElementAt(0))
-            return
-        }
-        val separator = generator.createComma()
-        val (element, anchor) = if (Settings.getInstance(item.project).extractSorted) {
-            val before = props.takeWhile {it.name < key}
-            if (before.isEmpty()) {
-                Pair(separator, obj.addBefore(keyValue, props.first()))
-            } else {
-                Pair(keyValue, obj.addAfter(separator, before.last()))
+        } else {
+            val separator = generator.createComma()
+            val (element, anchor) = if (Settings.getInstance(item.project).extractSorted) {
+                val before = props.takeWhile {it.name < key}
+                if (before.isEmpty()) {
+                    Pair(separator, obj.addBefore(keyValue, props.first()))
+                } else {
+                    Pair(keyValue, obj.addAfter(separator, before.last()))
+                }
             }
+            else {
+                Pair(keyValue, obj.addAfter(separator, props.last()))
+            }
+            obj.addAfter(element, anchor)
         }
-        else {
-            Pair(keyValue, obj.addAfter(separator, props.last()))
+        // When the user keeps files alphabetically sorted, re-sort the whole file after each
+        // insertion so the new key lands in order even if the file was not already sorted.
+        if (Settings.getInstance(item.project).sortKeysAlphabetically) {
+            (item.containingFile as? JsonFile)?.let { JsonKeySorter.sort(it, item.project) }
         }
-        obj.addAfter(element, anchor)
     }
 
     override fun generate(element: PsiElement, fullKey: FullKey, unresolved: List<Literal>, translationValue: String?) {
