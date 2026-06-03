@@ -5,10 +5,12 @@
 ### New Features
 
 - [Inspection] Add **Empty translation value** inspection — flags leaf translation entries (JSON/YAML) whose value is empty or blank, closing the loop with `KeysSynchronizer`/CreateMissingKeys, which intentionally insert missing keys with an empty value. Object/mapping-valued keys are skipped. Disabled by default to avoid noise during work-in-progress translation
+- [Inspection] Add **Duplicate translation value** inspection — flags leaf entries (JSON/YAML) that share the same non-blank value within a single locale file, helping translators spot copy-paste mistakes and keys that should be merged. File-scoped (same value across locale files is expected and never flagged); blank values are left to the empty-value inspection. Disabled by default
 
 ### Tests
 
 - [Inspection] Add `EmptyTranslationValueInspectionTest` — covers empty/blank JSON strings, empty YAML scalars, non-empty values, and skipped object/mapping containers
+- [Inspection] Add `DuplicateTranslationValueInspectionTest` — covers JSON/YAML duplicates (pairs and triples), distinct values, ignored blank values, and cross-nesting duplicates
 
 ### Build
 

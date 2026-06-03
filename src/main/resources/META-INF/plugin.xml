@@ -244,6 +244,13 @@
             enabledByDefault="false"
             level="WARNING"
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.EmptyTranslationValueInspection"/>
+        <localInspection
+            groupName="i18n Support Plus"
+            displayName="Duplicate translation value"
+            shortName="I18nDuplicateValue"
+            enabledByDefault="false"
+            level="WEAK WARNING"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.DuplicateTranslationValueInspection"/>
     </extensions>
     <actions>
         <group id="com.ibrahimdans.i18n.ToolsMenu"
