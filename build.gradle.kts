@@ -47,13 +47,13 @@ dependencies {
     // install$kotlinx_coroutines_core() missing from IU-253's bundled coroutines 1.8.0-intellij,
     // without breaking CancellableContinuation which changed binary signature in 1.9.0.
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.11.4")
-    testCompileOnly("org.junit.jupiter:junit-jupiter-api:5.11.4")
-    testCompileOnly("org.junit.jupiter:junit-jupiter-params:5.11.4")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:6.1.0")
+    testCompileOnly("org.junit.jupiter:junit-jupiter-api:6.1.0")
+    testCompileOnly("org.junit.jupiter:junit-jupiter-params:6.1.0")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.0")
     testImplementation("io.mockk:mockk:1.14.11")
     testImplementation("com.jaliansystems:marathon-java-driver:5.4.0.0")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.0")
 
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher") {
