@@ -48,13 +48,13 @@ private val infraErrorSuppressor = object : LoggedErrorProcessor() {
 // background-thread infrastructure errors (e.g. Vue LSP init) don't fail tests.
 private class EdtTestInterceptor : InvocationInterceptor {
     override fun interceptTestMethod(
-        invocation: InvocationInterceptor.Invocation<Void>,
+        invocation: InvocationInterceptor.Invocation<Void?>,
         invocationContext: ReflectiveInvocationContext<Method>,
         extensionContext: ExtensionContext
     ) = dispatchOnEdt { invocation.proceed() }
 
     override fun interceptTestTemplateMethod(
-        invocation: InvocationInterceptor.Invocation<Void>,
+        invocation: InvocationInterceptor.Invocation<Void?>,
         invocationContext: ReflectiveInvocationContext<Method>,
         extensionContext: ExtensionContext
     ) = dispatchOnEdt { invocation.proceed() }
