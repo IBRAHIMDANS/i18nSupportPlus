@@ -282,6 +282,13 @@
                 description="Reorder the keys of the current JSON translation file alphabetically, recursively">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
         </action>
+        <action id="com.ibrahimdans.i18n.MoveI18nKey"
+                class="com.ibrahimdans.i18n.plugin.ide.actions.MoveI18nKeyHandler"
+                text="Move i18n Key to Namespace…"
+                description="Move an i18n key from its current namespace to another namespace, updating all locale files and code references">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift M"/>
+        </action>
     </actions>
     <extensions defaultExtensionNs="com.ibrahimdans.i18n">
         <localization implementation="com.ibrahimdans.i18n.extensions.localization.json.JsonLocalization"/>
