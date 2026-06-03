@@ -165,7 +165,7 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
                 if (doc == null) return@forEach
                 // Replace from the end so earlier offsets stay valid across multiple edits in one document.
                 elements.sortedByDescending { it.textRange.startOffset }
-                    .forEach { rewriteCodeUsage(doc, it, newKey) }
+                    .forEach { rewriteCodeUsage(doc, it, keyPath, newKey) }
             }
     }
 
@@ -291,8 +291,14 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
         }
     }
 
-    private fun rewriteCodeUsage(doc: Document, element: PsiElement, newKey: String) {
+    private fun rewriteCodeUsage(doc: Document, element: PsiElement, keyPath: String, newKey: String) {
         val original = element.text
+        // Safety: only rewrite a literal that actually carries this key — bare ("key.path")
+        // or namespace-prefixed ("<ns>:key.path"). This prevents overwriting an unexpectedly
+        // broad host element should reference search ever return one.
+        val unquoted = original.unQuote()
+        if (unquoted != keyPath && !unquoted.endsWith(":$keyPath")) return
+
         val updated = if (original.isQuoted()) {
             val quote = original.first()
             "$quote$newKey$quote"

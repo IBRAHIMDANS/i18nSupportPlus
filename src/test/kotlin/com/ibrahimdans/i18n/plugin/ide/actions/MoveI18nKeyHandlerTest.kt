@@ -152,6 +152,35 @@ class MoveI18nKeyHandlerTest : PlatformBaseTest() {
     }
 
     @Test
+    fun execute_safetyGuard_doesNotRewriteUnrelatedLiteral() {
+        addFileToProject("locales/en/common.json", """{"greeting":"Hello"}""")
+        addFileToProject("locales/en/ui.json", """{}""")
+        // One literal carries the moved key; the other is unrelated and must stay untouched
+        // even if it is (defensively) handed to execute() as a code usage.
+        val code = addFileToProject(
+            "src/App.tsx",
+            "const a = t('common:greeting'); const b = t('unrelated:other');"
+        )
+
+        val usages = ReadAction.compute<List<PsiElement>, RuntimeException> {
+            collectQuotedLiterals(code, "common:greeting", "unrelated:other")
+        }
+        Assertions.assertEquals(2, usages.size, "expected to locate both code literals")
+
+        WriteCommandAction.runWriteCommandAction(project) {
+            val src = leaf(jsonFile("locales/en/common.json"), "greeting")
+            handler.execute(project, listOf(src), usages, literals("greeting"), "ui")
+        }
+
+        val updated = ReadAction.compute<String, RuntimeException> {
+            val vf = myFixture.findFileInTempDir("src/App.tsx")
+            com.intellij.openapi.fileEditor.FileDocumentManager.getInstance().getDocument(vf)!!.text
+        }
+        // Only the matching key was rewritten; the unrelated literal is left intact.
+        Assertions.assertEquals("const a = t('ui:greeting'); const b = t('unrelated:other');", updated)
+    }
+
+    @Test
     fun resolveKey_returnsNull_whenNoKeyAtCaret() {
         myFixture.configureByText("plain.ts", "const x = <caret>42")
         val ctx = ReadAction.compute<MoveI18nKeyHandler.ResolvedKey?, RuntimeException> {
