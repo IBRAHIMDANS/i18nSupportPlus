@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### New Features
+
+- [Inspection] Add **Empty translation value** inspection — flags leaf translation entries (JSON/YAML) whose value is empty or blank, closing the loop with `KeysSynchronizer`/CreateMissingKeys, which intentionally insert missing keys with an empty value. Object/mapping-valued keys are skipped. Disabled by default to avoid noise during work-in-progress translation
+
+### Tests
+
+- [Inspection] Add `EmptyTranslationValueInspectionTest` — covers empty/blank JSON strings, empty YAML scalars, non-empty values, and skipped object/mapping containers
+
 ### Build
 
 - [deps] Bump JUnit from 5.11.4 to 6.1.0 (`junit-bom`, `junit-jupiter`, `junit-jupiter-api`, `junit-jupiter-params`, `junit-jupiter-engine`) — migrate test code to the new APIs: `InvocationInterceptor.Invocation<Void>` becomes nullable `Invocation<Void?>` in `PlatformBaseTest`, and `ArgumentsProvider.provideArguments` now takes the `ParameterDeclarations` parameter introduced in JUnit 6 across all providers in `TestDataProviders`

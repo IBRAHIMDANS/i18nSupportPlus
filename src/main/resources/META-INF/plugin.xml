@@ -237,6 +237,13 @@
             enabledByDefault="false"
             level="WARNING"
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection"/>
+        <localInspection
+            groupName="i18n Support Plus"
+            displayName="Empty translation value"
+            shortName="I18nEmptyValue"
+            enabledByDefault="false"
+            level="WARNING"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.EmptyTranslationValueInspection"/>
     </extensions>
     <actions>
         <group id="com.ibrahimdans.i18n.ToolsMenu"
