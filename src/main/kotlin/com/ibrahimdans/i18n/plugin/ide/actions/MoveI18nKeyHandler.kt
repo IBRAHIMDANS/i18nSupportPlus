@@ -58,17 +58,16 @@ import javax.swing.JPanel
 class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
 
     /**
-     * Everything needed to perform a move, collected under a read action before any UI/write.
+     * The i18n key resolved at the caret, collected under a read action before any UI/write.
      *
-     * @param sourceLeaves the resolved value PSI nodes (e.g. JsonStringLiteral) in the source locale files
-     * @param codeUsages   the code literals referencing the key (including the one under the caret)
+     * @param leavesByNamespace the resolved value PSI nodes grouped by source namespace; more than one
+     *        entry means the same key resolves in several namespaces (e.g. a `useTranslation(['a','b'])`
+     *        hook where both files define the key) and the user must pick which one to move.
      */
-    data class MoveContext(
+    data class ResolvedKey(
         val sourceCodeElement: PsiElement,
-        val sourceNamespace: String,
         val compositeKey: List<Literal>,
-        val sourceLeaves: List<PsiElement>,
-        val codeUsages: List<PsiElement>,
+        val leavesByNamespace: Map<String, List<PsiElement>>,
     )
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
@@ -85,8 +84,8 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
         val editor = e.getData(CommonDataKeys.EDITOR) ?: return
         val psiFile = e.getData(CommonDataKeys.PSI_FILE) ?: return
 
-        val context = ReadAction.compute<MoveContext?, RuntimeException> { buildContext(editor, psiFile) }
-        if (context == null) {
+        val resolved = ReadAction.compute<ResolvedKey?, RuntimeException> { resolveKey(editor, psiFile) }
+        if (resolved == null) {
             Messages.showErrorDialog(
                 project,
                 "Could not resolve an i18n key at the caret. Place the caret on a key that exists in a translation file.",
@@ -95,16 +94,29 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
             return
         }
 
-        val namespaces = DialogViewModel(project).loadNamespaces().filter { it != context.sourceNamespace }
+        val keyPath = resolved.compositeKey.joinToString(".") { it.text }
+
+        // When the key resolves in several namespaces (multi-namespace hook), ask which one to move.
+        val sourceNs = if (resolved.leavesByNamespace.size > 1) {
+            showNamespaceCombo(
+                project,
+                "Key '$keyPath' exists in several namespaces. Move it from:",
+                resolved.leavesByNamespace.keys.sorted()
+            ) ?: return
+        } else {
+            resolved.leavesByNamespace.keys.first()
+        }
+        val sourceLeaves = resolved.leavesByNamespace[sourceNs] ?: return
+
+        val namespaces = DialogViewModel(project).loadNamespaces().filter { it != sourceNs }
         if (namespaces.isEmpty()) {
             Messages.showErrorDialog(project, "No other namespace found in this project.", "Move i18n Key")
             return
         }
 
-        val keyPath = context.compositeKey.joinToString(".") { it.text }
-        val targetNs = showNamespaceCombo(project, "${context.sourceNamespace}:$keyPath", namespaces) ?: return
+        val targetNs = showNamespaceCombo(project, "Move '$sourceNs:$keyPath' to namespace:", namespaces) ?: return
 
-        if (hasCollision(project, targetNs, context.compositeKey)) {
+        if (hasCollision(project, targetNs, resolved.compositeKey)) {
             val choice = Messages.showYesNoDialog(
                 project,
                 "Key '$keyPath' already exists in namespace '$targetNs'. Overwrite it?",
@@ -114,8 +126,12 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
             if (choice != Messages.YES) return
         }
 
+        val codeUsages = ReadAction.compute<List<PsiElement>, RuntimeException> {
+            collectCodeUsages(sourceLeaves, resolved.sourceCodeElement)
+        }
+
         WriteCommandAction.runWriteCommandAction(project, "Move i18n Key", null, {
-            execute(project, context.sourceLeaves, context.codeUsages, context.compositeKey, targetNs)
+            execute(project, sourceLeaves, codeUsages, resolved.compositeKey, targetNs)
         })
     }
 
@@ -156,10 +172,14 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
     // --- Read-phase collection ---
 
     /**
-     * Resolves the i18n key at the caret to its source namespace, composite key, value leaves,
-     * and code usages. Returns null when there is no resolvable key under the caret.
+     * Resolves the i18n key at the caret to its composite key and value leaves grouped by
+     * source namespace. Returns null when there is no resolvable key under the caret.
+     *
+     * The namespace comes from the *resolved* translation files (not the literal text), so a key
+     * whose namespace is provided by a `useTranslation('ns')` / `useTranslation(['a','b'])` hook
+     * resolves correctly. Read-only — performs no UI and no writes.
      */
-    internal fun buildContext(editor: Editor, psiFile: PsiFile): MoveContext? {
+    internal fun resolveKey(editor: Editor, psiFile: PsiFile): ResolvedKey? {
         val ref = findI18nReference(editor, psiFile) ?: return null
 
         val maxPath = ref.references.maxOfOrNull { it.reference.path.size } ?: return null
@@ -167,21 +187,28 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
         val resolved = ref.references.filter { it.reference.path.size == maxPath && it.reference.unresolved.isEmpty() }
         if (resolved.isEmpty()) return null
 
-        // Source namespace comes from the resolved translation file, not the literal text,
-        // so an implicit (hook-provided) namespace resolves correctly.
-        val sourceNs = namespaceOf(resolved.first().reference.localizationSource) ?: return null
-        val moving = resolved.filter { namespaceOf(it.reference.localizationSource) == sourceNs }
+        val compositeKey = resolved.first().reference.path
+        val leavesByNamespace = resolved
+            .mapNotNull { d ->
+                val ns = namespaceOf(d.reference.localizationSource) ?: return@mapNotNull null
+                val leaf = d.reference.element?.value() ?: return@mapNotNull null
+                ns to leaf
+            }
+            .groupBy({ it.first }, { it.second })
+        if (leavesByNamespace.isEmpty()) return null
 
-        val compositeKey = moving.first().reference.path
-        val sourceLeaves = moving.mapNotNull { it.reference.element?.value() }
-        if (sourceLeaves.isEmpty()) return null
+        return ResolvedKey(ref.element, compositeKey, leavesByNamespace)
+    }
 
+    /**
+     * Collects the code literals referencing the source entries (via the translation properties)
+     * plus the literal under the caret. Read-only — must run inside a read action.
+     */
+    internal fun collectCodeUsages(sourceLeaves: List<PsiElement>, sourceCodeElement: PsiElement): List<PsiElement> {
         val sourceProps = sourceLeaves.mapNotNull { toPropertyElement(it) }
-        val codeUsages = (sourceProps.flatMap { prop ->
+        return (sourceProps.flatMap { prop ->
             ReferencesSearch.search(prop).mapNotNull { it.element }
-        } + ref.element).distinct()
-
-        return MoveContext(ref.element, sourceNs, compositeKey, sourceLeaves, codeUsages)
+        } + sourceCodeElement).distinct()
     }
 
     // --- Helpers ---
@@ -288,11 +315,11 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
     private fun emptyRootContent(ext: String): String =
         if (ext == "json" || ext == "json5") "{}" else ""
 
-    private fun showNamespaceCombo(project: Project, currentKey: String, namespaces: List<String>): String? {
+    private fun showNamespaceCombo(project: Project, label: String, namespaces: List<String>): String? {
         val combo = ComboBox(namespaces.toTypedArray())
         val panel = JPanel(BorderLayout(0, 8)).apply {
             preferredSize = Dimension(380, 60)
-            add(JLabel("Move '$currentKey' to namespace:"), BorderLayout.NORTH)
+            add(JLabel(label), BorderLayout.NORTH)
             add(combo, BorderLayout.CENTER)
         }
         val dialog = object : DialogWrapper(project, true) {

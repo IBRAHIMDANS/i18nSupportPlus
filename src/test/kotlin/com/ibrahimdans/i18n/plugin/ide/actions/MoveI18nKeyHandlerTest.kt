@@ -152,12 +152,57 @@ class MoveI18nKeyHandlerTest : PlatformBaseTest() {
     }
 
     @Test
-    fun buildContext_returnsNull_whenNoKeyAtCaret() {
+    fun resolveKey_returnsNull_whenNoKeyAtCaret() {
         myFixture.configureByText("plain.ts", "const x = <caret>42")
-        val ctx = ReadAction.compute<MoveI18nKeyHandler.MoveContext?, RuntimeException> {
-            handler.buildContext(myFixture.editor, myFixture.file)
+        val ctx = ReadAction.compute<MoveI18nKeyHandler.ResolvedKey?, RuntimeException> {
+            handler.resolveKey(myFixture.editor, myFixture.file)
         }
         Assertions.assertNull(ctx)
+    }
+
+    @Test
+    fun resolveKey_implicitNamespaceFromHook_resolvesSingleSource() {
+        addFileToProject("assets/dashboard.json", """{"main":{"title":"Dashboard Title"}}""")
+        myFixture.configureByText(
+            "Comp.tsx",
+            """
+            import { useTranslation } from 'react-i18next';
+            export default function Component() {
+                const { t } = useTranslation('dashboard');
+                return t('main.title<caret>');
+            }
+            """.trimIndent()
+        )
+        val resolved = ReadAction.compute<MoveI18nKeyHandler.ResolvedKey?, RuntimeException> {
+            handler.resolveKey(myFixture.editor, myFixture.file)
+        }
+        Assertions.assertNotNull(resolved)
+        // Namespace derived from the resolved file, even though the literal has no "dashboard:" prefix.
+        Assertions.assertEquals(setOf("dashboard"), resolved!!.leavesByNamespace.keys)
+        Assertions.assertEquals(listOf("main", "title"), resolved.compositeKey.map { it.text })
+    }
+
+    @Test
+    fun resolveKey_sameKeyInMultipleHookNamespaces_groupsByNamespace() {
+        // Same composite key present in BOTH namespaces of a useTranslation(['a','b']) hook.
+        addFileToProject("assets/dashboard.json", """{"shared":{"label":"From Dashboard"}}""")
+        addFileToProject("assets/common.json", """{"shared":{"label":"From Common"}}""")
+        myFixture.configureByText(
+            "Comp.tsx",
+            """
+            import { useTranslation } from 'react-i18next';
+            export default function Component() {
+                const { t } = useTranslation(['dashboard', 'common']);
+                return t('shared.label<caret>');
+            }
+            """.trimIndent()
+        )
+        val resolved = ReadAction.compute<MoveI18nKeyHandler.ResolvedKey?, RuntimeException> {
+            handler.resolveKey(myFixture.editor, myFixture.file)
+        }
+        Assertions.assertNotNull(resolved)
+        // Both namespaces are surfaced so the action can ask which one to move (no silent pick).
+        Assertions.assertEquals(setOf("dashboard", "common"), resolved!!.leavesByNamespace.keys)
     }
 
     /**
