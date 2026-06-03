@@ -276,6 +276,12 @@
             <add-to-group group-id="CodeMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift B"/>
         </action>
+        <action id="com.ibrahimdans.i18n.SortI18nKeys"
+                class="com.ibrahimdans.i18n.plugin.ide.actions.SortI18nKeysAction"
+                text="Sort i18n Keys Alphabetically"
+                description="Reorder the keys of the current JSON translation file alphabetically, recursively">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
     </actions>
     <extensions defaultExtensionNs="com.ibrahimdans.i18n">
         <localization implementation="com.ibrahimdans.i18n.extensions.localization.json.JsonLocalization"/>
