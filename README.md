@@ -11,6 +11,27 @@ Highlights unresolved i18n keys, offers navigation from keys to their translatio
 displays translation values as inline hints, and supports key extraction from plain text strings.
 <!-- Plugin description end -->
 
+## Why this plugin?
+
+On a real i18next/vue-i18n project, your keys and translations live in files
+your editor treats as dead text — so you keep opening JSON files just to check
+whether a key exists, in which namespace, and whether it's translated everywhere.
+
+**I18n Support Plus turns i18n keys into first-class code symbols.**
+
+- **See & navigate** — inline resolution status (gutter ✅/⚠️/❌), Ctrl+Click to the
+  translation and back, value hints (inlay + folding + hover), autocomplete from your
+  real keys (namespaces included), dynamic/wildcard keys supported.
+- **Edit safely** — extract hardcoded strings (`Alt+Enter`), rename across all
+  locales and code (`Shift+F6`), move a key to another namespace (`Ctrl+Alt+Shift+M`),
+  sort keys alphabetically.
+- **Stay healthy** — tool window with tree/table views, per-locale coverage stats,
+  Keys Synchronizer (propagate missing keys in bulk), Scan Orphans (find unused keys),
+  and empty/duplicate-value inspections.
+
+Works with **i18next, vue-i18n & lingui** across JS/TS/JSX/TSX, Vue SFC and PHP,
+with JSON, YAML and PO/POT files. A setup wizard auto-configures it on first launch.
+
 ## Supported Frameworks
 
 | Framework | Translation functions | Config-based |
