@@ -5,7 +5,7 @@ Plugin ID: `com.ibrahimdans.i18n`
 <!-- Plugin description -->
 IntelliJ IDEA plugin providing i18n support for JavaScript, TypeScript, JSX, TSX, and PHP projects.
 
-Supports **i18next**, **vue-i18n**, and **lingui** frameworks with JSON, YAML, and PO/POT translation files.
+Supports **i18next**, **vue-i18n**, **lingui**, **react-intl**, **ngx-translate**, and **svelte-i18n** frameworks with JSON, YAML, and PO/POT translation files.
 
 Highlights unresolved i18n keys, offers navigation from keys to their translation files, provides autocomplete for key names,
 displays translation values as inline hints, and supports key extraction from plain text strings.
@@ -29,8 +29,9 @@ whether a key exists, in which namespace, and whether it's translated everywhere
   Keys Synchronizer (propagate missing keys in bulk), Scan Orphans (find unused keys),
   and empty/duplicate-value inspections.
 
-Works with **i18next, vue-i18n & lingui** across JS/TS/JSX/TSX, Vue SFC and PHP,
-with JSON, YAML and PO/POT files. A setup wizard auto-configures it on first launch.
+Works with **i18next, vue-i18n, lingui, react-intl, ngx-translate & svelte-i18n**
+across JS/TS/JSX/TSX, Vue SFC and PHP, with JSON, YAML and PO/POT files.
+A setup wizard auto-configures it on first launch.
 
 ## Supported Frameworks
 
@@ -39,6 +40,9 @@ with JSON, YAML and PO/POT files. A setup wizard auto-configures it on first lau
 | i18next / react-i18next | `t()`, `useTranslation()` | Yes |
 | vue-i18n | `$t()`, `$tc()`, `$te()` | No |
 | lingui (`@lingui/core`, `@lingui/react`, `@lingui/macro`) | `msg()`, `i18n._()`, source-based `<Trans>…</Trans>` | No |
+| react-intl (FormatJS) | `formatMessage()`, `t()` | No |
+| ngx-translate (Angular) | `instant()`, `get()`, `stream()` | No |
+| svelte-i18n | `_()`, `$_()` | No |
 
 `useTranslation` supports both string form (`useTranslation('ns')`) and array form (`useTranslation(['ns1', 'ns2'])`).
 
