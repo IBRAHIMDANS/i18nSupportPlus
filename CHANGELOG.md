@@ -8,6 +8,7 @@
 
 ### Build
 
+- [deps] Bump `org.jetbrains.intellij.platform` from 2.16.0 to 2.18.1. Verified with `runIde` against IDEA Ultimate 2025.3.4: the plugin loads with no classloader conflict against the forced `kotlin-stdlib` 2.4.0
 - [deps] Bump Kotlin from 2.3.21 to 2.4.0 — the `org.jetbrains.kotlin.jvm` plugin and the `kotlin-stdlib` pinned through `resolutionStrategy.force` on the plugin and test runtime classpaths are bumped together, so the compiler and the stdlib shipped in the plugin's `lib/` stay on the same version
 - [deps] Bump JUnit from 6.1.0 to 6.1.2 (`junit-bom`, `junit-jupiter`, `junit-jupiter-api`, `junit-jupiter-params`, `junit-jupiter-engine`)
 - [deps] Bump the Gradle wrapper from 9.5.1 to 9.6.1
