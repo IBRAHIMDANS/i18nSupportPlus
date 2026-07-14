@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+- [Action] Harden `MoveI18nKeyHandler` against an empty namespace map — the single-namespace branch called `leavesByNamespace.keys.first()`, whose non-emptiness is only guaranteed by a guard in `resolveKey`, ninety lines away. The call is now `firstOrNull() ?: return` (fail closed, same pattern as the `KeyCreator` fix in 1.0.8), so a future regression in `resolveKey` degrades to a no-op instead of a `NoSuchElementException` in the middle of the action
 ### UI
 
 - [Settings] Rebuild the Settings panel with the Kotlin UI DSL — settings are now grouped in named sections (Namespaces and separators, Where translations are searched, Folding and preview, Key extraction, PHP / gettext, Inspections, Appearance) with labels and fields on an aligned grid, fixing the floating "Default namespace" field that overlapped the "Enable folding" row. Parenthetical explanations move from labels to comments under the fields, and the three scope labels are shortened accordingly (`Translations root directory`, `Excluded directories`, `Excluded file extensions`). Persistence is untouched: every control still writes to `Settings` immediately and keeps its component name, so `Configurable`'s snapshot diffing and the UI tests keep working. The module/rule tables stay plain Swing (`JTable` + buttons) on purpose: `JBTable`/`ToolbarDecorator` require a running IntelliJ Application, and the panel must remain buildable in plain Swing tests
