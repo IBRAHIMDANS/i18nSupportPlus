@@ -49,6 +49,8 @@ class ImportTranslationsAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
 
+        val scope = chooseModuleScope(project, "Import Translations") ?: return
+
         val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor("csv")
             .withTitle("Import Translations from CSV")
         val file = FileChooser.chooseFile(descriptor, project, null) ?: return
@@ -58,7 +60,7 @@ class ImportTranslationsAction : AnAction() {
             override fun run(indicator: ProgressIndicator) {
                 val plan = try {
                     val records = CsvTranslationCodec.parse(text)
-                    val existing = TranslationDataLoader.loadAllTranslations(project)
+                    val existing = TranslationDataLoader.loadAllTranslations(project, scope.config)
                     val knownLocales = existing.values.flatMap { it.keys }.distinct()
                     CsvTranslationCodec.computeImportPlan(existing, knownLocales, records)
                 } catch (ex: IllegalArgumentException) {
@@ -75,7 +77,7 @@ class ImportTranslationsAction : AnAction() {
                     }
                     val dialog = ImportPreviewDialog(project, plan)
                     if (dialog.showAndGet()) {
-                        applyPlan(project, plan)
+                        applyPlan(project, plan, scope)
                     }
                 }
             }
@@ -83,14 +85,17 @@ class ImportTranslationsAction : AnAction() {
     }
 
     /** Applies all planned entries in one WriteCommandAction (single undo step). */
-    private fun applyPlan(project: Project, plan: ImportPlan) {
+    private fun applyPlan(project: Project, plan: ImportPlan, scope: ModuleScope) {
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Importing translations…", false) {
             override fun run(indicator: ProgressIndicator) {
                 indicator.text = "Resolving target files…"
                 val viewModel = DialogViewModel(project)
                 val synchronizer = KeysSynchronizer()
+                // Scoped to the chosen module: writing against the project-wide source
+                // list would route a value into another module's file sharing the same
+                // namespace and locale.
                 val sources = ReadAction.compute<List<LocalizationSource>, RuntimeException> {
-                    project.service<LocalizationSourceService>().findAllSources(project)
+                    TranslationDataLoader.findSources(project, scope.config)
                 }
                 val operations = plan.entries.mapNotNull { entry ->
                     val source = findSourceFor(entry.key, entry.locale, sources) ?: return@mapNotNull null

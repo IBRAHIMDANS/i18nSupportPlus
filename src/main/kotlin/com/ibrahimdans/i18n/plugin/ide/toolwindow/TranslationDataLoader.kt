@@ -57,7 +57,13 @@ object TranslationDataLoader {
         return sources.map { extractLocale(it) }.distinct().sorted()
     }
 
-    private fun findSources(project: Project, moduleConfig: ModuleConfig? = null): List<LocalizationSource> {
+    /**
+     * All localization sources, restricted to [moduleConfig]'s root directory when given.
+     * Internal so that write paths (in-place table edit, CSV import) scope their target
+     * files exactly like the read paths do — otherwise a module's edit can land in
+     * another module's file that happens to share the same namespace and locale.
+     */
+    internal fun findSources(project: Project, moduleConfig: ModuleConfig? = null): List<LocalizationSource> {
         val service = project.getService(LocalizationSourceService::class.java)
         val all = service.findAllSources(project)
         if (moduleConfig == null || moduleConfig.rootDirectory.isBlank()) return all
