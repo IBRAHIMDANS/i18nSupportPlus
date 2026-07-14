@@ -8,6 +8,10 @@ import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
+import com.intellij.json.psi.JsonProperty
+import com.intellij.psi.util.PsiTreeUtil
+import org.jetbrains.yaml.psi.YAMLKeyValue
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.service
@@ -425,7 +429,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
  * Resolves and deletes a translation key from all matching localization sources.
  * Implements [CompositeKeyResolver] to reuse the existing key resolution logic.
  */
-private class OrphanKeyDeleter(private val project: Project) : CompositeKeyResolver<PsiElement> {
+internal class OrphanKeyDeleter(private val project: Project) : CompositeKeyResolver<PsiElement> {
 
     fun delete(fullKey: FullKey) {
         val sourceService = project.service<LocalizationSourceService>()
@@ -433,14 +437,19 @@ private class OrphanKeyDeleter(private val project: Project) : CompositeKeyResol
         val sources = sourceService.findSources(namespaces, project)
             .ifEmpty { if (namespaces.isEmpty()) sourceService.findAllSources(project) else emptyList() }
 
-        sources.forEach { source ->
-            val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@forEach
-            if (ref.unresolved.isEmpty() && ref.element != null) {
-                val psiElement = ref.element.value()
-                WriteCommandAction.runWriteCommandAction(project, "Delete Orphan Key", null, {
-                    psiElement.delete()
-                })
-            }
+        // Collect first, then delete everything in one WriteCommandAction:
+        // a single undo restores the key in every locale. The deletion targets
+        // the whole property (not just its value, which used to leave a
+        // dangling `"key":`) and removes the separating comma with it.
+        val properties = sources.mapNotNull { source ->
+            val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@mapNotNull null
+            if (ref.unresolved.isNotEmpty() || ref.element == null) return@mapNotNull null
+            PsiTreeUtil.getParentOfType(ref.element.value(), JsonProperty::class.java, YAMLKeyValue::class.java)
         }
+        if (properties.isEmpty()) return
+
+        WriteCommandAction.runWriteCommandAction(project, "Delete Orphan Key", null, {
+            properties.forEach { if (it.isValid) deletePropertyAndSeparator(it) }
+        })
     }
 }
