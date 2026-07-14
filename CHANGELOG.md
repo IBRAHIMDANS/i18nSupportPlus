@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+### New Features
+
+- [Action] Add **Export Translations to CSV** and **Import Translations from CSV** (Tools > i18n Support Plus) — export writes a `key` column plus one column per locale (RFC 4180 escaping, keys sorted) for handing to a translator; import diffs the CSV against the project and shows a mandatory preview (create/update per key and locale) before writing anything. Guardrails: an empty CSV cell never erases an existing translation, unknown keys are reported and never created (a translator's typo must not mint keys), unknown locale columns are ignored and reported, and all writes run in a single `WriteCommandAction` (one undo step). Values are routed to the right file by namespace and locale, the same way as the Keys Synchronizer
+
 ### Tests
 
+- [Utils] Add `CsvTranslationCodecTest` — export/parse round-trip without loss, comma/quote/newline escaping, Unix line endings, malformed-input rejection, and the import-plan rules (updates vs creations, unknown keys and locale columns ignored and reported, empty cells never erase, identical values are no-ops, header validation)
 - [Completion] Fix `NullPointerException` in `CodeCompletionDefNsTestBase.testRootKeyCompletion` (all 8 JS/TS/JSX/TSX x JSON/YAML variants). The fixture declared a single root key matching the typed `tst` prefix, so the platform auto-inserted the only variant and `completeBasic()` returned `null` instead of a lookup list. The fixture now declares two roots sharing the prefix (`tst1`, `tst2`) and the test asserts both are offered. This unblocks the `org.jetbrains.intellij.platform` 2.16.0 to 2.18.1 bump, whose stricter auto-insertion surfaced the latent bug
 
 ### Build

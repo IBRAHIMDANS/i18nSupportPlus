@@ -261,6 +261,14 @@
                     class="com.ibrahimdans.i18n.plugin.ide.actions.SetupWizardAction"
                     text="Run Setup Wizard"
                     description="Open the i18n configuration wizard"/>
+            <action id="com.ibrahimdans.i18n.ExportTranslations"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.ExportTranslationsAction"
+                    text="Export Translations to CSV…"
+                    description="Export all translation keys and locale values to a CSV file"/>
+            <action id="com.ibrahimdans.i18n.ImportTranslations"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.ImportTranslationsAction"
+                    text="Import Translations from CSV…"
+                    description="Import translation values from a CSV file, with a preview before writing"/>
         </group>
         <action id="com.ibrahimdans.i18n.ToggleFolding"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.ToggleFoldingAction"
