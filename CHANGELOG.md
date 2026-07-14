@@ -6,6 +6,12 @@
 
 - [Completion] Fix `NullPointerException` in `CodeCompletionDefNsTestBase.testRootKeyCompletion` (all 8 JS/TS/JSX/TSX x JSON/YAML variants). The fixture declared a single root key matching the typed `tst` prefix, so the platform auto-inserted the only variant and `completeBasic()` returned `null` instead of a lookup list. The fixture now declares two roots sharing the prefix (`tst1`, `tst2`) and the test asserts both are offered. This unblocks the `org.jetbrains.intellij.platform` 2.16.0 to 2.18.1 bump, whose stricter auto-insertion surfaced the latent bug
 
+### Build
+
+- [deps] Bump Kotlin from 2.3.21 to 2.4.0 — the `org.jetbrains.kotlin.jvm` plugin and the `kotlin-stdlib` pinned through `resolutionStrategy.force` on the plugin and test runtime classpaths are bumped together, so the compiler and the stdlib shipped in the plugin's `lib/` stay on the same version
+- [deps] Bump JUnit from 6.1.0 to 6.1.2 (`junit-bom`, `junit-jupiter`, `junit-jupiter-api`, `junit-jupiter-params`, `junit-jupiter-engine`)
+- [deps] Bump the Gradle wrapper from 9.5.1 to 9.6.1
+
 ## 1.1.0 - 2026-06-03
 
 ### New Features
