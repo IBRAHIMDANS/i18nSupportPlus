@@ -91,7 +91,9 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             val key = getValueAt(row, 0) as? String ?: return
             val locale = getColumnName(column)
 
-            if (viewModel.saveValue(project, key, locale, newValue)) {
+            // moduleConfig is mandatory here: it scopes the write to the same module
+            // the rows were loaded from (see TableViewModel.saveValue).
+            if (viewModel.saveValue(project, key, locale, newValue, moduleConfig)) {
                 super.setValueAt(newValue, row, column)
                 // Keep the row cache in sync so filtering/rebuilds show the new value.
                 allRows = allRows.map {

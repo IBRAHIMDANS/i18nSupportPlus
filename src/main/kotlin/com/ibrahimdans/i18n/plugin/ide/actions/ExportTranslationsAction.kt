@@ -30,6 +30,8 @@ class ExportTranslationsAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
 
+        val scope = chooseModuleScope(project, "Export Translations") ?: return
+
         val descriptor = FileSaverDescriptor("Export Translations to CSV", "Choose where to save the CSV file", "csv")
         val wrapper = FileChooserFactory.getInstance()
             .createSaveFileDialog(descriptor, project)
@@ -39,7 +41,7 @@ class ExportTranslationsAction : AnAction() {
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Exporting translations…", false) {
             override fun run(indicator: ProgressIndicator) {
                 indicator.text = "Collecting translations…"
-                val translations = TranslationDataLoader.loadAllTranslations(project)
+                val translations = TranslationDataLoader.loadAllTranslations(project, scope.config)
                 val locales = translations.values.flatMap { it.keys }.distinct().sorted()
 
                 indicator.text = "Writing ${translations.size} keys…"

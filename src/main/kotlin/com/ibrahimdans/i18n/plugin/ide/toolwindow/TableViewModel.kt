@@ -5,8 +5,6 @@ import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumulator
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
-import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.UsageSearchContext
@@ -58,17 +56,27 @@ class TableViewModel {
 
     /**
      * Writes [value] for [key] in [locale], routing to the right translation file
-     * by namespace and locale (same routing as the Keys Synchronizer and CSV import).
-     * Creates the entry when the locale does not have it yet.
+     * by namespace and locale. Creates the entry when the locale does not have it yet.
+     *
+     * [moduleConfig] must be the one the displayed rows were loaded with: without it,
+     * two modules owning a file with the same namespace and locale (the normal case in
+     * a monorepo) would resolve to whichever comes first project-wide, and an edit made
+     * in one module's table would land in the other module's file.
      *
      * Returns false when no matching translation file exists or the write fails
      * (e.g. read-only file) — the caller must then restore the previous cell value.
      * Must be called on the EDT.
      */
-    fun saveValue(project: Project, key: String, locale: String, value: String): Boolean {
+    fun saveValue(
+        project: Project,
+        key: String,
+        locale: String,
+        value: String,
+        moduleConfig: ModuleConfig? = null,
+    ): Boolean {
         val colonIdx = key.indexOf(':')
         val namespace = if (colonIdx > 0) key.substring(0, colonIdx) else null
-        val source = project.service<LocalizationSourceService>().findAllSources(project)
+        val source = TranslationDataLoader.findSources(project, moduleConfig)
             .firstOrNull { source ->
                 TranslationDataLoader.extractLocale(source) == locale &&
                     (namespace == null || TranslationDataLoader.extractNamespace(source) == namespace)
