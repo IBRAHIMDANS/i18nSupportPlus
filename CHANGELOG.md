@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Documentation
+
+- [README] Document the three registered technologies missing from the "Supported Frameworks" table: react-intl (`formatMessage()`, `t()`), ngx-translate (`instant()`, `get()`, `stream()`) and svelte-i18n (`_()`, `$_()`). All three were already implemented, registered in `plugin.xml` and shipped, but invisible on the Marketplace page. Function lists taken from the `Technology` implementations, not invented
 ### Bug Fixes
 
 - [Action] Harden `MoveI18nKeyHandler` against an empty namespace map — the single-namespace branch called `leavesByNamespace.keys.first()`, whose non-emptiness is only guaranteed by a guard in `resolveKey`, ninety lines away. The call is now `firstOrNull() ?: return` (fail closed, same pattern as the `KeyCreator` fix in 1.0.8), so a future regression in `resolveKey` degrades to a no-op instead of a `NoSuchElementException` in the middle of the action
