@@ -136,9 +136,14 @@ class SettingsPanelTest {
     }
 
     private fun runWithSettings(settings: Settings, block: (settings: Settings) -> Unit) {
+        // Settings.config() resolves the LOCALIZATION extension point when
+        // preferredLocalization is empty; outside a platform fixture that lookup
+        // throws. Pre-fill it so the panel can be built in a plain JUnit test.
+        settings.preferredLocalization = "json"
         val frame = JFrame()
         frame.contentPane.add(SettingsPanel(settings, mockk()).getRootPanel())
         SwingUtilities.invokeLater {
+            frame.pack()
             frame.isVisible = true
         }
         try {

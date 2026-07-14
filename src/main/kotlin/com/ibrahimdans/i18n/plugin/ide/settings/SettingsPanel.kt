@@ -3,26 +3,22 @@ package com.ibrahimdans.i18n.plugin.ide.settings
 import com.ibrahimdans.i18n.plugin.ide.settings.rules.EditorRuleState
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
-import com.jgoodies.forms.factories.DefaultComponentFactory
+import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.Align
+import com.intellij.ui.dsl.builder.panel
 import java.awt.BorderLayout
-import java.awt.Color
 import java.awt.Dimension
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import javax.swing.BoxLayout
 import javax.swing.JButton
 import javax.swing.JCheckBox
-import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JTable
-import javax.swing.JTextArea
 import javax.swing.JTextField
 import javax.swing.ListSelectionModel
 import javax.swing.table.DefaultTableModel
-import javax.swing.border.CompoundBorder
-import javax.swing.border.EmptyBorder
-import javax.swing.border.LineBorder
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.text.JTextComponent
@@ -44,7 +40,11 @@ private fun addLimitationsAndHandlers(component: JTextComponent, maxLength: Int,
 }
 
 /**
- * Settings configuration panel
+ * Settings configuration panel.
+ *
+ * Layout is built with the Kotlin UI DSL, but the components keep two contracts
+ * the UI tests rely on: every control's `name` is its bundle label, and every
+ * edit writes to [Settings] immediately (Configurable diffs against a snapshot).
  */
 class SettingsPanel(val settings: Settings, val project: Project) {
 
@@ -62,90 +62,132 @@ class SettingsPanel(val settings: Settings, val project: Project) {
      * Returns Settings main panel
      */
     fun getRootPanel(): JPanel {
-        val root = JPanel()
-        root.layout = BorderLayout()
-        root.add(DefaultComponentFactory.getInstance().createSeparator("Settings"), BorderLayout.NORTH)
-        root.add(settingsPanel(), BorderLayout.WEST)
-        return root
+        diagnosticsPanel.refresh(settings.config())
+        return panel {
+            row { cell(diagnosticsPanel).align(AlignX.FILL) }
+
+            group(PluginBundle.getMessage("settings.group.namespaces")) {
+                row(PluginBundle.getMessage("settings.namespace.separator")) {
+                    cell(separatorField(PluginBundle.getMessage("settings.namespace.separator"), settings::nsSeparator))
+                }
+                row(PluginBundle.getMessage("settings.key.separator")) {
+                    cell(separatorField(PluginBundle.getMessage("settings.key.separator"), settings::keySeparator))
+                }
+                row(PluginBundle.getMessage("settings.plural.separator")) {
+                    cell(separatorField(PluginBundle.getMessage("settings.plural.separator"), settings::pluralSeparator))
+                }
+                row(PluginBundle.getMessage("settings.default.namespace")) {
+                    cell(textField(PluginBundle.getMessage("settings.default.namespace"), settings::defaultNs, maxLength = 1000, columns = 20))
+                        .comment(PluginBundle.getMessage("settings.default.namespace.comment"))
+                }
+            }
+
+            group(PluginBundle.getMessage("settings.group.scope")) {
+                row {
+                    cell(checkbox(PluginBundle.getMessage("settings.search.in.project.files.only"), settings::searchInProjectOnly))
+                }
+                row(PluginBundle.getMessage("settings.translations.root")) {
+                    cell(textField(PluginBundle.getMessage("settings.translations.root"), settings::translationsRoot, columns = 25))
+                        .comment(PluginBundle.getMessage("settings.translations.root.comment"))
+                }
+                row(PluginBundle.getMessage("settings.excluded.directories")) {
+                    cell(textField(PluginBundle.getMessage("settings.excluded.directories"), settings::excludedDirectories, columns = 25))
+                        .comment(PluginBundle.getMessage("settings.excluded.directories.comment"))
+                }
+                row(PluginBundle.getMessage("settings.excluded.file.extensions")) {
+                    cell(textField(PluginBundle.getMessage("settings.excluded.file.extensions"), settings::excludedFileExtensions, columns = 25))
+                        .comment(PluginBundle.getMessage("settings.excluded.file.extensions.comment"))
+                }
+            }
+
+            group(PluginBundle.getMessage("settings.group.folding")) {
+                row {
+                    cell(checkbox(PluginBundle.getMessage("settings.folding.enabled"), settings::foldingEnabled))
+                }
+                row(PluginBundle.getMessage("settings.folding.preferredLanguage")) {
+                    cell(textField(PluginBundle.getMessage("settings.folding.preferredLanguage"), settings::foldingPreferredLanguage, columns = 6))
+                }
+                row(PluginBundle.getMessage("settings.folding.maxLength")) {
+                    cell(numberField(PluginBundle.getMessage("settings.folding.maxLength"), settings::foldingMaxLength))
+                }
+                row(PluginBundle.getMessage("settings.preview.locale")) {
+                    cell(textField(PluginBundle.getMessage("settings.preview.locale"), settings::previewLocale, columns = 6))
+                }
+            }
+
+            group(PluginBundle.getMessage("settings.group.extraction")) {
+                row {
+                    cell(checkbox(PluginBundle.getMessage("settings.extraction.sorted"), settings::extractSorted))
+                }
+                row {
+                    cell(checkbox(PluginBundle.getMessage("settings.sort.keys.alphabetically"), settings::sortKeysAlphabetically))
+                }
+            }
+
+            group(PluginBundle.getMessage("settings.group.gettext")) {
+                row {
+                    cell(checkbox(PluginBundle.getMessage("settings.gettext.enabled"), settings::gettext))
+                }
+                row(PluginBundle.getMessage("settings.gettext.aliases")) {
+                    cell(textField(PluginBundle.getMessage("settings.gettext.aliases"), settings::gettextAliases, columns = 20))
+                }
+            }
+
+            group(PluginBundle.getMessage("settings.group.inspections")) {
+                row {
+                    cell(checkbox(PluginBundle.getMessage("settings.annotations.partially.translated.enabled"), settings::partialTranslationInspectionEnabled))
+                }
+            }
+
+            group(PluginBundle.getMessage("settings.group.appearance")) {
+                row {
+                    cell(checkbox(PluginBundle.getMessage("settings.gutter.icons.enabled"), settings::gutterIconsEnabled))
+                }
+                row {
+                    cell(checkbox(PluginBundle.getMessage("settings.setup.wizard.enabled"), settings::setupWizardEnabled))
+                }
+            }
+
+            group(PluginBundle.getMessage("settings.modules.label")) {
+                row {
+                    cell(modulesTable()).align(Align.FILL)
+                }.resizableRow()
+            }
+
+            group(PluginBundle.getMessage("settings.rules.label")) {
+                row {
+                    cell(rulesTable()).align(Align.FILL)
+                }.resizableRow()
+            }
+        }
     }
 
-    private fun checkbox(label:String, property: KMutableProperty0<Boolean>): JPanel {
-        val panel = JPanel()
-        panel.preferredSize = Dimension(350, 30)
-        panel.layout = BorderLayout()
+    private fun checkbox(label: String, property: KMutableProperty0<Boolean>): JCheckBox {
         val checkbox = JCheckBox(label, property.get())
         checkbox.name = label
         checkbox.addItemListener { _ -> property.set(checkbox.isSelected) }
-        panel.add(checkbox, BorderLayout.WEST)
-        return panel
+        return checkbox
     }
 
-    private fun separator(label:String, property: KMutableProperty0<String>):JPanel {
-        val panel = JPanel()
-        panel.layout = BorderLayout()
-        panel.preferredSize = Dimension(350, 30)
-        panel.add(JLabel(label), BorderLayout.WEST)
-        val control = JTextField(property.get())
+    private fun separatorField(label: String, property: KMutableProperty0<String>): JTextField {
+        val control = JTextField(property.get(), 2)
         control.name = label
         addLimitationsAndHandlers(control, 1, property::set, {!" {}$`".contains(it)})
-        control.preferredSize = Dimension(30, 30)
-        panel.add(control, BorderLayout.EAST)
-        return panel
+        return control
     }
 
-    private fun textInput(label:String, property: KMutableProperty0<String>):JPanel {
-        val panel = JPanel()
-        panel.layout = BorderLayout()
-        panel.preferredSize = Dimension(350, 30)
-        panel.add(JLabel(label), BorderLayout.WEST)
-        val control = JTextField(property.get())
+    private fun textField(label: String, property: KMutableProperty0<String>, maxLength: Int = 100, columns: Int = 10): JTextField {
+        val control = JTextField(property.get(), columns)
         control.name = label
-        addLimitationsAndHandlers(control, 100, property::set)
-        control.preferredSize = Dimension(100, 30)
-        panel.add(control, BorderLayout.EAST)
-        return panel
+        addLimitationsAndHandlers(control, maxLength, property::set)
+        return control
     }
 
-    private fun textArea(label:String, property: KMutableProperty0<String>):JPanel {
-        val panel = JPanel()
-        panel.layout = BorderLayout()
-        val labelPanel = JPanel()
-        labelPanel.layout = BorderLayout()
-        labelPanel.add(JLabel(label), BorderLayout.PAGE_START)
-        panel.add(labelPanel, BorderLayout.WEST)
-        val control = JTextArea(property.get())
-        control.name = label
-        addLimitationsAndHandlers(control, 1000, property::set)
-        control.lineWrap = true
-        control.wrapStyleWord = true
-        control.isEditable = true
-        control.columns = 20
-        control.setBorder(CompoundBorder(LineBorder(Color.LIGHT_GRAY), EmptyBorder(1, 3, 1, 1)))
-        panel.add(control, BorderLayout.EAST)
-        return panel
-    }
-
-    private fun numberInput(label:String, property: KMutableProperty0<Int>):JPanel {
-        val panel = JPanel()
-        panel.layout = BorderLayout()
-        panel.preferredSize = Dimension(350, 30)
-        panel.add(JLabel(label), BorderLayout.WEST)
-        val control = JTextField(property.get().toString())
+    private fun numberField(label: String, property: KMutableProperty0<Int>): JTextField {
+        val control = JTextField(property.get().toString(), 4)
         control.name = label
         addLimitationsAndHandlers(control, 2, { if (it.isNotBlank()) property.set(it.toInt()) }, {('0'..'9').contains(it)})
-        panel.add(control, BorderLayout.EAST)
-        control.preferredSize = Dimension(100, 30)
-        return panel
-    }
-
-    private fun gettext(): JPanel {
-        val panel = JPanel()
-        panel.layout = BorderLayout()
-        panel.preferredSize = Dimension(350, 30)
-        val gettextMode = JCheckBox(PluginBundle.getMessage("settings.gettext.enabled"), settings.gettext)
-        gettextMode.addItemListener { _ -> settings.gettext = gettextMode.isSelected}
-        panel.add(gettextMode, BorderLayout.WEST)
-        return panel
+        return control
     }
 
     private fun modulesTable(): JPanel {
@@ -176,21 +218,39 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                 ))
             }
         }
+        // Plain JTable/JButton on purpose: JBTable and ToolbarDecorator require a
+        // running Application, and this panel must stay buildable in plain Swing tests.
         val table = JTable(model)
         table.name = "modules.table"
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
         table.fillsViewportHeight = true
+        return tableWithButtons(
+            table,
+            addLabel = PluginBundle.getMessage("settings.modules.add"),
+            addName = "modules.add",
+            removeLabel = PluginBundle.getMessage("settings.modules.remove"),
+            removeName = "modules.remove",
+            onAdd = { model.addRow(arrayOf("", "", "", "", "", "")) },
+            onRemove = { if (table.selectedRow >= 0) model.removeRow(table.selectedRow) }
+        )
+    }
 
-        val addButton = JButton(PluginBundle.getMessage("settings.modules.add"))
-        addButton.name = "modules.add"
-        addButton.addActionListener { model.addRow(arrayOf("", "", "", "", "", "")) }
+    private fun tableWithButtons(
+        table: JTable,
+        addLabel: String,
+        addName: String,
+        removeLabel: String,
+        removeName: String,
+        onAdd: () -> Unit,
+        onRemove: () -> Unit
+    ): JPanel {
+        val addButton = JButton(addLabel)
+        addButton.name = addName
+        addButton.addActionListener { onAdd() }
 
-        val removeButton = JButton(PluginBundle.getMessage("settings.modules.remove"))
-        removeButton.name = "modules.remove"
-        removeButton.addActionListener {
-            val selectedRow = table.selectedRow
-            if (selectedRow >= 0) model.removeRow(selectedRow)
-        }
+        val removeButton = JButton(removeLabel)
+        removeButton.name = removeName
+        removeButton.addActionListener { onRemove() }
 
         val buttonPanel = JPanel()
         buttonPanel.layout = BoxLayout(buttonPanel, BoxLayout.X_AXIS)
@@ -199,10 +259,9 @@ class SettingsPanel(val settings: Settings, val project: Project) {
 
         val panel = JPanel()
         panel.layout = BorderLayout()
-        panel.add(JLabel(PluginBundle.getMessage("settings.modules.label")), BorderLayout.NORTH)
         panel.add(JScrollPane(table), BorderLayout.CENTER)
         panel.add(buttonPanel, BorderLayout.SOUTH)
-        panel.preferredSize = Dimension(700, 200)
+        panel.preferredSize = Dimension(700, 160)
         return panel
     }
 
@@ -244,62 +303,14 @@ class SettingsPanel(val settings: Settings, val project: Project) {
         table.name = "rules.table"
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
         table.fillsViewportHeight = true
-
-        val addButton = JButton(PluginBundle.getMessage("settings.rules.add"))
-        addButton.name = "rules.add"
-        addButton.addActionListener { model.addRow(arrayOf("", "", "", "0", "false", "", "", "", "false")) }
-
-        val removeButton = JButton(PluginBundle.getMessage("settings.rules.remove"))
-        removeButton.name = "rules.remove"
-        removeButton.addActionListener {
-            val selectedRow = table.selectedRow
-            if (selectedRow >= 0) model.removeRow(selectedRow)
-        }
-
-        val buttonPanel = JPanel()
-        buttonPanel.layout = BoxLayout(buttonPanel, BoxLayout.X_AXIS)
-        buttonPanel.add(addButton)
-        buttonPanel.add(removeButton)
-
-        val panel = JPanel()
-        panel.layout = BorderLayout()
-        panel.add(JLabel(PluginBundle.getMessage("settings.rules.label")), BorderLayout.NORTH)
-        panel.add(JScrollPane(table), BorderLayout.CENTER)
-        panel.add(buttonPanel, BorderLayout.SOUTH)
-        panel.preferredSize = Dimension(700, 200)
-        return panel
-    }
-
-    private fun settingsPanel(): JPanel {
-        val root = JPanel()
-        val panel = JPanel()
-        root.layout = BorderLayout()
-        panel.layout = BoxLayout(panel, BoxLayout.Y_AXIS)
-        panel.add(checkbox(PluginBundle.getMessage("settings.search.in.project.files.only"), settings::searchInProjectOnly))
-        panel.add(separator(PluginBundle.getMessage("settings.namespace.separator"), settings::nsSeparator))
-        panel.add(separator(PluginBundle.getMessage("settings.key.separator"), settings::keySeparator))
-        panel.add(separator(PluginBundle.getMessage("settings.plural.separator"), settings::pluralSeparator))
-        panel.add(textArea(PluginBundle.getMessage("settings.default.namespace"), settings::defaultNs))
-        panel.add(checkbox(PluginBundle.getMessage("settings.folding.enabled"), settings::foldingEnabled))
-        panel.add(textInput(PluginBundle.getMessage("settings.folding.preferredLanguage"), settings::foldingPreferredLanguage))
-        panel.add(numberInput(PluginBundle.getMessage("settings.folding.maxLength"), settings::foldingMaxLength))
-        panel.add(checkbox(PluginBundle.getMessage("settings.extraction.sorted"), settings::extractSorted))
-        panel.add(checkbox(PluginBundle.getMessage("settings.annotations.partially.translated.enabled"), settings::partialTranslationInspectionEnabled))
-        panel.add(checkbox(PluginBundle.getMessage("settings.gettext.enabled"), settings::gettext))
-        panel.add(textInput(PluginBundle.getMessage("settings.gettext.aliases"), settings::gettextAliases))
-        panel.add(checkbox(PluginBundle.getMessage("settings.sort.keys.alphabetically"), settings::sortKeysAlphabetically))
-        panel.add(textInput(PluginBundle.getMessage("settings.preview.locale"), settings::previewLocale))
-        panel.add(textInput(PluginBundle.getMessage("settings.translations.root"), settings::translationsRoot))
-        panel.add(textInput(PluginBundle.getMessage("settings.excluded.directories"), settings::excludedDirectories))
-        panel.add(textInput(PluginBundle.getMessage("settings.excluded.file.extensions"), settings::excludedFileExtensions))
-        panel.add(checkbox(PluginBundle.getMessage("settings.gutter.icons.enabled"), settings::gutterIconsEnabled))
-        panel.add(checkbox(PluginBundle.getMessage("settings.setup.wizard.enabled"), settings::setupWizardEnabled))
-        panel.add(modulesTable())
-        panel.add(rulesTable())
-
-        diagnosticsPanel.refresh(settings.config())
-        panel.add(diagnosticsPanel)
-        root.add(panel, BorderLayout.PAGE_START)
-        return root
+        return tableWithButtons(
+            table,
+            addLabel = PluginBundle.getMessage("settings.rules.add"),
+            addName = "rules.add",
+            removeLabel = PluginBundle.getMessage("settings.rules.remove"),
+            removeName = "rules.remove",
+            onAdd = { model.addRow(arrayOf("", "", "", "0", "false", "", "", "", "false")) },
+            onRemove = { if (table.selectedRow >= 0) model.removeRow(table.selectedRow) }
+        )
     }
 }
