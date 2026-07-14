@@ -38,6 +38,19 @@ import javax.swing.table.TableRowSorter
 
 private const val ALL_NAMESPACES = "All namespaces"
 private const val USAGE_COLUMN_NAME = "Usage"
+private const val NOT_SCANNED_TOOLTIP = "Run Scan Orphans to compute usages"
+internal const val DISPLAY_VALUE_MAX_LENGTH = 200
+
+/**
+ * Normalizes a raw translation value for single-line table display:
+ * collapses all whitespace runs (including newlines) to one space, trims,
+ * and truncates to [maxLength] with an ellipsis. The raw value is meant
+ * to stay available in the cell tooltip.
+ */
+internal fun displayValue(raw: String, maxLength: Int = DISPLAY_VALUE_MAX_LENGTH): String {
+    val collapsed = raw.replace(Regex("\\s+"), " ").trim()
+    return if (collapsed.length <= maxLength) collapsed else collapsed.take(maxLength) + "…"
+}
 
 /**
  * Panel displaying translations in a flat table format.
@@ -62,7 +75,9 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     private var currentNamespace: String = ALL_NAMESPACES
 
     private val namespaceCombo = JComboBox(arrayOf(ALL_NAMESPACES))
-    private val scanButton = JButton("Scan Orphans")
+    private val scanButton = JButton("Scan Orphans").apply {
+        toolTipText = "Count code usages for each key and fill the Usage column"
+    }
 
     init {
         table.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
@@ -303,15 +318,24 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             column: Int
         ): Component {
             val component = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
+            val raw = value?.toString() ?: ""
+
+            // Values arrive verbatim from the translation files (newlines, indentation):
+            // render a collapsed single line, keep the full raw value in the tooltip.
+            if (column > 0 && column <= localeCount) {
+                text = displayValue(raw)
+                toolTipText = raw.ifBlank { null }
+            } else {
+                toolTipText = null
+            }
 
             if (!isSelected && column > 0 && column <= localeCount) {
-                val text = value?.toString() ?: ""
                 background = when {
-                    text.isEmpty() -> JBColor(
+                    raw.isEmpty() -> JBColor(
                         java.awt.Color(255, 200, 200),
                         java.awt.Color(100, 40, 40)
                     )
-                    text.isBlank() -> JBColor(
+                    raw.isBlank() -> JBColor(
                         java.awt.Color(255, 230, 180),
                         java.awt.Color(100, 80, 30)
                     )
@@ -342,6 +366,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         ): Component {
             val component = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
             val text = value?.toString() ?: ""
+            toolTipText = if (text == "—") NOT_SCANNED_TOOLTIP else null
             if (!isSelected) {
                 foreground = when {
                     text.startsWith("0") -> JBColor(

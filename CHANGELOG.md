@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### UI
+
+- [Tool Window] Improve Table/Stats readability. **Table**: translation values are rendered on a single line (whitespace runs collapsed, truncated at 200 chars with an ellipsis) instead of verbatim with their original newlines and indentation; the full raw value moves to the cell tooltip. The unscanned Usage cells ("—") and the Scan Orphans button now carry tooltips explaining that the scan fills the column. **Stats**: the % cell replaces the full-width color band with a compact proportional progress bar (same green/orange/red thresholds), and rows with missing keys show a hand cursor plus a "Click to list the N missing keys" tooltip, making the drill-down popup discoverable. **Toolbar**: the action toolbar's `targetComponent` now points at the tool window content instead of itself, fixing data-context lookups and tooltip anchoring
 ### Documentation
 
 - [README] Document the three registered technologies missing from the "Supported Frameworks" table: react-intl (`formatMessage()`, `t()`), ngx-translate (`instant()`, `get()`, `stream()`) and svelte-i18n (`_()`, `$_()`). All three were already implemented, registered in `plugin.xml` and shipped, but invisible on the Marketplace page. Function lists taken from the `Technology` implementations, not invented
