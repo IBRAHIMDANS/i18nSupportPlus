@@ -2,24 +2,29 @@
 
 ## Unreleased
 
+### New Features
+
+- [Action] Add **Export Translations to CSV** and **Import Translations from CSV** (Tools > i18n Support Plus) — export writes a `key` column plus one column per locale (RFC 4180 escaping, keys sorted) for handing to a translator; import diffs the CSV against the project and shows a mandatory preview (create/update per key and locale) before writing anything. Guardrails: an empty CSV cell never erases an existing translation, unknown keys are reported and never created (a translator's typo must not mint keys), unknown locale columns are ignored and reported, and all writes run in a single `WriteCommandAction` (one undo step). Values are routed to the right file by namespace and locale, the same way as the Keys Synchronizer
+- [Tool Window] Make the Table View's locale cells **editable in place** — double-clicking a locale cell opens the standard cell editor; committing the edit writes straight to the matching translation file (routed by namespace and locale, one undo step per cell) and creates the entry when the locale doesn't have it yet, via the same `saveTranslation` path as the dialogs. If no translation file matches or the write fails, the previous value is restored and an error dialog is shown — never a silent failure. The key column stays read-only (renaming is `RenameI18nKeyHandler`'s job) and keeps opening the edit dialog on double-click
+
 ### UI
 
 - [Tool Window] Improve Table/Stats readability. **Table**: translation values are rendered on a single line (whitespace runs collapsed, truncated at 200 chars with an ellipsis) instead of verbatim with their original newlines and indentation; the full raw value moves to the cell tooltip. The unscanned Usage cells ("—") and the Scan Orphans button now carry tooltips explaining that the scan fills the column. **Stats**: the % cell replaces the full-width color band with a compact proportional progress bar (same green/orange/red thresholds), and rows with missing keys show a hand cursor plus a "Click to list the N missing keys" tooltip, making the drill-down popup discoverable. **Toolbar**: the action toolbar's `targetComponent` now points at the tool window content instead of itself, fixing data-context lookups and tooltip anchoring
-### Documentation
-
-- [README] Document the three registered technologies missing from the "Supported Frameworks" table: react-intl (`formatMessage()`, `t()`), ngx-translate (`instant()`, `get()`, `stream()`) and svelte-i18n (`_()`, `$_()`). All three were already implemented, registered in `plugin.xml` and shipped, but invisible on the Marketplace page. Function lists taken from the `Technology` implementations, not invented
-### Bug Fixes
-
-- [Action] Harden `MoveI18nKeyHandler` against an empty namespace map — the single-namespace branch called `leavesByNamespace.keys.first()`, whose non-emptiness is only guaranteed by a guard in `resolveKey`, ninety lines away. The call is now `firstOrNull() ?: return` (fail closed, same pattern as the `KeyCreator` fix in 1.0.8), so a future regression in `resolveKey` degrades to a no-op instead of a `NoSuchElementException` in the middle of the action
-### UI
-
 - [Settings] Rebuild the Settings panel with the Kotlin UI DSL — settings are now grouped in named sections (Namespaces and separators, Where translations are searched, Folding and preview, Key extraction, PHP / gettext, Inspections, Appearance) with labels and fields on an aligned grid, fixing the floating "Default namespace" field that overlapped the "Enable folding" row. Parenthetical explanations move from labels to comments under the fields, and the three scope labels are shortened accordingly (`Translations root directory`, `Excluded directories`, `Excluded file extensions`). Persistence is untouched: every control still writes to `Settings` immediately and keeps its component name, so `Configurable`'s snapshot diffing and the UI tests keep working. The module/rule tables stay plain Swing (`JTable` + buttons) on purpose: `JBTable`/`ToolbarDecorator` require a running IntelliJ Application, and the panel must remain buildable in plain Swing tests
+
 ### Bug Fixes
 
 - [Sources] Stop treating any 2-3 letter directory or file name as a locale when no translations root is configured — the shape-only regex accepted `web`, `ios`, `api`, `src`…, so on monorepos the plugin ingested `package.json` / `.prettierrc` from `web/` or `ios/` as translation files, filling the tool window with bogus keys and reporting directories as locales in the stats. `looksLikeLocale` now validates the language subtag against the ISO codes known to the JDK (639-1, their 639-2 equivalents, and CLDR 3-letter languages such as `fil`) and the region subtag against ISO country codes; 4-letter script subtags (`sr-Latn`) remain accepted. Configured-root behaviour is unchanged
+- [Action] Harden `MoveI18nKeyHandler` against an empty namespace map — the single-namespace branch called `leavesByNamespace.keys.first()`, whose non-emptiness is only guaranteed by a guard in `resolveKey`, ninety lines away. The call is now `firstOrNull() ?: return` (fail closed, same pattern as the `KeyCreator` fix in 1.0.8), so a future regression in `resolveKey` degrades to a no-op instead of a `NoSuchElementException` in the middle of the action
+
+### Documentation
+
+- [README] Document the three registered technologies missing from the "Supported Frameworks" table: react-intl (`formatMessage()`, `t()`), ngx-translate (`instant()`, `get()`, `stream()`) and svelte-i18n (`_()`, `$_()`). All three were already implemented, registered in `plugin.xml` and shipped, but invisible on the Marketplace page. Function lists taken from the `Technology` implementations, not invented
 
 ### Tests
 
+- [Tool Window] Add `TableViewModelSaveValueTest` — in-place edit write path against real PSI: update of an existing value, creation of a missing entry in a locale without touching the others, and refusal (no write) when no file matches the locale or the namespace
+- [Utils] Add `CsvTranslationCodecTest` — export/parse round-trip without loss, comma/quote/newline escaping, Unix line endings, malformed-input rejection, and the import-plan rules (updates vs creations, unknown keys and locale columns ignored and reported, empty cells never erase, identical values are no-ops, header validation)
 - [Settings] Repair `SettingsPanelTest` in display environments (CI always skips it as headless, so the breakage was invisible there): pre-fill `Settings.preferredLocalization` so building the panel no longer resolves the LOCALIZATION extension point outside a platform fixture, and `pack()` the test frame so Marathon clicks land on real component bounds
 - [Completion] Fix `NullPointerException` in `CodeCompletionDefNsTestBase.testRootKeyCompletion` (all 8 JS/TS/JSX/TSX x JSON/YAML variants). The fixture declared a single root key matching the typed `tst` prefix, so the platform auto-inserted the only variant and `completeBasic()` returned `null` instead of a lookup list. The fixture now declares two roots sharing the prefix (`tst1`, `tst2`) and the test asserts both are offered. This unblocks the `org.jetbrains.intellij.platform` 2.16.0 to 2.18.1 bump, whose stricter auto-insertion surfaced the latent bug
 

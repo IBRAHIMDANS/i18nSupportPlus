@@ -15,6 +15,7 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.Messages
 import com.intellij.psi.PsiElement
 import com.intellij.ui.JBColor
 import com.intellij.ui.table.JBTable
@@ -57,6 +58,11 @@ internal fun displayValue(raw: String, maxLength: Int = DISPLAY_VALUE_MAX_LENGTH
  * Columns: "Key" + one column per locale + "Usage".
  * Includes a namespace combo box to filter rows by namespace prefix.
  * Empty cells are highlighted with a warning color.
+ * Locale cells are editable in place: an edit writes straight to the matching
+ * translation file (one undo step per cell) and creates the entry when the
+ * locale doesn't have it yet. On failure the previous value is restored and
+ * an error dialog is shown. The key column stays read-only (renaming is
+ * RenameI18nKeyHandler's job); double-clicking it opens the edit dialog.
  * A "Scan Orphans" button triggers background usage analysis.
  * Right-clicking a row with usage=0 offers a "Delete orphan key" option.
  *
@@ -66,7 +72,35 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
     private val viewModel = TableViewModel()
     private val tableModel = object : DefaultTableModel() {
-        override fun isCellEditable(row: Int, column: Int): Boolean = false
+        // Editable: locale columns only — not "Key" (column 0) nor "Usage" (last).
+        override fun isCellEditable(row: Int, column: Int): Boolean =
+            column in 1 until columnCount - 1
+
+        override fun setValueAt(aValue: Any?, row: Int, column: Int) {
+            if (!isCellEditable(row, column)) {
+                super.setValueAt(aValue, row, column)
+                return
+            }
+            val newValue = aValue?.toString() ?: ""
+            val oldValue = getValueAt(row, column)?.toString() ?: ""
+            if (newValue == oldValue) return
+            val key = getValueAt(row, 0) as? String ?: return
+            val locale = getColumnName(column)
+
+            if (viewModel.saveValue(project, key, locale, newValue)) {
+                super.setValueAt(newValue, row, column)
+                // Keep the row cache in sync so filtering/rebuilds show the new value.
+                allRows = allRows.map {
+                    if (it.key == key) it.copy(values = it.values + (locale to newValue)) else it
+                }
+            } else {
+                Messages.showErrorDialog(
+                    project,
+                    "Could not write '$key' for locale '$locale'. No matching translation file was found, or the file is not writable.",
+                    "Edit Translation"
+                )
+            }
+        }
     }
     private val table = JBTable(tableModel)
     private var locales: List<String> = emptyList()
@@ -83,7 +117,9 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         table.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
         table.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
-                if (e.clickCount == 2 && e.button == MouseEvent.BUTTON1) {
+                // Only the read-only key column opens the edit dialog: on locale
+                // columns a double-click starts the in-place cell editor instead.
+                if (e.clickCount == 2 && e.button == MouseEvent.BUTTON1 && table.columnAtPoint(e.point) == 0) {
                     handleDoubleClick()
                 }
             }
