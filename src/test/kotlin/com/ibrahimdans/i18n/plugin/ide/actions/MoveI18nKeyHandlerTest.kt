@@ -63,6 +63,73 @@ class MoveI18nKeyHandlerTest : PlatformBaseTest() {
         Assertions.assertNull(valueAt("locales/en/common.json", "user", "name"), "source entry should be deleted")
     }
 
+    // Every fixture above holds a single key in the source object, so deleting it never
+    // leaves a separator behind — which is exactly why the source file was silently being
+    // corrupted whenever the moved key had a sibling (the normal case).
+    //
+    // These assertions look at the raw file text on purpose: the JSON PSI is error-tolerant
+    // and still resolves the siblings of a `{"a":"1",,"c":"3"}` object, so asserting on
+    // resolved values alone would pass on a corrupted file.
+
+    private fun textOf(path: String): String =
+        ReadAction.compute<String, RuntimeException> { jsonFile(path).text }
+
+    private fun assertNoDanglingSeparator(path: String) {
+        val text = textOf(path).filterNot { it.isWhitespace() }
+        Assertions.assertFalse(text.contains(",,"), "double comma left behind in $path: $text")
+        Assertions.assertFalse(text.contains("{,"), "leading comma left behind in $path: $text")
+        Assertions.assertFalse(text.contains(",}"), "trailing comma left behind in $path: $text")
+    }
+
+    @Test
+    fun execute_middleKeyWithSiblings_leavesSourceFileValid() {
+        addFileToProject("locales/en/common.json", """{"user":{"first":"John","name":"Doe","last":"Smith"}}""")
+        addFileToProject("locales/en/profile.json", """{}""")
+
+        WriteCommandAction.runWriteCommandAction(project) {
+            val src = leaf(jsonFile("locales/en/common.json"), "user", "name")
+            handler.execute(project, listOf(src), emptyList(), literals("user", "name"), "profile")
+        }
+
+        Assertions.assertEquals("Doe", valueAt("locales/en/profile.json", "user", "name"))
+        Assertions.assertNull(valueAt("locales/en/common.json", "user", "name"))
+        assertNoDanglingSeparator("locales/en/common.json")
+    }
+
+    @Test
+    fun execute_firstKeyWithSibling_leavesSourceFileValid() {
+        addFileToProject("locales/en/common.json", """{"a":"1","b":"2"}""")
+        addFileToProject("locales/en/target.json", """{}""")
+
+        WriteCommandAction.runWriteCommandAction(project) {
+            handler.execute(
+                project,
+                listOf(leaf(jsonFile("locales/en/common.json"), "a")),
+                emptyList(), literals("a"), "target"
+            )
+        }
+
+        Assertions.assertEquals("2", valueAt("locales/en/common.json", "b"))
+        assertNoDanglingSeparator("locales/en/common.json")
+    }
+
+    @Test
+    fun execute_lastKeyWithSibling_leavesSourceFileValid() {
+        addFileToProject("locales/en/common.json", """{"x":"9","y":"8"}""")
+        addFileToProject("locales/en/target.json", """{}""")
+
+        WriteCommandAction.runWriteCommandAction(project) {
+            handler.execute(
+                project,
+                listOf(leaf(jsonFile("locales/en/common.json"), "y")),
+                emptyList(), literals("y"), "target"
+            )
+        }
+
+        Assertions.assertEquals("9", valueAt("locales/en/common.json", "x"))
+        assertNoDanglingSeparator("locales/en/common.json")
+    }
+
     @Test
     fun execute_multiLocale_copiesEachLocale() {
         addFileToProject("locales/en/common.json", """{"greeting":"Hello"}""")

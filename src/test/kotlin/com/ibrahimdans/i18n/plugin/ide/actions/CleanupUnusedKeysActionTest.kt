@@ -18,6 +18,11 @@ class CleanupUnusedKeysActionTest : PlatformBaseTest() {
 
     private val action = CleanupUnusedKeysAction()
 
+    /** Sources are now loaded once by the caller and passed in (they used to be re-scanned per key). */
+    private fun sources() =
+        project.getService(com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService::class.java)
+            .findAllSources(project)
+
     private fun valueAt(path: String, vararg key: String): String? =
         ReadAction.compute<String?, RuntimeException> {
             val vf = myFixture.findFileInTempDir(path) ?: return@compute null
@@ -33,7 +38,7 @@ class CleanupUnusedKeysActionTest : PlatformBaseTest() {
         addFileToProject("locales/fr/common.json", """{"menu":{"home":"Accueil"}}""")
 
         val leaves = ReadAction.compute<List<*>, RuntimeException> {
-            action.leafProperties(project, "common:menu.home")
+            action.leafProperties(sources(), "common:menu.home")
         }
 
         Assertions.assertEquals(2, leaves.size, "one property per locale")
@@ -45,7 +50,7 @@ class CleanupUnusedKeysActionTest : PlatformBaseTest() {
         addFileToProject("locales/fr/common.json", """{"menu":{}}""")
 
         val leaves = ReadAction.compute<List<*>, RuntimeException> {
-            action.leafProperties(project, "common:menu.home")
+            action.leafProperties(sources(), "common:menu.home")
         }
 
         Assertions.assertEquals(1, leaves.size)
@@ -80,7 +85,7 @@ class CleanupUnusedKeysActionTest : PlatformBaseTest() {
         addFileToProject("locales/en/common.json", """{"dead":{"key":"never used"}}""")
 
         val referenced = ReadAction.compute<Boolean, RuntimeException> {
-            action.hasPsiReferences(project, "common:dead.key")
+            action.hasPsiReferences(sources(), "common:dead.key")
         }
 
         Assertions.assertFalse(referenced)

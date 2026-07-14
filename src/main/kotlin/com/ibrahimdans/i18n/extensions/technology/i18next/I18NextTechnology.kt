@@ -91,10 +91,21 @@ class I18NextTechnology : Technology {
 
     override fun cfgNamespaces(): List<String> = cfgNamespaces
 
-    private fun findInitObject(root: PsiElement): JSObjectLiteralExpression? {
-        return PsiTreeUtil.findFirstParent(PsiTreeUtil.findChildrenOfType(root, JSProperty::class.java).filter {
+    /**
+     * Finds the i18next `resources` object in a config file, or null when the config
+     * does not declare one inline — which is the norm when translations are loaded at
+     * runtime (i18next-http-backend and friends).
+     *
+     * The `resources` property used to be looked up with `.first()`, so such a config
+     * threw NoSuchElementException. Since this runs inside `findSourcesByConfiguration`,
+     * which every key resolution goes through (annotator, completion, folding, hints,
+     * gutter icons, tool window), it broke the plugin wholesale on those projects.
+     */
+    internal fun findInitObject(root: PsiElement): JSObjectLiteralExpression? {
+        val resources = PsiTreeUtil.findChildrenOfType(root, JSProperty::class.java).firstOrNull {
             it.name == "resources" && it.value is JSObjectLiteralExpression
-        }.first()) {it is JSObjectLiteralExpression}?.let {it as JSObjectLiteralExpression}
+        } ?: return null
+        return PsiTreeUtil.findFirstParent(resources) { it is JSObjectLiteralExpression } as? JSObjectLiteralExpression
     }
 
     private fun listNamespaces(init: JSObjectLiteralExpression): List<JSProperty> {

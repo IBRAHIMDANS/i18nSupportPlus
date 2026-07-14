@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
 import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
@@ -321,7 +322,9 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      */
     private fun deleteOrphanKey(keyString: String) {
         val fullKey = buildFullKey(keyString)
-        val deleter = OrphanKeyDeleter(project)
+        // Scoped to this panel's module: without it the key is also deleted from
+        // another module's file sharing the same namespace.
+        val deleter = OrphanKeyDeleter(project, moduleConfig)
         deleter.delete(fullKey)
         // Refresh the table after deletion
         refresh()
@@ -428,16 +431,25 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 // ── OrphanKeyDeleter ──────────────────────────────────────────────────────────
 
 /**
- * Resolves and deletes a translation key from all matching localization sources.
+ * Resolves and deletes a translation key from the matching localization sources.
  * Implements [CompositeKeyResolver] to reuse the existing key resolution logic.
+ *
+ * [moduleConfig] must be the module the rows were loaded with: the namespace-based
+ * lookup alone is not enough, since two modules commonly own a file with the same
+ * namespace. Without the scope, deleting an orphan key from one module's table also
+ * removed it from the other module's file.
  */
-internal class OrphanKeyDeleter(private val project: Project) : CompositeKeyResolver<PsiElement> {
+internal class OrphanKeyDeleter(
+    private val project: Project,
+    private val moduleConfig: ModuleConfig? = null,
+) : CompositeKeyResolver<PsiElement> {
 
     fun delete(fullKey: FullKey) {
         val sourceService = project.service<LocalizationSourceService>()
         val namespaces = fullKey.allNamespaces()
         val sources = sourceService.findSources(namespaces, project)
             .ifEmpty { if (namespaces.isEmpty()) sourceService.findAllSources(project) else emptyList() }
+            .let { found -> scopeToModule(found) }
 
         // Collect first, then delete everything in one WriteCommandAction:
         // a single undo restores the key in every locale. The deletion targets
@@ -453,5 +465,12 @@ internal class OrphanKeyDeleter(private val project: Project) : CompositeKeyReso
         WriteCommandAction.runWriteCommandAction(project, "Delete Orphan Key", null, {
             properties.forEach { if (it.isValid) deletePropertyAndSeparator(it) }
         })
+    }
+
+    /** Keeps only the sources belonging to [moduleConfig], like TranslationDataLoader does for reads. */
+    private fun scopeToModule(sources: List<LocalizationSource>): List<LocalizationSource> {
+        val root = moduleConfig?.rootDirectory?.trimEnd('/')
+        if (root.isNullOrBlank()) return sources
+        return sources.filter { it.displayPath.startsWith(root) }
     }
 }

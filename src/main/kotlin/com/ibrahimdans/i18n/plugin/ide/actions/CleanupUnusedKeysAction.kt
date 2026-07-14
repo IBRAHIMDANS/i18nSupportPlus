@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
+import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
@@ -66,8 +67,14 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
                 val candidates = viewModel.countUsages(project, rows).filter { it.usageCount == 0 }
 
                 indicator.text = "Checking references on ${candidates.size} candidates…"
+                // Load the sources ONCE. findAllSources rebuilds the PSI tree of every
+                // translation file, so calling it per key made the scan O(keys × files):
+                // a few hundred dead keys over a few dozen locale files froze the IDE.
+                val sources = ReadAction.compute<List<LocalizationSource>, RuntimeException> {
+                    project.service<LocalizationSourceService>().findAllSources(project)
+                }
                 val orphans = candidates.filter { row ->
-                    ReadAction.compute<Boolean, RuntimeException> { !hasPsiReferences(project, row.key) }
+                    ReadAction.compute<Boolean, RuntimeException> { !hasPsiReferences(sources, row.key) }
                 }
 
                 ApplicationManager.getApplication().invokeLater {
@@ -99,8 +106,8 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
      * properties — has a PSI reference from code. The ancestor walk protects
      * children of dynamically-accessed parents (template keys).
      */
-    internal fun hasPsiReferences(project: Project, key: String): Boolean {
-        return leafProperties(project, key).any { property ->
+    internal fun hasPsiReferences(sources: List<LocalizationSource>, key: String): Boolean {
+        return leafProperties(sources, key).any { property ->
             generateSequence(property) { current ->
                 PsiTreeUtil.getParentOfType(current, JsonProperty::class.java, YAMLKeyValue::class.java)
             }.any { ancestor -> ReferencesSearch.search(ancestor).findFirst() != null }
@@ -111,11 +118,14 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
      * Resolves [key] in every matching localization source and returns the
      * property elements (JsonProperty / YAMLKeyValue) holding its value, one
      * per locale where the key exists.
+     *
+     * Takes the already-loaded [sources]: resolving them per key turned the scan
+     * into O(keys × translation files) full PSI rebuilds.
      */
-    internal fun leafProperties(project: Project, key: String): List<PsiElement> {
+    internal fun leafProperties(sources: List<LocalizationSource>, key: String): List<PsiElement> {
         val fullKey = KeysSynchronizer().buildFullKey(key)
         val namespace = fullKey.ns?.text
-        return project.service<LocalizationSourceService>().findAllSources(project)
+        return sources
             .filter { namespace == null || TranslationDataLoader.extractNamespace(it) == namespace }
             .mapNotNull { source ->
                 val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@mapNotNull null
@@ -134,7 +144,9 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
      */
     internal fun deleteKeys(project: Project, keys: List<String>): Int {
         val properties = ReadAction.compute<List<PsiElement>, RuntimeException> {
-            keys.flatMap { leafProperties(project, it) }
+            // One source load for the whole batch, not one per key.
+            val sources = project.service<LocalizationSourceService>().findAllSources(project)
+            keys.flatMap { leafProperties(sources, it) }
         }
         ApplicationManager.getApplication().invokeAndWait {
             WriteCommandAction.runWriteCommandAction(project, "Cleanup Unused i18n Keys", null, {
