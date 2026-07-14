@@ -39,6 +39,9 @@ with JSON, YAML and PO/POT files. A setup wizard auto-configures it on first lau
 | i18next / react-i18next | `t()`, `useTranslation()` | Yes |
 | vue-i18n | `$t()`, `$tc()`, `$te()` | No |
 | lingui (`@lingui/core`, `@lingui/react`, `@lingui/macro`) | `msg()`, `i18n._()`, source-based `<Trans>…</Trans>` | No |
+| react-intl (FormatJS) | `formatMessage()`, `t()` | No |
+| ngx-translate (Angular) | `instant()`, `get()`, `stream()` | No |
+| svelte-i18n | `_()`, `$_()` | No |
 
 `useTranslation` supports both string form (`useTranslation('ns')`) and array form (`useTranslation(['ns1', 'ns2'])`).
 

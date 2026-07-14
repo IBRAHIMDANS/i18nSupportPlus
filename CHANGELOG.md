@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Documentation
+
+- [README] Document the three registered technologies missing from the "Supported Frameworks" table: react-intl (`formatMessage()`, `t()`), ngx-translate (`instant()`, `get()`, `stream()`) and svelte-i18n (`_()`, `$_()`). All three were already implemented, registered in `plugin.xml` and shipped, but invisible on the Marketplace page. Function lists taken from the `Technology` implementations, not invented
+
 ### Tests
 
 - [Completion] Fix `NullPointerException` in `CodeCompletionDefNsTestBase.testRootKeyCompletion` (all 8 JS/TS/JSX/TSX x JSON/YAML variants). The fixture declared a single root key matching the typed `tst` prefix, so the platform auto-inserted the only variant and `completeBasic()` returned `null` instead of a lookup list. The fixture now declares two roots sharing the prefix (`tst1`, `tst2`) and the test asserts both are offered. This unblocks the `org.jetbrains.intellij.platform` 2.16.0 to 2.18.1 bump, whose stricter auto-insertion surfaced the latent bug
