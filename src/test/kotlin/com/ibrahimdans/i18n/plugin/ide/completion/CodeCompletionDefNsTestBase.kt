@@ -19,10 +19,16 @@ abstract class CodeCompletionDefNsTestBase(codeGenerator: CodeGenerator, transla
 
     @Test
     fun testRootKeyCompletion() {
-        myFixture.addFileToProject("assets/translation.${translationGenerator.ext()}", translationGenerator.generateContent("tst1", "base", "single", "only one value"))
+        // Two roots must share the "tst" prefix: with a single matching variant the platform
+        // auto-inserts it and completeBasic() returns null instead of the lookup list.
+        myFixture.addFileToProject("assets/translation.${translationGenerator.ext()}", translationGenerator.generate(
+            arrayOf("tst1", "base", "single", "only one value"),
+            arrayOf("tst2", "base", "single", "another value")
+        ))
         myFixture.configureByText("empty.${codeGenerator.ext()}", codeGenerator.generate("\"tst<caret>\""))
         val vars = myFixture.completeBasic()
         assertTrue(vars.find { it.lookupString == "tst1" } != null)
+        assertTrue(vars.find { it.lookupString == "tst2" } != null)
     }
 }
 
