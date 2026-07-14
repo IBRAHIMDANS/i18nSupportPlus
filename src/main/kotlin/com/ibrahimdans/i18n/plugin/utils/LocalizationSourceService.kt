@@ -22,6 +22,39 @@ class LocalizationSourceService {
             "node_modules", "build", "dist", ".next", "out",
             "storybook-static", ".nuxt", ".output", "coverage", ".cache", "vendor"
         )
+
+        // ISO 639-1 (2 letters), their ISO 639-2 equivalents ("fra", "deu"), and the
+        // 3-letter languages known to the JDK's CLDR data ("fil", "haw"). The full
+        // ISO 639-3 registry is deliberately not used: its ~7900 codes collide with
+        // common directory names ("api" is Apiaká).
+        private val ISO_LANGUAGES: Set<String> = buildSet {
+            val twoLetter = java.util.Locale.getISOLanguages()
+            addAll(twoLetter)
+            twoLetter.forEach { code ->
+                runCatching { add(java.util.Locale.of(code).isO3Language) }
+            }
+            java.util.Locale.getAvailableLocales().forEach { locale ->
+                if (locale.language.isNotEmpty()) add(locale.language)
+            }
+        }
+
+        private val ISO_COUNTRIES: Set<String> = java.util.Locale.getISOCountries().toSet()
+
+        /**
+         * True when [name] is a plausible locale code: an ISO language ("en", "fil"),
+         * optionally followed by an ISO region ("pt-BR", "zh_CN") or a 4-letter
+         * script ("sr-Latn"). Shape alone is not enough — "web", "ios" or "src"
+         * must not be mistaken for languages (they used to be).
+         */
+        internal fun looksLikeLocale(name: String): Boolean {
+            val parts = name.split('-', '_')
+            if (parts.isEmpty() || parts.size > 2) return false
+            if (parts[0].lowercase() !in ISO_LANGUAGES) return false
+            if (parts.size == 1) return true
+            val subtag = parts[1]
+            return subtag.uppercase() in ISO_COUNTRIES ||
+                (subtag.length == 4 && subtag.all { it.isLetter() })
+        }
     }
 
     /**
@@ -111,9 +144,6 @@ class LocalizationSourceService {
             looksLikeLocale(parent) || looksLikeLocale(stem)
         }
     }
-
-    private fun looksLikeLocale(name: String): Boolean =
-        name.matches(Regex("[a-zA-Z]{2,3}([_-][a-zA-Z]{2,4})?"))
 
     private fun findSourcesByConfiguration(project: Project): List<LocalizationSource> {
         return Extensions.TECHNOLOGY.extensionList.flatMap {it.findSourcesByConfiguration(project)}

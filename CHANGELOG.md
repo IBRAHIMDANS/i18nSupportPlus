@@ -5,6 +5,9 @@
 ### UI
 
 - [Settings] Rebuild the Settings panel with the Kotlin UI DSL — settings are now grouped in named sections (Namespaces and separators, Where translations are searched, Folding and preview, Key extraction, PHP / gettext, Inspections, Appearance) with labels and fields on an aligned grid, fixing the floating "Default namespace" field that overlapped the "Enable folding" row. Parenthetical explanations move from labels to comments under the fields, and the three scope labels are shortened accordingly (`Translations root directory`, `Excluded directories`, `Excluded file extensions`). Persistence is untouched: every control still writes to `Settings` immediately and keeps its component name, so `Configurable`'s snapshot diffing and the UI tests keep working. The module/rule tables stay plain Swing (`JTable` + buttons) on purpose: `JBTable`/`ToolbarDecorator` require a running IntelliJ Application, and the panel must remain buildable in plain Swing tests
+### Bug Fixes
+
+- [Sources] Stop treating any 2-3 letter directory or file name as a locale when no translations root is configured — the shape-only regex accepted `web`, `ios`, `api`, `src`…, so on monorepos the plugin ingested `package.json` / `.prettierrc` from `web/` or `ios/` as translation files, filling the tool window with bogus keys and reporting directories as locales in the stats. `looksLikeLocale` now validates the language subtag against the ISO codes known to the JDK (639-1, their 639-2 equivalents, and CLDR 3-letter languages such as `fil`) and the region subtag against ISO country codes; 4-letter script subtags (`sr-Latn`) remain accepted. Configured-root behaviour is unchanged
 
 ### Tests
 
@@ -13,6 +16,7 @@
 
 ### Build
 
+- [deps] Bump `org.jetbrains.intellij.platform` from 2.16.0 to 2.18.1. Verified with `runIde` against IDEA Ultimate 2025.3.4: the plugin loads with no classloader conflict against the forced `kotlin-stdlib` 2.4.0
 - [deps] Bump Kotlin from 2.3.21 to 2.4.0 — the `org.jetbrains.kotlin.jvm` plugin and the `kotlin-stdlib` pinned through `resolutionStrategy.force` on the plugin and test runtime classpaths are bumped together, so the compiler and the stdlib shipped in the plugin's `lib/` stay on the same version
 - [deps] Bump JUnit from 6.1.0 to 6.1.2 (`junit-bom`, `junit-jupiter`, `junit-jupiter-api`, `junit-jupiter-params`, `junit-jupiter-engine`)
 - [deps] Bump the Gradle wrapper from 9.5.1 to 9.6.1
