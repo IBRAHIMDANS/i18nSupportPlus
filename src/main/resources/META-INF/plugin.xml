@@ -269,6 +269,10 @@
                     class="com.ibrahimdans.i18n.plugin.ide.actions.ImportTranslationsAction"
                     text="Import Translations from CSV…"
                     description="Import translation values from a CSV file, with a preview before writing"/>
+            <action id="com.ibrahimdans.i18n.CleanupUnusedKeys"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.CleanupUnusedKeysAction"
+                    text="Cleanup Unused Keys…"
+                    description="Scan for translation keys never used in code and delete the selected ones from every locale"/>
         </group>
         <action id="com.ibrahimdans.i18n.ToggleFolding"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.ToggleFoldingAction"
