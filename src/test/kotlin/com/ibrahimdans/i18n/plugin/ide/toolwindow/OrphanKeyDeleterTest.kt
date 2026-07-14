@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.intellij.json.psi.JsonFile
 import com.intellij.json.psi.JsonObject
 import com.intellij.json.psi.JsonStringLiteral
@@ -36,6 +37,32 @@ class OrphanKeyDeleterTest : PlatformBaseTest() {
 
     private fun delete(key: String) {
         OrphanKeyDeleter(project).delete(KeysSynchronizer().buildFullKey(key))
+    }
+
+    /**
+     * In the light fixture, project files live under `src/`, so a module rooted at
+     * `mobile/` has the root directory `src/mobile` here — in a real project it is
+     * simply `mobile`.
+     */
+    private fun deleteInModule(key: String, module: String) {
+        val config = ModuleConfig(name = module, rootDirectory = "src/$module")
+        OrphanKeyDeleter(project, config).delete(KeysSynchronizer().buildFullKey(key))
+    }
+
+    @Test
+    fun deleteScopedToModule_leavesOtherModulesUntouched() {
+        addFileToProject("web/locales/en/common.json", """{"dead":"web","alive":"yes"}""")
+        addFileToProject("mobile/locales/en/common.json", """{"dead":"mobile","alive":"oui"}""")
+
+        deleteInModule("common:dead", "mobile")
+
+        Assertions.assertNull(valueAt("mobile/locales/en/common.json", "dead"))
+        Assertions.assertEquals(
+            "web",
+            valueAt("web/locales/en/common.json", "dead"),
+            "the other module's file must not be touched"
+        )
+        Assertions.assertEquals("oui", valueAt("mobile/locales/en/common.json", "alive"))
     }
 
     @Test
