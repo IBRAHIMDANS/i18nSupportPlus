@@ -104,7 +104,9 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
                 resolved.leavesByNamespace.keys.sorted()
             ) ?: return
         } else {
-            resolved.leavesByNamespace.keys.first()
+            // resolveKey guarantees leavesByNamespace is non-empty, but that invariant
+            // lives in another function: fail closed rather than throw if it ever breaks.
+            resolved.leavesByNamespace.keys.firstOrNull() ?: return
         }
         val sourceLeaves = resolved.leavesByNamespace[sourceNs] ?: return
 
