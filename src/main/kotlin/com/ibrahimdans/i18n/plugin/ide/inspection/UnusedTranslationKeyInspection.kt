@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
+import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
 import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.LocalQuickFix
 import com.intellij.codeInspection.ProblemDescriptor
@@ -74,6 +75,8 @@ private class DeleteUnusedKeyFix : LocalQuickFix {
             is YAMLKeyValue -> parent
             else -> descriptor.psiElement
         }
-        target.delete()
+        // Removes the separating comma too: a bare JsonProperty.delete()
+        // leaves `{,"b":…}` behind and corrupts the file.
+        deletePropertyAndSeparator(target)
     }
 }

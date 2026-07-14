@@ -96,4 +96,48 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
         // "unused" has no code reference → must be flagged
         assertEquals(1, warnings.size)
     }
+
+    // Quick fix — deleting a property must also remove its separating comma,
+    // whatever its position, or the JSON file is left corrupted ({,"b":…}).
+
+    /**
+     * Applies the "Delete unused key" quick fix at the caret and compares the
+     * result ignoring whitespace: the intention infrastructure reformats the
+     * modified range (inserting newlines/indent), which is irrelevant here.
+     * What must hold is that no dangling comma survives — `{,"b":…}` would
+     * still differ from the expected text once whitespace is stripped.
+     */
+    private fun applyDeleteFixAtCaret(content: String, expected: String) {
+        myFixture.enableInspections(UnusedTranslationKeyInspection::class.java)
+        myFixture.configureByText("en.json", content)
+        val fix = myFixture.getAvailableIntention("Delete unused key")
+        assertTrue(fix != null, "quick fix should be offered at caret")
+        myFixture.launchAction(fix!!)
+        val actual = myFixture.file.text.filterNot { it.isWhitespace() }
+        assertEquals(expected.filterNot { it.isWhitespace() }, actual)
+    }
+
+    @Test
+    fun testDeleteFixOnFirstPropertyKeepsFileValid() {
+        applyDeleteFixAtCaret(
+            """{"<caret>a":"1","b":"2","c":"3"}""",
+            """{"b":"2","c":"3"}"""
+        )
+    }
+
+    @Test
+    fun testDeleteFixOnMiddlePropertyKeepsFileValid() {
+        applyDeleteFixAtCaret(
+            """{"a":"1","<caret>b":"2","c":"3"}""",
+            """{"a":"1","c":"3"}"""
+        )
+    }
+
+    @Test
+    fun testDeleteFixOnLastPropertyKeepsFileValid() {
+        applyDeleteFixAtCaret(
+            """{"a":"1","b":"2","<caret>c":"3"}""",
+            """{"a":"1","b":"2"}"""
+        )
+    }
 }

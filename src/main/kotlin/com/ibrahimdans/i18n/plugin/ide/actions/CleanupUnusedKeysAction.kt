@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
 import com.intellij.json.psi.JsonProperty
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
@@ -141,23 +142,6 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
             })
         }
         return properties.size
-    }
-
-    /**
-     * Deletes a translation property together with its separating comma —
-     * plain JsonProperty.delete() leaves `{,"b":…}` / `{…,}` behind, corrupting
-     * the file. YAML entries have no separator and are deleted as-is.
-     */
-    private fun deletePropertyAndSeparator(property: PsiElement) {
-        if (property is JsonProperty) {
-            val prev = generateSequence(property.prevSibling) { it.prevSibling }.firstOrNull { it.text.isNotBlank() }
-            val next = generateSequence(property.nextSibling) { it.nextSibling }.firstOrNull { it.text.isNotBlank() }
-            when {
-                prev?.text == "," -> prev.delete()
-                next?.text == "," -> next.delete()
-            }
-        }
-        property.delete()
     }
 }
 
