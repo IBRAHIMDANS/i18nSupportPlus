@@ -21,8 +21,10 @@ import com.intellij.ui.table.JBTable
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
+import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.FlowLayout
+import java.awt.Graphics
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.text.DecimalFormat
@@ -68,7 +70,13 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
             else -> String::class.java
         }
     }
-    private val table = JBTable(tableModel)
+    private val table = object : JBTable(tableModel) {
+        override fun getToolTipText(e: MouseEvent): String? {
+            val row = rowAtPoint(e.point)
+            val rowStats = stats.getOrNull(row) ?: return null
+            return if (rowStats.missing > 0) "Click to list the ${rowStats.missing} missing keys" else null
+        }
+    }
     private val statusLabel = JBLabel("Click Refresh to load stats")
     private var stats: List<LocaleStats> = emptyList()
 
@@ -83,6 +91,16 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
                 val rowStats = stats.getOrNull(row) ?: return
                 if (rowStats.missing == 0) return
                 showMissingKeysPopup(rowStats)
+            }
+        })
+        // Hand cursor over drillable rows, so the click affordance is visible.
+        table.addMouseMotionListener(object : MouseAdapter() {
+            override fun mouseMoved(e: MouseEvent) {
+                val rowStats = stats.getOrNull(table.rowAtPoint(e.point))
+                table.cursor = if (rowStats != null && rowStats.missing > 0)
+                    Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                else
+                    Cursor.getDefaultCursor()
             }
         })
 
@@ -207,10 +225,17 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
     }
 
     /**
-     * Cell renderer for the % column: green >= 90%, orange 50-90%, red < 50%.
+     * Cell renderer for the % column: draws a compact progress bar whose width is
+     * the coverage percentage, colored green >= 90%, orange 50-90%, red < 50%,
+     * with the percentage text on top. A thin proportional bar reads as "coverage"
+     * where the previous full-cell background band just read as "alarm".
      * Other columns use default rendering.
      */
     private inner class PercentCellRenderer : DefaultTableCellRenderer() {
+        private var barFraction = -1.0
+        private var barColor: Color? = null
+        private var cellBackground: Color? = null
+
         override fun getTableCellRendererComponent(
             table: JTable,
             value: Any?,
@@ -220,18 +245,33 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
             column: Int
         ): Component {
             val component = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
-            if (!isSelected && column == 4) {
-                val text = value?.toString()?.removeSuffix("%") ?: ""
-                val pct = text.toDoubleOrNull() ?: 0.0
-                background = when {
-                    pct >= 90.0 -> JBColor(Color(200, 240, 200), Color(30, 90, 30))
-                    pct >= 50.0 -> JBColor(Color(255, 230, 150), Color(100, 80, 20))
-                    else        -> JBColor(Color(255, 200, 200), Color(100, 40, 40))
+            barFraction = -1.0
+            if (column == 4) {
+                val pct = value?.toString()?.removeSuffix("%")?.toDoubleOrNull() ?: 0.0
+                barFraction = (pct / 100.0).coerceIn(0.0, 1.0)
+                barColor = when {
+                    pct >= 90.0 -> JBColor(Color(140, 200, 140), Color(60, 130, 60))
+                    pct >= 50.0 -> JBColor(Color(230, 190, 100), Color(150, 120, 40))
+                    else        -> JBColor(Color(220, 130, 130), Color(150, 60, 60))
                 }
-            } else if (!isSelected) {
-                background = table.background
+                isOpaque = false
+                cellBackground = if (isSelected) table.selectionBackground else table.background
+            } else {
+                isOpaque = true
+                if (!isSelected) background = table.background
             }
             return component
+        }
+
+        override fun paintComponent(g: Graphics) {
+            if (barFraction >= 0) {
+                g.color = cellBackground
+                g.fillRect(0, 0, width, height)
+                g.color = barColor
+                val inset = 3
+                g.fillRect(0, inset, (width * barFraction).toInt(), height - 2 * inset)
+            }
+            super.paintComponent(g)
         }
     }
 }

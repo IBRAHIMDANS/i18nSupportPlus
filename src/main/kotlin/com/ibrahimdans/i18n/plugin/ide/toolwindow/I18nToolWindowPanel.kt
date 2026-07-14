@@ -197,7 +197,10 @@ class I18nToolWindowPanel(private val project: Project) : SimpleToolWindowPanel(
         })
 
         val actionToolbar = ActionManager.getInstance().createActionToolbar("I18nToolWindow", group, true)
-        actionToolbar.targetComponent = actionToolbar.component
+        // The toolbar's data context must come from the tool window content,
+        // not from the toolbar itself (self-reference breaks context lookups
+        // and anchors action tooltips to the wrong component).
+        actionToolbar.targetComponent = this
 
         searchField.textEditor.toolTipText = "Filter by key or translation value"
 

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### UI
+
+- [Tool Window] Improve Table/Stats readability. **Table**: translation values are rendered on a single line (whitespace runs collapsed, truncated at 200 chars with an ellipsis) instead of verbatim with their original newlines and indentation; the full raw value moves to the cell tooltip. The unscanned Usage cells ("—") and the Scan Orphans button now carry tooltips explaining that the scan fills the column. **Stats**: the % cell replaces the full-width color band with a compact proportional progress bar (same green/orange/red thresholds), and rows with missing keys show a hand cursor plus a "Click to list the N missing keys" tooltip, making the drill-down popup discoverable. **Toolbar**: the action toolbar's `targetComponent` now points at the tool window content instead of itself, fixing data-context lookups and tooltip anchoring
+
 ### Tests
 
 - [Completion] Fix `NullPointerException` in `CodeCompletionDefNsTestBase.testRootKeyCompletion` (all 8 JS/TS/JSX/TSX x JSON/YAML variants). The fixture declared a single root key matching the typed `tst` prefix, so the platform auto-inserted the only variant and `completeBasic()` returned `null` instead of a lookup list. The fixture now declares two roots sharing the prefix (`tst1`, `tst2`) and the test asserts both are offered. This unblocks the `org.jetbrains.intellij.platform` 2.16.0 to 2.18.1 bump, whose stricter auto-insertion surfaced the latent bug
