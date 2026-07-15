@@ -165,6 +165,7 @@
         <extensionPoint interface="com.ibrahimdans.i18n.Technology" name="technology" dynamic="true"/>
     </extensionPoints>
     <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="i18n Support Plus" displayType="STICKY_BALLOON"/>
         <annotator language="JavaScript" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompositeKeyAnnotator"/>
         <annotator language="JSX Harmony" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsxCompositeKeyAnnotator"/>
         <annotator language="TypeScript JSX" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsxCompositeKeyAnnotator"/>
