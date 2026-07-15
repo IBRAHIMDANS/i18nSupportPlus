@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.2.0 - 2026-07-14
+
 ### New Features
 
 - [Action] Add **Export Translations to CSV** and **Import Translations from CSV** (Tools > i18n Support Plus) — export writes a `key` column plus one column per locale (RFC 4180 escaping, keys sorted) for handing to a translator; import diffs the CSV against the project and shows a mandatory preview (create/update per key and locale) before writing anything. Guardrails: an empty CSV cell never erases an existing translation, unknown keys are reported and never created (a translator's typo must not mint keys), unknown locale columns are ignored and reported, and all writes run in a single `WriteCommandAction` (one undo step). Values are routed to the right file by namespace and locale, the same way as the Keys Synchronizer
