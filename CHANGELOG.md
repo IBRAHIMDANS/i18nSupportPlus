@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.2.1 - 2026-07-15
+
 ### Bug Fixes
 
 - [Startup] Stop opening the Setup Wizard as a modal dialog on project startup: a `postStartupActivity` cannot block the EDT with a modal window. On a fresh IDE the wizard was shown automatically (`needsSetup` is true with no config), which timed out the Marketplace install verification and made it report the plugin as removing the IDE Trial widget. The wizard is now proposed through a non-blocking notification (`Run Setup Wizard` / `Don't show again`); the manual **Tools > i18n Support Plus > Run Setup Wizard** action is unchanged
