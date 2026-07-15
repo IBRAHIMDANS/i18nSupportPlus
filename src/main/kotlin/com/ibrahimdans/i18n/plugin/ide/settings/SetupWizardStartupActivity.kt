@@ -1,12 +1,19 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.intellij.notification.NotificationAction
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.ProjectActivity
 
 /**
- * Startup activity that opens the SetupWizardDialog when no i18n configuration
+ * Startup activity that suggests the SetupWizardDialog when no i18n configuration
  * is detected in the project (no modules configured, default namespace still at default value).
+ *
+ * A modal dialog must never be opened from a startup activity: it blocks the IDE
+ * (Marketplace verification times out and reports the Trial widget as removed).
+ * Instead, we post a non-blocking notification whose action opens the wizard.
  *
  * Registered in plugin.xml as a <postStartupActivity>.
  */
@@ -16,11 +23,20 @@ class SetupWizardStartupActivity : ProjectActivity {
         if (ApplicationManager.getApplication().isUnitTestMode) return
         if (!needsSetup(project)) return
 
-        // Must run on the EDT since we are opening a dialog
-        ApplicationManager.getApplication().invokeLater {
-            if (project.isDisposed) return@invokeLater
-            SetupWizardDialog(project).show()
-        }
+        NotificationGroupManager.getInstance()
+            .getNotificationGroup("i18n Support Plus")
+            .createNotification(
+                "Configure i18n Support Plus",
+                "No translation configuration was detected in this project.",
+                NotificationType.INFORMATION
+            )
+            .addAction(NotificationAction.createSimpleExpiring("Run Setup Wizard") {
+                if (!project.isDisposed) SetupWizardDialog(project).show()
+            })
+            .addAction(NotificationAction.createSimpleExpiring("Don't show again") {
+                Settings.getInstance(project).wizardDismissed = true
+            })
+            .notify(project)
     }
 
     /**
