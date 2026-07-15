@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+- [Startup] Stop opening the Setup Wizard as a modal dialog on project startup: a `postStartupActivity` cannot block the EDT with a modal window. On a fresh IDE the wizard was shown automatically (`needsSetup` is true with no config), which timed out the Marketplace install verification and made it report the plugin as removing the IDE Trial widget. The wizard is now proposed through a non-blocking notification (`Run Setup Wizard` / `Don't show again`); the manual **Tools > i18n Support Plus > Run Setup Wizard** action is unchanged
+- [Compatibility] Raise the minimum supported IDE to 2025.1 (`sinceBuild` 243 to 251): the plugin used a platform method absent from 2024.3, so 1.2.0 was declared compatible with 2024.3 but binary-incompatible with it (`Method not found`). 2024.3 is no longer supported
+
+## 1.2.0 - 2026-07-14
+
 ### New Features
 
 - [Action] Add **Export Translations to CSV** and **Import Translations from CSV** (Tools > i18n Support Plus) — export writes a `key` column plus one column per locale (RFC 4180 escaping, keys sorted) for handing to a translator; import diffs the CSV against the project and shows a mandatory preview (create/update per key and locale) before writing anything. Guardrails: an empty CSV cell never erases an existing translation, unknown keys are reported and never created (a translator's typo must not mint keys), unknown locale columns are ignored and reported, and all writes run in a single `WriteCommandAction` (one undo step). Values are routed to the right file by namespace and locale, the same way as the Keys Synchronizer
@@ -14,9 +21,6 @@
 - [Settings] Rebuild the Settings panel with the Kotlin UI DSL — settings are now grouped in named sections (Namespaces and separators, Where translations are searched, Folding and preview, Key extraction, PHP / gettext, Inspections, Appearance) with labels and fields on an aligned grid, fixing the floating "Default namespace" field that overlapped the "Enable folding" row. Parenthetical explanations move from labels to comments under the fields, and the three scope labels are shortened accordingly (`Translations root directory`, `Excluded directories`, `Excluded file extensions`). Persistence is untouched: every control still writes to `Settings` immediately and keeps its component name, so `Configurable`'s snapshot diffing and the UI tests keep working. The module/rule tables stay plain Swing (`JTable` + buttons) on purpose: `JBTable`/`ToolbarDecorator` require a running IntelliJ Application, and the panel must remain buildable in plain Swing tests
 
 ### Bug Fixes
-
-- [Startup] Stop opening the Setup Wizard as a modal dialog on project startup — a `postStartupActivity` cannot block the EDT with a modal window: on a fresh IDE the wizard was shown automatically (`needsSetup` is true with no config), which timed out the Marketplace install verification and made it report the plugin as removing the IDE Trial widget. The wizard is now proposed through a non-blocking notification (`Run Setup Wizard` / `Don't show again`); the manual **Tools > i18n Support Plus > Run Setup Wizard** action is unchanged
-- [Compatibility] Raise the minimum supported IDE to 2025.1 (`sinceBuild` 243 → 251) — the plugin used a platform method absent from 2024.3, so 1.1.0 was declared compatible with 2024.3 but binary-incompatible with it (`Method not found`). 2024.3 is no longer supported
 
 - [Action] Stop corrupting the source file when moving a key — **Move i18n Key to Namespace** deleted the source entry with a bare `delete()`, leaving the separating comma behind: moving `user.name` out of `{"user":{"first":"John","name":"Doe","last":"Smith"}}` produced `{"user":{"first":"John",,"last":"Smith"}}`. The bug shipped in 1.1.0 and hit essentially every real move, since a translation key almost always has a sibling. It went unnoticed because every fixture in `MoveI18nKeyHandlerTest` held a single key in the source object, so no separator was ever left to dangle
 - [i18next] Stop breaking the plugin on configs without an inline `resources` object — `findInitObject` looked the property up with `.first()`, so an i18next setup that loads translations at runtime (i18next-http-backend and friends) threw `NoSuchElementException`. As it runs inside `findSourcesByConfiguration`, which every key resolution goes through (annotator, completion, folding, hints, gutter icons, tool window), the plugin was unusable on those projects. It now returns null and the project simply resolves no config-based sources
