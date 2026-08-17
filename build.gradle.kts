@@ -55,7 +55,7 @@ dependencies {
     testImplementation("com.jaliansystems:marathon-java-driver:5.4.0.0")
     testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
 
-    testImplementation(platform("org.junit:junit-bom:6.1.2"))
+    testImplementation(platform("org.junit:junit-bom:6.1.3"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher") {
         because("Only needed to run tests in a version of IntelliJ IDEA that bundles older versions")
     }
