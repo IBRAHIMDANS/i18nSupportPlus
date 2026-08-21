@@ -2,17 +2,25 @@
 
 ## Unreleased
 
-### Build
+### New Features
 
-- [Repository] Delete `org/jetbrains/intellij/platform/gradle/Constants.kt`, a copy of an IntelliJ Platform Gradle Plugin source file committed at the repository root in #20. It sits outside every source set, is imported by nothing and is not referenced by the build — it only made the repository look like it shipped a package it does not own
+- [Frameworks] Recognise the idiomatic syntaxes of react-intl, ngx-translate and svelte-i18n. Their key extractors have existed since #52 but were never referenced by `JsLang` or `JsxLang`, so only the plain `fn('key')` form resolved through the generic extraction — `formatMessage({ id })`, `<FormattedMessage id>`, `translate.instant('key')` and the `| translate` pipe silently resolved to nothing. Extractors that own their syntax are now consulted before the `translationFunctionNames` filtering, which is what a descriptor object or a qualified call needs: the generic path matches only bare first arguments and rejects qualified calls by design. The ngx-translate pipe is reachable inside JSX/TSX only — the plugin registers no annotator for standalone Angular templates
+
+### Bug Fixes
+
+- [ngx-translate] Fix `NgxTranslateExtractor` reading the literal's direct parent as the call expression: an argument's parent is the argument list, so the check never passed and `translate.instant('key')` was never extracted. The bug had gone unnoticed because the extractor was not wired to anything
+
+### Performance
+
+- [Scanning] Cache the project-wide translation scan (`LocalizationSourceService.findAllSources`) on the project, instead of re-querying the file index and rebuilding one element tree per translation file on every call. The annotator, completion, folding, inlay hints, gutter icons and the tool window all go through it, so a project with many locale files paid a full rescan on every highlighting pass. The cached scan is invalidated as soon as the PSI, the project roots or the plugin configuration change (settings are mutated through several paths, so the effective `Config` is hashed rather than instrumented), is held through a `SoftReference` so it never keeps translation files in memory, and is dropped when it holds invalid PSI — a stale scan is never handed out
 
 ### Documentation
 
 - [README] Fix the stated minimum IDE version: the Requirements section still promised 2024.3+ (build 243) after 1.2.1 raised `pluginSinceBuild` to 251 — exactly the incompatibility that release fixed. It now states 2025.1+ (build 251–263.*) and the versions the plugin is verified against. The `buildPlugin` output path was wrong too (`i18nSupportPlus-*.zip`): the archive is named after `rootProject.name`, so it is `i18n Support Plus-<version>.zip`
 
-### Performance
+### Build
 
-- [Scanning] Cache the project-wide translation scan (`LocalizationSourceService.findAllSources`) on the project, instead of re-querying the file index and rebuilding one element tree per translation file on every call. The annotator, completion, folding, inlay hints, gutter icons and the tool window all go through it, so a project with many locale files paid a full rescan on every highlighting pass. The cached scan is invalidated as soon as the PSI, the project roots or the plugin configuration change (settings are mutated through several paths, so the effective `Config` is hashed rather than instrumented), is held through a `SoftReference` so it never keeps translation files in memory, and is dropped when it holds invalid PSI — a stale scan is never handed out
+- [Repository] Delete `org/jetbrains/intellij/platform/gradle/Constants.kt`, a copy of an IntelliJ Platform Gradle Plugin source file committed at the repository root in #20. It sits outside every source set, is imported by nothing and is not referenced by the build — it only made the repository look like it shipped a package it does not own
 
 ## 1.2.1 - 2026-07-15
 
