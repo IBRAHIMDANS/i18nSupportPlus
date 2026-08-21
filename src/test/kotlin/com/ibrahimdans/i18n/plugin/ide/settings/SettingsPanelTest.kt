@@ -47,6 +47,11 @@ class SettingsPanelTest {
     }
 
     @Test
+    fun testFlatKeys() {
+        checkBooleanProperty(PluginBundle.getMessage("settings.flat.keys"), Settings::flatKeys)
+    }
+
+    @Test
     fun testExtractSorted() {
         checkBooleanProperty(PluginBundle.getMessage("settings.extraction.sorted"), Settings::extractSorted)
     }

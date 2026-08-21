@@ -8,8 +8,9 @@ import com.intellij.openapi.project.Project
 class RawKeyParser(private val project: Project) {
     fun parse(rawKey: RawKey): FullKey? {
         val config = Settings.getInstance(project).config()
+        val flatKeys = config.usesFlatKeys()
         val parser = (
-                if (config.gettext)
+                if (flatKeys)
                     KeyParserBuilder.withoutTokenizer()
                 else
                     KeyParserBuilder
@@ -17,6 +18,6 @@ class RawKeyParser(private val project: Project) {
                         .withDummyNormalizer()
                         .withTemplateNormalizer()
                 ).build()
-        return parser.parse(rawKey, config.gettext, config.firstComponentNs)
+        return parser.parse(rawKey, flatKeys, config.firstComponentNs)
     }
 }

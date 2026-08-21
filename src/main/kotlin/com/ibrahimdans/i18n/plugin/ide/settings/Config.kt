@@ -23,6 +23,7 @@ data class Config (
     val extractSorted: Boolean = false,
     val gettext: Boolean = false,
     val gettextAliases: String = "gettext,_,__",
+    val flatKeys: Boolean = false,
     val partialTranslationInspectionEnabled: Boolean = false,
     val preferredLocalization: String = "",
     val localizationConfig: Map<String, String> = mapOf(),
@@ -49,6 +50,16 @@ data class Config (
             .split("[;|,\\s]".toRegex())
             .filter{it.isNotBlank()}
             .take(MAX_DEFAULT_NAMESPACES)
+
+    /**
+     * True when a key must be looked up as a single literal instead of being split into a
+     * namespace and nested segments.
+     *
+     * gettext keys are flat by nature — the msgid *is* the key. react-intl / FormatJS
+     * projects usually store flat ids too: `"app.header.title"` is one JSON property, not
+     * three nested levels, so splitting on the key separator makes every key unresolvable.
+     */
+    fun usesFlatKeys(): Boolean = gettext || flatKeys
 
     /**
      * Gets project's search scope

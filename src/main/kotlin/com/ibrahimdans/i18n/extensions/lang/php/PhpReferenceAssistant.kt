@@ -34,7 +34,7 @@ internal class PhpReferenceAssistant: ReferenceAssistant {
             if (!pattern.accepts(element)) return null
         }
         val parser = (
-            if (config.gettext) {
+            if (config.usesFlatKeys()) {
                 KeyParserBuilder.withoutTokenizer()
             } else
                 KeyParserBuilder.withSeparators(config.nsSeparator, config.keySeparator)

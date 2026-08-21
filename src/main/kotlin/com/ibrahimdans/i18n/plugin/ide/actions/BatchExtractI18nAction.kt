@@ -66,11 +66,11 @@ class BatchExtractI18nAction : AnAction() {
             for ((candidate, keyStr) in selected) {
                 val extractor = extractors.first { it.canExtract(candidate.literal) }
                 val config = Settings.getInstance(project).config()
-                val parser = if (config.gettext) KeyParserBuilder.withoutTokenizer()
+                val parser = if (config.usesFlatKeys()) KeyParserBuilder.withoutTokenizer()
                              else KeyParserBuilder.withSeparators(config.nsSeparator, config.keySeparator)
                 val fullKey = parser.build().parse(
                     RawKey(listOf(KeyElement.literal(keyStr))),
-                    emptyNamespace = config.gettext,
+                    emptyNamespace = config.usesFlatKeys(),
                     firstComponentNamespace = config.firstComponentNs
                 ) ?: continue
 
