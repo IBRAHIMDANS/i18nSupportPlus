@@ -129,4 +129,57 @@ class ReactIntlHighlightingTest : PlatformBaseTest() {
         myFixture.configureByText("test.${component.ext()}", component.generateInvalid("\"greeting.missing\""))
         myFixture.checkHighlighting(true, true, true, true)
     }
+
+    @Test
+    fun testResolvedDefineMessagesId() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        addFileToProject("assets/translation.json", translations)
+        myFixture.configureByText(
+            "test.${intl.ext()}",
+            """
+            const messages = defineMessages({
+                greeting: { id: "greeting.hello", defaultMessage: "Hello there", description: "Home page" },
+            });
+            """
+        )
+        myFixture.checkHighlighting(true, true, true, true)
+    }
+
+    @Test
+    fun testUnresolvedDefineMessagesId() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        addFileToProject("assets/translation.json", translations)
+        myFixture.configureByText(
+            "test.${intl.ext()}",
+            """
+            const messages = defineMessages({
+                greeting: { id: "greeting.<error descr="Unresolved key">missing</error>" },
+            });
+            """
+        )
+        myFixture.checkHighlighting(true, true, true, true)
+    }
+
+    @Test
+    fun testResolvedSingularDefineMessageId() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        addFileToProject("assets/translation.json", translations)
+        myFixture.configureByText(
+            "test.${intl.ext()}",
+            """
+            const message = defineMessage({ id: "greeting.hello", defaultMessage: "Hello there" });
+            """
+        )
+        myFixture.checkHighlighting(true, true, true, true)
+    }
+
+    /** A catalogue-shaped object that is not a `defineMessages` call carries no keys. */
+    @Test
+    fun testPlainCatalogueObjectIsIgnored() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        addFileToProject("assets/translation.json", translations)
+        myFixture.configureByText(
+            "test.${intl.ext()}",
+            """
+            const messages = { greeting: { id: "greeting.missing", defaultMessage: "Hello there" } };
+            """
+        )
+        myFixture.checkHighlighting(true, true, true, true)
+    }
 }

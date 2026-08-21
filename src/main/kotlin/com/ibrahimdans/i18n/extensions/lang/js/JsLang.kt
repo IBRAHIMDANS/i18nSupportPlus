@@ -27,6 +27,8 @@ open class JsLang : Lang {
          *  - react-intl passes the key inside a descriptor (`formatMessage({ id: 'key' })`),
          *    where the generic extractors would happily match any string of the object,
          *    `defaultMessage` included;
+         *  - a react-intl catalogue declares its descriptors under `defineMessages({ … })`,
+         *    a call no `translationFunctionNames` entry ever names;
          *  - ngx-translate calls are always qualified (`translate.instant('key')`), and
          *    [isDirectOrConfiguredCall] rejects qualified calls by design;
          *  - svelte-i18n's `_` / `$_` carry no namespace options, so matching the call
@@ -34,6 +36,7 @@ open class JsLang : Lang {
          */
         private val SYNTAX_OWNED_EXTRACTORS: List<KeyExtractor> = listOf(
             REACT_INTL_EXTRACTOR,
+            DefineMessagesExtractor(),
             NgxTranslateExtractor(),
             SvelteI18nExtractor(),
         )

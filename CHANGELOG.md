@@ -5,6 +5,7 @@
 ### New Features
 
 - [Setup Wizard] Detect **react-intl / FormatJS** in `package.json` (`react-intl`, `@formatjs/intl`) and offer it alongside i18next, vue-i18n and lingui. The framework has been supported by the plugin for several releases but was invisible in the wizard, so a react-intl project looked unsupported on first launch. Matching is textual on the quoted dependency name, so `react-intl-universal` — a different library — is not mistaken for it
+- [React-Intl] Extract the keys declared in a `defineMessages({ … })` / `defineMessage({ … })` catalogue. A react-intl project usually declares its messages apart from where they are used, then references them (`intl.formatMessage(messages.greeting)`); `ReactIntlExtractor` only ever saw the descriptor passed **inline** to `formatMessage`, so a project following the idiomatic layout had none of its ids annotated, completed or navigable. Both catalogue shapes are recognised — the descriptor as the call argument itself, and the usual one level below it (`{ greeting: { id } }`) — and only `id` is claimed: `defaultMessage` and `description` hold source text and are vetoed against the generic string-literal extractors, catalogue included. The indirect use site is deliberately left alone: resolving `messages.greeting` back to its declaration is a PSI reference resolution and a separate concern
 
 ### Refactoring
 
@@ -26,6 +27,7 @@
 ### Tests
 
 - [React-Intl] Cover react-intl end to end, where nothing existed: `ReactIntlExtractorTest` pins `canExtract` (qualified call, bare call, `defaultMessage` rejection), `ReactIntlLangWiringTest` walks the whole `Lang` pipeline through `RawKeyParser`, and `ReactIntlHighlightingTest` checks the annotations for both the descriptor and `<FormattedMessage>` forms. The absence of any such test is why the argument-list bug shipped twice
+- [React-Intl] Pin the catalogue extraction with `DefineMessagesExtractorTest` (multi-entry `defineMessages`, singular `defineMessage`, `defaultMessage` / `description` never claimed, plain object and unrelated call ignored, plus the `Lang` pipeline and its veto) and four highlighting cases on the annotator itself. The plain-object case is the one that matters: it proves the extractor keys on the call, not on the shape of the object
 
 ### Performance
 
