@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ellipsis
+import com.ibrahimdans.i18n.plugin.utils.renderIcu
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.codeInsight.hints.declarative.HintFormat
 import com.intellij.codeInsight.hints.declarative.InlayHintsCollector
@@ -58,6 +59,7 @@ class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiEleme
                     .mapNotNull { resolveCompositeKey(fullKey.compositeKey, it) }
                     .firstOrNull { it.unresolved.isEmpty() && it.element?.isLeaf() == true }
                     ?.element?.value()?.text?.unQuote()
+                    ?.renderIcu()
                     ?.ellipsis(config.foldingMaxLength)
                     ?: return
 
