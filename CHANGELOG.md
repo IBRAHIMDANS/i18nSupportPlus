@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Build
+
+- [Repository] Delete `org/jetbrains/intellij/platform/gradle/Constants.kt`, a copy of an IntelliJ Platform Gradle Plugin source file committed at the repository root in #20. It sits outside every source set, is imported by nothing and is not referenced by the build — it only made the repository look like it shipped a package it does not own
+
 ### Documentation
 
 - [README] Fix the stated minimum IDE version: the Requirements section still promised 2024.3+ (build 243) after 1.2.1 raised `pluginSinceBuild` to 251 — exactly the incompatibility that release fixed. It now states 2025.1+ (build 251–263.*) and the versions the plugin is verified against. The `buildPlugin` output path was wrong too (`i18nSupportPlus-*.zip`): the archive is named after `rootProject.name`, so it is `i18n Support Plus-<version>.zip`
