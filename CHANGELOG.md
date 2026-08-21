@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Build
+
+- [Repository] Delete `org/jetbrains/intellij/platform/gradle/Constants.kt`, a copy of an IntelliJ Platform Gradle Plugin source file committed at the repository root in #20. It sits outside every source set, is imported by nothing and is not referenced by the build — it only made the repository look like it shipped a package it does not own
+
 ## 1.2.1 - 2026-07-15
 
 ### Bug Fixes
