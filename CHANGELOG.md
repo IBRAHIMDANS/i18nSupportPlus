@@ -4,6 +4,8 @@
 
 ### New Features
 
+- [Settings] Add **Treat keys as flat** (`flatKeys`, off by default) — resolves a key as a single property instead of splitting it on the key separator. react-intl / FormatJS projects store flat ids (`"app.header.title"` is one JSON property, not three nested levels), which the nested resolution could never match, making every key in such a project unresolvable. The setting reuses the parsing path gettext already relied on (`KeyParserBuilder.withoutTokenizer()` plus `emptyNamespace`), now shared through `Config.usesFlatKeys()`: namespace parsing is off too, so a `:` is just part of the key and translation files are located through the default namespace. Applied consistently to annotations, key extraction (single and batch) and the JS/JSX/PHP reference assistants. Existing projects are untouched — nested resolution stays the default
+
 - [Frameworks] Recognise the idiomatic syntaxes of react-intl, ngx-translate and svelte-i18n. Their key extractors have existed since #52 but were never referenced by `JsLang` or `JsxLang`, so only the plain `fn('key')` form resolved through the generic extraction — `formatMessage({ id })`, `<FormattedMessage id>`, `translate.instant('key')` and the `| translate` pipe silently resolved to nothing. Extractors that own their syntax are now consulted before the `translationFunctionNames` filtering, which is what a descriptor object or a qualified call needs: the generic path matches only bare first arguments and rejects qualified calls by design. The ngx-translate pipe is reachable inside JSX/TSX only — the plugin registers no annotator for standalone Angular templates
 
 ### Bug Fixes

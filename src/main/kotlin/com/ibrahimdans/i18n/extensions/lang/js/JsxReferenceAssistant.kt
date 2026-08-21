@@ -16,13 +16,15 @@ class JsxReferenceAssistant: ReferenceAssistant {
     }
     override fun extractKey(element: PsiElement): FullKey? {
         val config = Settings.getInstance(element.project).config()
-        val parser = KeyParserBuilder.withSeparators(config.nsSeparator, config.keySeparator)
-            .withTemplateNormalizer()
-            .build()
+        val flatKeys = config.usesFlatKeys()
+        val parser = (
+            if (flatKeys) KeyParserBuilder.withoutTokenizer()
+            else KeyParserBuilder.withSeparators(config.nsSeparator, config.keySeparator).withTemplateNormalizer()
+        ).build()
         return listOf(
                 XmlAttributeKeyExtractor()
         )
             .find {it.canExtract(element)}
-            ?.let {parser.parse(it.extract(element))}
+            ?.let {parser.parse(it.extract(element), emptyNamespace = flatKeys)}
     }
 }

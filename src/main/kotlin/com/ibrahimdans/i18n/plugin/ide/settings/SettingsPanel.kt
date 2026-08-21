@@ -73,6 +73,10 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                 row(PluginBundle.getMessage("settings.key.separator")) {
                     cell(separatorField(PluginBundle.getMessage("settings.key.separator"), settings::keySeparator))
                 }
+                row {
+                    cell(checkbox(PluginBundle.getMessage("settings.flat.keys"), settings::flatKeys))
+                        .comment(PluginBundle.getMessage("settings.flat.keys.comment"))
+                }
                 row(PluginBundle.getMessage("settings.plural.separator")) {
                     cell(separatorField(PluginBundle.getMessage("settings.plural.separator"), settings::pluralSeparator))
                 }

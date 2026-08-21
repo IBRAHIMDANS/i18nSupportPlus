@@ -73,6 +73,13 @@ A setup wizard auto-configures it on first launch.
 | PO/POT (gettext) | `.po`, `.pot` | ✓ | ✓ |
 | TypeScript (i18next config) | `.ts` | ✓ | — |
 
+Keys are resolved as nested properties by default (`app.header.title` walks three levels).
+Projects storing **flat ids** — one property per key, as react-intl / FormatJS usually do —
+should enable **Treat keys as flat** in *Settings → Tools → i18n Support Plus Configuration*.
+The setting turns off key-separator splitting and namespace parsing altogether, so the whole
+id is looked up as a single property and translation files are located through the default
+namespace.
+
 ## Features
 
 ### Setup Wizard
