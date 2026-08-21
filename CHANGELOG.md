@@ -4,6 +4,8 @@
 
 ### New Features
 
+- [Display] Render **ICU MessageFormat** values instead of showing their source. react-intl / FormatJS pluralizes inside the value rather than through sub-keys, so folding replaced `t('cart.items')` with `{count, plural, one {# arti…` — strictly less readable than the key it hid, which emptied folding, hints and inlay hints of their purpose on every react-intl project. A representative branch is now displayed (`other`, falling back to the first one declared) with `#` replaced by its argument, so the same key reads `{count} articles`. `plural`, `select` and `selectordinal` are covered; this is a display layer, not an ICU engine — no argument value exists at that point, resolution and annotation are untouched, and a malformed message falls back to its raw value rather than throwing. Rendering happens before truncation, which used to cut in the middle of a brace, and a message without a single `{` — every i18next project — is returned unchanged without any scanning
+
 - [Setup Wizard] Detect **react-intl / FormatJS** in `package.json` (`react-intl`, `@formatjs/intl`) and offer it alongside i18next, vue-i18n and lingui. The framework has been supported by the plugin for several releases but was invisible in the wizard, so a react-intl project looked unsupported on first launch. Matching is textual on the quoted dependency name, so `react-intl-universal` — a different library — is not mistaken for it
 
 ### Refactoring

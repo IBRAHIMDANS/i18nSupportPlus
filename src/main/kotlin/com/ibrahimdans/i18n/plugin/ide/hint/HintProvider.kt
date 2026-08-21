@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ellipsis
+import com.ibrahimdans.i18n.plugin.utils.renderIcu
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.lang.documentation.DocumentationProvider
 import com.intellij.openapi.application.ApplicationManager
@@ -81,7 +82,7 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
             val refs = resolve(fullKey.compositeKey, source, pluralSeparator)
             val resolvedLeaf = refs.firstOrNull { it.unresolved.isEmpty() && it.element?.isLeaf() == true }
                 ?: return@mapNotNull null
-            val value = resolvedLeaf.element?.value()?.text?.unQuote()?.ellipsis(MAX_TRANSLATION_LENGTH)
+            val value = resolvedLeaf.element?.value()?.text?.unQuote()?.renderIcu()?.ellipsis(MAX_TRANSLATION_LENGTH)
                 ?: return@mapNotNull null
             val locale = localeLabel(source)
             val navLink = "<a href='psi_element://${source.displayPath}'>&#8599;</a>"
