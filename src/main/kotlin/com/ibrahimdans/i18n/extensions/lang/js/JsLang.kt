@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.*
 import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
+import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.utils.type
 import com.intellij.lang.javascript.patterns.JSPatterns
@@ -15,7 +16,38 @@ import com.intellij.psi.util.PsiTreeUtil
 
 open class JsLang : Lang {
 
+    companion object {
+        private val REACT_INTL_EXTRACTOR = ReactIntlExtractor()
+
+        /**
+         * Extractors that recognise their own call syntax, so they answer before the
+         * generic `translationFunctionNames` filtering instead of after it.
+         *
+         * Without that short-circuit they can never fire:
+         *  - react-intl passes the key inside a descriptor (`formatMessage({ id: 'key' })`),
+         *    where the generic extractors would happily match any string of the object,
+         *    `defaultMessage` included;
+         *  - ngx-translate calls are always qualified (`translate.instant('key')`), and
+         *    [isDirectOrConfiguredCall] rejects qualified calls by design;
+         *  - svelte-i18n's `_` / `$_` carry no namespace options, so matching the call
+         *    itself is more precise than matching a bare string literal.
+         */
+        private val SYNTAX_OWNED_EXTRACTORS: List<KeyExtractor> = listOf(
+            REACT_INTL_EXTRACTOR,
+            NgxTranslateExtractor(),
+            SvelteI18nExtractor(),
+        )
+    }
+
+    /** Extractors owning their syntax; JSX adds the tag- and attribute-based ones. */
+    protected open fun syntaxOwnedExtractors(): List<KeyExtractor> = SYNTAX_OWNED_EXTRACTORS
+
     override fun canExtractKey(element: PsiElement, translationFunctionNames: List<String>): Boolean {
+        if (syntaxOwnedExtractors().any { it.canExtract(element) }) return true
+        // Claiming `id` is not enough: the descriptor's other properties would still reach
+        // the generic path below, which matches any string literal of a first-argument
+        // object — reporting `defaultMessage` as an unresolved key.
+        if (REACT_INTL_EXTRACTOR.isInsideMessageDescriptor(element)) return false
         return translationFunctionNames.any { t ->
             JSPatterns.jsArgument(t, 0).let { pattern ->
                 pattern.accepts(element) ||
@@ -65,6 +97,7 @@ open class JsLang : Lang {
     }
 
     override fun extractRawKey(element: PsiElement): RawKey? {
+        syntaxOwnedExtractors().firstOrNull { it.canExtract(element) }?.let { return it.extract(element) }
         return listOf(
                     ReactUseTranslationHookExtractor(),
                     TemplateKeyExtractor(),

@@ -90,15 +90,17 @@ internal class JsReferenceAssistant: ReferenceAssistant {
 
     override fun extractKey(element: PsiElement): FullKey? {
         val config = Settings.getInstance(element.project).config()
-        val parser = KeyParserBuilder.withSeparators(config.nsSeparator, config.keySeparator)
-            .withTemplateNormalizer()
-            .build()
+        val flatKeys = config.usesFlatKeys()
+        val parser = (
+            if (flatKeys) KeyParserBuilder.withoutTokenizer()
+            else KeyParserBuilder.withSeparators(config.nsSeparator, config.keySeparator).withTemplateNormalizer()
+        ).build()
         return listOf(
                 ReactUseTranslationHookExtractor(),
                 TemplateKeyExtractor(),
                 LiteralKeyExtractor()
         )
             .find {it.canExtract(element)}
-            ?.let {parser.parse(it.extract(element), emptyNamespace = false, firstComponentNamespace = config.firstComponentNs)}
+            ?.let {parser.parse(it.extract(element), emptyNamespace = flatKeys, firstComponentNamespace = config.firstComponentNs)}
     }
 }

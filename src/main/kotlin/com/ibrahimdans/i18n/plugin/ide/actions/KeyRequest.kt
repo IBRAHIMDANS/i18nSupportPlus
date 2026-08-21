@@ -36,10 +36,10 @@ class KeyRequest {
             KeyRequestResult(null, true)
         } else {
             KeyRequestResult(
-                (if(config.gettext) KeyParserBuilder.withoutTokenizer() else KeyParserBuilder.withSeparators(config.nsSeparator, config.keySeparator)).build()
+                (if(config.usesFlatKeys()) KeyParserBuilder.withoutTokenizer() else KeyParserBuilder.withSeparators(config.nsSeparator, config.keySeparator)).build()
                     .parse(
                         RawKey(listOf(KeyElement.literal(keyStr))),
-                        emptyNamespace = config.gettext,
+                        emptyNamespace = config.usesFlatKeys(),
                         firstComponentNamespace = config.firstComponentNs
                     ),
                 false

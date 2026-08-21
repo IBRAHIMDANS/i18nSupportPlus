@@ -12,15 +12,33 @@
 
 ### Build
 
-- [Repository] Delete `org/jetbrains/intellij/platform/gradle/Constants.kt`, a copy of an IntelliJ Platform Gradle Plugin source file committed at the repository root in #20. It sits outside every source set, is imported by nothing and is not referenced by the build — it only made the repository look like it shipped a package it does not own
+- [Settings] Add **Treat keys as flat** (`flatKeys`, off by default) — resolves a key as a single property instead of splitting it on the key separator. react-intl / FormatJS projects store flat ids (`"app.header.title"` is one JSON property, not three nested levels), which the nested resolution could never match, making every key in such a project unresolvable. The setting reuses the parsing path gettext already relied on (`KeyParserBuilder.withoutTokenizer()` plus `emptyNamespace`), now shared through `Config.usesFlatKeys()`: namespace parsing is off too, so a `:` is just part of the key and translation files are located through the default namespace. Applied consistently to annotations, key extraction (single and batch) and the JS/JSX/PHP reference assistants. Existing projects are untouched — nested resolution stays the default
 
-### Documentation
+- [Frameworks] Recognise the idiomatic syntaxes of react-intl, ngx-translate and svelte-i18n. Their key extractors have existed since #52 but were never referenced by `JsLang` or `JsxLang`, so only the plain `fn('key')` form resolved through the generic extraction — `formatMessage({ id })`, `<FormattedMessage id>`, `translate.instant('key')` and the `| translate` pipe silently resolved to nothing. Extractors that own their syntax are now consulted before the `translationFunctionNames` filtering, which is what a descriptor object or a qualified call needs: the generic path matches only bare first arguments and rejects qualified calls by design. The ngx-translate pipe is reachable inside JSX/TSX only — the plugin registers no annotator for standalone Angular templates
 
-- [README] Fix the stated minimum IDE version: the Requirements section still promised 2024.3+ (build 243) after 1.2.1 raised `pluginSinceBuild` to 251 — exactly the incompatibility that release fixed. It now states 2025.1+ (build 251–263.*) and the versions the plugin is verified against. The `buildPlugin` output path was wrong too (`i18nSupportPlus-*.zip`): the archive is named after `rootProject.name`, so it is `i18n Support Plus-<version>.zip`
+### Bug Fixes
+
+- [ngx-translate] Fix `NgxTranslateExtractor` reading the literal's direct parent as the call expression: an argument's parent is the argument list, so the check never passed and `translate.instant('key')` was never extracted. The bug had gone unnoticed because the extractor was not wired to anything
+- [React-Intl] Fix the very same argument-list bug in `ReactIntlExtractor`, which #151 corrected for ngx-translate but not here: it walked `objectLiteral.parent` expecting the call expression, so `canExtract` never returned true and wiring the extractor changed nothing — `formatMessage({ id })` still resolved to nothing. The call is now located with `PsiTreeUtil`, and matching on the `formatMessage` suffix covers every calling style: bare `formatMessage(…)` from `useIntl()`, `intl.formatMessage(…)`, and `this.props.intl.formatMessage(…)` from `injectIntl`
+- [React-Intl] Never treat `defaultMessage` as a translation key. Inside a message descriptor only `id` is one; the other properties hold source text. Claiming `id` through the syntax-owned extractors is not enough — the descriptor's remaining literals still reach the generic path, which matches any string of a first-argument object — so they are now explicitly vetoed
+- [React-Intl] Drop `t` from `ReactIntlTechnology.translationFunctionNames()` — react-intl has no such function. It only duplicated the name already published by `I18NextTechnology` (all technologies are active at once), widening the false-positive surface for every project. No behaviour change for i18next users
+
+### Tests
+
+- [React-Intl] Cover react-intl end to end, where nothing existed: `ReactIntlExtractorTest` pins `canExtract` (qualified call, bare call, `defaultMessage` rejection), `ReactIntlLangWiringTest` walks the whole `Lang` pipeline through `RawKeyParser`, and `ReactIntlHighlightingTest` checks the annotations for both the descriptor and `<FormattedMessage>` forms. The absence of any such test is why the argument-list bug shipped twice
 
 ### Performance
 
 - [Scanning] Cache the project-wide translation scan (`LocalizationSourceService.findAllSources`) on the project, instead of re-querying the file index and rebuilding one element tree per translation file on every call. The annotator, completion, folding, inlay hints, gutter icons and the tool window all go through it, so a project with many locale files paid a full rescan on every highlighting pass. The cached scan is invalidated as soon as the PSI, the project roots or the plugin configuration change (settings are mutated through several paths, so the effective `Config` is hashed rather than instrumented), is held through a `SoftReference` so it never keeps translation files in memory, and is dropped when it holds invalid PSI — a stale scan is never handed out
+
+### Documentation
+
+- [README] Replace the "Translation functions" column of **Supported Frameworks** with the actual syntaxes each framework is recognised by (`formatMessage({ id })`, `<FormattedMessage id>`, `translate.instant()`, the `| translate` pipe, `<Trans i18nKey>`, options-based namespaces), and footnote the two known gaps: the ngx-translate pipe is only recognised inside JSX/TSX, and svelte-i18n only in `.js` / `.ts` — standalone Angular templates and `.svelte` components are not analysed
+- [README] Fix the stated minimum IDE version: the Requirements section still promised 2024.3+ (build 243) after 1.2.1 raised `pluginSinceBuild` to 251 — exactly the incompatibility that release fixed. It now states 2025.1+ (build 251–263.*) and the versions the plugin is verified against. The `buildPlugin` output path was wrong too (`i18nSupportPlus-*.zip`): the archive is named after `rootProject.name`, so it is `i18n Support Plus-<version>.zip`
+
+### Build
+
+- [Repository] Delete `org/jetbrains/intellij/platform/gradle/Constants.kt`, a copy of an IntelliJ Platform Gradle Plugin source file committed at the repository root in #20. It sits outside every source set, is imported by nothing and is not referenced by the build — it only made the repository look like it shipped a package it does not own
 
 ## 1.2.1 - 2026-07-15
 

@@ -29,6 +29,7 @@ class Settings : PersistentStateComponent<Settings> {
     internal var extractSorted = default.extractSorted
     internal var gettext = default.gettext
     internal var gettextAliases = default.gettextAliases
+    internal var flatKeys = default.flatKeys
     internal var partialTranslationInspectionEnabled = default.partialTranslationInspectionEnabled
     internal var preferredLocalization = default.preferredLocalization
     internal var localizationConfig = default.localizationConfig
@@ -64,6 +65,7 @@ class Settings : PersistentStateComponent<Settings> {
             extractSorted = extractSorted,
             gettext = gettext,
             gettextAliases = gettextAliases,
+            flatKeys = flatKeys,
             partialTranslationInspectionEnabled = partialTranslationInspectionEnabled,
             preferredLocalization = preferredLocalization,
             localizationConfig = localizationConfig,
@@ -93,6 +95,7 @@ class Settings : PersistentStateComponent<Settings> {
         extractSorted = config.extractSorted
         gettext = config.gettext
         gettextAliases = config.gettextAliases
+        flatKeys = config.flatKeys
         partialTranslationInspectionEnabled = config.partialTranslationInspectionEnabled
         preferredLocalization = config.preferredLocalization
         localizationConfig = config.localizationConfig

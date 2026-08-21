@@ -35,16 +35,20 @@ A setup wizard auto-configures it on first launch.
 
 ## Supported Frameworks
 
-| Framework | Translation functions | Config-based |
-|-----------|----------------------|:------------:|
-| i18next / react-i18next | `t()`, `useTranslation()` | Yes |
-| vue-i18n | `$t()`, `$tc()`, `$te()` | No |
-| lingui (`@lingui/core`, `@lingui/react`, `@lingui/macro`) | `msg()`, `i18n._()`, source-based `<Trans>…</Trans>` | No |
-| react-intl (FormatJS) | `formatMessage()`, `t()` | No |
-| ngx-translate (Angular) | `instant()`, `get()`, `stream()` | No |
-| svelte-i18n | `_()`, `$_()` | No |
+| Framework | Recognised syntaxes | Config-based |
+|-----------|--------------------|:------------:|
+| i18next / react-i18next | `t('ns:key')`, `` t(`key.${suffix}`) ``, `t('key', { ns: 'other' })`, `useTranslation('ns')`, `<Trans i18nKey="key">` | Yes |
+| vue-i18n | `$t('key')`, `$tc('key')`, `$te('key')` | No |
+| lingui (`@lingui/core`, `@lingui/react`, `@lingui/macro`) | `msg('key')`, `i18n._('key')`, source-based `<Trans>Hello world!</Trans>` | No |
+| react-intl (FormatJS) | `formatMessage({ id: 'key' })`, `<FormattedMessage id="key" />` | No |
+| ngx-translate (Angular) | `translate.instant('key')`, `.get('key')`, `.stream('key')`, `{{ 'key' \| translate }}` <sup>1</sup> | No |
+| svelte-i18n | `$_('key')`, `_('key')` <sup>2</sup> | No |
 
-`useTranslation` supports both string form (`useTranslation('ns')`) and array form (`useTranslation(['ns1', 'ns2'])`).
+`useTranslation` supports both string form (`useTranslation('ns')`) and array form (`useTranslation(['ns1', 'ns2'])`). The namespace can also come from an options object (`t('key', { ns: 'auth' })`) or from the key itself (`t('auth:key')`).
+
+<sup>1</sup> The `| translate` pipe is only recognised inside JSX/TSX, where the markup is part of the file's PSI. Standalone Angular templates (`.html`) are not analysed — the plugin registers no annotator for them.
+
+<sup>2</sup> svelte-i18n calls are recognised in `.js` and `.ts` files; `.svelte` single-file components are not analysed yet.
 
 ## Supported Languages
 
@@ -68,6 +72,13 @@ A setup wizard auto-configures it on first launch.
 | YAML | `.yaml`, `.yml` | ✓ | ✓ |
 | PO/POT (gettext) | `.po`, `.pot` | ✓ | ✓ |
 | TypeScript (i18next config) | `.ts` | ✓ | — |
+
+Keys are resolved as nested properties by default (`app.header.title` walks three levels).
+Projects storing **flat ids** — one property per key, as react-intl / FormatJS usually do —
+should enable **Treat keys as flat** in *Settings → Tools → i18n Support Plus Configuration*.
+The setting turns off key-separator splitting and namespace parsing altogether, so the whole
+id is looked up as a single property and translation files are located through the default
+namespace.
 
 ## Features
 

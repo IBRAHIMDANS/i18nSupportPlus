@@ -15,7 +15,8 @@ class NgxTranslateExtractor : KeyExtractor {
 
     override fun canExtract(element: PsiElement): Boolean {
         if (element !is JSLiteralExpression || !element.isQuotedLiteral) return false
-        val call = element.parent as? JSCallExpression ?: return false
+        // The literal's direct parent is the argument list, not the call itself.
+        val call = PsiTreeUtil.getParentOfType(element, JSCallExpression::class.java) ?: return false
         if (call.arguments.firstOrNull() !== element) return false
         val methodExpr = PsiTreeUtil.getChildOfType(call, JSReferenceExpression::class.java) ?: return false
         if (methodExpr.referenceName !in TRANSLATE_METHODS) return false
