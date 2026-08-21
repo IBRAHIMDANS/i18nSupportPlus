@@ -314,5 +314,6 @@
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.reactintl.ReactIntlTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.ngxtranslate.NgxTranslateTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.sveltei18n.SvelteI18nTechnology"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.technology.tscatalog.TsCatalogTechnology"/>
     </extensions>
 </idea-plugin>
