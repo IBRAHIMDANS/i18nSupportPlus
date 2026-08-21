@@ -16,18 +16,13 @@ import javax.swing.*
 /**
  * Setup wizard dialog shown on first launch when no i18n config is detected.
  * Guides the user through 3 steps:
- *   1. Framework detection (i18next / vue-i18n / lingui)
+ *   1. Framework detection (i18next / vue-i18n / lingui / react-intl, see [FrameworkDetector])
  *   2. Translation file discovery (.json/.yaml/.po/.pot in locales, i18n, translations folders)
  *   3. Summary before applying configuration
  */
 class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
 
     companion object {
-        private val FRAMEWORK_KEYS = mapOf(
-            "i18next" to listOf("i18next", "react-i18next"),
-            "vue-i18n" to listOf("vue-i18n"),
-            "lingui" to listOf("@lingui/core", "@lingui/react", "@lingui/macro", "@lingui/react/macro")
-        )
         private val TRANSLATION_FOLDER_NAMES = setOf("locales", "i18n", "translations")
         private val TRANSLATION_EXTENSIONS = setOf("json", "yaml", "yml", "po", "pot")
         private const val MAX_SCAN_DEPTH = 5
@@ -38,11 +33,10 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
     }
 
     // -- Step 1: Framework
-    private val frameworkCheckboxes: Map<String, JCheckBox> = mapOf(
-        "i18next" to JCheckBox("i18next / react-i18next"),
-        "vue-i18n" to JCheckBox("vue-i18n"),
-        "lingui" to JCheckBox("lingui")
-    )
+    private val frameworkCheckboxes: Map<String, JCheckBox> =
+        FrameworkDetector.FRAMEWORK_KEYS.keys.associateWith { id ->
+            JCheckBox(FrameworkDetector.LABELS[id] ?: id)
+        }
 
     // -- Step 2: Translation files
     private val foundFiles = mutableListOf<String>()
@@ -183,11 +177,8 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
     private fun detectFrameworks() {
         val packageJson = File(project.basePath ?: return, "package.json")
         if (!packageJson.exists()) return
-        val content = packageJson.readText()
-        for ((key, deps) in FRAMEWORK_KEYS) {
-            if (deps.any { content.contains("\"$it\"") }) {
-                frameworkCheckboxes[key]?.isSelected = true
-            }
+        for (key in FrameworkDetector.detect(packageJson.readText())) {
+            frameworkCheckboxes[key]?.isSelected = true
         }
     }
 

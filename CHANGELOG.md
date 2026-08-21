@@ -4,6 +4,14 @@
 
 ### New Features
 
+- [Setup Wizard] Detect **react-intl / FormatJS** in `package.json` (`react-intl`, `@formatjs/intl`) and offer it alongside i18next, vue-i18n and lingui. The framework has been supported by the plugin for several releases but was invisible in the wizard, so a react-intl project looked unsupported on first launch. Matching is textual on the quoted dependency name, so `react-intl-universal` — a different library — is not mistaken for it
+
+### Refactoring
+
+- [Setup Wizard] Move framework detection out of `SetupWizardDialog` into `FrameworkDetector`, a UI-free object holding the dependency table, the checkbox labels and the matching itself. `SetupWizardDialogTest` could not instantiate the dialog headlessly and so carried its **own copy** of the dependency table: the tests passed on the copy and would have kept passing had the real table been broken. They now exercise the shipped code, and the wizard builds its checkboxes from the same table instead of a hand-maintained second list
+
+### Build
+
 - [Settings] Add **Treat keys as flat** (`flatKeys`, off by default) — resolves a key as a single property instead of splitting it on the key separator. react-intl / FormatJS projects store flat ids (`"app.header.title"` is one JSON property, not three nested levels), which the nested resolution could never match, making every key in such a project unresolvable. The setting reuses the parsing path gettext already relied on (`KeyParserBuilder.withoutTokenizer()` plus `emptyNamespace`), now shared through `Config.usesFlatKeys()`: namespace parsing is off too, so a `:` is just part of the key and translation files are located through the default namespace. Applied consistently to annotations, key extraction (single and batch) and the JS/JSX/PHP reference assistants. Existing projects are untouched — nested resolution stays the default
 
 - [Frameworks] Recognise the idiomatic syntaxes of react-intl, ngx-translate and svelte-i18n. Their key extractors have existed since #52 but were never referenced by `JsLang` or `JsxLang`, so only the plain `fn('key')` form resolved through the generic extraction — `formatMessage({ id })`, `<FormattedMessage id>`, `translate.instant('key')` and the `| translate` pipe silently resolved to nothing. Extractors that own their syntax are now consulted before the `translationFunctionNames` filtering, which is what a descriptor object or a qualified call needs: the generic path matches only bare first arguments and rejects qualified calls by design. The ngx-translate pipe is reachable inside JSX/TSX only — the plugin registers no annotator for standalone Angular templates
