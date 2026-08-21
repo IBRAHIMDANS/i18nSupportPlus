@@ -261,7 +261,7 @@ When 2+ modules are configured, the tool window displays a tab layer with one ta
 
 ## Requirements
 
-- IntelliJ IDEA 2024.3+ (build 243–263.*)
+- IntelliJ IDEA 2025.1+ (build 251–263.*), verified against 2025.1, 2025.2 and 2025.3
 - Java 21+
 
 ### Plugin Dependencies
@@ -286,7 +286,7 @@ Search for **"I18n Support Plus"** in **Settings > Plugins > Marketplace**.
 git clone https://github.com/IBRAHIMDANS/i18nSupportPlus.git
 cd i18nSupportPlus
 ./gradlew buildPlugin
-# Output: build/distributions/i18nSupportPlus-*.zip
+# Output: "build/distributions/i18n Support Plus-<version>.zip"
 ```
 
 Then install via **Settings > Plugins > ⚙️ > Install Plugin from Disk**.
