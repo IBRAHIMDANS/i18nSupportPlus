@@ -75,7 +75,7 @@ A setup wizard auto-configures it on first launch.
 
 On first launch, a wizard guides you through configuration in 3 steps:
 
-1. **Framework detection** — auto-detects i18next, vue-i18n, or lingui in your project
+1. **Framework detection** — auto-detects i18next, vue-i18n, lingui, or react-intl in your project
 2. **Translation file discovery** — scans for `.json`, `.yaml`, `.po`, and `.pot` files in `locales/`, `i18n/`, `translations/` folders (PO/POT support requires the optional **GNU GetText** plugin — see Plugin Dependencies)
 3. **Summary** — review and apply the configuration
 

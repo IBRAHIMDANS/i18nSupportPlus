@@ -30,20 +30,11 @@ class SetupWizardDialogTest : PlatformBaseTest() {
     // -----------------------------------------------------------------------
 
     /**
-     * Replicates the detectFrameworks() logic without a real dialog instance,
-     * so it can run headlessly.
+     * Exercises the real detection used by the wizard. It lives in [FrameworkDetector]
+     * precisely so it can run headlessly, without instantiating the dialog.
      */
-    private fun detectFrameworksFromContent(content: String): Set<String> {
-        val frameworkKeys = mapOf(
-            "i18next" to listOf("i18next", "react-i18next"),
-            "vue-i18n" to listOf("vue-i18n"),
-            "lingui" to listOf("@lingui/core", "@lingui/react", "@lingui/macro", "@lingui/react/macro")
-        )
-        return frameworkKeys
-            .filter { (_, deps) -> deps.any { content.contains("\"$it\"") } }
-            .keys
-            .toSet()
-    }
+    private fun detectFrameworksFromContent(content: String): Set<String> =
+        FrameworkDetector.detect(content)
 
     @org.junit.jupiter.api.Test
     fun `detectFrameworks detects i18next from package json content`() {
@@ -97,6 +88,37 @@ class SetupWizardDialogTest : PlatformBaseTest() {
         val detected = detectFrameworksFromContent(content)
 
         assertTrue(detected.isEmpty(), "No framework should be detected")
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `detectFrameworks detects react-intl`() {
+        val content = """{"dependencies": {"react-intl": "^6.0.0"}}"""
+
+        val detected = detectFrameworksFromContent(content)
+
+        assertTrue(detected.contains("react-intl"))
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `detectFrameworks detects react-intl from formatjs intl`() {
+        val content = """{"dependencies": {"@formatjs/intl": "^2.0.0"}}"""
+
+        val detected = detectFrameworksFromContent(content)
+
+        assertTrue(detected.contains("react-intl"))
+    }
+
+    /**
+     * A longer package sharing the prefix must not be mistaken for react-intl —
+     * react-intl-universal is a different library with a different API.
+     */
+    @org.junit.jupiter.api.Test
+    fun `detectFrameworks does not detect react-intl from a prefixed package`() {
+        val content = """{"dependencies": {"react-intl-universal": "^2.0.0"}}"""
+
+        val detected = detectFrameworksFromContent(content)
+
+        assertTrue(detected.isEmpty(), "react-intl-universal must not match react-intl")
     }
 
     @org.junit.jupiter.api.Test
