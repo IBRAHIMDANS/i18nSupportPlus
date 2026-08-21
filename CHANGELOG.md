@@ -16,6 +16,7 @@
 
 ### Documentation
 
+- [README] Replace the "Translation functions" column of **Supported Frameworks** with the actual syntaxes each framework is recognised by (`formatMessage({ id })`, `<FormattedMessage id>`, `translate.instant()`, the `| translate` pipe, `<Trans i18nKey>`, options-based namespaces), and footnote the two known gaps: the ngx-translate pipe is only recognised inside JSX/TSX, and svelte-i18n only in `.js` / `.ts` — standalone Angular templates and `.svelte` components are not analysed
 - [README] Fix the stated minimum IDE version: the Requirements section still promised 2024.3+ (build 243) after 1.2.1 raised `pluginSinceBuild` to 251 — exactly the incompatibility that release fixed. It now states 2025.1+ (build 251–263.*) and the versions the plugin is verified against. The `buildPlugin` output path was wrong too (`i18nSupportPlus-*.zip`): the archive is named after `rootProject.name`, so it is `i18n Support Plus-<version>.zip`
 
 ### Build
