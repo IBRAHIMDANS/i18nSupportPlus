@@ -6,6 +6,10 @@
 
 - [Repository] Delete `org/jetbrains/intellij/platform/gradle/Constants.kt`, a copy of an IntelliJ Platform Gradle Plugin source file committed at the repository root in #20. It sits outside every source set, is imported by nothing and is not referenced by the build — it only made the repository look like it shipped a package it does not own
 
+### Performance
+
+- [Scanning] Cache the project-wide translation scan (`LocalizationSourceService.findAllSources`) on the project, instead of re-querying the file index and rebuilding one element tree per translation file on every call. The annotator, completion, folding, inlay hints, gutter icons and the tool window all go through it, so a project with many locale files paid a full rescan on every highlighting pass. The cached scan is invalidated as soon as the PSI, the project roots or the plugin configuration change (settings are mutated through several paths, so the effective `Config` is hashed rather than instrumented), is held through a `SoftReference` so it never keeps translation files in memory, and is dropped when it holds invalid PSI — a stale scan is never handed out
+
 ## 1.2.1 - 2026-07-15
 
 ### Bug Fixes
