@@ -9,6 +9,13 @@
 ### Bug Fixes
 
 - [ngx-translate] Fix `NgxTranslateExtractor` reading the literal's direct parent as the call expression: an argument's parent is the argument list, so the check never passed and `translate.instant('key')` was never extracted. The bug had gone unnoticed because the extractor was not wired to anything
+- [React-Intl] Fix the very same argument-list bug in `ReactIntlExtractor`, which #151 corrected for ngx-translate but not here: it walked `objectLiteral.parent` expecting the call expression, so `canExtract` never returned true and wiring the extractor changed nothing — `formatMessage({ id })` still resolved to nothing. The call is now located with `PsiTreeUtil`, and matching on the `formatMessage` suffix covers every calling style: bare `formatMessage(…)` from `useIntl()`, `intl.formatMessage(…)`, and `this.props.intl.formatMessage(…)` from `injectIntl`
+- [React-Intl] Never treat `defaultMessage` as a translation key. Inside a message descriptor only `id` is one; the other properties hold source text. Claiming `id` through the syntax-owned extractors is not enough — the descriptor's remaining literals still reach the generic path, which matches any string of a first-argument object — so they are now explicitly vetoed
+- [React-Intl] Drop `t` from `ReactIntlTechnology.translationFunctionNames()` — react-intl has no such function. It only duplicated the name already published by `I18NextTechnology` (all technologies are active at once), widening the false-positive surface for every project. No behaviour change for i18next users
+
+### Tests
+
+- [React-Intl] Cover react-intl end to end, where nothing existed: `ReactIntlExtractorTest` pins `canExtract` (qualified call, bare call, `defaultMessage` rejection), `ReactIntlLangWiringTest` walks the whole `Lang` pipeline through `RawKeyParser`, and `ReactIntlHighlightingTest` checks the annotations for both the descriptor and `<FormattedMessage>` forms. The absence of any such test is why the argument-list bug shipped twice
 
 ### Performance
 

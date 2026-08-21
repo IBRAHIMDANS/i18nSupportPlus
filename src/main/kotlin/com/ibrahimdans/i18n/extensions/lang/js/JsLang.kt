@@ -17,6 +17,8 @@ import com.intellij.psi.util.PsiTreeUtil
 open class JsLang : Lang {
 
     companion object {
+        private val REACT_INTL_EXTRACTOR = ReactIntlExtractor()
+
         /**
          * Extractors that recognise their own call syntax, so they answer before the
          * generic `translationFunctionNames` filtering instead of after it.
@@ -31,7 +33,7 @@ open class JsLang : Lang {
          *    itself is more precise than matching a bare string literal.
          */
         private val SYNTAX_OWNED_EXTRACTORS: List<KeyExtractor> = listOf(
-            ReactIntlExtractor(),
+            REACT_INTL_EXTRACTOR,
             NgxTranslateExtractor(),
             SvelteI18nExtractor(),
         )
@@ -42,6 +44,10 @@ open class JsLang : Lang {
 
     override fun canExtractKey(element: PsiElement, translationFunctionNames: List<String>): Boolean {
         if (syntaxOwnedExtractors().any { it.canExtract(element) }) return true
+        // Claiming `id` is not enough: the descriptor's other properties would still reach
+        // the generic path below, which matches any string literal of a first-argument
+        // object — reporting `defaultMessage` as an unresolved key.
+        if (REACT_INTL_EXTRACTOR.isInsideMessageDescriptor(element)) return false
         return translationFunctionNames.any { t ->
             JSPatterns.jsArgument(t, 0).let { pattern ->
                 pattern.accepts(element) ||
