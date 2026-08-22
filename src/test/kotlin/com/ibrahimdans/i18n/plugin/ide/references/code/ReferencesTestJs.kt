@@ -1,5 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.references.code
 
+import com.ibrahimdans.i18n.plugin.utils.generator.code.ReactTransJsxContentGenerator
+import com.ibrahimdans.i18n.plugin.utils.generator.translation.JsonTranslationGenerator
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.JsCodeAndTranslationGenerators
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
@@ -8,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.utils.generator.code.CodeGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.TranslationGenerator
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.psi.PsiElement
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ArgumentsSource
@@ -218,18 +221,29 @@ class ReferencesTestJs : PlatformBaseTest() {
     /**
      * Reference from <Trans i18nKey="...key...">...</Trans>
      */
-//    @Test
-//    @Ignore
-//    fun testTransReference() {
-//        val cg = ReactTransJsxContentGenerator()
-//        val tg = JsonTranslationGenerator()
-//        addFileToProject(
-//            "assets/test.${tg.ext()}",
-//            tg.generateContent("ref", "section", "key", "Reference in json"))
-//        myFixture.configureByText("resolved.${cg.ext()}", cg.generate("\"test:ref.section.key<caret>\""))
-//        val element = myFixture.file.findElementAt(myFixture.caretOffset)?.parent
-//        assertNotNull(element)
-//        assertTrue("Failed ${tg.ext()}, ${cg.ext()}", element!!.references.size > 0)
-//        assertEquals("Failed ${tg.ext()}, ${cg.ext()}", "Reference in json", element.references[0].resolve()?.text?.unQuote())
-//    }
+    /**
+     * Disabled: `<Trans i18nKey="…">` produces no PSI reference, so there is nothing to navigate
+     * to from the attribute. Both halves that should make it work are in place —
+     * `XmlAttributeKeyExtractor` matches `XmlPatterns.xmlAttributeValue("i18nKey")` and
+     * `JsxReferenceAssistant.pattern()` returns that same pattern — yet `element.references` comes
+     * back empty on a `.jsx` file, so the attribute value reaching the assistant is likely not the
+     * `XmlAttributeValue` the pattern expects.
+     *
+     * Worth noting because the README lists `<Trans i18nKey="key">` among the recognised i18next
+     * syntaxes: whatever does work for it, navigation does not.
+     */
+    @Disabled
+    @Test
+    fun testTransReference() {
+        val cg = ReactTransJsxContentGenerator()
+        val tg = JsonTranslationGenerator()
+        addFileToProject(
+            "assets/test.${tg.ext()}",
+            tg.generateContent("ref", "section", "key", "Reference in json"))
+        myFixture.configureByText("resolved.${cg.ext()}", cg.generate("\"test:ref.section.key<caret>\""))
+        val element = myFixture.file.findElementAt(myFixture.caretOffset)?.parent
+        assertNotNull(element)
+        assertTrue("Failed ${tg.ext()}, ${cg.ext()}", element!!.references.size > 0)
+        assertEquals("Failed ${tg.ext()}, ${cg.ext()}", "Reference in json", element.references[0].resolve()?.text?.unQuote())
+    }
 }

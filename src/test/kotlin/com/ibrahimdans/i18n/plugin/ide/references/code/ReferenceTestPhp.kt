@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.references.code
 
+import com.ibrahimdans.i18n.plugin.utils.generator.translation.JsonTranslationGenerator
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.PhpCodeAndTranslationGenerators
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
@@ -17,6 +18,9 @@ import org.junit.jupiter.api.Assertions.*
 class ReferenceTestPhp : PlatformBaseTest() {
 
     private val cg = PhpCodeGenerator()
+    // This case predates the parameterised suite around it, which receives its generator
+    // as an argument; it keeps a JSON one of its own.
+    private val tg = JsonTranslationGenerator()
 
     @ParameterizedTest
     @ArgumentsSource(PhpCodeAndTranslationGenerators::class)
@@ -138,15 +142,15 @@ class ReferenceTestPhp : PlatformBaseTest() {
         }
     }
 
-//    fun testInvalidTranslationValue() {
-//        addFileToProject(
-//                "assets/invalidTranslationValue.${tg.ext()}",
-//                tg.generateContent("ref", "section", "key", "value"))
-//        myFixture.configureByText("testInvalidTranslationValue.${cg.ext()}", "'invalidTranslationValue:ref.section<caret>.invalid'")
-//        val element = myFixture.file.findElementAt(myFixture.caretOffset)?.parent
-//        assertNotNull(element)
-//        assertEquals("section", element!!.references[0].resolve()?.text?.unQuote())
-//    }
+    fun testInvalidTranslationValue() {
+        addFileToProject(
+                "assets/invalidTranslationValue.${tg.ext()}",
+                tg.generateContent("ref", "section", "key", "value"))
+        myFixture.configureByText("testInvalidTranslationValue.${cg.ext()}", "'invalidTranslationValue:ref.section<caret>.invalid'")
+        val element = myFixture.file.findElementAt(myFixture.caretOffset)?.parent
+        assertNotNull(element)
+        assertEquals("section", element!!.references[0].resolve()?.text?.unQuote())
+    }
 
     @ParameterizedTest
     @ArgumentsSource(PhpCodeAndTranslationGenerators::class)

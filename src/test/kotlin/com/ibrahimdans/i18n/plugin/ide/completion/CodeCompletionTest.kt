@@ -115,16 +115,6 @@ abstract class CodeCompletionTestBase(
         translationGenerator.generateContent("tst1", "base", "single", "only one value")
     )
 
-//    fun testRename() {
-//        myFixture.configureByFiles("RenameTestData.java", "RenameTestData.simple")
-//        myFixture.renameElementAtCaret("websiteUrl")
-//        myFixture.checkResultByFile("RenameTestData.simple", "RenameTestDataAfter.simple", false)
-//    }
-//
-//    fun testFindUsages() {
-//         val usageInfos = myFixture.testFindUsages("FindUsagesTestData.simple", "FindUsagesTestData.java")
-//        assertEquals(1, usageInfos.size)
-//    }
 }
 
 internal class CodeCompletionTsJsonTest: CodeCompletionTestBase(TsCodeGenerator(), JsonTranslationGenerator(), NsKeyGenerator())

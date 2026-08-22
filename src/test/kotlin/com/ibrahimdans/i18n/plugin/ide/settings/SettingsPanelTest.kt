@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Assumptions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import java.awt.GraphicsEnvironment
 import java.util.concurrent.DelayQueue
@@ -104,20 +105,37 @@ class SettingsPanelTest {
         checkStringProperty("jp", PluginBundle.getMessage("settings.folding.preferredLanguage"), Settings::foldingPreferredLanguage)
     }
 
-//    @Test
-//    fun testFoldingMaxLength() {
-//        checkIntProperty("\b\b17", PluginBundle.getMessage("settings.folding.maxLength"), Settings::foldingMaxLength)
-//    }
+    /**
+     * Disabled: typing into the int field does not reach the setting. After `sendKeys("\b\b17")`
+     * the field is expected to hold 17 and `foldingMaxLength` still reads 20, its default.
+     *
+     * The helper it uses was broken too and is fixed here — it compared against `keys.toInt()` on
+     * a string containing backspaces, so this case threw NumberFormatException rather than failing
+     * on the value. That is why it was commented out. With the helper corrected the real gap shows.
+     *
+     * Not a general binding failure: `testFoldingPreferredLanguage` drives the string field the
+     * same way and passes, so it is specific to the int field — either the component ignores the
+     * backspaces or its binding does not commit on keystrokes.
+     */
+    @Disabled
+    @Test
+    fun testFoldingMaxLength() {
+        checkIntProperty("\b\b17", PluginBundle.getMessage("settings.folding.maxLength"), Settings::foldingMaxLength)
+    }
 
-//    private fun checkIntProperty(keys: String, message: String, property: KMutableProperty1<Settings, Int>) = runWithSettings(Settings()) {
-//        settings ->
-//            val cb = driver.findElementByName(message)
-//            assertNotNull(cb)
-//            val text = cb.text
-//            assertEquals(text.toInt(), property.get(settings))
-//            cb.sendKeys(keys)
-//            assertEquals(keys.toInt(), property.get(settings))
-//    }
+    private fun checkIntProperty(keys: String, message: String, property: KMutableProperty1<Settings, Int>) = runWithSettings(Settings()) {
+        settings ->
+            val cb = driver.findElementByName(message)
+            assertNotNull(cb)
+            val text = cb.text
+            assertEquals(text.toInt(), property.get(settings))
+            cb.sendKeys(keys)
+            // `keys` carries the backspaces that clear the field before typing, so it is not a
+            // number: "\b\b17" typed over "20" leaves 17. Comparing against keys.toInt() threw
+            // NumberFormatException every time — which is why this case was commented out rather
+            // than failing. Only the digits describe the expected value.
+            assertEquals(keys.filter { it.isDigit() }.toInt(), property.get(settings))
+    }
 
     private fun checkStringProperty(keys: String, message: String, property: KMutableProperty1<Settings, String>) = runWithSettings(Settings()) {
         settings ->
