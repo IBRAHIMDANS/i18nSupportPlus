@@ -32,6 +32,4 @@ class TranslationFileGenerationTest: ExtractionTestBase() {
         )
     }
 
-    @Test
-    fun testTranslation() {}
 }

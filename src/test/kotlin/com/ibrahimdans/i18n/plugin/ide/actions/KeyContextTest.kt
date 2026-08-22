@@ -21,6 +21,4 @@ class KeyContextTest: PlatformBaseTest() {
         assertEquals(emptyList<IntentionAction>(), myFixture.filterAvailableIntentions(hint).toList())
     }
 
-    @Test
-    fun testKeyContext1() {}
 }

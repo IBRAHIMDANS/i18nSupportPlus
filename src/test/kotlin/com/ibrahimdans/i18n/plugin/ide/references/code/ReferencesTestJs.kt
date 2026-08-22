@@ -214,8 +214,6 @@ class ReferencesTestJs : PlatformBaseTest() {
         }
     }
 
-    @Test
-    fun testRootKey(){}
 
     /**
      * Reference from <Trans i18nKey="...key...">...</Trans>

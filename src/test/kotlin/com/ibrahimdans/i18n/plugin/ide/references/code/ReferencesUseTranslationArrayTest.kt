@@ -146,7 +146,4 @@ class ReferencesUseTranslationArrayTest : PlatformBaseTest() {
         }
     }
 
-    // JUnit3 compatibility: BasePlatformTestCase requires at least one test* method
-    @Test
-    fun testPlaceholder() {}
 }

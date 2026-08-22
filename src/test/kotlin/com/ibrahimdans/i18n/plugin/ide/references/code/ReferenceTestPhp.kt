@@ -178,6 +178,4 @@ class ReferenceTestPhp : PlatformBaseTest() {
         }
     }
 
-    @Test
-    fun testRootKey1() {}
 }
