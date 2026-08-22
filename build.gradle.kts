@@ -39,6 +39,13 @@ dependencies {
         bundledPlugin("org.jetbrains.plugins.vue")
         // GNU GetText support — available from build 251.x onwards
         plugin("org.jetbrains.plugins.localization:253.28294.218")
+        // Svelte is not bundled in IntelliJ Ultimate; without it a .svelte file is PLAIN_TEXT,
+        // so no key inside one can be seen. Published by JetBrains, versioned on the platform.
+        plugin("dev.blachut.svelte.lang:253.31033.19")
+        // Svelte is not bundled in IntelliJ Ultimate; without it a .svelte file is PLAIN_TEXT,
+        // so no key inside one can be seen. Published by JetBrains, versioned on the platform.
+        // Svelte is not bundled in IntelliJ Ultimate; without it a .svelte file is PLAIN_TEXT,
+        // so no key inside one can be seen. Published by JetBrains, versioned on the platform.
 
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
