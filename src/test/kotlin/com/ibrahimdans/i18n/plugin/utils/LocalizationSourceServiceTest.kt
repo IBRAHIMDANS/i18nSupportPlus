@@ -4,10 +4,12 @@ import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.service
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
+import java.util.concurrent.TimeUnit
 
 /**
  * Covers the project-level cache on [LocalizationSourceService.findAllSources].
@@ -73,5 +75,32 @@ class LocalizationSourceServiceTest : PlatformBaseTest() {
                 "a new translations root must invalidate the cache"
             )
         }
+    }
+
+    /**
+     * The tool window reaches [LocalizationSourceService.findAllSources] from a pooled thread
+     * without holding a read action — `TreeViewPanel`, `TableViewPanel` and `TranslationStatsPanel`
+     * all do. Validating the cached scan touches the PSI (`isValid`), so the service has to open
+     * the read action itself; otherwise the platform logs
+     * "Read access is allowed from inside read-action only" as a SEVERE naming the plugin.
+     *
+     * The other cases here wrap every call in `ReadAction.compute`, which is exactly why none of
+     * them caught it. This one deliberately does not: under the test logger that SEVERE fails the
+     * test, so it pins the fix rather than the symptom.
+     *
+     * The second call is the one that matters — the first only populates the cache.
+     */
+    @Test
+    fun findAllSources_servesTheCachedScanFromAPooledThreadWithoutAReadAction() {
+        addFileToProject("locales/en/common.json", """{"menu":{"home":"Home"}}""")
+        findAllSources()
+
+        val fromPool = ApplicationManager.getApplication()
+            .executeOnPooledThread<List<LocalizationSource>> {
+                project.service<LocalizationSourceService>().findAllSources(project)
+            }
+            .get(30, TimeUnit.SECONDS)
+
+        Assertions.assertFalse(fromPool.isEmpty(), "the cached scan must still be served")
     }
 }

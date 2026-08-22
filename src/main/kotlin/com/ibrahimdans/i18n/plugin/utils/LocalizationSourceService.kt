@@ -161,7 +161,18 @@ class LocalizationSourceService {
         if (cached.stamps != stamps) return null
         // A file reloaded from disk can leave invalid PSI behind: handing those elements
         // out would throw PsiInvalidElementAccessException in the callers, so rescan.
-        if (cached.sources.any { it.tree?.value()?.isValid == false }) return null
+        //
+        // `isValid` touches the PSI, so it needs a read action. The four tool window callers
+        // (TreeViewPanel, TableViewPanel and TranslationStatsPanel twice) reach this from a
+        // pooled thread without holding one, which the platform reports as a SEVERE naming
+        // the plugin. Opening it here rather than at each call site is what keeps a fifth
+        // caller from reintroducing the defect, and it stays narrow on purpose: the scan
+        // itself already runs its own read actions, and holding one across a full rescan
+        // would block writes for longer than this check needs.
+        val stillValid = ReadAction.compute<Boolean, RuntimeException> {
+            cached.sources.none { it.tree?.value()?.isValid == false }
+        }
+        if (!stillValid) return null
         return cached.sources
     }
 
