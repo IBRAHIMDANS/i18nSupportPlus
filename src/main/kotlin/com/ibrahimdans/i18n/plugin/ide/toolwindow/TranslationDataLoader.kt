@@ -38,17 +38,23 @@ object TranslationDataLoader {
         // Never empty: defaultNamespaces() falls back to Config's own default ("translation").
         val defaultNamespace = defaultNamespaces.first()
 
-        for (source in sources) {
-            val locale = extractLocale(source)
-            val namespace = extractNamespace(source, defaultNamespace)
-            val nsPrefix = if (namespace in defaultNamespaces) "" else "$namespace:"
-            val tree = source.tree
-            if (tree == null) {
-                LOG.warn("loadAllTranslations: null tree for source '${source.displayPath}' (locale=$locale, ns=$namespace)")
-                continue
-            }
-            ReadAction.run<RuntimeException> {
-                collectLeaves(tree, "", nsPrefix, locale, result)
+        // One read action for the whole batch rather than one per source. Opening it per source
+        // let a write land between two iterations, invalidating the elements the next walk was
+        // about to read — the PsiInvalidElementAccessException the cache guard in
+        // LocalizationSourceService exists to prevent, reintroduced one step further down. The
+        // batch is bounded by the number of locale files, and the walk only reads PSI, so it
+        // holds the lock no longer than the work it replaces.
+        ReadAction.run<RuntimeException> {
+            for (source in sources) {
+                val locale = extractLocale(source)
+                val namespace = extractNamespace(source, defaultNamespace)
+                val nsPrefix = if (namespace in defaultNamespaces) "" else "$namespace:"
+                val tree = source.tree
+                if (tree != null) {
+                    collectLeaves(tree, "", nsPrefix, locale, result)
+                } else {
+                    LOG.warn("loadAllTranslations: null tree for source '${source.displayPath}' (locale=$locale, ns=$namespace)")
+                }
             }
         }
         return result
