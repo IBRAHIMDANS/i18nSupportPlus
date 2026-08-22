@@ -10,7 +10,6 @@ import com.ibrahimdans.i18n.plugin.utils.generator.translation.YamlTranslationGe
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.TestDialogManager.setTestInputDialog
 import com.intellij.openapi.ui.TestInputDialog
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ArgumentsSource
@@ -158,7 +157,6 @@ class CreateKeyTest: PlatformBaseTest() {
         )
     }
 
-    @Disabled
     @ParameterizedTest
     @ArgumentsSource(JsCodeAndTranslationGeneratorsNs::class)
     fun createKeyMultipleTranslations(cg: CodeGenerator, tg: TranslationGenerator) {
@@ -188,45 +186,6 @@ class CreateKeyTest: PlatformBaseTest() {
             true
         )
     }
-//
-//    @ParameterizedTest
-//    @ArgumentsSource(TranslationGenerators::class)
-//    fun createKeyMultipleTranslationsVue(tg: TranslationGenerator) = myFixture.runVue {
-//        val cg = VueCodeGenerator()
-//        myFixture.addFileToProject(
-//            "locales/en-US.${tg.ext()}",
-//            contentEn(tg)
-//        )
-//        myFixture.addFileToProject(
-//            "locales/ru-RU.${tg.ext()}",
-//            contentRu(tg)
-//        )
-//        myFixture.configureByText("simple.${cg.ext()}", cg.generate("\"ref.section.mi<caret>ssing\""))
-//        var action: IntentionAction? = null
-//
-//            action = myFixture.findSingleIntention("Create i18n key in all translation files")
-//            assertNotNull(action)
-//
-//        myFixture.launchAction(action!!)
-//        read {
-//            myFixture.checkResult(
-//                "locales/en-US.${tg.ext()}",
-//                tg.generateNamedBlock(
-//                    "ref",
-//                    expectedEn(tg)
-//                ),
-//                false
-//            )
-//            myFixture.checkResult(
-//                "locales/ru-RU.${tg.ext()}",
-//                tg.generateNamedBlock(
-//                    "ref",
-//                    expectedRu(tg)
-//                ),
-//                false
-//            )
-//        }
-//    }
 
     data class Descr(val quot: String, val open: String, val close: String, val sep: String, val rootTab: Boolean = true)
 
