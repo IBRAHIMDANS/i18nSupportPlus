@@ -1,0 +1,13 @@
+# CHANGELOG.md only ever grows: every change appends an entry to a section, and
+# nobody rewrites someone else's line. Two branches adding an entry to the same
+# section therefore conflict on every rebase, even though the two entries are
+# independent and both must be kept.
+#
+# `merge=union` keeps both sides instead of raising a conflict. It is the right
+# driver precisely because entries are append-only and independent — if two
+# branches ever do edit the same line, union keeps both copies, which is visible
+# in review rather than silent.
+#
+# Placement conventions do not solve this: whether entries go at the top or the
+# bottom of a section, concurrent additions still land on the same line.
+CHANGELOG.md merge=union
