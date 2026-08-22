@@ -227,4 +227,72 @@ class TableViewModelTest {
         assertEquals(1, cancel.values.size)
         assertNull(cancel.values["en"])
     }
+
+    // ---- namespace filter ----
+
+    private fun rows(vararg keys: String) = keys.map { TranslationRow(it, mapOf("en" to "v")) }
+
+    @Test
+    fun `namespaceFilters offers All, then Default, then each namespace sorted`() {
+        val filters = viewModel.namespaceFilters(rows("zeta:a", "common:b", "bare.key", "auth:c"))
+
+        assertEquals(
+            listOf(
+                NamespaceFilter.All,
+                NamespaceFilter.Default,
+                NamespaceFilter.Named("auth"),
+                NamespaceFilter.Named("common"),
+                NamespaceFilter.Named("zeta"),
+            ),
+            filters
+        )
+    }
+
+    @Test
+    fun `namespaceFilters omits Default when every key carries a namespace`() {
+        val filters = viewModel.namespaceFilters(rows("common:a", "auth:b"))
+
+        assertFalse(filters.contains(NamespaceFilter.Default), "no key is namespace-less here")
+        assertEquals(NamespaceFilter.All, filters.first())
+    }
+
+    @Test
+    fun `All keeps every row`() {
+        val all = rows("common:a", "bare")
+        assertEquals(all, viewModel.filterByNamespace(NamespaceFilter.All, all))
+    }
+
+    @Test
+    fun `Default keeps only the rows whose key has no namespace`() {
+        val filtered = viewModel.filterByNamespace(NamespaceFilter.Default, rows("common:a", "bare", "auth:b"))
+
+        assertEquals(listOf("bare"), filtered.map { it.key })
+    }
+
+    @Test
+    fun `Named keeps only its own namespace`() {
+        val filtered = viewModel.filterByNamespace(NamespaceFilter.Named("common"), rows("common:a", "commonly:b", "auth:c"))
+
+        assertEquals(listOf("common:a"), filtered.map { it.key }, "the prefix must match up to the colon")
+    }
+
+    /**
+     * The regression the typed model exists for. `All` used to *be* the translated label
+     * `toolwindow.table.namespace.all`, compared with `==`: a project owning a namespace named
+     * like that label selected it and saw every row instead of that namespace's rows. `Default`
+     * had the same collision on the literal `"(default)"`.
+     */
+    @Test
+    fun `a namespace named like a label is filtered as itself, not as the label`() {
+        val labelled = rows("All namespaces:a", "(default):b", "other:c")
+
+        assertEquals(
+            listOf("All namespaces:a"),
+            viewModel.filterByNamespace(NamespaceFilter.Named("All namespaces"), labelled).map { it.key }
+        )
+        assertEquals(
+            listOf("(default):b"),
+            viewModel.filterByNamespace(NamespaceFilter.Named("(default)"), labelled).map { it.key }
+        )
+    }
 }

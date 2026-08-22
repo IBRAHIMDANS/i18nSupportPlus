@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumulator
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
 import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.UsageSearchContext
@@ -16,6 +17,37 @@ import com.intellij.psi.search.UsageSearchContext
  *   -1 = not yet scanned, 0 = orphan (unused), ≥1 = used.
  */
 data class TranslationRow(val key: String, val values: Map<String, String>, val usageCount: Int = -1)
+
+/**
+ * What the namespace combo filters on.
+ *
+ * The identity of an entry is the type, never the text shown for it. Both used to be the same
+ * `String`: [All] was the translated label `toolwindow.table.namespace.all`, compared with `==`
+ * to decide whether to filter at all, and [Default] was the literal `"(default)"` — displayed
+ * untranslated in a tool window #177 had otherwise localized, and impossible to translate without
+ * breaking the comparison that read it back. A project owning a namespace named like either label
+ * hit the same collision from the other side.
+ */
+sealed interface NamespaceFilter {
+
+    /** The text shown in the combo. Never compared against anything. */
+    val label: String
+
+    /** Every namespace, i.e. no filtering. */
+    data object All : NamespaceFilter {
+        override val label: String get() = PluginBundle.message("toolwindow.table.namespace.all")
+    }
+
+    /** Keys carrying no namespace prefix at all. */
+    data object Default : NamespaceFilter {
+        override val label: String get() = PluginBundle.message("toolwindow.table.namespace.default")
+    }
+
+    /** One named namespace, the part of a key before its `:`. */
+    data class Named(val name: String) : NamespaceFilter {
+        override val label: String get() = name
+    }
+}
 
 /**
  * View model for the table-based translation view.
@@ -53,6 +85,29 @@ class TableViewModel {
                 row.values.values.any { it.lowercase().contains(lowerQuery) }
         }
     }
+
+    /**
+     * The entries the namespace combo offers for [rows]: [NamespaceFilter.All] first, then
+     * [NamespaceFilter.Default] when some key carries no namespace, then each namespace found,
+     * sorted.
+     */
+    fun namespaceFilters(rows: List<TranslationRow>): List<NamespaceFilter> {
+        val named = rows.mapNotNull { row ->
+            val colonIdx = row.key.indexOf(':')
+            if (colonIdx > 0) row.key.substring(0, colonIdx) else null
+        }.distinct().sorted().map { NamespaceFilter.Named(it) }
+
+        val default = if (rows.any { !it.key.contains(':') }) listOf(NamespaceFilter.Default) else emptyList()
+        return listOf(NamespaceFilter.All) + default + named
+    }
+
+    /** Returns the rows [filter] selects. */
+    fun filterByNamespace(filter: NamespaceFilter, rows: List<TranslationRow>): List<TranslationRow> =
+        when (filter) {
+            NamespaceFilter.All -> rows
+            NamespaceFilter.Default -> rows.filter { !it.key.contains(':') }
+            is NamespaceFilter.Named -> rows.filter { it.key.startsWith("${filter.name}:") }
+        }
 
     /**
      * Writes [value] for [key] in [locale], routing to the right translation file
