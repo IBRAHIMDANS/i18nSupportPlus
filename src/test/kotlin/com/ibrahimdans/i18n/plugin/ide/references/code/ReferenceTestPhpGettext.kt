@@ -8,6 +8,7 @@ import com.ibrahimdans.i18n.plugin.utils.generator.translation.PoTranslationGene
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.psi.PsiElement
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Test
 
 class ReferenceTestPhpGettext : PlatformBaseTest() {
 
@@ -15,6 +16,7 @@ class ReferenceTestPhpGettext : PlatformBaseTest() {
     private val tg = PoTranslationGenerator()
     private val config = Config(gettext = true)
 
+    @Test
     fun testReference() = myFixture.runWithConfig(config){
         myFixture.addFileToProject(
                 "en-US/LC_MESSAGES/test.${tg.ext()}",
@@ -26,6 +28,7 @@ class ReferenceTestPhpGettext : PlatformBaseTest() {
         assertEquals("Failed ${tg.ext()}, ${cg.ext()}", "Reference in json", element.references[0].resolve()?.text?.unQuote())
     }
 
+    @Test
     fun testMultiReference() = myFixture.runWithConfig(config) {
         myFixture.addFileToProject(
             "en-US/LC_MESSAGES/multi.${tg.ext()}",
@@ -41,6 +44,7 @@ class ReferenceTestPhpGettext : PlatformBaseTest() {
         assertEquals(setOf("Welcome", "Willkommen"), getResolvedValues(element))
     }
 
+    @Test
     fun testMultiReferenceDefNs() = myFixture.runWithConfig(config) {
         myFixture.addFileToProject(
             "en-US/LC_MESSAGES/translation.${tg.ext()}",
@@ -59,6 +63,7 @@ class ReferenceTestPhpGettext : PlatformBaseTest() {
     private fun getResolvedValues(element: PsiElement?) =
         (element?.references?.get(0) as? I18nReference)?.references?.map { it.reference.element?.value()?.text?.unQuote() }?.toSet() ?: emptySet()
 
+    @Test
     fun testInvalidTranslationRoot() = myFixture.runWithConfig(config){
         myFixture.addFileToProject(
             "de-DE/LC_MESSAGES/invalidRoot.${tg.ext()}",
@@ -69,6 +74,7 @@ class ReferenceTestPhpGettext : PlatformBaseTest() {
         assertEmpty(element!!.references)
     }
 
+    @Test
     fun testInvalidContent() = myFixture.runWithConfig(config) {
         myFixture.addFileToProject(
             "de-DE/LC_MESSAGES/invalidTranslationValue.${tg.ext()}",
@@ -80,6 +86,7 @@ class ReferenceTestPhpGettext : PlatformBaseTest() {
         assertEmpty(element!!.references)
     }
 
+    @Test
     fun testInvalidTranslationKey() {
         myFixture.addFileToProject(
             "de-DE/LC_MESSAGES/invalidTranslationValue.${tg.ext()}",
@@ -91,6 +98,7 @@ class ReferenceTestPhpGettext : PlatformBaseTest() {
         assertEmpty(element!!.references)
     }
 
+    @Test
     fun testInvalidTranslationValue() = myFixture.runWithConfig(config) {
         myFixture.addFileToProject(
             "de-DE/LC_MESSAGES/invalidTranslationValue.${tg.ext()}",

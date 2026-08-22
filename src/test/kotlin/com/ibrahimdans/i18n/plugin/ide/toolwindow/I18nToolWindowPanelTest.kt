@@ -18,14 +18,6 @@ import org.junit.jupiter.api.Assertions.*
 class I18nToolWindowPanelTest : PlatformBaseTest() {
 
     // -----------------------------------------------------------------------
-    // Sentinel — required by JUnit 3 runner (BasePlatformTestCase)
-    // -----------------------------------------------------------------------
-
-    fun testPlaceholder() {
-        assertTrue(true)
-    }
-
-    // -----------------------------------------------------------------------
     // Smoke — single-level mode (0 or 1 module configured)
     // -----------------------------------------------------------------------
 

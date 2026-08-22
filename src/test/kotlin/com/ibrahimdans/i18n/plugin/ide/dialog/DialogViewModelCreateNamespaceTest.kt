@@ -25,14 +25,6 @@ import java.nio.file.Files
 class DialogViewModelCreateNamespaceTest : PlatformBaseTest() {
 
     // -----------------------------------------------------------------------
-    // Sentinel — required by JUnit 3 runner (BasePlatformTestCase)
-    // -----------------------------------------------------------------------
-
-    fun testPlaceholder() {
-        assertTrue(true)
-    }
-
-    // -----------------------------------------------------------------------
     // Target path computation — pure logic tests (no VFS)
     // -----------------------------------------------------------------------
 

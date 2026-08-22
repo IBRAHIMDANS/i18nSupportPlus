@@ -7,10 +7,12 @@ import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.generator.code.TsxCodeGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.JsonTranslationGenerator
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Test
 
 
 class CreateMissingTranslationsTest: PlatformBaseTest() {
 
+    @Test
     fun testUnavailableFix() = myFixture.runWithConfig(Config(partialTranslationInspectionEnabled = true)){
         val hint = PluginBundle.getMessage("quickfix.create.missing.keys")
         val cg = TsxCodeGenerator()
@@ -30,6 +32,7 @@ class CreateMissingTranslationsTest: PlatformBaseTest() {
         assertNull(action)
     }
 
+    @Test
     fun testCreateMissingTranslations() = myFixture.runWithConfig(Config(partialTranslationInspectionEnabled = true)){
         val hint = PluginBundle.getMessage("quickfix.create.missing.keys")
         val cg = TsxCodeGenerator()
