@@ -78,11 +78,36 @@ class LocalizationSourceService {
         return segments.any { it in allExclusions }
     }
 
+    /**
+     * Sources holding the requested namespaces, falling back to [Config.defaultNamespaces]
+     * when none is requested.
+     *
+     * A key carrying no namespace (`t('dashboard.title')`) requests nothing, so the lookup
+     * falls back to the default namespace — `translation` — which the localizations match
+     * against the *file name*. A project laid out as `locales/fr.json` + `locales/en.json`
+     * owns no such file, so nothing was ever found and every key of it was reported
+     * unresolved, even though [findAllSources] reads that layout perfectly well through its
+     * locale heuristic. When a key that requested no namespace finds nothing, the project-wide
+     * scan is therefore used instead.
+     *
+     * The fallback is deliberately confined to that case: an explicit namespace matching no
+     * file (`t('common:user.name')` with no `common.json`) must keep being reported as an
+     * unresolved namespace rather than quietly resolving against unrelated files.
+     *
+     * [com.ibrahimdans.i18n.plugin.ide.I18nGutterIconProvider] carries a fallback of its own
+     * and is left untouched: it substitutes the default namespaces *before* calling in, so it
+     * never asks for an empty list and never reaches this one. Its version is also wider —
+     * it falls back for an explicit namespace too, which is precisely what this one must not do.
+     */
     fun findSources(fileNames: List<String>, project: Project): List<LocalizationSource> {
-        return (findVirtualFilesByName(project,
-            fileNames.whenMatches { it.isNotEmpty() } ?: Settings.getInstance(project).config().defaultNamespaces()
+        val requestedNamespaces = fileNames.whenMatches { it.isNotEmpty() }
+        val sources = (findVirtualFilesByName(project,
+            requestedNamespaces ?: Settings.getInstance(project).config().defaultNamespaces()
         ) + findSourcesByConfiguration(project))
             .distinctBy { it.displayPath }
+        if (sources.isNotEmpty() || requestedNamespaces != null) return sources
+        // Cached on the project, so the extra call costs nothing per highlighting pass.
+        return findAllSources(project)
     }
 
     fun findNamespaceFiles(fileNames: List<String>, project: Project): List<LocalizationSource> {
