@@ -102,7 +102,8 @@ class IcuMessageRendererTest {
             "Hello {{name}}",
             "Hello {name}",
             "{count} items",
-            "{date, date, short}",
+            // `{date, date, short}` used to sit here: a formatted argument is now rendered
+            // as `{date}`, which `date and time formats show the argument alone` pins.
             "%{count} boxes"
         ).forEach { assertEquals(it, IcuMessageRenderer.render(it)) }
     }
@@ -136,5 +137,64 @@ class IcuMessageRendererTest {
     fun theFluentAliasMatchesTheRenderer() {
         val icu = "{count, plural, other {# articles}}"
         assertEquals(IcuMessageRenderer.render(icu), icu.renderIcu())
+    }
+
+    // --- ICU quoting -------------------------------------------------------------------
+
+    @Test
+    fun `a quoted brace is literal, not an argument`() {
+        assertEquals("{count}", IcuMessageRenderer.render("'{'count'}'"))
+    }
+
+    @Test
+    fun `a doubled apostrophe is a single apostrophe`() {
+        assertEquals("l'article {n}", IcuMessageRenderer.render("l''article {n}"))
+    }
+
+    @Test
+    fun `a lone apostrophe before an ordinary letter stays literal`() {
+        assertEquals("L'equipe a {count} membres",
+            IcuMessageRenderer.render("L'equipe a {count, plural, other {# membres}}"))
+    }
+
+    @Test
+    fun `a quoted brace no longer unbalances a pluralised message`() {
+        assertEquals("{ {count} articles",
+            IcuMessageRenderer.render("'{' {count, plural, other {# articles}}"))
+    }
+
+    @Test
+    fun `a quoted hash stays literal inside a plural branch`() {
+        assertEquals("# {count} articles",
+            IcuMessageRenderer.render("{count, plural, other {'#' # articles}}"))
+    }
+
+    @Test
+    fun `an unterminated quote consumes the rest as literal text`() {
+        assertEquals("a {b", IcuMessageRenderer.render("a '{b"))
+    }
+
+    // --- formatted arguments -----------------------------------------------------------
+
+    @Test
+    fun `a number format shows the argument alone`() {
+        assertEquals("{amount}", IcuMessageRenderer.render("{amount, number, currency}"))
+    }
+
+    @Test
+    fun `a number argument without style shows the argument alone`() {
+        assertEquals("{amount}", IcuMessageRenderer.render("{amount, number}"))
+    }
+
+    @Test
+    fun `date and time formats show the argument alone`() {
+        assertEquals("Le {day} a {hour}",
+            IcuMessageRenderer.render("Le {day, date, short} a {hour, time, short}"))
+    }
+
+    @Test
+    fun `a formatted argument nested in a plural branch is rendered too`() {
+        assertEquals("{count} articles pour {amount}",
+            IcuMessageRenderer.render("{count, plural, other {# articles pour {amount, number, currency}}}"))
     }
 }
