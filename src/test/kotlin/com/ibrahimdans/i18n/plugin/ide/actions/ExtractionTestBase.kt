@@ -2,7 +2,6 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.TestDialog
 import com.intellij.openapi.ui.TestDialogManager.setTestDialog
@@ -19,6 +18,16 @@ abstract class ExtractionTestBase: PlatformBaseTest() {
     protected fun config(ext: String, extractSorted: Boolean = false) =
             Config(preferredLocalization = if(ext == "yml") "yaml" else "json", extractSorted = extractSorted)
 
+    /**
+     * Runs one extraction case: the intention is found, launched, and both the source file and
+     * the translation file are checked against their expected content.
+     *
+     * Every path through this method ends on those two assertions. It used to open with a
+     * `if (!isReadAccessAllowed()) return`, which made the whole case pass without checking
+     * anything whenever it fired — the assertions are the only reason this helper exists.
+     * `PlatformBaseTest` dispatches each test onto the EDT, where read access is always held,
+     * so the guard could never fire; replacing it with a `fail()` left all 86 cases green.
+     */
     protected fun runTestCase(
             srcName: String,
             src: String,
@@ -30,7 +39,6 @@ abstract class ExtractionTestBase: PlatformBaseTest() {
             message: TestDialog? = null) {
         myFixture.configureByText(srcName, src)
         myFixture.addFileToProject(translationName, origTranslation)
-        if (!ApplicationManager.getApplication().isReadAccessAllowed()) return
         val action = myFixture.findSingleIntention(hint)
         assertNotNull(action)
         setTestInputDialog(inputDialog)
