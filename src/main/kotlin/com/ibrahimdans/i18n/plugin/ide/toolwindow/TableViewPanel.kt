@@ -30,9 +30,11 @@ import java.awt.Component
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.DefaultComboBoxModel
+import javax.swing.DefaultListCellRenderer
 import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JLabel
+import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.JPopupMenu
 import javax.swing.JScrollPane
@@ -43,10 +45,7 @@ import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.DefaultTableModel
 import javax.swing.table.TableRowSorter
 
-// Not `const`: these come from the bundle now. ALL_NAMESPACES doubles as the sentinel the
-// namespace filter compares against, so it must stay a single value read once — which it is,
-// the IDE locale being fixed for the lifetime of the process.
-private val ALL_NAMESPACES = PluginBundle.message("toolwindow.table.namespace.all")
+// Not `const`: these come from the bundle now.
 private val USAGE_COLUMN_NAME = PluginBundle.message("toolwindow.table.column.usage")
 private val NOT_SCANNED_TOOLTIP = PluginBundle.message("toolwindow.table.usage.not.scanned")
 internal const val DISPLAY_VALUE_MAX_LENGTH = 200
@@ -117,9 +116,19 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     private var locales: List<String> = emptyList()
     private var allRows: List<TranslationRow> = emptyList()
     private var currentFilter: String = ""
-    private var currentNamespace: String = ALL_NAMESPACES
+    private var currentNamespace: NamespaceFilter = NamespaceFilter.All
 
-    private val namespaceCombo = JComboBox(arrayOf(ALL_NAMESPACES))
+    // The combo holds the filters themselves; the renderer is the only thing that turns one into
+    // text, so a label can be translated without touching what the filter compares.
+    private val namespaceCombo = JComboBox(arrayOf<NamespaceFilter>(NamespaceFilter.All)).apply {
+        renderer = object : DefaultListCellRenderer() {
+            override fun getListCellRendererComponent(
+                list: JList<*>?, value: Any?, index: Int, selected: Boolean, focused: Boolean
+            ): Component = super.getListCellRendererComponent(
+                list, (value as? NamespaceFilter)?.label ?: value, index, selected, focused
+            )
+        }
+    }
     private val scanButton = JButton(PluginBundle.message("toolwindow.table.scan.orphans")).apply {
         toolTipText = PluginBundle.message("toolwindow.table.scan.orphans.tooltip")
     }
@@ -145,7 +154,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         })
 
         namespaceCombo.addActionListener {
-            currentNamespace = namespaceCombo.selectedItem as? String ?: ALL_NAMESPACES
+            currentNamespace = namespaceCombo.selectedItem as? NamespaceFilter ?: NamespaceFilter.All
             applyFilters()
         }
 
@@ -169,7 +178,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             val rows = viewModel.loadRows(project, moduleConfig)
             locales = viewModel.getLocales(project, moduleConfig)
             allRows = rows
-            val namespaces = extractNamespaces(rows)
+            val namespaces = viewModel.namespaceFilters(rows)
 
             ApplicationManager.getApplication().invokeLater {
                 updateNamespaceCombo(namespaces)
@@ -188,34 +197,16 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     }
 
     private fun applyFilters() {
-        val filtered = viewModel.filter(currentFilter, filterByNamespace(currentNamespace, allRows))
+        val filtered = viewModel.filter(currentFilter, viewModel.filterByNamespace(currentNamespace, allRows))
         rebuildTable(filtered, locales)
     }
 
-    private fun filterByNamespace(namespace: String, rows: List<TranslationRow>): List<TranslationRow> {
-        if (namespace == ALL_NAMESPACES) return rows
-        return rows.filter { row ->
-            if (namespace == "(default)") !row.key.contains(':')
-            else row.key.startsWith("$namespace:")
-        }
-    }
-
-    /** Extracts distinct namespace prefixes from keys (part before ':'). */
-    private fun extractNamespaces(rows: List<TranslationRow>): List<String> {
-        val namespaces = rows.mapNotNull { row ->
-            val colonIdx = row.key.indexOf(':')
-            if (colonIdx > 0) row.key.substring(0, colonIdx) else null
-        }.distinct().sorted()
-        return if (rows.any { !it.key.contains(':') }) listOf("(default)") + namespaces else namespaces
-    }
-
-    private fun updateNamespaceCombo(namespaces: List<String>) {
+    private fun updateNamespaceCombo(items: List<NamespaceFilter>) {
         val selected = currentNamespace
-        val items = listOf(ALL_NAMESPACES) + namespaces
         namespaceCombo.model = DefaultComboBoxModel(items.toTypedArray())
         // Restore selection if still valid, otherwise reset to "All"
         if (items.contains(selected)) namespaceCombo.selectedItem = selected
-        else currentNamespace = ALL_NAMESPACES
+        else currentNamespace = NamespaceFilter.All
     }
 
     private fun rebuildTable(rows: List<TranslationRow>, locales: List<String>) {
