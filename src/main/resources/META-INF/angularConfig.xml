@@ -1,0 +1,22 @@
+<idea-plugin>
+    <!--
+      Angular templates parse their interpolations into the `Angular2` dialect, not into
+      `JavaScript`: `{{ 'key' | translate }}` yields a JSLiteralExpression whose language is
+      Angular2. Extensions registered for JavaScript therefore never see it, which is why a
+      standalone template was not analysed while the same call in a .ts file was.
+
+      The JS implementations work unchanged on those elements — only the registration was
+      missing — so this file mirrors vueConfig.xml, which does the same for Vue.
+
+      A template is parsed as Angular only inside an Angular project (a component referencing it
+      through templateUrl, with @angular/core resolvable). Outside one it stays plain HTML, and
+      nothing here applies.
+    -->
+    <extensions defaultExtensionNs="com.intellij">
+        <annotator language="Angular2" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.AngularCompositeKeyAnnotator"/>
+        <psi.referenceContributor language="Angular2" implementation="com.ibrahimdans.i18n.extensions.lang.js.JsReferenceContributor"/>
+        <completion.contributor language="Angular2" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompletionContributor"/>
+        <lang.foldingBuilder language="Angular2" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder"/>
+        <lang.documentationProvider language="Angular2" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
+    </extensions>
+</idea-plugin>
