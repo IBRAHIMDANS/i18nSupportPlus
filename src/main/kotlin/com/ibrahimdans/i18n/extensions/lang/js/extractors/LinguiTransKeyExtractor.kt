@@ -24,9 +24,9 @@ import com.intellij.psi.xml.XmlTag
  * indexOf("Hello world!") correctly locates the msgid within the element text,
  * so the annotation range stays inside the element bounds.
  *
- * Interpolated <Trans> (e.g. <Trans>Hello {name}!</Trans>) uses trimmedText too,
- * so "{name}" appears literally in the msgid — only pure-text <Trans> will match
- * typical translation files.
+ * Interpolated <Trans> (e.g. <Trans>Hello {name}!</Trans>) yields "Hello {0}!": Lingui numbers
+ * the expressions it extracts, so the msgid in the catalogue carries positional placeholders and
+ * not the expression source. Reproducing the literal "{name}" would never match a catalogue.
  */
 class LinguiTransKeyExtractor : KeyExtractor {
 
@@ -51,6 +51,43 @@ class LinguiTransKeyExtractor : KeyExtractor {
         val contentStart = raw.indexOf('>') + 1
         val contentEnd = raw.lastIndexOf("</${tag.name}>")
         if (contentStart <= 0 || contentEnd < contentStart) return ""
-        return raw.substring(contentStart, contentEnd).trim()
+        return numberExpressions(raw.substring(contentStart, contentEnd).trim())
+    }
+
+    /**
+     * Replaces each JSX expression with its positional placeholder: `Hello {name}!` becomes
+     * `Hello {0}!`, which is the msgid Lingui writes into the catalogue.
+     *
+     * Braces are matched by nesting depth rather than by the first `}`, so an expression holding
+     * one — `{ {a: 1}.a }`, `{cond ? "{" : ""}` — is consumed whole and counts as a single
+     * placeholder instead of being cut in the middle.
+     *
+     * Text carrying no `{` comes back untouched, so a plain `<Trans>` keeps the msgid it had.
+     * An unbalanced `{` is left as written: the file is mid-edit, and inventing a placeholder
+     * there would produce a key that matches nothing.
+     */
+    private fun numberExpressions(text: String): String {
+        if (!text.contains('{')) return text
+        val out = StringBuilder()
+        var index = 0
+        var i = 0
+        while (i < text.length) {
+            if (text[i] != '{') {
+                out.append(text[i]); i++; continue
+            }
+            var depth = 0
+            var j = i
+            while (j < text.length) {
+                if (text[j] == '{') depth++
+                if (text[j] == '}' && --depth == 0) break
+                j++
+            }
+            if (j >= text.length) {   // jamais refermee
+                out.append(text, i, text.length); break
+            }
+            out.append('{').append(index++).append('}')
+            i = j + 1
+        }
+        return out.toString()
     }
 }
