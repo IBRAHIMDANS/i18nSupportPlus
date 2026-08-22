@@ -233,13 +233,21 @@ class TranslationDialog(
      * The input is trimmed first, as the caller trims the accepted value too.
      */
     private fun namespaceValidator() = object : InputValidator {
-        override fun checkInput(inputString: String?): Boolean =
-            inputString?.trim()?.matches(NAMESPACE_REGEX) == true
+        override fun checkInput(inputString: String?): Boolean = isValidNamespace(inputString)
 
-        override fun canClose(inputString: String?): Boolean = checkInput(inputString)
+        override fun canClose(inputString: String?): Boolean = isValidNamespace(inputString)
     }
 
-    private companion object {
-        val NAMESPACE_REGEX = Regex("[a-zA-Z0-9-]+")
+    companion object {
+        private val NAMESPACE_REGEX = Regex("[a-zA-Z0-9-]+")
+
+        /**
+         * A namespace names a translation file, so it is restricted to letters, digits and
+         * hyphens. The rule is named and reachable rather than inlined in the validator: the
+         * validator is a widget listener and cannot be exercised headlessly, and this rule
+         * used to live in an after-the-fact error dialog with nothing pinning it.
+         */
+        internal fun isValidNamespace(name: String?): Boolean =
+            name?.trim()?.matches(NAMESPACE_REGEX) == true
     }
 }
