@@ -194,16 +194,29 @@ tasks {
                 }
                 ?.firstOrNull()
 
-            // --- YAML: symlink into plugins-test/ so ymlConfig.xml is activated ---
+            // --- YAML: copy into plugins-test/ so ymlConfig.xml is activated ---
+            //
+            // Copied, not symlinked. The source lives in the shared Gradle transforms cache, and
+            // a link to a *directory* there is a trap: deleting the sandbox descends through it
+            // and empties plugins/yaml inside ~/.gradle. The next build then fails with
+            // "Could not find bundled plugin with ID: org.jetbrains.plugins.yaml", or the whole
+            // suite fails with NoClassDefFoundError: org/jetbrains/yaml/psi/YAMLKeyValue — for
+            // every project sharing that cache, not just this one. It looks like a flake and is
+            // not: it is this line. The plugin is 1.7 MB, so copying costs nothing measurable.
             ideDir?.let { ide ->
                 val yamlSrc = File(ide, "plugins/yaml")
                 val yamlDst = File(sandboxBase, "plugins-test/yaml")
                 if (yamlSrc.exists() && !yamlDst.exists()) {
-                    Files.createSymbolicLink(yamlDst.toPath(), yamlSrc.toPath())
+                    yamlSrc.copyRecursively(yamlDst, overwrite = true)
                 }
             }
 
             // --- Vue: flatten lib/modules/ into lib/ so getPluginDistDirByClass() resolves ---
+            //
+            // These link individual *files*, which is why they never corrupted the cache the way
+            // the YAML directory link did: deleting a link to a file removes the link, not the
+            // target. Kept as links deliberately — the Vue jars are far larger than the YAML
+            // plugin, and copying them on every sandbox build would be felt.
             ideDir?.let { ide ->
                 val vueSrc = File(ide, "plugins/vuejs-plugin")
                 val vueLibDst = File(sandboxBase, "plugins-test/vuejs-plugin/lib")
