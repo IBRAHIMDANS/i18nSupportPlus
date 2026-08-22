@@ -66,9 +66,15 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
 
         val config = Settings.getInstance(project).config()
         val sourceService = project.service<LocalizationSourceService>()
-        val namespaces = fullKey.allNamespaces().ifEmpty { config.defaultNamespaces() }
-        val sources = sourceService.findSources(namespaces, project)
-            .ifEmpty { sourceService.findAllSources(project) }
+        // The namespaces are passed as the key carries them, and the whole-scan fallback is
+        // left to findSources. This provider used to substitute the default namespaces first
+        // and fall back on its own — which was the only thing making the "one file per locale"
+        // layout work anywhere, until #159 moved that fallback into the service. Keeping the
+        // local one would now be *wider* than the shared rule rather than redundant: it fires
+        // for an explicit namespace matching no file too, so `t('common:user.name')` with no
+        // common.json would show per-locale statuses computed against unrelated files while
+        // the annotator reports an unresolved namespace — two verdicts on one key.
+        val sources = sourceService.findSources(fullKey.allNamespaces(), project)
         if (sources.isEmpty()) return null
 
         val pluralSeparator = config.pluralSeparator
