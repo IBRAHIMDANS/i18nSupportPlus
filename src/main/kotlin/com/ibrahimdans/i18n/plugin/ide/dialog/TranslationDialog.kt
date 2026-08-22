@@ -77,8 +77,12 @@ class TranslationDialog(
             addButton.preferredSize = Dimension(addButton.preferredSize.width, combo.preferredSize.height)
             addButton.maximumSize = addButton.preferredSize
             addButton.addActionListener {
+                // Parented on the button, not on the project: this prompt is opened from inside
+                // a modal dialog, so it has to be anchored to that dialog's window. A
+                // project-parented one is anchored to the IDE frame instead, which the modal
+                // dialog sits above.
                 val input = Messages.showInputDialog(
-                    project,
+                    addButton,
                     "Namespace name (letters, digits, hyphens):",
                     "Add Namespace",
                     null,
