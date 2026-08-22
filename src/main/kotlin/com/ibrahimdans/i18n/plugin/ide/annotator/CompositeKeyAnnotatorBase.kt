@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
+import com.ibrahimdans.i18n.plugin.tree.PluralGroup
 import com.ibrahimdans.i18n.plugin.utils.KeyRangesCalculator
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.isQuoted
@@ -75,6 +76,11 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
                     annotationHelper.annotatePartiallyTranslated(fullKey, references)
                 } else {
                     if (mostResolvedReference.element?.isLeaf() ?: false) {
+                        annotationHelper.annotateResolved(fullKey)
+                    } else if (PluralGroup.isPluralGroup(mostResolvedReference.element)) {
+                        // i18n-js and friends pluralize into a nested object rather than through
+                        // the flat `key_one` suffixes the resolver expands: the key legitimately
+                        // points at that object, so it is resolved, not a reference to an object.
                         annotationHelper.annotateResolved(fullKey)
                     } else if (mostResolvedReference.path.lastOrNull()?.text != "*") {
                         // A terminal wildcard (e.g. a dynamic `${expr}` segment) legitimately

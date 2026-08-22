@@ -5,7 +5,7 @@ Plugin ID: `com.ibrahimdans.i18n`
 <!-- Plugin description -->
 IntelliJ IDEA plugin providing i18n support for JavaScript, TypeScript, JSX, TSX, and PHP projects.
 
-Supports **i18next**, **vue-i18n**, **lingui**, **react-intl**, **ngx-translate**, and **svelte-i18n** frameworks with JSON, YAML, and PO/POT translation files.
+Supports **i18next**, **vue-i18n**, **lingui**, **react-intl**, **ngx-translate**, **svelte-i18n**, and **i18n-js** frameworks with JSON, YAML, and PO/POT translation files.
 
 Highlights unresolved i18n keys, offers navigation from keys to their translation files, provides autocomplete for key names,
 displays translation values as inline hints, and supports key extraction from plain text strings.
@@ -29,7 +29,7 @@ whether a key exists, in which namespace, and whether it's translated everywhere
   Keys Synchronizer (propagate missing keys in bulk), Scan Orphans (find unused keys),
   and empty/duplicate-value inspections.
 
-Works with **i18next, vue-i18n, lingui, react-intl, ngx-translate & svelte-i18n**
+Works with **i18next, vue-i18n, lingui, react-intl, ngx-translate, svelte-i18n & i18n-js**
 across JS/TS/JSX/TSX, Vue SFC and PHP, with JSON, YAML and PO/POT files.
 A setup wizard auto-configures it on first launch.
 
@@ -43,12 +43,15 @@ A setup wizard auto-configures it on first launch.
 | react-intl (FormatJS) | `formatMessage({ id: 'key' })`, `<FormattedMessage id="key" />` | No |
 | ngx-translate (Angular) | `translate.instant('key')`, `.get('key')`, `.stream('key')`, `{{ 'key' \| translate }}` <sup>1</sup> | No |
 | svelte-i18n | `$_('key')`, `_('key')` <sup>2</sup> | No |
+| i18n-js (React Native / Expo) | `t('key')`, `i18n.t('key')`, plain locale-keyed TS/JS catalogues, nested plurals <sup>3</sup> | No |
 
 `useTranslation` supports both string form (`useTranslation('ns')`) and array form (`useTranslation(['ns1', 'ns2'])`). The namespace can also come from an options object (`t('key', { ns: 'auth' })`) or from the key itself (`t('auth:key')`).
 
 <sup>1</sup> The `| translate` pipe is only recognised inside JSX/TSX, where the markup is part of the file's PSI. Standalone Angular templates (`.html`) are not analysed — the plugin registers no annotator for them.
 
 <sup>2</sup> svelte-i18n calls are recognised in `.js` and `.ts` files; `.svelte` single-file components are not analysed yet.
+
+<sup>3</sup> i18n-js pluralizes into a nested object (`{ one: …, other: … }`) rather than through i18next's flat `key_one` suffixes; such a key is treated as resolved. Its `%{count}` placeholders are displayed verbatim, as the plugin interprets no interpolation syntax.
 
 ## Supported Languages
 
