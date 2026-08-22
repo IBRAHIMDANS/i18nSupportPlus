@@ -47,7 +47,7 @@ A setup wizard auto-configures it on first launch.
 
 `useTranslation` supports both string form (`useTranslation('ns')`) and array form (`useTranslation(['ns1', 'ns2'])`). The namespace can also come from an options object (`t('key', { ns: 'auth' })`) or from the key itself (`t('auth:key')`).
 
-<sup>1</sup> The `| translate` pipe is only recognised inside JSX/TSX, where the markup is part of the file's PSI. Standalone Angular templates (`.html`) are not analysed — the plugin registers no annotator for them.
+<sup>1</sup> The `| translate` pipe is recognised in JSX/TSX and in standalone Angular templates (`.html`). A template is parsed as Angular only inside an Angular project — a component referencing it through `templateUrl`, with `@angular/core` resolvable; outside one the file stays plain HTML and the pipe is inert text.
 
 <sup>2</sup> `.svelte` single-file components are analysed as well, provided the [Svelte plugin](https://plugins.jetbrains.com/plugin/12375-svelte) is installed — it is not bundled with IntelliJ Ultimate, and without it a `.svelte` file is plain text to the IDE. With it, both the `<script>` block and `{…}` expressions in the markup are ordinary JavaScript, so keys inside them resolve like any other.
 
