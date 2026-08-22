@@ -26,11 +26,37 @@ object PluralGroup {
      */
     private val CLDR_CATEGORIES = listOf("zero", "one", "two", "few", "many", "other")
 
+    /** The branch that stands for the group when one has to be picked, as ICU rendering does. */
+    private const val PREFERRED_CATEGORY = "other"
+
     /** True when [node] is an object made only of CLDR plural categories. */
     fun isPluralGroup(node: Tree<PsiElement>?): Boolean {
         if (node == null || !node.isTree()) return false
         val children = node.findChildren("")
         if (children.isEmpty()) return false
         return CLDR_CATEGORIES.count { node.findChild(it) != null } == children.size
+    }
+
+    /**
+     * The node to *display* for [node]: itself when it already holds a value, or the branch
+     * standing for the whole group when it is a plural object — `other`, falling back to the
+     * first category declared. That is the rule `IcuMessageRenderer` applies to ICU messages,
+     * so both pluralization styles read the same way in folding, hints and inlay hints.
+     *
+     * Returns null when there is nothing sensible to show — an ordinary object, or a group
+     * whose branch is itself an object: a value is displayed, never a sub-tree.
+     *
+     * Folding, hints and inlay hints all go through here rather than testing `isLeaf`
+     * themselves, so a key resolved as a plural group cannot end up annotated as resolved
+     * while showing nothing — which is exactly what happened when i18n-js plurals started
+     * resolving.
+     */
+    fun displayableValue(node: Tree<PsiElement>?): Tree<PsiElement>? {
+        if (node == null) return null
+        if (node.isLeaf()) return node
+        if (!isPluralGroup(node)) return null
+        val branch = node.findChild(PREFERRED_CATEGORY)
+            ?: CLDR_CATEGORIES.firstNotNullOfOrNull { node.findChild(it) }
+        return branch?.takeIf { it.isLeaf() }
     }
 }

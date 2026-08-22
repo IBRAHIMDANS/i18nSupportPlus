@@ -67,4 +67,51 @@ class PluralGroupTest : PlatformBaseTest() {
 
         Assertions.assertFalse(ReadAction.compute<Boolean, RuntimeException> { PluralGroup.isPluralGroup(node) })
     }
+
+    // -----------------------------------------------------------------------
+    // displayableValue — the single entry point folding, hints and inlays use
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun displayableValueOfAPluralGroupIsItsOtherBranch() {
+        val node = nodeOf("""{"box": {"one": "1 boîte", "other": "%{count} boîtes"}}""", "box")
+
+        val displayed = ReadAction.compute<String?, RuntimeException> {
+            PluralGroup.displayableValue(node)?.value()?.text
+        }
+        Assertions.assertEquals("\"%{count} boîtes\"", displayed)
+    }
+
+    /** Without `other`, the first category declared stands for the group. */
+    @Test
+    fun displayableValueFallsBackToTheFirstCategory() {
+        val node = nodeOf("""{"box": {"few": "quelques", "many": "beaucoup"}}""", "box")
+
+        val displayed = ReadAction.compute<String?, RuntimeException> {
+            PluralGroup.displayableValue(node)?.value()?.text
+        }
+        Assertions.assertEquals("\"quelques\"", displayed)
+    }
+
+    @Test
+    fun displayableValueOfALeafIsTheLeafItself() {
+        val node = nodeOf("""{"title": "T"}""", "title")
+
+        Assertions.assertNotNull(ReadAction.compute<Any?, RuntimeException> { PluralGroup.displayableValue(node) })
+    }
+
+    @Test
+    fun anOrdinaryObjectHasNothingToDisplay() {
+        val node = nodeOf("""{"dashboard": {"title": "T", "subtitle": "S"}}""", "dashboard")
+
+        Assertions.assertNull(ReadAction.compute<Any?, RuntimeException> { PluralGroup.displayableValue(node) })
+    }
+
+    /** A value is displayed, never a sub-tree: a branch holding an object shows nothing. */
+    @Test
+    fun aBranchThatIsItselfAnObjectIsNotDisplayed() {
+        val node = nodeOf("""{"box": {"other": {"nested": "value"}}}""", "box")
+
+        Assertions.assertNull(ReadAction.compute<Any?, RuntimeException> { PluralGroup.displayableValue(node) })
+    }
 }

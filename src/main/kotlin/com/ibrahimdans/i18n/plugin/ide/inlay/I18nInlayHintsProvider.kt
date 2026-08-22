@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin.ide.inlay
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
+import com.ibrahimdans.i18n.plugin.tree.PluralGroup
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ellipsis
@@ -57,8 +58,9 @@ class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiEleme
                     .findSources(fullKey.allNamespaces(), project)
                     .filter { it.parent == config.foldingPreferredLanguage }
                     .mapNotNull { resolveCompositeKey(fullKey.compositeKey, it) }
-                    .firstOrNull { it.unresolved.isEmpty() && it.element?.isLeaf() == true }
-                    ?.element?.value()?.text?.unQuote()
+                    .filter { it.unresolved.isEmpty() }
+                    .firstNotNullOfOrNull { PluralGroup.displayableValue(it.element) }
+                    ?.value()?.text?.unQuote()
                     ?.renderIcu()
                     ?.ellipsis(config.foldingMaxLength)
                     ?: return
