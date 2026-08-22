@@ -58,6 +58,11 @@
 ### Build
 
 - [Repository] Delete `org/jetbrains/intellij/platform/gradle/Constants.kt`, a copy of an IntelliJ Platform Gradle Plugin source file committed at the repository root in #20. It sits outside every source set, is imported by nothing and is not referenced by the build — it only made the repository look like it shipped a package it does not own
+- [deps] Bump Kotlin from 2.4.0 to 2.4.10 — the `org.jetbrains.kotlin.jvm` plugin and the `kotlin-stdlib` pinned through `resolutionStrategy.force` on the plugin and test runtime classpaths are bumped together, so the compiler and the stdlib shipped in the plugin's `lib/` stay on the same version
+- [deps] Bump JUnit from 6.1.2 to 6.1.3 (`junit-bom`, `junit-jupiter`, `junit-jupiter-api`, `junit-jupiter-params`, `junit-jupiter-engine`)
+- [deps] Bump the Gradle wrapper from 9.6.1 to 9.7.0, and realign `gradleVersion` in `gradle.properties`, which had stayed behind on 9.4.1. That property is what the `wrapper` task writes into the wrapper, so running `./gradlew wrapper` would have silently downgraded the distribution by three minor versions — undoing the bump that had just been merged. Dependabot only ever edits `gradle-wrapper.properties`, so the two had drifted apart across several bumps and have to be moved together from now on
+- [ci] Bump `gradle/actions/setup-gradle` from the floating `v6` tag to the pinned `v6.3.0`, across the five workflows that use it (`ci`, `compatibility`, `coverage`, `prepare-release`, `release`)
+- [ci] Bump `actions/labeler` from v6 to v7 and `actions/stale` from v10 to v11
 
 ## 1.2.1 - 2026-07-15
 
