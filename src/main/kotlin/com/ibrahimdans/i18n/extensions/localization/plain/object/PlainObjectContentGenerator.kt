@@ -14,9 +14,10 @@ import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import javax.swing.Icon
 
-// PO is a flat list of msgid/msgstr entries with no nested blocks. The GNU GetText PSI plugin
-// (org.jetbrains.plugins.localization) is unavailable on IntelliJ 243.x+, so we fall back to
-// document-level text insertion.
+// PO is a flat list of msgid/msgstr entries with no nested blocks, so entries are appended as text
+// at document level rather than built as PSI. The GNU GetText plugin
+// (org.jetbrains.plugins.localization) is declared in build.gradle.kts and its PSI does resolve —
+// PlainObjectTextTree and PlainObjectReferenceAssistant both read it.
 class PlainObjectContentGenerator : ContentGenerator {
 
     private companion object {
