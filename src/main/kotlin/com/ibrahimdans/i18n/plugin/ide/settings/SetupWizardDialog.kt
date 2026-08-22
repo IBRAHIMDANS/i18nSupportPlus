@@ -223,9 +223,13 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
             else -> "<p><b>Translations root:</b> ${StringUtil.escapeXmlEntities(detectedRoot)}</p>"
         }
 
+        // The ticked frameworks used to feed this sentence and nothing else. Listing what they
+        // actually change is what makes the checkboxes mean something.
+        val settingsNote = describeDeducedSettings()
+
         val closing = if (fileCount > 0 && detectedRoot != null)
-            "<p style=\"color:gray\">Clicking <b>Apply</b> will store that translation root path " +
-            "in the plugin settings. You can adjust further in <i>Settings → Tools → i18n Support Plus Configuration</i>.</p>"
+            "<p style=\"color:gray\">Clicking <b>Apply</b> will store these settings. " +
+            "You can adjust them in <i>Settings → Tools → i18n Support Plus Configuration</i>.</p>"
         else ""
 
         val html = "<html><body style=\"font-family:sans-serif\">" +
@@ -233,10 +237,41 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
             "<p><b>Translation files found:</b> $fileCount file(s)</p>" +
             (if (fileCount > 0) "<p>$fileSample$moreNote</p>" else "") +
             rootNote +
+            settingsNote +
             poNote +
             closing +
             "</body></html>"
         summaryLabel.text = html
+    }
+
+    /**
+     * Lists the settings *Apply* is about to write, or nothing when it would write none.
+     *
+     * Only the ones that will actually be stored are listed: a field the user already changed
+     * is left alone, so announcing it would be another promise the wizard does not keep.
+     */
+    private fun describeDeducedSettings(): String {
+        val deduced = WizardSettingsDeducer.deduce(foundFiles, selectedFrameworks())
+        if (deduced.isEmpty()) return ""
+
+        val settings = Settings.getInstance(project)
+        val defaults = Config()
+        val rows = buildList {
+            deduced.defaultNs
+                ?.takeIf { settings.defaultNs == defaults.defaultNs }
+                ?.let { add("Default namespace: <b>${StringUtil.escapeXmlEntities(it)}</b>") }
+            deduced.gettext
+                ?.takeIf { settings.gettext == defaults.gettext }
+                ?.let { add("GetText mode: <b>on</b>") }
+            deduced.flatKeys
+                ?.takeIf { settings.flatKeys == defaults.flatKeys }
+                ?.let { add("Treat keys as flat: <b>on</b> (react-intl stores flat ids)") }
+            deduced.preferredLocalization
+                ?.takeIf { WizardSettingsDeducer.isUntouchedPreferredLocalization(settings.preferredLocalization) }
+                ?.let { add("Preferred format: <b>${StringUtil.escapeXmlEntities(it)}</b>") }
+        }
+        if (rows.isEmpty()) return ""
+        return "<p><b>Settings to apply:</b></p><p>" + rows.joinToString("<br>") { "• $it" } + "</p>"
     }
 
     /**
@@ -249,9 +284,43 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
         // foundFiles holds paths relative to the project, and translationsRoot is read back as
         // "$basePath/$translationsRoot", so what is stored here must stay relative too.
         TranslationRootDetector.detect(foundFiles)?.let { settings.translationsRoot = it }
+        applyDeducedSettings(settings)
 
         super.doOKAction()
     }
+
+    /**
+     * Applies what the scan and the ticked frameworks imply, without ever overwriting a value
+     * the user already changed.
+     *
+     * The wizard opens on first launch, but nothing guarantees it writes first: settings can
+     * be edited before it is answered, or it can be reopened later. Each field is therefore
+     * written only while it still holds the default from [Config] — which is also why
+     * `Deduced` uses nulls rather than falling back to defaults itself.
+     */
+    private fun applyDeducedSettings(settings: Settings) {
+        val deduced = WizardSettingsDeducer.deduce(foundFiles, selectedFrameworks())
+        val defaults = Config()
+
+        deduced.defaultNs
+            ?.takeIf { settings.defaultNs == defaults.defaultNs }
+            ?.let { settings.defaultNs = it }
+
+        deduced.gettext
+            ?.takeIf { settings.gettext == defaults.gettext }
+            ?.let { settings.gettext = it }
+
+        deduced.flatKeys
+            ?.takeIf { settings.flatKeys == defaults.flatKeys }
+            ?.let { settings.flatKeys = it }
+
+        deduced.preferredLocalization
+            ?.takeIf { WizardSettingsDeducer.isUntouchedPreferredLocalization(settings.preferredLocalization) }
+            ?.let { settings.preferredLocalization = it }
+    }
+
+    private fun selectedFrameworks(): Set<String> =
+        frameworkCheckboxes.filterValues { it.isSelected }.keys
 
     override fun doCancelAction() {
         Settings.getInstance(project).wizardDismissed = true
