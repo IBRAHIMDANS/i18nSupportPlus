@@ -23,9 +23,6 @@ import javax.swing.*
 class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
 
     companion object {
-        private val TRANSLATION_FOLDER_NAMES = setOf("locales", "i18n", "translations")
-        private val TRANSLATION_EXTENSIONS = setOf("json", "yaml", "yml", "po", "pot")
-        private const val MAX_SCAN_DEPTH = 5
         private const val STEP_FRAMEWORK = "FRAMEWORK"
         private const val STEP_FILES = "FILES"
         private const val STEP_SUMMARY = "SUMMARY"
@@ -183,38 +180,17 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
     }
 
     /**
-     * Recursively scans the project for translation files inside known folder names.
+     * Scans the project for translation files inside the known folder names, through
+     * [TranslationFileScanner] so the shipped tables are the ones under test.
      */
     private fun scanTranslationFiles() {
         val base = File(project.basePath ?: return)
         foundFiles.clear()
         fileListModel.clear()
-        collectTranslationFiles(base, base, 0)
-    }
-
-    private fun collectTranslationFiles(base: File, dir: File, depth: Int) {
-        if (depth > MAX_SCAN_DEPTH) return
-        val children = dir.listFiles() ?: return
-        for (child in children) {
-            if (child.isDirectory) {
-                if (child.name in TRANSLATION_FOLDER_NAMES) {
-                    // List all .json/.yaml/.yml files inside
-                    collectAllTranslations(base, child)
-                } else if (!child.name.startsWith(".") && child.name != "node_modules" && child.name != "build") {
-                    collectTranslationFiles(base, child, depth + 1)
-                }
-            }
+        for (relative in TranslationFileScanner.scan(base)) {
+            foundFiles.add(relative)
+            fileListModel.addElement(relative)
         }
-    }
-
-    private fun collectAllTranslations(base: File, folder: File) {
-        folder.walkTopDown()
-            .filter { it.isFile && it.extension in TRANSLATION_EXTENSIONS }
-            .forEach { file ->
-                val relative = file.relativeTo(base).path
-                foundFiles.add(relative)
-                fileListModel.addElement(relative)
-            }
     }
 
     private fun refreshSummary() {
@@ -235,13 +211,30 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
             "<b>GNU GetText</b> plugin (<i>Settings → Plugins → Marketplace → \"GNU GetText files support\"</i>).</p>"
         else ""
 
+        // Announcing "Apply stores the root" while none could be derived is what made the
+        // wizard look like it had configured the project when it had written nothing.
+        val detectedRoot = TranslationRootDetector.detect(foundFiles)
+        val rootNote = when {
+            fileCount == 0 -> ""
+            detectedRoot == null ->
+                "<p style=\"color:#CC7700\">⚠ No common translation root could be derived from these files, " +
+                "so <b>Apply</b> will not set one. Point the plugin at your translations in " +
+                "<i>Settings → Tools → i18n Support Plus Configuration</i>.</p>"
+            else -> "<p><b>Translations root:</b> ${StringUtil.escapeXmlEntities(detectedRoot)}</p>"
+        }
+
+        val closing = if (fileCount > 0 && detectedRoot != null)
+            "<p style=\"color:gray\">Clicking <b>Apply</b> will store that translation root path " +
+            "in the plugin settings. You can adjust further in <i>Settings → Tools → i18n Support Plus Configuration</i>.</p>"
+        else ""
+
         val html = "<html><body style=\"font-family:sans-serif\">" +
             "<p><b>Frameworks detected:</b> $selectedFrameworks</p>" +
             "<p><b>Translation files found:</b> $fileCount file(s)</p>" +
             (if (fileCount > 0) "<p>$fileSample$moreNote</p>" else "") +
+            rootNote +
             poNote +
-            "<p style=\"color:gray\">Clicking <b>Apply</b> will store the detected translation root path " +
-            "in the plugin settings. You can adjust further in <i>Settings → Tools → i18n Support Plus Configuration</i>.</p>" +
+            closing +
             "</body></html>"
         summaryLabel.text = html
     }
@@ -253,22 +246,9 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
         val settings = Settings.getInstance(project)
         settings.wizardDismissed = true
 
-        // Determine the most common parent folder of found translation files
-        if (foundFiles.isNotEmpty()) {
-            val rootGuess = foundFiles
-                .mapNotNull {
-                    val parent = File(it).parentFile
-                    // GetText layout: locale/LC_MESSAGES/file.po — go up one extra level to reach the locale root
-                    if (parent?.name == "LC_MESSAGES") parent.parentFile?.parentFile?.path
-                    else parent?.parentFile?.path
-                }
-                .groupBy { it }
-                .maxByOrNull { it.value.size }
-                ?.key ?: ""
-            if (rootGuess.isNotEmpty()) {
-                settings.translationsRoot = rootGuess
-            }
-        }
+        // foundFiles holds paths relative to the project, and translationsRoot is read back as
+        // "$basePath/$translationsRoot", so what is stored here must stay relative too.
+        TranslationRootDetector.detect(foundFiles)?.let { settings.translationsRoot = it }
 
         super.doOKAction()
     }

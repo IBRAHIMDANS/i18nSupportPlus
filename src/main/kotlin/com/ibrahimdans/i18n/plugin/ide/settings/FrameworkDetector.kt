@@ -13,7 +13,10 @@ object FrameworkDetector {
         "i18next" to listOf("i18next", "react-i18next"),
         "vue-i18n" to listOf("vue-i18n"),
         "lingui" to listOf("@lingui/core", "@lingui/react", "@lingui/macro", "@lingui/react/macro"),
-        "react-intl" to listOf("react-intl", "@formatjs/intl")
+        "react-intl" to listOf("react-intl", "@formatjs/intl"),
+        "ngx-translate" to listOf("@ngx-translate/core"),
+        "svelte-i18n" to listOf("svelte-i18n"),
+        "i18n-js" to listOf("i18n-js")
     )
 
     /** Framework id to the label shown on the wizard's checkbox. */
@@ -21,7 +24,10 @@ object FrameworkDetector {
         "i18next" to "i18next / react-i18next",
         "vue-i18n" to "vue-i18n",
         "lingui" to "lingui",
-        "react-intl" to "react-intl (FormatJS)"
+        "react-intl" to "react-intl (FormatJS)",
+        "ngx-translate" to "ngx-translate (Angular)",
+        "svelte-i18n" to "svelte-i18n",
+        "i18n-js" to "i18n-js (React Native / Expo)"
     )
 
     /**

@@ -135,37 +135,13 @@ class SetupWizardDialogTest : PlatformBaseTest() {
     // -----------------------------------------------------------------------
 
     /**
-     * Replicates the collectTranslationFiles/collectAllTranslations logic without a dialog.
+     * Exercises the real scan used by the wizard. It lives in [TranslationFileScanner] so it
+     * can run headlessly — this helper used to hold a *copy* of the folder and extension
+     * tables, which meant these tests would have kept passing had the shipped ones been
+     * broken. The same trap #155 removed from framework detection.
      */
-    private fun scanTranslationFiles(base: File): List<String> {
-        val translationFolderNames = setOf("locales", "i18n", "translations")
-        val translationExtensions = setOf("json", "yaml", "yml", "po", "pot")
-        val maxScanDepth = 5
-        val found = mutableListOf<String>()
-
-        fun collectAll(folder: File) {
-            folder.walkTopDown()
-                .filter { it.isFile && it.extension in translationExtensions }
-                .forEach { found.add(it.relativeTo(base).path) }
-        }
-
-        fun scan(dir: File, depth: Int) {
-            if (depth > maxScanDepth) return
-            val children = dir.listFiles() ?: return
-            for (child in children) {
-                if (child.isDirectory) {
-                    if (child.name in translationFolderNames) {
-                        collectAll(child)
-                    } else if (!child.name.startsWith(".") && child.name != "node_modules" && child.name != "build") {
-                        scan(child, depth + 1)
-                    }
-                }
-            }
-        }
-
-        scan(base, 0)
-        return found
-    }
+    private fun scanTranslationFiles(base: File): List<String> =
+        TranslationFileScanner.scan(base)
 
     @org.junit.jupiter.api.Test
     fun `scanTranslationFiles finds json files in locales folder`() {
@@ -317,6 +293,80 @@ class SetupWizardDialogTest : PlatformBaseTest() {
             val detected = detectFrameworksFromContent(content)
 
             assertTrue(detected.contains("i18next"), "react-i18next should map to i18next")
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Frameworks shipped since #151 but missing from the wizard
+    // -----------------------------------------------------------------------
+
+    @org.junit.jupiter.api.Test
+    fun `detectFrameworks detects ngx-translate`() {
+        val detected = detectFrameworksFromContent(
+            """{"dependencies": {"@ngx-translate/core": "^15.0.0", "@angular/core": "^17.0.0"}}"""
+        )
+
+        assertEquals(setOf("ngx-translate"), detected)
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `detectFrameworks detects svelte-i18n`() {
+        val detected = detectFrameworksFromContent(
+            """{"dependencies": {"svelte-i18n": "^4.0.0"}}"""
+        )
+
+        assertEquals(setOf("svelte-i18n"), detected)
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `detectFrameworks detects i18n-js`() {
+        val detected = detectFrameworksFromContent(
+            """{"dependencies": {"i18n-js": "^4.4.0", "expo": "^51.0.0"}}"""
+        )
+
+        assertEquals(setOf("i18n-js"), detected)
+    }
+
+    /** Every framework the wizard knows must offer a checkbox, or it stays invisible. */
+    @org.junit.jupiter.api.Test
+    fun `every detected framework carries a label`() {
+        assertEquals(
+            FrameworkDetector.FRAMEWORK_KEYS.keys,
+            FrameworkDetector.LABELS.keys,
+            "the wizard builds its checkboxes from both tables"
+        )
+    }
+
+    // -----------------------------------------------------------------------
+    // Folder names added for the flat / GetText layouts
+    // -----------------------------------------------------------------------
+
+    @org.junit.jupiter.api.Test
+    fun `scanTranslationFiles finds files in a lang folder`() {
+        val tempDir = createTempDir("wizard-lang")
+        try {
+            File(tempDir, "lang").mkdirs()
+            File(tempDir, "lang/fr.json").writeText("{}")
+
+            assertEquals(listOf("lang${File.separator}fr.json"), scanTranslationFiles(tempDir))
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `scanTranslationFiles finds files in a locale folder`() {
+        val tempDir = createTempDir("wizard-locale")
+        try {
+            File(tempDir, "locale/fr/LC_MESSAGES").mkdirs()
+            File(tempDir, "locale/fr/LC_MESSAGES/messages.po").writeText("")
+
+            assertEquals(
+                listOf(listOf("locale", "fr", "LC_MESSAGES", "messages.po").joinToString(File.separator)),
+                scanTranslationFiles(tempDir)
+            )
         } finally {
             tempDir.deleteRecursively()
         }
