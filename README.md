@@ -49,7 +49,7 @@ A setup wizard auto-configures it on first launch.
 
 <sup>1</sup> The `| translate` pipe is only recognised inside JSX/TSX, where the markup is part of the file's PSI. Standalone Angular templates (`.html`) are not analysed — the plugin registers no annotator for them.
 
-<sup>2</sup> svelte-i18n calls are recognised in `.js` and `.ts` files; `.svelte` single-file components are not analysed yet.
+<sup>2</sup> `.svelte` single-file components are analysed as well, provided the [Svelte plugin](https://plugins.jetbrains.com/plugin/12375-svelte) is installed — it is not bundled with IntelliJ Ultimate, and without it a `.svelte` file is plain text to the IDE. With it, both the `<script>` block and `{…}` expressions in the markup are ordinary JavaScript, so keys inside them resolve like any other.
 
 <sup>3</sup> i18n-js pluralizes into a nested object (`{ one: …, other: … }`) rather than through i18next's flat `key_one` suffixes; such a key is treated as resolved. Its `%{count}` placeholders are displayed verbatim, as the plugin interprets no interpolation syntax.
 
