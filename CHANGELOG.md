@@ -37,6 +37,8 @@
 
 ### Tests
 
+- [Inlay Hints] Cover `I18nInlayHintsProvider`, which had no test at all while folding and hints — sharing its resolution path and its `unQuote()` → `renderIcu()` → `ellipsis()` display pipeline — had eleven suites between them. Every change to that pipeline was verified on two of the three display points and read over on the third. The declarative inlay API offers no fixture helper, so the collector is driven directly through a capturing `InlayTreeSink`: resolved key produces one hint carrying its value, unresolved key and missing translation file produce none, truncation honours `foldingMaxLength`, an ICU message is rendered rather than shown raw, and only the preferred folding language is displayed. The provider itself is unchanged
+
 - [React-Intl] Cover react-intl end to end, where nothing existed: `ReactIntlExtractorTest` pins `canExtract` (qualified call, bare call, `defaultMessage` rejection), `ReactIntlLangWiringTest` walks the whole `Lang` pipeline through `RawKeyParser`, and `ReactIntlHighlightingTest` checks the annotations for both the descriptor and `<FormattedMessage>` forms. The absence of any such test is why the argument-list bug shipped twice
 - [React-Intl] Pin the catalogue extraction with `DefineMessagesExtractorTest` (multi-entry `defineMessages`, singular `defineMessage`, `defaultMessage` / `description` never claimed, plain object and unrelated call ignored, plus the `Lang` pipeline and its veto) and four highlighting cases on the annotator itself. The plain-object case is the one that matters: it proves the extractor keys on the call, not on the shape of the object
 
