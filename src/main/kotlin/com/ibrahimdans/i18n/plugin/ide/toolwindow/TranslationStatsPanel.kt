@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader.extractL
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader.extractNamespace
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.icons.AllIcons
 import com.intellij.ide.DataManager
 import com.intellij.openapi.application.ApplicationManager
@@ -61,7 +62,13 @@ internal fun selectReferenceLocale(stats: List<LocaleStats>): String? =
 class TranslationStatsPanel(private val project: Project, private val moduleConfig: ModuleConfig? = null) : JPanel(BorderLayout()) {
 
     private val tableModel = object : DefaultTableModel(
-        arrayOf("Locale", "Total", "Translated", "Missing", "%"),
+        arrayOf(
+            PluginBundle.message("toolwindow.stats.column.locale"),
+            PluginBundle.message("toolwindow.stats.column.total"),
+            PluginBundle.message("toolwindow.stats.column.translated"),
+            PluginBundle.message("toolwindow.stats.column.missing"),
+            PluginBundle.message("toolwindow.stats.column.percent"),
+        ),
         0
     ) {
         override fun isCellEditable(row: Int, column: Int): Boolean = false
@@ -74,10 +81,10 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
         override fun getToolTipText(e: MouseEvent): String? {
             val row = rowAtPoint(e.point)
             val rowStats = stats.getOrNull(row) ?: return null
-            return if (rowStats.missing > 0) "Click to list the ${rowStats.missing} missing keys" else null
+            return if (rowStats.missing > 0) PluginBundle.message("toolwindow.stats.missing.tooltip", rowStats.missing) else null
         }
     }
-    private val statusLabel = JBLabel("Click Refresh to load stats")
+    private val statusLabel = JBLabel(PluginBundle.message("toolwindow.stats.idle"))
     private var stats: List<LocaleStats> = emptyList()
 
     init {
@@ -112,14 +119,14 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
 
     private fun buildToolbar(): JPanel {
         val panel = JPanel(FlowLayout(FlowLayout.LEFT, 4, 2))
-        val refreshButton = JButton("Refresh", AllIcons.Actions.Refresh)
+        val refreshButton = JButton(PluginBundle.message("toolwindow.stats.refresh"), AllIcons.Actions.Refresh)
         refreshButton.addActionListener { refresh() }
         panel.add(refreshButton)
         return panel
     }
 
     fun refresh() {
-        statusLabel.text = "Loading..."
+        statusLabel.text = PluginBundle.message("toolwindow.stats.loading")
         ApplicationManager.getApplication().executeOnPooledThread {
             val stats = TranslationStatsAnalyzer.analyze(project, moduleConfig)
             ApplicationManager.getApplication().invokeLater {
@@ -143,7 +150,7 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
             )
         }
         if (stats.isEmpty()) {
-            statusLabel.text = "No translation data found."
+            statusLabel.text = PluginBundle.message("toolwindow.stats.empty")
         } else {
             statusLabel.text = "${stats.size} locale(s) analyzed. Click a row to see missing keys."
         }
@@ -174,7 +181,12 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
 
         JBPopupFactory.getInstance()
             .createComponentPopupBuilder(scrollPane, list)
-            .setTitle("Missing in '${rowStats.locale}' (${rowStats.missing}) — reference: $referenceLocale")
+            .setTitle(
+                PluginBundle.message(
+                    "toolwindow.stats.missing.popup.title",
+                    rowStats.locale, rowStats.missing, referenceLocale
+                )
+            )
             .setResizable(true)
             .setMovable(true)
             .setRequestFocus(true)

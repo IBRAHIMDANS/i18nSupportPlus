@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin.ide.toolwindow
 import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
 import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
@@ -30,7 +31,7 @@ import javax.swing.tree.DefaultTreeModel
 class TreeViewPanel(private val project: Project, private val moduleConfig: ModuleConfig? = null) : JPanel(BorderLayout()) {
 
     private val viewModel = TreeViewModel()
-    private val rootTreeNode = DefaultMutableTreeNode("Translations")
+    private val rootTreeNode = DefaultMutableTreeNode(PluginBundle.message("toolwindow.tree.root"))
     private val treeModel = DefaultTreeModel(rootTreeNode)
     private val tree = Tree(treeModel)
     private var allLocales: List<String> = emptyList()

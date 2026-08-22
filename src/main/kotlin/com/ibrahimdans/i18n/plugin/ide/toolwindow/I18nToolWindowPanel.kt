@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnAction
@@ -80,9 +81,9 @@ class I18nToolWindowPanel(private val project: Project) : SimpleToolWindowPanel(
         modulePanels = emptyList()
 
         val tabbedPane = JBTabbedPane()
-        tabbedPane.addTab("Tree", tree)
-        tabbedPane.addTab("Table", table)
-        tabbedPane.addTab("Stats", stats)
+        tabbedPane.addTab(PluginBundle.message("toolwindow.tab.tree"), tree)
+        tabbedPane.addTab(PluginBundle.message("toolwindow.tab.table"), table)
+        tabbedPane.addTab(PluginBundle.message("toolwindow.tab.stats"), stats)
         setContent(tabbedPane)
     }
 
@@ -105,10 +106,10 @@ class I18nToolWindowPanel(private val project: Project) : SimpleToolWindowPanel(
         val outerTabs = JBTabbedPane()
         for (set in sets) {
             val innerTabs = JBTabbedPane()
-            innerTabs.addTab("Tree", set.tree)
-            innerTabs.addTab("Table", set.table)
-            innerTabs.addTab("Stats", set.stats)
-            val tabTitle = set.config.name.ifBlank { "Module" }
+            innerTabs.addTab(PluginBundle.message("toolwindow.tab.tree"), set.tree)
+            innerTabs.addTab(PluginBundle.message("toolwindow.tab.table"), set.table)
+            innerTabs.addTab(PluginBundle.message("toolwindow.tab.stats"), set.stats)
+            val tabTitle = set.config.name.ifBlank { PluginBundle.message("toolwindow.module.unnamed") }
             outerTabs.addTab(tabTitle, innerTabs)
         }
         setContent(outerTabs)
@@ -146,7 +147,11 @@ class I18nToolWindowPanel(private val project: Project) : SimpleToolWindowPanel(
     private fun buildTopBar(): javax.swing.JComponent {
         val group = DefaultActionGroup()
 
-        group.add(object : AnAction("Add Translation", "Add a new translation key", AllIcons.General.Add) {
+        group.add(object : AnAction(
+            PluginBundle.message("toolwindow.action.add.translation"),
+            PluginBundle.message("toolwindow.action.add.translation.description"),
+            AllIcons.General.Add
+        ) {
             override fun actionPerformed(e: AnActionEvent) {
                 val fullKey = FullKey(source = "", ns = null, compositeKey = emptyList())
                 val dialog = TranslationDialog(project, fullKey, Mode.CREATE)
@@ -156,20 +161,24 @@ class I18nToolWindowPanel(private val project: Project) : SimpleToolWindowPanel(
             }
         })
 
-        group.add(object : AnAction("Add Namespace", "Create a new translation namespace", AllIcons.Nodes.Package) {
+        group.add(object : AnAction(
+            PluginBundle.message("toolwindow.action.add.namespace"),
+            PluginBundle.message("toolwindow.action.add.namespace.description"),
+            AllIcons.Nodes.Package
+        ) {
             override fun actionPerformed(e: AnActionEvent) {
                 val input = Messages.showInputDialog(
                     project,
-                    "Namespace name (letters, digits, hyphens):",
-                    "Add Namespace",
+                    PluginBundle.message("toolwindow.action.add.namespace.prompt"),
+                    PluginBundle.message("toolwindow.action.add.namespace"),
                     null
                 )?.trim() ?: return
                 if (input.isBlank()) return
                 if (!input.matches(Regex("[a-zA-Z0-9-]+"))) {
                     Messages.showErrorDialog(
                         project,
-                        "Invalid namespace name. Only letters, digits and hyphens are allowed.",
-                        "Invalid Name"
+                        PluginBundle.message("toolwindow.action.add.namespace.invalid"),
+                        PluginBundle.message("toolwindow.action.add.namespace.invalid.title")
                     )
                     return
                 }
@@ -178,7 +187,11 @@ class I18nToolWindowPanel(private val project: Project) : SimpleToolWindowPanel(
             }
         })
 
-        group.add(object : AnAction("Refresh", "Reload all translations", AllIcons.Actions.Refresh) {
+        group.add(object : AnAction(
+            PluginBundle.message("toolwindow.action.refresh"),
+            PluginBundle.message("toolwindow.action.refresh.description"),
+            AllIcons.Actions.Refresh
+        ) {
             override fun actionPerformed(e: AnActionEvent) {
                 refresh()
             }
@@ -188,7 +201,11 @@ class I18nToolWindowPanel(private val project: Project) : SimpleToolWindowPanel(
         // button and the Tools menu entry are then the same thing, labelled once.
         ActionManager.getInstance().getAction(SyncKeysAction.ID)?.let { group.add(it) }
 
-        group.add(object : AnAction("Settings", "Open i18n Support Plus settings", AllIcons.General.Settings) {
+        group.add(object : AnAction(
+            PluginBundle.message("toolwindow.action.settings"),
+            PluginBundle.message("toolwindow.action.settings.description"),
+            AllIcons.General.Settings
+        ) {
             override fun actionPerformed(e: AnActionEvent) {
                 ShowSettingsUtil.getInstance().showSettingsDialog(project, "i18n Support Plus Configuration")
             }
@@ -200,7 +217,7 @@ class I18nToolWindowPanel(private val project: Project) : SimpleToolWindowPanel(
         // and anchors action tooltips to the wrong component).
         actionToolbar.targetComponent = this
 
-        searchField.textEditor.toolTipText = "Filter by key or translation value"
+        searchField.textEditor.toolTipText = PluginBundle.message("toolwindow.search.tooltip")
 
         val topBar = JPanel(BorderLayout())
         topBar.add(actionToolbar.component, BorderLayout.WEST)

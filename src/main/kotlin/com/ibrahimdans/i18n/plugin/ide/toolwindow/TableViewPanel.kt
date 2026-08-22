@@ -9,6 +9,7 @@ import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
 import com.intellij.json.psi.JsonProperty
 import com.intellij.psi.util.PsiTreeUtil
@@ -42,9 +43,12 @@ import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.DefaultTableModel
 import javax.swing.table.TableRowSorter
 
-private const val ALL_NAMESPACES = "All namespaces"
-private const val USAGE_COLUMN_NAME = "Usage"
-private const val NOT_SCANNED_TOOLTIP = "Run Scan Orphans to compute usages"
+// Not `const`: these come from the bundle now. ALL_NAMESPACES doubles as the sentinel the
+// namespace filter compares against, so it must stay a single value read once — which it is,
+// the IDE locale being fixed for the lifetime of the process.
+private val ALL_NAMESPACES = PluginBundle.message("toolwindow.table.namespace.all")
+private val USAGE_COLUMN_NAME = PluginBundle.message("toolwindow.table.column.usage")
+private val NOT_SCANNED_TOOLTIP = PluginBundle.message("toolwindow.table.usage.not.scanned")
 internal const val DISPLAY_VALUE_MAX_LENGTH = 200
 
 /**
@@ -103,8 +107,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             } else {
                 Messages.showErrorDialog(
                     project,
-                    "Could not write '$key' for locale '$locale'. No matching translation file was found, or the file is not writable.",
-                    "Edit Translation"
+                    PluginBundle.message("toolwindow.table.edit.failed", key, locale),
+                    PluginBundle.message("toolwindow.table.edit.failed.title")
                 )
             }
         }
@@ -116,8 +120,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     private var currentNamespace: String = ALL_NAMESPACES
 
     private val namespaceCombo = JComboBox(arrayOf(ALL_NAMESPACES))
-    private val scanButton = JButton("Scan Orphans").apply {
-        toolTipText = "Count code usages for each key and fill the Usage column"
+    private val scanButton = JButton(PluginBundle.message("toolwindow.table.scan.orphans")).apply {
+        toolTipText = PluginBundle.message("toolwindow.table.scan.orphans.tooltip")
     }
 
     init {
@@ -148,7 +152,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         scanButton.addActionListener { scanOrphans() }
 
         val filterBar = JPanel(BorderLayout()).apply {
-            add(JLabel("Namespace: "), BorderLayout.WEST)
+            add(JLabel(PluginBundle.message("toolwindow.table.namespace.label") + " "), BorderLayout.WEST)
             add(namespaceCombo, BorderLayout.CENTER)
             add(scanButton, BorderLayout.EAST)
         }
@@ -215,7 +219,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     }
 
     private fun rebuildTable(rows: List<TranslationRow>, locales: List<String>) {
-        val columnNames = arrayOf("Key") + locales.toTypedArray() + USAGE_COLUMN_NAME
+        val columnNames = arrayOf(PluginBundle.message("toolwindow.table.column.key")) + locales.toTypedArray() + USAGE_COLUMN_NAME
         val data = rows.map { row ->
             val usageCell = when (row.usageCount) {
                 -1 -> "—"
@@ -275,11 +279,11 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
         val menu = JPopupMenu()
         if (isOrphan) {
-            val deleteItem = javax.swing.JMenuItem("Delete orphan key")
+            val deleteItem = javax.swing.JMenuItem(PluginBundle.message("toolwindow.table.delete.orphan"))
             deleteItem.addActionListener { deleteOrphanKey(key) }
             menu.add(deleteItem)
         } else {
-            val disabledItem = javax.swing.JMenuItem("No action available")
+            val disabledItem = javax.swing.JMenuItem(PluginBundle.message("toolwindow.table.no.action"))
             disabledItem.isEnabled = false
             menu.add(disabledItem)
         }
@@ -296,9 +300,9 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         scanButton.isEnabled = false
         val rowsToScan = allRows.toList()
 
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Scanning i18n orphan keys…", false) {
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("toolwindow.table.scan.progress.title"), false) {
             override fun run(indicator: ProgressIndicator) {
-                indicator.text = "Counting usages…"
+                indicator.text = PluginBundle.message("toolwindow.table.scan.progress.text")
                 val scanned = viewModel.countUsages(project, rowsToScan)
 
                 ApplicationManager.getApplication().invokeLater {
@@ -462,7 +466,7 @@ internal class OrphanKeyDeleter(
         }
         if (properties.isEmpty()) return
 
-        WriteCommandAction.runWriteCommandAction(project, "Delete Orphan Key", null, {
+        WriteCommandAction.runWriteCommandAction(project, PluginBundle.message("toolwindow.table.delete.command"), null, {
             properties.forEach { if (it.isValid) deletePropertyAndSeparator(it) }
         })
     }
