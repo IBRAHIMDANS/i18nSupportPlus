@@ -13,17 +13,10 @@ import java.io.File
  * replicates their behaviour without instantiating the dialog itself.
  *
  * Any test that requires a full Swing context is named ignoredTestXxx so it is compiled but
- * skipped by the JUnit 3 runner inside BasePlatformTestCase.
+ * never run. The name is what keeps it out: `build.gradle.kts` disables the junit-vintage engine,
+ * so nothing is discovered by the JUnit 3 `test*` convention — only Jupiter annotations count.
  */
 class SetupWizardDialogTest : PlatformBaseTest() {
-
-    // -----------------------------------------------------------------------
-    // Sentinel — required by JUnit 3 runner (BasePlatformTestCase)
-    // -----------------------------------------------------------------------
-
-    fun testPlaceholder() {
-        assertTrue(true)
-    }
 
     // -----------------------------------------------------------------------
     // Framework detection logic (pure logic, extracted from detectFrameworks)

@@ -142,14 +142,19 @@ class ReferenceTestPhp : PlatformBaseTest() {
         }
     }
 
+    @Test
     fun testInvalidTranslationValue() {
         addFileToProject(
                 "assets/invalidTranslationValue.${tg.ext()}",
                 tg.generateContent("ref", "section", "key", "value"))
-        myFixture.configureByText("testInvalidTranslationValue.${cg.ext()}", "'invalidTranslationValue:ref.section<caret>.invalid'")
-        val element = myFixture.file.findElementAt(myFixture.caretOffset)?.parent
-        assertNotNull(element)
-        assertEquals("section", element!!.references[0].resolve()?.text?.unQuote())
+        myFixture.configureByText(
+            "testInvalidTranslationValue.${cg.ext()}",
+            cg.generate("'invalidTranslationValue:ref.section<caret>.invalid'"))
+        read {
+            val element = myFixture.file.findElementAt(myFixture.caretOffset)?.parent
+            assertNotNull(element)
+            assertEquals("section", element!!.references[0].resolve()?.text?.unQuote())
+        }
     }
 
     @ParameterizedTest

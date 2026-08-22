@@ -9,6 +9,7 @@ import com.ibrahimdans.i18n.plugin.utils.generator.translation.YamlTranslationGe
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.psi.PsiPolyVariantReference
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Test
 
 
 private val tgs = listOf(JsonTranslationGenerator())
@@ -17,6 +18,7 @@ private val cgs = jsCgs + listOf(PhpSingleQuoteCodeGenerator(), PhpDoubleQuoteCo
 
 class TranslationToCodeTestBase: PlatformBaseTest() {
 
+    @Test
     fun testSingleReference() {
         cgs.forEachIndexed { i0, cg ->
             val key = "'test:ref.section.key${i0}'"
@@ -33,6 +35,7 @@ class TranslationToCodeTestBase: PlatformBaseTest() {
         }
     }
 
+    @Test
     fun testInvalidTranslation() {
         tgs.forEach { tg ->
             myFixture.configureByText("invalid.${tg.ext()}", "item<caret> text")
@@ -42,6 +45,7 @@ class TranslationToCodeTestBase: PlatformBaseTest() {
         }
     }
 
+    @Test
     fun testNoReference() {
         tgs.forEach { tg ->
             myFixture.configureByText(
@@ -54,6 +58,7 @@ class TranslationToCodeTestBase: PlatformBaseTest() {
         }
     }
 
+    @Test
     fun testMultipleReferences() {
         cgs.forEachIndexed { index, cg ->
             val key = "'multiTest:ref.section.subsection1.key${index}'"
@@ -89,6 +94,7 @@ class TranslationToCodeTestBase: PlatformBaseTest() {
         }
     }
 
+    @Test
     fun testObjectReference() {
         jsCgs.forEachIndexed { index, cg ->
             tgs.forEach { tg ->
@@ -120,6 +126,7 @@ class TranslationToCodeTestBase: PlatformBaseTest() {
         }
     }
 
+    @Test
     fun testInvalidRange() {
         val tg = JsonTranslationGenerator()
         jsCgs.forEachIndexed { index, cg ->
@@ -144,6 +151,7 @@ class TranslationToCodeTestBase: PlatformBaseTest() {
         }
     }
 
+    @Test
     fun testDefaultNs() {
         jsCgs.forEachIndexed { index, cg ->
             myFixture.runWithConfig(Config(defaultNs = "Common")) {
@@ -176,6 +184,7 @@ class TranslationToCodeTestBase: PlatformBaseTest() {
         }
     }
 
+    @Test
     fun testClickOnValue() {
         tgs.forEach { tg ->
             myFixture.configureByText(
@@ -193,6 +202,7 @@ class YamlReferencesTestBase : PlatformBaseTest() {
 
     val tg = YamlTranslationGenerator()
 
+    @Test
     fun testSingleReferenceQuoted() {
         cgs.forEachIndexed { index, cg ->
             val key = "'testQuoted:ref.section.key${index}'"
