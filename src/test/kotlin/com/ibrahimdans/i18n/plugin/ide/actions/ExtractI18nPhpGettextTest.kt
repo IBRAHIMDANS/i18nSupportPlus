@@ -4,7 +4,6 @@ import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.utils.generator.code.PhpGetTextCodeGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.PoTranslationGenerator
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
 /**
@@ -33,12 +32,9 @@ class ExtractI18nPhpGettextTest: ExtractionTestBase() {
     }
 
     /**
-     * Disabled: `extractSorted` is not implemented for PO. `JsonLocalization`, `TsContentGenerator`
-     * and `YamlLocalization` each place the new node against a sorted anchor, while
-     * `PlainObjectContentGenerator.generateTranslationEntry` always appends at the end of the
-     * document. The expectations below state where the entry *should* land once it is.
+     * `extractSorted` on a key that sorts before every entry the catalogue already holds: it must
+     * land right after the header, not at the end of the file.
      */
-    @Disabled
     @Test
     fun testKeyExtractionSortedFirst() = myFixture.runWithConfig(Config(gettext = true, extractSorted = true)) {
         runTestCase(
@@ -53,12 +49,9 @@ class ExtractI18nPhpGettextTest: ExtractionTestBase() {
     }
 
     /**
-     * Disabled: `extractSorted` is not implemented for PO. `JsonLocalization`, `TsContentGenerator`
-     * and `YamlLocalization` each place the new node against a sorted anchor, while
-     * `PlainObjectContentGenerator.generateTranslationEntry` always appends at the end of the
-     * document. The expectations below state where the entry *should* land once it is.
+     * `extractSorted` on a key that sorts between two existing entries: it must land between them,
+     * with the blank line that separates every pair of entries preserved on both sides.
      */
-    @Disabled
     @Test
     fun testKeyExtractionSortedMiddle() = myFixture.runWithConfig(Config(gettext = true, extractSorted = true)) {
         runTestCase(
