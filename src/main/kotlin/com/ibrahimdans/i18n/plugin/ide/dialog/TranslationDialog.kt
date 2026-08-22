@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.components.JBScrollPane
@@ -27,7 +28,7 @@ enum class Mode { CREATE, EDIT }
  * In EDIT mode, behavior is unchanged.
  */
 class TranslationDialog(
-    project: Project,
+    private val project: Project,
     private val fullKey: FullKey,
     private val mode: Mode = Mode.EDIT
 ) : DialogWrapper(project) {
@@ -76,20 +77,15 @@ class TranslationDialog(
             addButton.preferredSize = Dimension(addButton.preferredSize.width, combo.preferredSize.height)
             addButton.maximumSize = addButton.preferredSize
             addButton.addActionListener {
-                val input = JOptionPane.showInputDialog(
-                    addButton,
+                val input = Messages.showInputDialog(
+                    project,
                     "Namespace name (letters, digits, hyphens):",
                     "Add Namespace",
-                    JOptionPane.PLAIN_MESSAGE
+                    null,
+                    null,
+                    namespaceValidator()
                 )?.trim()
-                if (input == null || input.isBlank()) return@addActionListener
-                if (!input.matches(Regex("[a-zA-Z0-9-]+"))) {
-                    Messages.showErrorDialog(
-                        "Invalid namespace name. Only letters, digits and hyphens are allowed.",
-                        "Invalid Name"
-                    )
-                    return@addActionListener
-                }
+                if (input.isNullOrBlank()) return@addActionListener
                 viewModel.createNamespace(input)
                 // Refresh combo with new namespaces and select the newly created one
                 val updated = viewModel.loadNamespaces()
@@ -230,4 +226,20 @@ class TranslationDialog(
 
     override fun getPreferredFocusedComponent(): JComponent? =
         if (mode == Mode.CREATE) keyField else textAreas.values.firstOrNull()
+
+    /**
+     * Rejects an invalid namespace while the user types, so the input dialog cannot be
+     * confirmed with a name we would have to reject afterwards in a second dialog.
+     * The input is trimmed first, as the caller trims the accepted value too.
+     */
+    private fun namespaceValidator() = object : InputValidator {
+        override fun checkInput(inputString: String?): Boolean =
+            inputString?.trim()?.matches(NAMESPACE_REGEX) == true
+
+        override fun canClose(inputString: String?): Boolean = checkInput(inputString)
+    }
+
+    private companion object {
+        val NAMESPACE_REGEX = Regex("[a-zA-Z0-9-]+")
+    }
 }

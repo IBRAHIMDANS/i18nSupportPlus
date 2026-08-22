@@ -14,6 +14,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import java.awt.BorderLayout
@@ -44,11 +45,12 @@ class KeysSynchronizer {
 
                 if (allLocales.isEmpty()) {
                     ApplicationManager.getApplication().invokeLater {
-                        JOptionPane.showMessageDialog(
-                            null,
+                        // `project` is the one this Task.Backgroundable was built with:
+                        // passing it as parent anchors the dialog to the IDE frame.
+                        Messages.showInfoMessage(
+                            project,
                             "No translation files found in this project.",
-                            "Sync Keys",
-                            JOptionPane.INFORMATION_MESSAGE
+                            "Sync Keys"
                         )
                     }
                     return
@@ -60,11 +62,10 @@ class KeysSynchronizer {
 
                 ApplicationManager.getApplication().invokeLater {
                     if (missing.isEmpty()) {
-                        JOptionPane.showMessageDialog(
-                            null,
+                        Messages.showInfoMessage(
+                            project,
                             "All keys are present in every locale. Nothing to sync.",
-                            "Sync Keys",
-                            JOptionPane.INFORMATION_MESSAGE
+                            "Sync Keys"
                         )
                         return@invokeLater
                     }
