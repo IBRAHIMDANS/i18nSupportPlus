@@ -14,6 +14,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -82,10 +83,14 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
             val refs = resolve(fullKey.compositeKey, source, pluralSeparator)
             val resolvedLeaf = refs.firstOrNull { it.unresolved.isEmpty() && it.element?.isLeaf() == true }
                 ?: return@mapNotNull null
+            // Escaping comes last, after rendering and truncation: entities must not be
+            // counted in the truncated length, nor have their `&` escaped a second time.
             val value = resolvedLeaf.element?.value()?.text?.unQuote()?.renderIcu()?.ellipsis(MAX_TRANSLATION_LENGTH)
+                ?.let { StringUtil.escapeXmlEntities(it) }
                 ?: return@mapNotNull null
-            val locale = localeLabel(source)
-            val navLink = "<a href='psi_element://${source.displayPath}'>&#8599;</a>"
+            val locale = StringUtil.escapeXmlEntities(localeLabel(source))
+            // The path lands in a single-quoted attribute, where one apostrophe would close it.
+            val navLink = "<a href='psi_element://${StringUtil.escapeXmlEntities(source.displayPath)}'>&#8599;</a>"
             "<tr>" +
                 "<td><b>$locale</b></td>" +
                 "<td style='padding-left:8px; white-space:nowrap'>$value</td>" +
