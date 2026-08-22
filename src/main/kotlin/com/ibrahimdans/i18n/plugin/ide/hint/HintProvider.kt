@@ -1,13 +1,13 @@
 package com.ibrahimdans.i18n.plugin.ide.hint
 
 import com.ibrahimdans.i18n.Extensions
-import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.PluralGroup
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ellipsis
+import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.ibrahimdans.i18n.plugin.utils.renderIcu
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.lang.documentation.DocumentationProvider
@@ -23,7 +23,6 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.xml.XmlText
 
 private const val MAX_TRANSLATION_LENGTH = 60
-private val LOCALE_REGEX = Regex("[a-zA-Z]{2,3}([_\\-][a-zA-Z]{2,4})?")
 
 /**
  * Shows all available translations (grouped by language folder) as a hint on Ctrl+hover.
@@ -92,7 +91,7 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
             val value = displayed.value().text?.unQuote()?.renderIcu()?.ellipsis(MAX_TRANSLATION_LENGTH)
                 ?.let { StringUtil.escapeXmlEntities(it) }
                 ?: return@mapNotNull null
-            val locale = StringUtil.escapeXmlEntities(localeLabel(source))
+            val locale = StringUtil.escapeXmlEntities(source.localeLabel())
             // The path lands in a single-quoted attribute, where one apostrophe would close it.
             val navLink = "<a href='psi_element://${StringUtil.escapeXmlEntities(source.displayPath)}'>&#8599;</a>"
             "<tr>" +
@@ -105,11 +104,5 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
         if (rows.isEmpty()) return null
 
         return "<table cellspacing='0' cellpadding='2'>${rows.joinToString("")}</table>"
-    }
-
-    /** Returns the locale code from the file stem (e.g. "en.json" → "en") or parent dir (e.g. "fr/translation.json" → "fr"). */
-    private fun localeLabel(source: LocalizationSource): String {
-        val stem = source.name.substringBeforeLast(".")
-        return if (LOCALE_REGEX.matches(stem)) stem else source.parent
     }
 }

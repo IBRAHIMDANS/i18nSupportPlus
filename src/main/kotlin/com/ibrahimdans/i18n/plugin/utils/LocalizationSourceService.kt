@@ -94,10 +94,11 @@ class LocalizationSourceService {
      * file (`t('common:user.name')` with no `common.json`) must keep being reported as an
      * unresolved namespace rather than quietly resolving against unrelated files.
      *
-     * [com.ibrahimdans.i18n.plugin.ide.I18nGutterIconProvider] carries a fallback of its own
-     * and is left untouched: it substitutes the default namespaces *before* calling in, so it
-     * never asks for an empty list and never reaches this one. Its version is also wider —
-     * it falls back for an explicit namespace too, which is precisely what this one must not do.
+     * [com.ibrahimdans.i18n.plugin.ide.I18nGutterIconProvider] used to carry a fallback of its
+     * own, substituting the default namespaces *before* calling in — so it never asked for an
+     * empty list and never reached this one. Its version was also wider: it fell back for an
+     * explicit namespace too, which is precisely what this one must not do. That local fallback
+     * has since been removed, and the gutter now goes through this rule like every other consumer.
      */
     fun findSources(fileNames: List<String>, project: Project): List<LocalizationSource> {
         val requestedNamespaces = fileNames.whenMatches { it.isNotEmpty() }

@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.codeInsight.daemon.GutterIconNavigationHandler
 import com.intellij.codeInsight.daemon.LineMarkerInfo
 import com.intellij.codeInsight.daemon.LineMarkerProvider
@@ -39,8 +40,6 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
         private val ICON_RESOLVED: Icon = IconLoader.getIcon("/icons/gutter_resolved.svg", I18nGutterIconProvider::class.java)
         private val ICON_PARTIAL: Icon  = IconLoader.getIcon("/icons/gutter_partial.svg",  I18nGutterIconProvider::class.java)
         private val ICON_MISSING: Icon  = IconLoader.getIcon("/icons/gutter_missing.svg",  I18nGutterIconProvider::class.java)
-
-        private val LOCALE_REGEX = Regex("[a-zA-Z]{2,3}([_\\-][a-zA-Z]{2,4})?")
 
         // Prevents duplicate markers when multiple language providers (JS, JSX, TS, TSX) are
         // each invoked by IntelliJ for the same underlying file content.
@@ -84,7 +83,7 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
         val statuses = sources.map { source ->
             val refs = resolve(fullKey.compositeKey, source, pluralSeparator)
             val isResolved = refs.any { it.unresolved.isEmpty() && it.element != null }
-            LocaleStatus(localeLabel(source.name, source.parent), isResolved)
+            LocaleStatus(source.localeLabel(), isResolved)
         }
 
         val resolvedCount = statuses.count { it.resolved }
@@ -155,14 +154,5 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
             "<tr><td><font color='$color'>$mark</font></td><td style='padding-left:4px'>$label</td></tr>"
         }
         return "<html><b>i18n: $statusLabel</b><table cellspacing='0' cellpadding='1'>$rows</table></html>"
-    }
-
-    /**
-     * Returns the locale label: file stem if it looks like a locale code (e.g. "en", "fr-FR"),
-     * otherwise falls back to the parent directory name.
-     */
-    private fun localeLabel(fileName: String, parentDir: String): String {
-        val stem = fileName.substringBeforeLast(".")
-        return if (LOCALE_REGEX.matches(stem)) stem else parentDir
     }
 }

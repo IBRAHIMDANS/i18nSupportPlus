@@ -43,8 +43,16 @@ class TranslationDataLoaderTest {
 
     @Test
     fun `extractLocale does not treat long parent names as locale`() {
-        // "locales" is 7 chars → not a locale, falls back to stem
+        // "locales" is not an ISO language → falls back to the stem
         assertEquals("translation", TranslationDataLoader.extractLocale(source("translation.json", "locales")))
+    }
+
+    @Test
+    fun `extractLocale does not treat a source folder as a locale`() {
+        // The regression this shared rule exists for: "api" passed the old shape-only regex,
+        // so src/api/common.json was loaded — and counted in the stats — under the locale "api".
+        assertEquals("common", TranslationDataLoader.extractLocale(source("common.json", "api")))
+        assertEquals("settings", TranslationDataLoader.extractLocale(source("settings.json", "web")))
     }
 
     // ---- extractNamespace ----
@@ -57,8 +65,18 @@ class TranslationDataLoaderTest {
     }
 
     @Test
-    fun `extractNamespace for locale-named flat file returns the locale as namespace`() {
-        // en.json in a non-locale parent: namespace and locale both = "en"
-        assertEquals("en", TranslationDataLoader.extractNamespace(source("en.json", "locales")))
+    fun `extractNamespace for a file named after its locale returns the default namespace`() {
+        // "one file per locale": en.json holds no namespace at all, so its keys must not be
+        // prefixed. Returning the stem made "en" and "fr" two namespaces and indexed every
+        // key twice — en:menu.home in one locale, fr:menu.home in the other.
+        assertEquals("translation", TranslationDataLoader.extractNamespace(source("en.json", "locales")))
+        assertEquals("translation", TranslationDataLoader.extractNamespace(source("pt-BR.json", "locales")))
+    }
+
+    @Test
+    fun `extractNamespace honours the configured default namespace`() {
+        assertEquals("app", TranslationDataLoader.extractNamespace(source("en.json", "locales"), "app"))
+        // A real namespace is unaffected by what the default one is.
+        assertEquals("common", TranslationDataLoader.extractNamespace(source("common.json", "en"), "app"))
     }
 }

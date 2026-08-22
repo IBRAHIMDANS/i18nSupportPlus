@@ -1,10 +1,13 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
+import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.json.psi.JsonProperty
 import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.openapi.application.ReadAction
@@ -32,10 +35,12 @@ object TranslationDataLoader {
         val result = mutableMapOf<String, MutableMap<String, String>>()
         val sources = findSources(project, moduleConfig)
         val defaultNamespaces = Settings.getInstance(project).config().defaultNamespaces()
+        // Never empty: defaultNamespaces() falls back to Config's own default ("translation").
+        val defaultNamespace = defaultNamespaces.first()
 
         for (source in sources) {
             val locale = extractLocale(source)
-            val namespace = extractNamespace(source)
+            val namespace = extractNamespace(source, defaultNamespace)
             val nsPrefix = if (namespace in defaultNamespaces) "" else "$namespace:"
             val tree = source.tree
             if (tree == null) {
@@ -73,28 +78,46 @@ object TranslationDataLoader {
     }
 
     /**
-     * Extracts the locale code from a localization source.
-     *   "en/common.json"     -> "en"   (parent dir is locale)
-     *   "en.json"            -> "en"   (stem is locale)
+     * Extracts the locale code from a localization source, through the rule shared with the
+     * gutter tooltip and the hover popup — see [localeLabel]. This used to carry a private
+     * copy of the shape-only regex #122 replaced, under which `src/api/common.json` was
+     * loaded as the locale `api`, filling the tool window with a source folder's JSON.
+     *   "en/common.json"       -> "en"      (parent dir is the locale)
+     *   "en.json"              -> "en"      (stem is the locale)
      *   "locales/en-US/a.json" -> "en-US"
+     *   "api/common.json"      -> "common"  (neither is a locale: the file names itself)
      */
-    internal fun extractLocale(source: LocalizationSource): String {
-        val parent = source.parent
-        return if (looksLikeLocale(parent)) parent
-        else source.name.substringBeforeLast('.')
-    }
+    internal fun extractLocale(source: LocalizationSource): String = source.localeLabel()
 
     /**
-     * Extracts the namespace from a localization source (the filename stem).
-     *   "en/common.json"     -> "common"
+     * Extracts the namespace a source contributes its keys under.
+     *   "en/common.json"      -> "common"
      *   "en/translation.json" -> "translation"
-     *   "en.json"            -> "en"
+     *   "en.json"             -> [defaultNamespace] — the file is named after its locale,
+     *                            so it holds no namespace at all
+     *
+     * That last case is what the "one file per locale" layout needs. Returning the stem
+     * there — as this did — made `en` and `fr` two namespaces, so `loadAllTranslations`
+     * prefixed the very same key twice, once per locale (`en:menu.home`, `fr:menu.home`),
+     * each present in one locale only: keys shown in double in the tree and the table,
+     * about half the translations counted as missing in the stats, the doubling carried
+     * into the CSV export, and *Sync Keys* offering to create the `en:*` keys inside
+     * `fr.json`. The decision is delegated to [isLocaleNamedFile], the same rule
+     * [extractLocale] uses on the same source, so the two cannot drift apart.
+     *
+     * [defaultNamespace] defaults to [Config]'s own value rather than the configured one:
+     * the callers that omit it (key routing in the synchronizer, the cleanup, the CSV
+     * import, the stats navigation, the in-place table edit) only ever compare the result
+     * to a namespace written explicitly in a key, and a key prefixed with the default
+     * namespace means the same thing as a key carrying no prefix at all. Only
+     * [loadAllTranslations], which builds those prefixes, needs the configured value.
      */
-    internal fun extractNamespace(source: LocalizationSource): String =
-        source.name.substringBeforeLast('.')
-
-    private fun looksLikeLocale(name: String): Boolean =
-        name.matches(Regex("[a-zA-Z]{2,3}([_-][a-zA-Z]{2,4})?"))
+    internal fun extractNamespace(
+        source: LocalizationSource,
+        defaultNamespace: String = Config().defaultNs,
+    ): String =
+        if (source.isLocaleNamedFile()) defaultNamespace
+        else source.name.substringBeforeLast('.')
 
     /**
      * Recursively collects leaf values from a translation tree.
