@@ -274,6 +274,12 @@
                     class="com.ibrahimdans.i18n.plugin.ide.actions.CleanupUnusedKeysAction"
                     text="Cleanup Unused Keys…"
                     description="Scan for translation keys never used in code and delete the selected ones from every locale"/>
+            <!-- No default keyboard shortcut: three are already taken (ctrl alt shift T/B/M). -->
+            <action id="com.ibrahimdans.i18n.SyncKeys"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.SyncKeysAction"
+                    icon="AllIcons.General.Modified"
+                    text="Sync Keys"
+                    description="Sync missing keys to all locales"/>
         </group>
         <action id="com.ibrahimdans.i18n.ToggleFolding"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.ToggleFoldingAction"

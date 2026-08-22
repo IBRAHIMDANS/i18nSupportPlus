@@ -1,6 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
-import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
+import com.ibrahimdans.i18n.plugin.ide.actions.SyncKeysAction
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
 import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
@@ -184,11 +184,9 @@ class I18nToolWindowPanel(private val project: Project) : SimpleToolWindowPanel(
             }
         })
 
-        group.add(object : AnAction("Sync Keys", "Sync missing keys to all locales", AllIcons.General.Modified) {
-            override fun actionPerformed(e: AnActionEvent) {
-                KeysSynchronizer().sync(project)
-            }
-        })
+        // The registered action rather than a second call into the synchronizer: the toolbar
+        // button and the Tools menu entry are then the same thing, labelled once.
+        ActionManager.getInstance().getAction(SyncKeysAction.ID)?.let { group.add(it) }
 
         group.add(object : AnAction("Settings", "Open i18n Support Plus settings", AllIcons.General.Settings) {
             override fun actionPerformed(e: AnActionEvent) {
