@@ -73,17 +73,17 @@ internal class TokenizerTest {
         )
     }
 
-//    @Test
-//    fun tokenizeUnresolvedTemplate() {
-//        val keyElement = KeyElement.template("\${reh}")
-//        val tokenizer = NsKeyTokenizer(":", ".")
-//        assertEquals(
-//            listOf(
-//                Literal("*", 6, true)
-//            ),
-//            tokenizer.tokenize(keyElement.nullableToList()).second
-//        )
-//    }
+    @Test
+    fun tokenizeUnresolvedTemplate() {
+        val keyElement = KeyElement.template("\${reh}")
+        val tokenizer = NsKeyTokenizer(":", ".")
+        assertEquals(
+            listOf(
+                Literal("*", 6)
+            ),
+            tokenizer.tokenize(keyElement.nullableToList()).second
+        )
+    }
 
     @Test
     fun tokenizeLiteralCustomSeparator() {
@@ -147,15 +147,15 @@ internal class TokenizerTest {
         )
     }
 
-//    @Test
-//    fun tokenizeUnresolvedTemplateCustomSeparator() {
-//        val keyElement = KeyElement.template("\${rel}")
-//        val tokenizer = NsKeyTokenizer("^", "#")
-//        assertEquals(
-//            listOf(
-//                Literal("*", 6, true)
-//            ),
-//            tokenizer.tokenize(keyElement.nullableToList()).second
-//        )
-//    }
+    @Test
+    fun tokenizeUnresolvedTemplateCustomSeparator() {
+        val keyElement = KeyElement.template("\${rel}")
+        val tokenizer = NsKeyTokenizer("^", "#")
+        assertEquals(
+            listOf(
+                Literal("*", 6)
+            ),
+            tokenizer.tokenize(keyElement.nullableToList()).second
+        )
+    }
 }
