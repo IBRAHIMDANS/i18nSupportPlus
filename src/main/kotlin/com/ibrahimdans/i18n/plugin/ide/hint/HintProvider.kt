@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
+import com.ibrahimdans.i18n.plugin.tree.PluralGroup
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ellipsis
@@ -81,11 +82,14 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
 
         val rows = sources.mapNotNull { source ->
             val refs = resolve(fullKey.compositeKey, source, pluralSeparator)
-            val resolvedLeaf = refs.firstOrNull { it.unresolved.isEmpty() && it.element?.isLeaf() == true }
+            val displayed = refs.asSequence()
+                .filter { it.unresolved.isEmpty() }
+                .mapNotNull { PluralGroup.displayableValue(it.element) }
+                .firstOrNull()
                 ?: return@mapNotNull null
             // Escaping comes last, after rendering and truncation: entities must not be
             // counted in the truncated length, nor have their `&` escaped a second time.
-            val value = resolvedLeaf.element?.value()?.text?.unQuote()?.renderIcu()?.ellipsis(MAX_TRANSLATION_LENGTH)
+            val value = displayed.value().text?.unQuote()?.renderIcu()?.ellipsis(MAX_TRANSLATION_LENGTH)
                 ?.let { StringUtil.escapeXmlEntities(it) }
                 ?: return@mapNotNull null
             val locale = StringUtil.escapeXmlEntities(localeLabel(source))

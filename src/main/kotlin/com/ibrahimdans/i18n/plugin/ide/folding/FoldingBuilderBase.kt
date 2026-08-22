@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
+import com.ibrahimdans.i18n.plugin.tree.PluralGroup
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.tree.PropertyReference
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
@@ -76,7 +77,8 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
                                 container.node
                             }
                             FoldingDescriptor(node, foldRange, null,
-                                resolved.reference.element?.value()?.text?.unQuote()?.renderIcu()?.ellipsis(config.foldingMaxLength) ?: "")
+                                PluralGroup.displayableValue(resolved.reference.element)
+                                    ?.value()?.text?.unQuote()?.renderIcu()?.ellipsis(config.foldingMaxLength) ?: "")
                         }
                 }
             }
@@ -102,7 +104,9 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
                 it.parent == config.foldingPreferredLanguage
             }
             .mapNotNull { resolveCompositeKey(fullKey.compositeKey, it) }
-            .firstOrNull { it.unresolved.isEmpty() && it.element?.isLeaf() == true }
+            // A nested plural group holds no value of its own but is displayed through its
+            // representative branch, so `isLeaf` is not the test — PluralGroup is.
+            .firstOrNull { it.unresolved.isEmpty() && PluralGroup.displayableValue(it.element) != null }
             ?.let { ElementToReferenceBinding(element, it) }
     }
 
