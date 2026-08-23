@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.util.text.StringUtil
@@ -51,18 +52,18 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
     private val cardLayout = CardLayout()
     private val cardPanel = JPanel(cardLayout)
     private var currentStepIndex = 0
-    private val stepIndicatorLabel = JBLabel("Step 1 of ${STEPS.size}")
+    private val stepIndicatorLabel = JBLabel(PluginBundle.message("wizard.step.indicator", 1, STEPS.size))
 
-    private val backButton = JButton("Back")
-    private val nextButton = JButton("Next")
-    private val skipButton = JButton("Skip")
+    private val backButton = JButton(PluginBundle.message("wizard.button.back"))
+    private val nextButton = JButton(PluginBundle.message("wizard.button.next"))
+    private val skipButton = JButton(PluginBundle.message("wizard.button.skip"))
 
     init {
-        title = "i18n Support Plus — Setup Wizard"
+        title = PluginBundle.message("wizard.title")
         isResizable = true
         init()
-        setOKButtonText("Apply")
-        setCancelButtonText("Skip")
+        setOKButtonText(PluginBundle.message("wizard.button.apply"))
+        setCancelButtonText(PluginBundle.message("wizard.button.skip"))
         detectFrameworks()
         scanTranslationFiles()
     }
@@ -78,7 +79,7 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
         navPanel.add(nextButton)
 
         backButton.isEnabled = false
-        nextButton.text = "Next"
+        nextButton.text = PluginBundle.message("wizard.button.next")
 
         skipButton.addActionListener { doCancelAction() }
         backButton.addActionListener { navigateTo(currentStepIndex - 1) }
@@ -111,9 +112,9 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
         panel.layout = BoxLayout(panel, BoxLayout.Y_AXIS)
         panel.border = JBUI.Borders.empty(16)
 
-        panel.add(JBLabel("<html><b>Step 1 — Detected Framework</b></html>"))
+        panel.add(JBLabel(bold(PluginBundle.message("wizard.step1.title"))))
         panel.add(Box.createVerticalStrut(12))
-        panel.add(JBLabel("Check the i18n framework(s) used in this project:"))
+        panel.add(JBLabel(PluginBundle.message("wizard.step1.hint")))
         panel.add(Box.createVerticalStrut(8))
 
         for (cb in frameworkCheckboxes.values) {
@@ -131,9 +132,9 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
 
         val header = JPanel()
         header.layout = BoxLayout(header, BoxLayout.Y_AXIS)
-        header.add(JBLabel("<html><b>Step 2 — Translation Files Found</b></html>"))
+        header.add(JBLabel(bold(PluginBundle.message("wizard.step2.title"))))
         header.add(Box.createVerticalStrut(8))
-        header.add(JBLabel("Files detected in 'locales', 'i18n', 'translations' folders:"))
+        header.add(JBLabel(PluginBundle.message("wizard.step2.hint")))
         header.add(Box.createVerticalStrut(8))
 
         panel.add(header, BorderLayout.NORTH)
@@ -147,7 +148,7 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
         val panel = JPanel(BorderLayout())
         panel.border = JBUI.Borders.empty(16)
 
-        val header = JBLabel("<html><b>Step 3 — Summary</b></html>")
+        val header = JBLabel(bold(PluginBundle.message("wizard.step3.title")))
         panel.add(header, BorderLayout.NORTH)
         panel.add(JBScrollPane(summaryLabel), BorderLayout.CENTER)
 
@@ -158,9 +159,11 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
     private fun navigateTo(index: Int) {
         currentStepIndex = index.coerceIn(0, STEPS.size - 1)
         cardLayout.show(cardPanel, STEPS[currentStepIndex])
-        stepIndicatorLabel.text = "Step ${currentStepIndex + 1} of ${STEPS.size}"
+        stepIndicatorLabel.text = PluginBundle.message("wizard.step.indicator", currentStepIndex + 1, STEPS.size)
         backButton.isEnabled = currentStepIndex > 0
-        nextButton.text = if (currentStepIndex == STEPS.size - 1) "Apply" else "Next"
+        nextButton.text =
+            if (currentStepIndex == STEPS.size - 1) PluginBundle.message("wizard.button.apply")
+            else PluginBundle.message("wizard.button.next")
         if (currentStepIndex == STEPS.size - 1) {
             refreshSummary()
         }
@@ -198,29 +201,24 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
             .filterValues { it.isSelected }
             .keys
             .joinToString(", ")
-            .ifEmpty { "(none)" }
+            .ifEmpty { PluginBundle.message("wizard.summary.frameworks.none") }
             .let { StringUtil.escapeXmlEntities(it) }
 
         val fileCount = foundFiles.size
         val fileSample = foundFiles.take(5).joinToString("<br>") { "• ${StringUtil.escapeXmlEntities(it)}" }
-        val moreNote = if (fileCount > 5) "<br>... and ${fileCount - 5} more" else ""
+        val moreNote = if (fileCount > 5) "<br>" + PluginBundle.message("wizard.summary.files.more", fileCount - 5) else ""
 
         val hasPo = foundFiles.any { it.endsWith(".po") || it.endsWith(".pot") }
-        val poNote = if (hasPo)
-            "<p style=\"color:#CC7700\">⚠ PO/POT files detected. Full support requires the " +
-            "<b>GNU GetText</b> plugin (<i>Settings → Plugins → Marketplace → \"GNU GetText files support\"</i>).</p>"
-        else ""
+        val poNote = if (hasPo) warning(PluginBundle.message("wizard.summary.gettext.warning")) else ""
 
         // Announcing "Apply stores the root" while none could be derived is what made the
         // wizard look like it had configured the project when it had written nothing.
         val detectedRoot = TranslationRootDetector.detect(foundFiles)
         val rootNote = when {
             fileCount == 0 -> ""
-            detectedRoot == null ->
-                "<p style=\"color:#CC7700\">⚠ No common translation root could be derived from these files, " +
-                "so <b>Apply</b> will not set one. Point the plugin at your translations in " +
-                "<i>Settings → Tools → i18n Support Plus Configuration</i>.</p>"
-            else -> "<p><b>Translations root:</b> ${StringUtil.escapeXmlEntities(detectedRoot)}</p>"
+            detectedRoot == null -> warning(PluginBundle.message("wizard.summary.root.missing"))
+            else -> "<p><b>" + PluginBundle.message("wizard.summary.root") + "</b> " +
+                StringUtil.escapeXmlEntities(detectedRoot) + "</p>"
         }
 
         // The ticked frameworks used to feed this sentence and nothing else. Listing what they
@@ -228,13 +226,13 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
         val settingsNote = describeDeducedSettings()
 
         val closing = if (fileCount > 0 && detectedRoot != null)
-            "<p style=\"color:gray\">Clicking <b>Apply</b> will store these settings. " +
-            "You can adjust them in <i>Settings → Tools → i18n Support Plus Configuration</i>.</p>"
+            "<p style=\"color:gray\">" + PluginBundle.message("wizard.summary.closing") + "</p>"
         else ""
 
         val html = "<html><body style=\"font-family:sans-serif\">" +
-            "<p><b>Frameworks detected:</b> $selectedFrameworks</p>" +
-            "<p><b>Translation files found:</b> $fileCount file(s)</p>" +
+            "<p><b>" + PluginBundle.message("wizard.summary.frameworks") + "</b> $selectedFrameworks</p>" +
+            "<p><b>" + PluginBundle.message("wizard.summary.files") + "</b> " +
+            PluginBundle.message("wizard.summary.files.count", fileCount) + "</p>" +
             (if (fileCount > 0) "<p>$fileSample$moreNote</p>" else "") +
             rootNote +
             settingsNote +
@@ -259,19 +257,20 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
         val rows = buildList {
             deduced.defaultNs
                 ?.takeIf { settings.defaultNs == defaults.defaultNs }
-                ?.let { add("Default namespace: <b>${StringUtil.escapeXmlEntities(it)}</b>") }
+                ?.let { add(PluginBundle.message("wizard.summary.settings.defaultNs", StringUtil.escapeXmlEntities(it))) }
             deduced.gettext
                 ?.takeIf { settings.gettext == defaults.gettext }
-                ?.let { add("GetText mode: <b>on</b>") }
+                ?.let { add(PluginBundle.message("wizard.summary.settings.gettext")) }
             deduced.flatKeys
                 ?.takeIf { settings.flatKeys == defaults.flatKeys }
-                ?.let { add("Treat keys as flat: <b>on</b> (react-intl stores flat ids)") }
+                ?.let { add(PluginBundle.message("wizard.summary.settings.flatKeys")) }
             deduced.preferredLocalization
                 ?.takeIf { WizardSettingsDeducer.isUntouchedPreferredLocalization(settings.preferredLocalization) }
-                ?.let { add("Preferred format: <b>${StringUtil.escapeXmlEntities(it)}</b>") }
+                ?.let { add(PluginBundle.message("wizard.summary.settings.preferredLocalization", StringUtil.escapeXmlEntities(it))) }
         }
         if (rows.isEmpty()) return ""
-        return "<p><b>Settings to apply:</b></p><p>" + rows.joinToString("<br>") { "• $it" } + "</p>"
+        return "<p><b>" + PluginBundle.message("wizard.summary.settings") + "</b></p><p>" +
+            rows.joinToString("<br>") { "• $it" } + "</p>"
     }
 
     /**
@@ -318,6 +317,12 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
             ?.takeIf { WizardSettingsDeducer.isUntouchedPreferredLocalization(settings.preferredLocalization) }
             ?.let { settings.preferredLocalization = it }
     }
+
+    /** [text] as a standalone HTML label in bold — the wizard's step headers. */
+    private fun bold(text: String): String = "<html><b>$text</b></html>"
+
+    /** [text] as an HTML paragraph carrying the wizard's warning colour and sign. */
+    private fun warning(text: String): String = "<p style=\"color:#CC7700\">⚠ $text</p>"
 
     private fun selectedFrameworks(): Set<String> =
         frameworkCheckboxes.filterValues { it.isSelected }.keys

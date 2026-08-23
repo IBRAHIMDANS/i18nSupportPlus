@@ -23,6 +23,9 @@ class PluginBundleTest {
 
         /** Keys used through the bundle, as they appear in the sources. */
         val KEY_CALL = Regex("""PluginBundle\.(?:message|getMessage)\(\s*"([^"]+)"""")
+
+        /** A MessageFormat argument, as it appears in a bundle value. */
+        val PLACEHOLDER = Regex("""\{(\d+)[^}]*}""")
     }
 
     private fun bundle(locale: Locale): ResourceBundle =
@@ -71,6 +74,27 @@ class PluginBundleTest {
     }
 
     @Test
+    fun `every translated value keeps the placeholders of its base value`() {
+        // A translation dropping a {0} loses the path, the name or the count it was meant to
+        // carry, and the parity test above cannot see it: the key is there, only its content
+        // is wrong. The reader gets a sentence with a hole in it.
+        val base = baseBundle()
+
+        for (locale in LOCALES) {
+            val translated = bundle(locale)
+            val mismatched = base.keySet()
+                .map { key -> key to (placeholders(base.getString(key)) to placeholders(translated.getString(key))) }
+                .filter { (_, sets) -> sets.first != sets.second }
+                .map { (key, sets) -> "$key: expected ${sets.first}, got ${sets.second}" }
+
+            assertEquals(
+                emptyList<String>(), mismatched,
+                "placeholders lost or invented in I18nBundle_$locale.properties"
+            )
+        }
+    }
+
+    @Test
     fun `every key the sources ask for exists in the bundle`() {
         val base = baseBundle().keySet()
         val missing = sourceFiles()
@@ -89,6 +113,10 @@ class PluginBundleTest {
      * working directory, and the walk is anchored on a directory that must exist, so a wrong
      * root fails loudly rather than silently scanning nothing.
      */
+    /** The MessageFormat argument indexes used by [value], e.g. `{0}` and `{1}`. */
+    private fun placeholders(value: String): Set<String> =
+        PLACEHOLDER.findAll(value).map { it.groupValues[1] }.toSet()
+
     private fun sourceFiles(): Sequence<File> {
         val root = File("src/main/kotlin")
         assertTrue(root.isDirectory, "expected the Kotlin sources at ${root.absolutePath}")

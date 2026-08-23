@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.ui.JBColor
@@ -79,7 +80,7 @@ class ConfigDiagnosticsPanel(private val project: Project) : JPanel() {
             ?: LocalFileSystem.getInstance().findFileByIoFile(File(dirPath))
 
         if (dir == null || !dir.exists() || !dir.isDirectory) {
-            add("Translation directory not found: $root")
+            add(PluginBundle.message("settings.diagnostics.root.missing", root))
             return
         }
 
@@ -93,19 +94,19 @@ class ConfigDiagnosticsPanel(private val project: Project) : JPanel() {
         }
 
         if (!hasTranslationFiles) {
-            add("No translation files found in $root")
+            add(PluginBundle.message("settings.diagnostics.root.empty", root))
         }
     }
 
     private fun MutableList<String>.checkDefaultNs(config: Config) {
         if (config.defaultNs.isBlank()) {
-            add("Default namespace is empty")
+            add(PluginBundle.message("settings.diagnostics.defaultNs.empty"))
         }
     }
 
     private fun MutableList<String>.checkKeySeparator(config: Config) {
         if (config.keySeparator.isBlank()) {
-            add("Key separator is empty, using flat keys only")
+            add(PluginBundle.message("settings.diagnostics.keySeparator.empty"))
         }
     }
 }
