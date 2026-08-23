@@ -68,10 +68,16 @@ internal class RulesEditorPanel(private val settings: Settings) : ItemEditorPane
             onSelectionChanged = ::bind
         )
         add(editor, BorderLayout.CENTER)
-        preferredSize = Dimension(700, 240)
 
         bind(null)
         editor.selectFirst()
+
+        // The height is a deliberate choice: how many rows of the list to show before it
+        // scrolls. The width is not ours to pick — it is whatever the detail form inside needs.
+        // Pinning it narrower does not scroll the overflow, it cuts it off the right edge, which
+        // is how the field comments reached the screen mid-sentence. Measured last, after the
+        // form has been populated, for the same reason as in the modules editor.
+        preferredSize = Dimension(maxOf(EDITOR_MIN_WIDTH, editor.preferredSize.width), EDITOR_HEIGHT)
     }
 
     private fun detailForm(): JPanel = panel {
@@ -126,5 +132,11 @@ internal class RulesEditorPanel(private val settings: Settings) : ItemEditorPane
     private companion object {
         /** Rules are ordered against each other, not scored: three digits are plenty. */
         const val MAX_PRIORITY = 999
+
+        /** Width the editor asks for when the form inside it needs no more. */
+        const val EDITOR_MIN_WIDTH = 700
+
+        /** How much of the item list is visible before it scrolls. */
+        const val EDITOR_HEIGHT = 240
     }
 }

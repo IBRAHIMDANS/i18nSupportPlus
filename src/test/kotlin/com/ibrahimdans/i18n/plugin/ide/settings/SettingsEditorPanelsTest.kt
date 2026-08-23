@@ -39,6 +39,48 @@ private fun requireByName(root: Component, key: String): Component {
     return component!!
 }
 
+/**
+ * Fails when the Add/Remove row is wider than the panel that has to hold it.
+ *
+ * `ListEditorPanel` puts its list and that row in a panel it hands to `BorderLayout.WEST`, and
+ * BorderLayout gives a WEST child exactly its *preferred* width — never more. A preferred width
+ * fixed without looking at the row therefore clips it, and the second button is the one that
+ * loses: *Remove module* reaches the screen as "Remove m…".
+ *
+ * Asserted here because nothing else can catch it. No test renders a Swing component, so the
+ * defect shipped invisible to the suite; and both labels are translated, so a width that happens
+ * to fit in English still clips in a language whose words are longer.
+ */
+private fun assertButtonRowFits(root: Component, addButtonName: String) {
+    val add = findByName(root, addButtonName)
+    assertNotNull(add, "no add button named '$addButtonName'")
+    val row = (add as JButton).parent
+    val master = row.parent
+
+    assertTrue(
+        master.preferredSize.width >= row.preferredSize.width,
+        "the list panel is ${master.preferredSize.width}px wide for a ${row.preferredSize.width}px " +
+            "button row: BorderLayout.WEST clips the difference"
+    )
+}
+
+/**
+ * Fails when an editor panel is pinned narrower than the form it has to hold.
+ *
+ * Both editors set `preferredSize = Dimension(700, …)` on themselves while their content — the
+ * item list, the gap and the detail form — is laid out to whatever it actually needs. Anything
+ * past 700px is not scrolled, it is simply cut off the right edge, which is how the field
+ * comments reach the screen mid-sentence.
+ */
+private fun assertFormIsNotSqueezed(panel: javax.swing.JPanel, name: String) {
+    val editor = panel.components.filterIsInstance<ListEditorPanel<*>>().single()
+    assertTrue(
+        panel.preferredSize.width >= editor.preferredSize.width,
+        "$name is pinned to ${panel.preferredSize.width}px for content that needs " +
+            "${editor.preferredSize.width}px: the difference is cut off, not scrolled"
+    )
+}
+
 class ModulesEditorPanelTest {
 
     private val project = mockk<Project>()
@@ -102,6 +144,16 @@ class ModulesEditorPanelTest {
     }
 
     @Test
+    fun testTheModuleFormIsNotSqueezed() {
+        assertFormIsNotSqueezed(panelWith(ModuleConfig(name = "frontend")).second, "the modules editor")
+    }
+
+    @Test
+    fun testTheModuleButtonsAreNotClipped() {
+        assertButtonRowFits(panelWith().second, "modules.add")
+    }
+
+    @Test
     fun testANewModuleComesWithATemplateRatherThanEmpty() {
         val (settings, panel) = panelWith()
 
@@ -162,5 +214,15 @@ class RulesEditorPanelTest {
         spinner.value = 7
 
         assertEquals(7, settings.rules[0].priority)
+    }
+
+    @Test
+    fun testTheRuleFormIsNotSqueezed() {
+        assertFormIsNotSqueezed(panelWith(EditorRuleState(id = "first")).second, "the rules editor")
+    }
+
+    @Test
+    fun testTheRuleButtonsAreNotClipped() {
+        assertButtonRowFits(panelWith().second, "rules.add")
     }
 }
