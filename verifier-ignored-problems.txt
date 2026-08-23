@@ -1,9 +1,21 @@
-# ToolWindowFactory interface methods marked @Internal in 2024.3-2025.2.
-# These are implicit interface dispatch targets — our factory does not override
-# them explicitly; the platform reads icon/anchor from plugin.xml instead.
-# Reclassified as @Experimental in 2025.3+, so no action needed beyond XML config.
-ToolWindowFactory.getIcon()
-ToolWindowFactory.getAnchor()
-ToolWindowFactory.manage(
-ToolWindowFactory.isApplicable(
-ToolWindowFactory.isDoNotActivateOnStart(
+// Conditions passed to the IntelliJ Plugin Verifier through `pluginVerification.ignoredProblemsFile`.
+//
+// Format, from IgnoreCondition.kt in verifier-cli:
+//   [<plugin_xml_id>[:<plugin_version>]:]<problem_description_regexp_pattern>
+//
+// Three rules, all three learned by breaking them:
+//  1. Comments start with "//". A "#" line is NOT skipped - only blank lines and lines starting
+//     with "//" are. Anything else is parsed as a condition and compiled as a regex, which is how
+//     a line of prose can fail the whole run.
+//  2. The pattern is a regex, so an unescaped "(" is an unterminated group and throws
+//     PatternSyntaxException while the options are being read. The task then dies before verifying
+//     anything, with a stack trace naming IgnoreCondition rather than this file.
+//  3. It is matched with Regex.matches against CompatibilityProblem.shortDescription - a FULL
+//     match, not a search. A bare substring never matches; wrap patterns in ".*".
+//
+// This file can only silence COMPATIBILITY PROBLEMS. Internal, experimental, deprecated and
+// override-only API usages are a different category with their own filters, and no line here will
+// ever reach them - that is what `failureLevel` in build.gradle.kts is for. The ToolWindowFactory
+// entries that used to sit here were exactly that mistake: see the failureLevel comment.
+//
+// No condition is currently needed. Add one below, and keep the three rules above in mind.
