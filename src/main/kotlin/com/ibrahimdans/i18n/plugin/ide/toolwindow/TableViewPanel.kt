@@ -298,7 +298,11 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         // The usage cell holds the count itself, not a rendered string: the renderer decides
         // how it reads, and the context menu no longer has to sniff a label for a leading "0".
         val data = rows.map { row ->
-            arrayOf<Any>(row.key) + locales.map { locale -> row.values[locale] ?: "" }.toTypedArray() + row.usageCount
+            val cells = ArrayList<Any>(locales.size + 2)
+            cells.add(row.key)
+            locales.mapTo(cells) { locale -> row.values[locale] ?: "" }
+            cells.add(row.usageCount)
+            cells.toArray()
         }.toTypedArray()
 
         tableModel.setDataVector(data, columnNames)
