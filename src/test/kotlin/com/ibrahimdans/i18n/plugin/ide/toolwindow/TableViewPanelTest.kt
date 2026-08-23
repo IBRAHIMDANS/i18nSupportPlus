@@ -12,6 +12,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.awt.Container
@@ -52,6 +53,24 @@ class TableViewPanelTest : PlatformBaseTest() {
         return null
     }
 
+    /**
+     * Every button of the tree, at any depth. Asserting on the *absence* of a widget cannot go
+     * through [find]: a `JComboBox` builds its own arrow button, so "the first JButton" stops
+     * being the panel's own the moment the panel has none.
+     */
+    private fun buttons(root: Container): List<JButton> {
+        val found = mutableListOf<JButton>()
+        val queue = ArrayDeque<Container>().apply { add(root) }
+        while (queue.isNotEmpty()) {
+            val next = queue.removeFirst()
+            for (child in next.components) {
+                if (child is JButton) found.add(child)
+                if (child is Container) queue.add(child)
+            }
+        }
+        return found
+    }
+
     @Test
     fun `the panel builds in a headless container`() {
         // Guard, not a formality: I18nToolWindowPanel lost this the day it reached for
@@ -60,17 +79,30 @@ class TableViewPanelTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `the filter bar offers every namespace and the orphan scan`() {
+    fun `the filter bar offers every namespace and nothing else`() {
         val panel = TableViewPanel(project)
 
         val label = find(panel, JLabel::class.java)
         val combo = find(panel, JComboBox::class.java)
-        val button = find(panel, JButton::class.java)
 
         assertEquals(PluginBundle.message("toolwindow.table.namespace.label") + " ", label?.text)
-        assertEquals(PluginBundle.message("toolwindow.table.scan.orphans"), button?.text)
         assertEquals(1, combo?.itemCount, "before any load the combo offers the All filter alone")
         assertEquals(NamespaceFilter.All, combo?.selectedItem)
+    }
+
+    @Test
+    fun `the panel carries no scan button of its own any more`() {
+        // The orphan scan is ScanOrphanKeysAction now, resolved by the tool window toolbar
+        // from its id. A JButton in a home-made filter bar was a third grammar of action
+        // under an ActionToolbar that already held Add, Refresh, Sync and Settings — and,
+        // being a plain button, it was reachable from neither Find Action nor a keymap.
+        val panel = TableViewPanel(project)
+        val labels = buttons(panel).map { it.text }
+
+        assertFalse(
+            labels.contains(PluginBundle.message("toolwindow.table.scan.orphans")),
+            "the scan trigger moved to the toolbar: $labels"
+        )
     }
 
     @Test
@@ -129,13 +161,33 @@ class TableViewPanelTest : PlatformBaseTest() {
         assertEquals("menu.home", table.model.getValueAt(1, 0))
         assertEquals("Accueil", table.model.getValueAt(1, 2))
         // Nothing has been scanned yet, so every row reads as not scanned rather than as zero —
-        // the difference between "no usage found" and "never looked".
+        // the difference between "no usage found" and "never looked". The cell holds the raw
+        // count now, not a rendered label: the renderer owns the wording, and the context menu
+        // no longer has to sniff a string for a leading "0".
         for (row in 0 until table.rowCount) {
             // assertEquals(expected, actual, message) is NOT usable when the expected value is a
             // String: BasePlatformTestCase inherits junit.framework's assertEquals(message,
             // expected, actual), whose first parameter is also a String, and it wins the overload.
-            assertTrue(table.getValueAt(row, 3) == "—", "an unscanned row must not read as an orphan")
+            assertTrue(table.getValueAt(row, 3) == -1, "an unscanned row must not read as an orphan")
         }
+    }
+
+    @Test
+    fun `the key column starts wider than a locale column`() {
+        // AUTO_RESIZE_ALL_COLUMNS used to hand every column an equal share of the viewport, so
+        // `common:navigation.menu.profile` got exactly as much room as `Usage`, and past four
+        // locales in a docked panel no column was readable at all.
+        stubTranslations()
+        val panel = TableViewPanel(project)
+        val table = loadedTable(panel)
+
+        val key = table.columnModel.getColumn(0).preferredWidth
+        val locale = table.columnModel.getColumn(1).preferredWidth
+        val usage = table.columnModel.getColumn(3).preferredWidth
+
+        assertTrue(key > locale, "the key is the longest text of the table: $key vs $locale")
+        assertTrue(key > usage, "the key must not be squeezed by the usage count: $key vs $usage")
+        assertEquals(JTable.AUTO_RESIZE_OFF, table.autoResizeMode, "columns keep their width and scroll")
     }
 
     // ── Edition en place ──────────────────────────────────────────────────────
@@ -246,23 +298,60 @@ class TableViewPanelTest : PlatformBaseTest() {
     }
 
     @Test
+    fun `a locale cell says what it is instead of only being tinted`() {
+        // The point of the change: a reader who cannot tell two background shades apart —
+        // greyscale screen, colour vision deficiency, a theme flattening both — used to read
+        // "no entry", "blank value" and "translated" as one and the same empty cell.
+        stubTranslations()
+        val panel = TableViewPanel(project)
+        val table = loadedTable(panel)
+        val renderer = table.columnModel.getColumn(1).cellRenderer
+
+        val missing = renderer.getTableCellRendererComponent(table, "", false, false, 0, 1) as JLabel
+        val missingText = missing.text
+        val missingIcon = missing.icon
+
+        val blank = renderer.getTableCellRendererComponent(table, "   ", false, false, 0, 1) as JLabel
+        val blankText = blank.text
+        val blankIcon = blank.icon
+
+        val filled = renderer.getTableCellRendererComponent(table, "Home", false, false, 0, 1) as JLabel
+
+        assertEquals(PluginBundle.message("toolwindow.table.value.missing"), missingText)
+        assertEquals(PluginBundle.message("toolwindow.table.value.blank"), blankText)
+        assertNotNull(missingIcon, "a missing value carries an icon, not just a tint")
+        assertNotNull(blankIcon, "a blank value carries an icon, not just a tint")
+        assertTrue(missingText != blankText, "the two states must not read the same in greyscale")
+        assertTrue(filled.text == "Home", "a translated cell still shows its value")
+        assertNull(filled.icon, "the shared renderer must not leak the previous cell's icon")
+    }
+
+    @Test
     fun `the usage column separates never scanned from orphan`() {
         stubTranslations()
         val panel = TableViewPanel(project)
         val table = loadedTable(panel)
         val renderer = table.columnModel.getColumn(3).cellRenderer
 
-        val notScanned = renderer.getTableCellRendererComponent(table, "—", false, false, 0, 3) as JLabel
+        val notScanned = renderer.getTableCellRendererComponent(table, -1, false, false, 0, 3) as JLabel
         val notScannedColor = notScanned.foreground
         val notScannedTip = notScanned.toolTipText
+        val notScannedText = notScanned.text
 
-        val orphan = renderer.getTableCellRendererComponent(table, "0 (orphan)", false, false, 0, 3) as JLabel
+        val orphan = renderer.getTableCellRendererComponent(table, 0, false, false, 0, 3) as JLabel
         val orphanColor = orphan.foreground
+        val orphanText = orphan.text
 
-        val used = renderer.getTableCellRendererComponent(table, "3", false, false, 0, 3).foreground
+        val used = renderer.getTableCellRendererComponent(table, 3, false, false, 0, 3) as JLabel
+        val usedColor = used.foreground
 
         assertNotNull(notScannedTip, "not-scanned explains itself in a tooltip")
         assertTrue(notScannedColor != orphanColor, "never scanned must not look like an orphan")
-        assertTrue(orphanColor != used, "an orphan must not look like a used key")
+        assertTrue(orphanColor != usedColor, "an orphan must not look like a used key")
+        // And the three read apart with no colour at all.
+        assertEquals(PluginBundle.message("toolwindow.table.usage.pending"), notScannedText)
+        assertEquals(PluginBundle.message("toolwindow.table.usage.orphan"), orphanText)
+        assertTrue(used.text == "3", "a used key shows its count")
+        assertNull(used.icon, "the shared renderer must not leak the previous cell's icon")
     }
 }
