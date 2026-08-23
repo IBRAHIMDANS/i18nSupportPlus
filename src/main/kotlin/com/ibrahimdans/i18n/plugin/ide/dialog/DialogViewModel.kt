@@ -8,6 +8,7 @@ import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
@@ -173,7 +174,7 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
                     }
                 }
             },
-            "Update Translation",
+            PluginBundle.message("dialog.translation.command.update"),
             UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION
         )
     }

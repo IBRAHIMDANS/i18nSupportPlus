@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.dialog
 
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.project.Project
 import java.awt.BorderLayout
@@ -35,12 +36,14 @@ class BatchPlaceholderDialog(
     private val remainingLocales: List<String>
 ) : DialogWrapper(project) {
 
-    private val emptyRadio = JRadioButton("Empty string (\"\")")
-    private val keyRadio = JRadioButton("Key name (\"$keyName\")")
-    private val copyRadio = JRadioButton("Copy from primary locale (\"${defaultValue.take(40)}${if (defaultValue.length > 40) "…" else ""}\")")
+    private val emptyRadio = JRadioButton(PluginBundle.message("dialog.placeholder.option.empty"))
+    private val keyRadio = JRadioButton(PluginBundle.message("dialog.placeholder.option.key", keyName))
+    private val copyRadio = JRadioButton(
+        PluginBundle.message("dialog.placeholder.option.copy", defaultValue.ellipsised())
+    )
 
     init {
-        title = "Fill Remaining Locales"
+        title = PluginBundle.message("dialog.placeholder.title")
         init()
     }
 
@@ -51,8 +54,12 @@ class BatchPlaceholderDialog(
 
         // Explanation label
         val localesList = remainingLocales.take(5).joinToString(", ")
-        val more = if (remainingLocales.size > 5) " and ${remainingLocales.size - 5} more" else ""
-        val infoLabel = JLabel("<html>Choose a placeholder value for the remaining locale(s):<br><b>$localesList$more</b></html>")
+        val more =
+            if (remainingLocales.size > 5) " " + PluginBundle.message("dialog.placeholder.locales.more", remainingLocales.size - 5)
+            else ""
+        val infoLabel = JLabel(
+            "<html>" + PluginBundle.message("dialog.placeholder.hint") + "<br><b>$localesList$more</b></html>"
+        )
         infoLabel.border = BorderFactory.createEmptyBorder(0, 0, 12, 0)
         panel.add(infoLabel)
 
@@ -71,7 +78,7 @@ class BatchPlaceholderDialog(
 
         // Separator + cancel note
         panel.add(Box.createVerticalStrut(8))
-        val cancelNote = JLabel("<html><i>Cancel to leave remaining locales unchanged.</i></html>")
+        val cancelNote = JLabel("<html><i>" + PluginBundle.message("dialog.placeholder.cancel.note") + "</i></html>")
         panel.add(cancelNote)
 
         val wrapper = JPanel(BorderLayout())
@@ -83,9 +90,18 @@ class BatchPlaceholderDialog(
      * Returns the strategy chosen by the user, or null if dialog was cancelled.
      * Call only after [showAndGet] returns true.
      */
+    /** This value cut to what the radio button can show, with an ellipsis when it was cut. */
+    private fun String.ellipsised(): String =
+        if (length > MAX_PREVIEW) take(MAX_PREVIEW) + "…" else this
+
     fun selectedStrategy(): PlaceholderStrategy = when {
         keyRadio.isSelected -> PlaceholderStrategy.KEY_NAME
         copyRadio.isSelected -> PlaceholderStrategy.COPY_FROM_DEFAULT
         else -> PlaceholderStrategy.EMPTY_STRING
+    }
+
+    private companion object {
+        /** How much of the default locale's value the *Copy from primary locale* option shows. */
+        const val MAX_PREVIEW = 40
     }
 }
