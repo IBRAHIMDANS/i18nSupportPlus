@@ -234,4 +234,192 @@ class TreeViewModelTest {
         val missing = viewModel.getMissingKeys(root, listOf("en"))
         assertEquals(setOf("orphan"), missing)
     }
+
+    // --- localeStates tests ---
+
+    @Test
+    fun `localeStates reports one state per locale, in the order given`() {
+        val leaf = leaf("hello", mapOf("en" to "Hello", "fr" to "", "de" to "Hallo"))
+
+        val states = viewModel.localeStates(leaf, listOf("en", "fr", "de", "es"))
+
+        assertEquals(listOf("en", "fr", "de", "es"), states.keys.toList())
+        assertEquals(LocaleState.PRESENT, states["en"])
+        assertEquals(LocaleState.EMPTY, states["fr"])
+        assertEquals(LocaleState.PRESENT, states["de"])
+        assertEquals(LocaleState.MISSING, states["es"])
+    }
+
+    @Test
+    fun `localeStates treats a whitespace-only value as empty`() {
+        val states = viewModel.localeStates(leaf("hello", mapOf("en" to "   ")), listOf("en"))
+
+        assertEquals(LocaleState.EMPTY, states["en"])
+    }
+
+    @Test
+    fun `localeStates appends locales the key carries but the project did not discover`() {
+        val states = viewModel.localeStates(leaf("hello", mapOf("en" to "Hello", "it" to "Ciao")), listOf("en"))
+
+        assertEquals(listOf("en", "it"), states.keys.toList())
+        assertEquals(LocaleState.PRESENT, states["it"])
+    }
+
+    @Test
+    fun `localeStates returns nothing for a branch node`() {
+        val branch = TranslationNode(key = "menu", fullPath = "menu", values = emptyMap())
+
+        assertTrue(viewModel.localeStates(branch, listOf("en", "fr")).isEmpty())
+    }
+
+    // --- describeTree tests ---
+
+    @Test
+    fun `describeTree marks a leaf complete when every locale carries a value`() {
+        val root = rootOf(leaf("hello", mapOf("en" to "Hello", "fr" to "Bonjour")))
+
+        val status = viewModel.describeTree(root, listOf("en", "fr")).getValue("hello")
+
+        assertEquals(KeyStatus.COMPLETE, status.status)
+        assertEquals(NodeCompleteness(1, 1), status.completeness)
+    }
+
+    @Test
+    fun `describeTree marks a leaf missing when a locale has no entry`() {
+        val root = rootOf(leaf("hello", mapOf("en" to "Hello")))
+
+        val status = viewModel.describeTree(root, listOf("en", "fr")).getValue("hello")
+
+        assertEquals(KeyStatus.MISSING, status.status)
+        assertEquals(NodeCompleteness(0, 1), status.completeness)
+    }
+
+    @Test
+    fun `describeTree marks a leaf empty when a locale has a blank value`() {
+        val root = rootOf(leaf("hello", mapOf("en" to "Hello", "fr" to "")))
+
+        val status = viewModel.describeTree(root, listOf("en", "fr")).getValue("hello")
+
+        assertEquals(KeyStatus.EMPTY, status.status)
+        assertEquals(NodeCompleteness(0, 1), status.completeness)
+    }
+
+    @Test
+    fun `describeTree gives a missing locale precedence over an empty one`() {
+        val root = rootOf(leaf("hello", mapOf("en" to "")))
+
+        val status = viewModel.describeTree(root, listOf("en", "fr")).getValue("hello")
+
+        assertEquals(KeyStatus.MISSING, status.status)
+    }
+
+    @Test
+    fun `describeTree counts completeness on a branch node`() {
+        val root = rootOf(
+            TranslationNode(
+                key = "menu", fullPath = "menu", values = emptyMap(),
+                children = mutableMapOf(
+                    "home" to leaf("home", mapOf("en" to "Home", "fr" to "Accueil"), "menu.home"),
+                    "about" to leaf("about", mapOf("en" to "About", "fr" to "À propos"), "menu.about"),
+                    "help" to leaf("help", mapOf("en" to "Help"), "menu.help")
+                )
+            )
+        )
+
+        val statuses = viewModel.describeTree(root, listOf("en", "fr"))
+
+        val menu = statuses.getValue("menu")
+        assertEquals(NodeCompleteness(2, 3), menu.completeness)
+        assertEquals(66, menu.completeness.percent)
+        assertFalse(menu.completeness.isComplete)
+        // A branch carries no per-locale badge: only its keys do.
+        assertTrue(menu.localeStates.isEmpty())
+    }
+
+    @Test
+    fun `describeTree propagates the worst descendant status up the branches`() {
+        val root = rootOf(
+            TranslationNode(
+                key = "menu", fullPath = "menu", values = emptyMap(),
+                children = mutableMapOf(
+                    "ok" to leaf("ok", mapOf("en" to "Ok", "fr" to "Ok"), "menu.ok"),
+                    "blank" to leaf("blank", mapOf("en" to "X", "fr" to " "), "menu.blank")
+                )
+            ),
+            TranslationNode(
+                key = "footer", fullPath = "footer", values = emptyMap(),
+                children = mutableMapOf(
+                    "gone" to leaf("gone", mapOf("en" to "Gone"), "footer.gone")
+                )
+            )
+        )
+
+        val statuses = viewModel.describeTree(root, listOf("en", "fr"))
+
+        assertEquals(KeyStatus.EMPTY, statuses.getValue("menu").status)
+        assertEquals(KeyStatus.MISSING, statuses.getValue("footer").status)
+        // The root aggregates both: the worst one wins.
+        assertEquals(KeyStatus.MISSING, statuses.getValue("").status)
+        assertEquals(NodeCompleteness(1, 3), statuses.getValue("").completeness)
+    }
+
+    @Test
+    fun `describeTree counts a node that is both a key and a branch`() {
+        val menu = TranslationNode(
+            key = "menu", fullPath = "menu",
+            values = mapOf("en" to "Menu"),
+            isLeaf = true,
+            children = mutableMapOf(
+                "home" to leaf("home", mapOf("en" to "Home", "fr" to "Accueil"), "menu.home")
+            )
+        )
+
+        val statuses = viewModel.describeTree(rootOf(menu), listOf("en", "fr"))
+
+        val status = statuses.getValue("menu")
+        assertEquals(KeyStatus.MISSING, status.status)
+        // Its own key counts alongside its children's.
+        assertEquals(NodeCompleteness(1, 2), status.completeness)
+        assertEquals(LocaleState.MISSING, status.localeStates["fr"])
+    }
+
+    @Test
+    fun `describeTree reports an empty tree as complete`() {
+        val statuses = viewModel.describeTree(
+            TranslationNode(key = "root", fullPath = "", values = emptyMap()),
+            listOf("en", "fr")
+        )
+
+        val root = statuses.getValue("")
+        assertEquals(KeyStatus.COMPLETE, root.status)
+        assertEquals(NodeCompleteness(0, 0), root.completeness)
+        assertEquals(100, root.completeness.percent)
+        assertTrue(root.completeness.isComplete)
+    }
+
+    @Test
+    fun `describeTree describes every node of the tree`() {
+        val root = rootOf(
+            TranslationNode(
+                key = "common", fullPath = "common", values = emptyMap(),
+                children = mutableMapOf(
+                    "save" to leaf("save", mapOf("en" to "Save"), "common.save")
+                )
+            )
+        )
+
+        val statuses = viewModel.describeTree(root, listOf("en"))
+
+        assertEquals(setOf("", "common", "common.save"), statuses.keys)
+    }
+
+    // --- helpers ---
+
+    private fun leaf(key: String, values: Map<String, String>, fullPath: String = key) =
+        TranslationNode(key = key, fullPath = fullPath, values = values, isLeaf = true)
+
+    private fun rootOf(vararg children: TranslationNode) = TranslationNode(
+        key = "root", fullPath = "", values = emptyMap(),
+        children = children.associateBy { it.key }.toMutableMap()
+    )
 }
