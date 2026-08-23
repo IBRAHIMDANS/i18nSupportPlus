@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
@@ -110,7 +111,7 @@ private class BatchExtractDialog(
     private val rows: List<Row> = candidates.map { Row(it) }
 
     init {
-        title = "Batch Extract i18n Keys"
+        title = PluginBundle.message("action.batch.extract.title")
         init()
     }
 

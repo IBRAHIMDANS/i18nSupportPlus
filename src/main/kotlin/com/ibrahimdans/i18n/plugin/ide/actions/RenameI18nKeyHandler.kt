@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.json.psi.JsonProperty
 import com.intellij.openapi.actionSystem.CommonDataKeys
@@ -39,8 +40,8 @@ class RenameI18nKeyHandler : RenameHandler {
 
         val newSegment = Messages.showInputDialog(
             project,
-            "Rename i18n key segment (last part of '$currentKey')",
-            "Rename i18n Key",
+            PluginBundle.message("action.rename.prompt", currentKey),
+            PluginBundle.message("action.rename.title"),
             Messages.getQuestionIcon(),
             lastSegment,
             null
@@ -53,7 +54,7 @@ class RenameI18nKeyHandler : RenameHandler {
         // Collect all resolved PSI elements from translation files
         val resolvedElements = ref.multiResolve(false).mapNotNull { it.element }
 
-        WriteCommandAction.runWriteCommandAction(project, "Rename i18n Key", null, {
+        WriteCommandAction.runWriteCommandAction(project, PluginBundle.message("action.rename.title"), null, {
             // Rename in source code: replace the literal text
             renameSourceElement(ref.element, currentKey, newKey)
 

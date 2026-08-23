@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
@@ -89,8 +90,8 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
         if (resolved == null) {
             Messages.showErrorDialog(
                 project,
-                "Could not resolve an i18n key at the caret. Place the caret on a key that exists in a translation file.",
-                "Move i18n Key"
+                PluginBundle.message("action.move.error.unresolved"),
+                PluginBundle.message("action.move.title")
             )
             return
         }
@@ -101,7 +102,7 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
         val sourceNs = if (resolved.leavesByNamespace.size > 1) {
             showNamespaceCombo(
                 project,
-                "Key '$keyPath' exists in several namespaces. Move it from:",
+                PluginBundle.message("action.move.source.prompt", keyPath),
                 resolved.leavesByNamespace.keys.sorted()
             ) ?: return
         } else {
@@ -113,17 +114,23 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
 
         val namespaces = DialogViewModel(project).loadNamespaces().filter { it != sourceNs }
         if (namespaces.isEmpty()) {
-            Messages.showErrorDialog(project, "No other namespace found in this project.", "Move i18n Key")
+            Messages.showErrorDialog(
+                project,
+                PluginBundle.message("action.move.error.no.namespace"),
+                PluginBundle.message("action.move.title")
+            )
             return
         }
 
-        val targetNs = showNamespaceCombo(project, "Move '$sourceNs:$keyPath' to namespace:", namespaces) ?: return
+        val targetNs = showNamespaceCombo(
+            project, PluginBundle.message("action.move.target.prompt", sourceNs, keyPath), namespaces
+        ) ?: return
 
         if (hasCollision(project, targetNs, resolved.compositeKey)) {
             val choice = Messages.showYesNoDialog(
                 project,
-                "Key '$keyPath' already exists in namespace '$targetNs'. Overwrite it?",
-                "Move i18n Key",
+                PluginBundle.message("action.move.overwrite", keyPath, targetNs),
+                PluginBundle.message("action.move.title"),
                 Messages.getWarningIcon()
             )
             if (choice != Messages.YES) return
@@ -133,7 +140,7 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
             collectCodeUsages(sourceLeaves, resolved.sourceCodeElement)
         }
 
-        WriteCommandAction.runWriteCommandAction(project, "Move i18n Key", null, {
+        WriteCommandAction.runWriteCommandAction(project, PluginBundle.message("action.move.title"), null, {
             execute(project, sourceLeaves, codeUsages, resolved.compositeKey, targetNs)
         })
     }
@@ -335,7 +342,7 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
         }
         val dialog = object : DialogWrapper(project, true) {
             init {
-                title = "Move i18n Key"
+                title = PluginBundle.message("action.move.title")
                 init()
             }
 
