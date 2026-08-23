@@ -10,7 +10,6 @@ import com.ibrahimdans.i18n.plugin.utils.generator.translation.TranslationGenera
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.YamlTranslationGenerator
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import org.junit.jupiter.api.Assertions
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
@@ -103,17 +102,12 @@ class VueReferenceTest : PlatformBaseTest() {
     }
 
     /**
-     * Documents a real gap rather than pretending it works.
-     *
-     * `JsReferenceAssistant.pattern()` hardcodes `t` and `$t` instead of reading the names the
-     * technologies publish, so `$tc` and `$te` are annotated — the annotator does consult them —
-     * but carry no reference: no Ctrl+click, no rename, no find-usages. The README announces all
-     * three. Fixing it belongs to the reference assistant and touches every technology, not to
-     * this test infrastructure.
+     * `$tc` and `$te` used to be annotated but carry no reference, because
+     * `JsReferenceAssistant.pattern()` hardcoded `t` and `$t` rather than reading the names the
+     * technologies publish. The README announces all three; now all three navigate.
      */
-    @Disabled("JsReferenceAssistant hardcodes t and \$t; \$tc and \$te get no reference — see TASK-JS-REFERENCE-FN-NAMES")
     @ParameterizedTest
-    @ValueSource(strings = ["\$tc", "\$te"])
+    @ValueSource(strings = ["\$t", "\$tc", "\$te"])
     fun `every vue-i18n function name resolves a key`(function: String) = runVue {
         seed(json)
         myFixture.configureByText("Names.${cg.ext()}", cg.generateWith(function, "'$KEY'"))

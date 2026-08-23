@@ -33,6 +33,26 @@ internal class JsReferenceAssistant: ReferenceAssistant {
                 .flatMap { it.translationFunctionNames() }
                 .toSet()
         }
+
+        /**
+         * The method names a call is matched by.
+         *
+         * A configured name can be qualified — `i18n._`, `i18n.t` — while
+         * [JSPatterns.jsArgument] matches the method name alone, so the qualifier is dropped
+         * here and checked separately by [isDirectOrConfiguredCall]: that is what keeps
+         * `toast.t('…')` out while letting `i18n.t('…')` through.
+         *
+         * This used to be the literals `t` and `$t`. Every other name a `Technology` publishes
+         * — `$tc`, `$te`, `msg`, `i18n._`, `instant`, `_`, `$_`, `formatMessage` — was
+         * annotated, since annotation reads the full list, but carried no reference: no
+         * Ctrl+click, no rename, no find-usages on keys the README announces as supported.
+         */
+        private val callMethodNames by lazy {
+            translationFunctionNames
+                .map { it.substringAfterLast('.') }
+                .filter { it.isNotBlank() }
+                .toSet()
+        }
     }
 
     private fun isDirectOrConfiguredCall(element: PsiElement): Boolean {
@@ -45,16 +65,12 @@ internal class JsReferenceAssistant: ReferenceAssistant {
 
     override fun pattern(): ElementPattern<out PsiElement> =
         object : ElementPattern<PsiElement> {
-            private val v = JSPatterns.jsLiteralExpression().andOr(
-                    JSPatterns.jsArgument("t", 0),
-                    JSPatterns.jsArgument("\$t", 0),
-            )
+            private val v = JSPatterns.jsLiteralExpression()
+                .andOr(*callMethodNames.map { JSPatterns.jsArgument(it, 0) }.toTypedArray())
 
-            // Pattern matching a JSConditionalExpression passed as first argument of t() or $t()
-            private val ternaryArg = JSPatterns.jsExpression().andOr(
-                    JSPatterns.jsArgument("t", 0),
-                    JSPatterns.jsArgument("\$t", 0),
-            )
+            // Pattern matching a JSConditionalExpression passed as first argument of a call
+            private val ternaryArg = JSPatterns.jsExpression()
+                .andOr(*callMethodNames.map { JSPatterns.jsArgument(it, 0) }.toTypedArray())
 
             private fun isAlias(element: JSLiteralExpression): Boolean {
                 val config = Settings.getInstance(element.project).config()
