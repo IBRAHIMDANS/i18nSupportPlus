@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.dialog
 
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.key.FullKey
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.InputValidator
@@ -43,7 +44,9 @@ class TranslationDialog(
     private var sourcesPanel: JPanel? = null
 
     init {
-        title = if (mode == Mode.CREATE) "Create Translation" else "Edit Translation"
+        title =
+            if (mode == Mode.CREATE) PluginBundle.message("dialog.translation.title.create")
+            else PluginBundle.message("dialog.translation.title.edit")
         init()
         window?.minimumSize = Dimension(520, 300)
     }
@@ -55,7 +58,7 @@ class TranslationDialog(
         // Key field section
         val keyPanel = JPanel(BorderLayout(4, 0))
         keyPanel.border = BorderFactory.createEmptyBorder(4, 0, 8, 0)
-        keyPanel.add(JLabel("Key:"), BorderLayout.WEST)
+        keyPanel.add(JLabel(PluginBundle.message("dialog.translation.key.label")), BorderLayout.WEST)
         val field = JBTextField(fullKey.source)
         field.isEditable = (mode == Mode.CREATE)
         keyField = field
@@ -73,7 +76,10 @@ class TranslationDialog(
 
             // "+" button to create a new namespace
             val addButton = JButton("+")
-            addButton.toolTipText = "Add namespace"
+            // Same wording as the tool window's own Add Namespace action: the two are the
+            // one feature reached from two places, so they share the bundle keys rather than
+            // drifting apart in a second copy.
+            addButton.toolTipText = PluginBundle.message("toolwindow.action.add.namespace")
             addButton.preferredSize = Dimension(addButton.preferredSize.width, combo.preferredSize.height)
             addButton.maximumSize = addButton.preferredSize
             addButton.addActionListener {
@@ -83,8 +89,8 @@ class TranslationDialog(
                 // dialog sits above.
                 val input = Messages.showInputDialog(
                     addButton,
-                    "Namespace name (letters, digits, hyphens):",
-                    "Add Namespace",
+                    PluginBundle.message("toolwindow.action.add.namespace.prompt"),
+                    PluginBundle.message("toolwindow.action.add.namespace"),
                     null,
                     null,
                     namespaceValidator()
@@ -103,7 +109,7 @@ class TranslationDialog(
             val nsPanel = JPanel()
             nsPanel.layout = BoxLayout(nsPanel, BoxLayout.X_AXIS)
             nsPanel.border = BorderFactory.createEmptyBorder(0, 0, 8, 0)
-            nsPanel.add(JLabel("Namespace:"))
+            nsPanel.add(JLabel(PluginBundle.message("dialog.translation.namespace.label")))
             nsPanel.add(Box.createHorizontalStrut(4))
             nsPanel.add(combo)
             nsPanel.add(Box.createHorizontalStrut(4))
@@ -218,12 +224,12 @@ class TranslationDialog(
         if (mode == Mode.CREATE) {
             val key = keyField?.text?.trim()
             if (key.isNullOrBlank()) {
-                return ValidationInfo("Key cannot be empty", keyField)
+                return ValidationInfo(PluginBundle.message("dialog.translation.error.key.empty"), keyField)
             }
         }
         val hasAnyValue = textAreas.values.any { it.text.isNotBlank() }
         if (!hasAnyValue) {
-            return ValidationInfo("At least one translation value must be provided")
+            return ValidationInfo(PluginBundle.message("dialog.translation.error.value.required"))
         }
         return null
     }
