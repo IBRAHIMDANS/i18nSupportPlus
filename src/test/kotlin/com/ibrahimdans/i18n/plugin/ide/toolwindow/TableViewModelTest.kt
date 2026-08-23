@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumulator
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
@@ -294,5 +295,133 @@ class TableViewModelTest {
             listOf("(default):b"),
             viewModel.filterByNamespace(NamespaceFilter.Named("(default)"), labelled).map { it.key }
         )
+    }
+
+    // ---- key shape ----
+
+    @Test
+    fun `namespaceOf reads the part before the colon, or nothing`() {
+        assertEquals("common", viewModel.namespaceOf("common:menu.home"))
+        assertNull(viewModel.namespaceOf("menu.home"))
+        assertNull(viewModel.namespaceOf(":menu.home"), "a leading colon names no namespace")
+    }
+
+    @Test
+    fun `keySegments drops the namespace and splits on dots`() {
+        assertEquals(listOf("menu", "home"), viewModel.keySegments("common:menu.home"))
+        assertEquals(listOf("menu", "home"), viewModel.keySegments("menu.home"))
+        assertEquals(listOf("home"), viewModel.keySegments("home"))
+    }
+
+    // ---- cell states ----
+
+    /**
+     * Three states the renderer used to separate by background tint alone. Naming them is what
+     * lets a cell say "Missing" instead of merely being pink — and lets the distinction be
+     * checked without a Swing component.
+     */
+    @Test
+    fun `valueStatus separates no entry from an entry holding nothing`() {
+        assertEquals(ValueStatus.MISSING, viewModel.valueStatus(""))
+        assertEquals(ValueStatus.BLANK, viewModel.valueStatus("   "))
+        assertEquals(ValueStatus.BLANK, viewModel.valueStatus("\n\t"))
+        assertEquals(ValueStatus.TRANSLATED, viewModel.valueStatus("Home"))
+        assertEquals(ValueStatus.TRANSLATED, viewModel.valueStatus(" Home "))
+    }
+
+    @Test
+    fun `usageStatus separates never scanned from unused`() {
+        // The distinction the "—" placeholder was carrying on its own: a key nobody has
+        // looked for is not a key nobody uses, and deleting on that confusion loses data.
+        assertEquals(UsageStatus.NOT_SCANNED, viewModel.usageStatus(-1))
+        assertEquals(UsageStatus.ORPHAN, viewModel.usageStatus(0))
+        assertEquals(UsageStatus.USED, viewModel.usageStatus(1))
+        assertEquals(UsageStatus.USED, viewModel.usageStatus(42))
+    }
+
+    // ---- columns ----
+
+    @Test
+    fun `visibleLocales removes the hidden ones and keeps the order`() {
+        val locales = listOf("en", "fr", "de", "es")
+
+        assertEquals(locales, viewModel.visibleLocales(locales, emptySet()))
+        assertEquals(listOf("en", "de"), viewModel.visibleLocales(locales, setOf("fr", "es")))
+    }
+
+    @Test
+    fun `toggleLocale hides and shows a locale again`() {
+        val locales = listOf("en", "fr")
+
+        val hidden = viewModel.toggleLocale(locales, emptySet(), "fr")
+        assertEquals(setOf("fr"), hidden)
+        assertEquals(emptySet<String>(), viewModel.toggleLocale(locales, hidden, "fr"))
+    }
+
+    @Test
+    fun `toggleLocale refuses to hide the last visible locale`() {
+        // A table left with its Key and Usage columns shows no translation at all, and
+        // nothing in the interface would tell the user why.
+        val locales = listOf("en", "fr")
+        val hidden = setOf("fr")
+
+        assertEquals(hidden, viewModel.toggleLocale(locales, hidden, "en"))
+    }
+
+    @Test
+    fun `toggleLocale ignores a locale the module does not have`() {
+        assertEquals(emptySet<String>(), viewModel.toggleLocale(listOf("en", "fr"), emptySet(), "de"))
+    }
+
+    @Test
+    fun `columnWidths gives the key column more room than any other`() {
+        // AUTO_RESIZE_ALL_COLUMNS used to split the viewport in equal shares: the key, the
+        // longest text of the table, got exactly as much room as "Usage".
+        val widths = viewModel.columnWidths(3)
+
+        assertEquals(5, widths.size, "Key + three locales + Usage")
+        assertTrue(widths.first() > widths[1], "the key column starts widest")
+        assertTrue(widths.first() > widths.last(), "the usage count needs the least room")
+        assertEquals(widths[1], widths[3], "every locale column starts on the same width")
+    }
+
+    // ---- source routing ----
+
+    private fun source(displayPath: String, name: String, parent: String) =
+        LocalizationSource(tree = null, name = name, parent = parent, displayPath = displayPath, localization = mockk())
+
+    @Test
+    fun `findSourceFor picks the file of the asked locale`() {
+        val en = source("src/locales/en.json", "en.json", "en")
+        val fr = source("src/locales/fr.json", "fr.json", "fr")
+        every { TranslationDataLoader.findSources(project, null) } returns listOf(en, fr)
+        every { TranslationDataLoader.extractLocale(en) } returns "en"
+        every { TranslationDataLoader.extractLocale(fr) } returns "fr"
+
+        assertEquals(fr, viewModel.findSourceFor(project, "menu.home", "fr"))
+    }
+
+    @Test
+    fun `findSourceFor also matches the namespace the key carries`() {
+        // Same locale, two namespaces: routing on the locale alone wrote "common:menu.home"
+        // into whichever file came first.
+        val common = source("src/locales/en/common.json", "common.json", "en")
+        val auth = source("src/locales/en/auth.json", "auth.json", "en")
+        every { TranslationDataLoader.findSources(project, null) } returns listOf(common, auth)
+        every { TranslationDataLoader.extractLocale(common) } returns "en"
+        every { TranslationDataLoader.extractLocale(auth) } returns "en"
+        every { TranslationDataLoader.extractNamespace(common, any()) } returns "common"
+        every { TranslationDataLoader.extractNamespace(auth, any()) } returns "auth"
+
+        assertEquals(auth, viewModel.findSourceFor(project, "auth:login.title", "en"))
+    }
+
+    @Test
+    fun `findSourceFor returns nothing when the locale has no file`() {
+        val en = source("src/locales/en.json", "en.json", "en")
+        every { TranslationDataLoader.findSources(project, null) } returns listOf(en)
+        every { TranslationDataLoader.extractLocale(en) } returns "en"
+
+        assertNull(viewModel.findSourceFor(project, "menu.home", "de"))
     }
 }

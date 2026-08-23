@@ -1,6 +1,5 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
-import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.SetupWizardDialog
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -24,8 +23,8 @@ class SetupWizardAction : DumbAwareAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        // Explicit launch: clear the dismissed flag so the wizard behaves consistently afterwards.
-        Settings.getInstance(project).wizardDismissed = false
+        // Nothing to reset: running the wizard by hand says nothing about wanting the automatic
+        // suggestion back, and the settings checkbox is the only switch for that.
         SetupWizardDialog(project).show()
     }
 }

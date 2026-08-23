@@ -40,6 +40,11 @@ class Settings : PersistentStateComponent<Settings> {
     internal var excludedFileExtensions = default.excludedFileExtensions
     internal var gutterIconsEnabled = default.gutterIconsEnabled
     internal var setupWizardEnabled = default.setupWizardEnabled
+
+    /**
+     * Removed flag, kept only so [loadState] can migrate the states that already carry it.
+     * Nothing else may read or write it: "Don't show again" now unticks [setupWizardEnabled].
+     */
     internal var wizardDismissed = false
     internal var modules: MutableList<ModuleConfig> = mutableListOf()
     internal var rules: MutableList<EditorRuleState> = mutableListOf()
@@ -112,7 +117,24 @@ class Settings : PersistentStateComponent<Settings> {
         rules.addAll(config.rules.map { it.copy() })
     }
 
-    override fun loadState(state: Settings) = XmlSerializerUtil.copyBean(state, this)
+    override fun loadState(state: Settings) {
+        XmlSerializerUtil.copyBean(state, this)
+        migrateWizardDismissed()
+    }
+
+    /**
+     * Folds the old `wizardDismissed` flag into [setupWizardEnabled].
+     *
+     * "Don't show again" used to write its own flag, which the settings checkbox never read —
+     * so the two switches disagreed. They are one now, and a state persisted before that has
+     * to land on the switch, otherwise everyone who dismissed the wizard silently gets it back.
+     * Cleared once applied, so a later save no longer carries it.
+     */
+    private fun migrateWizardDismissed() {
+        if (!wizardDismissed) return
+        setupWizardEnabled = false
+        wizardDismissed = false
+    }
 
     override fun getState(): Settings = this
 

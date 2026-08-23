@@ -291,6 +291,12 @@
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift M"/>
         </action>
+        <!-- Consumed by the tool window toolbar, which resolves it by id; it belongs to no
+             group so that the table's own scan button could disappear without the feature
+             becoming unreachable from Find Action. -->
+        <action id="com.ibrahimdans.i18n.ScanOrphanKeys"
+                class="com.ibrahimdans.i18n.plugin.ide.actions.ScanOrphanKeysAction"
+                icon="AllIcons.Actions.Find"/>
     </actions>
     <extensions defaultExtensionNs="com.ibrahimdans.i18n">
         <localization implementation="com.ibrahimdans.i18n.extensions.localization.json.JsonLocalization"/>

@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.dialog
 
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
@@ -9,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
@@ -21,6 +23,12 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.psi.PsiElement
 import org.jetbrains.yaml.psi.YAMLKeyValue
+
+/**
+ * What the translation dialog's key field holds, checked while the user types.
+ * See [DialogViewModel.checkKey] for the rule behind each outcome.
+ */
+enum class KeyCheck { EMPTY, INVALID_SEGMENT, TAKEN, AVAILABLE }
 
 /**
  * ViewModel for the translation dialog.
@@ -212,6 +220,172 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
             else -> {
                 // Unsupported element type — no update
             }
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // Live key check and variable comparison
+    //
+    // The rules themselves sit in the companion object: they are pure functions of their
+    // arguments, so they are exercised headlessly instead of through the widget listeners
+    // that call them. `TranslationDialog.isValidNamespace` was pulled out of the "+" button's
+    // validator for that same reason; this follows the same path.
+    // ------------------------------------------------------------------------
+
+    /**
+     * The whole project's translations, read once per dialog.
+     *
+     * Both the key check and the "most complete locale" ask the same question of this map, and
+     * the dialog is modal — nothing edits the translation files underneath while it is open.
+     * Lazy, so a dialog whose key check and copy button are never used pays nothing for it.
+     */
+    private val allTranslations: Map<String, Map<String, String>> by lazy {
+        TranslationDataLoader.loadAllTranslations(project)
+    }
+
+    /**
+     * The keys already defined under [namespace], stripped of their namespace prefix.
+     *
+     * Read through [TranslationDataLoader] rather than re-walking the trees here: it is the one
+     * place that already knows how a namespace is spelled inside a full key — prefixed, unless
+     * it is one of the project's default namespaces — and the tool window reads the very same
+     * map, so the dialog cannot disagree with the tree about what already exists. The `:` below
+     * is that map's own spelling, not the configured namespace separator.
+     *
+     * The loader joins nested levels with a `.`, whatever the project's key separator is, so a
+     * project separating keys otherwise gets no "already taken" hint. It errs towards saying
+     * nothing rather than towards refusing a key that is in fact free.
+     */
+    fun existingKeys(namespace: String?): Set<String> {
+        val defaultNamespaces = Settings.getInstance(project).config().defaultNamespaces()
+        val allKeys = allTranslations.keys
+        val prefix = if (namespace.isNullOrBlank() || namespace in defaultNamespaces) "" else "$namespace:"
+        return if (prefix.isEmpty()) allKeys.filterNot { it.contains(':') }.toSet()
+        else allKeys.filter { it.startsWith(prefix) }.map { it.removePrefix(prefix) }.toSet()
+    }
+
+    /**
+     * The locale whose value the dialog offers to copy into the locales left empty.
+     *
+     * A module that declares a [ModuleConfig.referenceLocale] decides: that locale is the one
+     * translators work from, whether or not it happens to be the fullest. The field defaults to
+     * an empty string, and a locale nobody is showing is no use here, so both cases fall back to
+     * the most complete locale among the ones the dialog displays.
+     *
+     * Only that fallback may be shown without the word "reference": nobody declared it, it is
+     * merely the fullest one we could find.
+     */
+    fun localeToCopyFrom(sources: Collection<LocalizationSource>): String? =
+        donorLocale(
+            declared = Settings.getInstance(project).config().modules.map { it.referenceLocale },
+            translations = allTranslations,
+            candidates = sources.map { it.localeLabel() }.toSet()
+        )
+
+    companion object {
+
+        /**
+         * Message variables, in the three shapes the plugin already recognises elsewhere:
+         * i18next's `{{count}}`, ICU / react-intl's `{name}`, and printf's `%s` / `%1$s`.
+         *
+         * The `{{…}}` alternative comes first on purpose: on `{{count}}` the single-brace one
+         * would match `{count}` and report a variable no translator ever typed.
+         */
+        private val VARIABLE_REGEX = Regex("""\{\{[^{}]+}}|\{[^{}]+}|%[0-9]*\$?[sd]""")
+
+        /**
+         * Where each message variable sits inside [text], so the dialog can highlight them in
+         * place without re-deriving the rule for itself.
+         */
+        internal fun variableRanges(text: String): List<IntRange> =
+            VARIABLE_REGEX.findAll(text).map { it.range }.toList()
+
+        /**
+         * The message variables [text] carries.
+         *
+         * Whitespace inside a variable is dropped before comparing, so `{{ count }}` and
+         * `{{count}}` count as one variable rather than two — otherwise [missingVariables]
+         * would report a loss on a value that lost nothing.
+         */
+        internal fun messageVariables(text: String): Set<String> =
+            VARIABLE_REGEX.findAll(text)
+                .map { match -> match.value.filterNot { it.isWhitespace() } }
+                .toSet()
+
+        /**
+         * The variables each locale drops, compared against the other locales filled in.
+         *
+         * The comparison is made against the *union* of the variables found across the filled
+         * values rather than against one designated locale: no locale is designated yet (see
+         * [localeToCopyFrom]), and a variable any translator kept is a variable the message
+         * takes. Blank values are ignored — an untranslated locale has lost nothing, it has
+         * simply not been written yet.
+         *
+         * Only the locales actually missing something are returned.
+         */
+        internal fun missingVariables(valuesByLocale: Map<String, String>): Map<String, Set<String>> {
+            val filled = valuesByLocale.filterValues { it.isNotBlank() }
+            if (filled.size < 2) return emptyMap()
+            val expected = filled.values.flatMapTo(mutableSetOf()) { messageVariables(it) }
+            if (expected.isEmpty()) return emptyMap()
+            return filled
+                .mapValues { (_, value) -> expected - messageVariables(value) }
+                .filterValues { it.isNotEmpty() }
+        }
+
+        /**
+         * The locale the dialog copies from: the first locale a module [declared] as its
+         * reference, or the most complete one when no module declares a usable one.
+         *
+         * A [declared] entry is usable only when it is among [candidates] — the field defaults
+         * to an empty string, and a module may name a locale this dialog is not showing (another
+         * module's, or one whose file has since gone). Falling back then keeps the button working
+         * instead of leaving it dead with no explanation.
+         *
+         * Only the fallback may be presented without the word "reference": nobody declared it.
+         */
+        internal fun donorLocale(
+            declared: List<String>,
+            translations: Map<String, Map<String, String>>,
+            candidates: Set<String>
+        ): String? =
+            declared.firstOrNull { it in candidates }
+                ?: mostCompleteLocale(translations, candidates)
+
+        /**
+         * The most complete locale among [candidates]: the one translated for the most keys of
+         * [translations], a `key -> (locale -> value)` map as [TranslationDataLoader] builds it.
+         *
+         * Ties are broken by locale name so two openings of the dialog on an unchanged project
+         * always propose the same locale. Returns null only when there is no candidate at all.
+         */
+        internal fun mostCompleteLocale(
+            translations: Map<String, Map<String, String>>,
+            candidates: Set<String>
+        ): String? =
+            candidates
+                .map { locale -> locale to translations.values.count { !it[locale].isNullOrBlank() } }
+                .sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { it.first })
+                .firstOrNull()
+                ?.first
+
+        /**
+         * What the key field currently holds.
+         *
+         * [keyText] is the key without its namespace prefix, [keySeparator] the separator the
+         * project nests keys with — empty when the project stores flat keys, in which case the
+         * key is a single segment whatever it contains. [existingKeys] are the keys already
+         * defined under the selected namespace, so that overwriting one is announced before the
+         * save rather than discovered after it.
+         */
+        internal fun checkKey(keyText: String, keySeparator: String, existingKeys: Set<String>): KeyCheck {
+            val trimmed = keyText.trim()
+            if (trimmed.isEmpty()) return KeyCheck.EMPTY
+            val segments = if (keySeparator.isEmpty()) listOf(trimmed) else trimmed.split(keySeparator)
+            if (segments.any { segment -> segment.isBlank() || segment.any(Char::isWhitespace) }) {
+                return KeyCheck.INVALID_SEGMENT
+            }
+            return if (trimmed in existingKeys) KeyCheck.TAKEN else KeyCheck.AVAILABLE
         }
     }
 }

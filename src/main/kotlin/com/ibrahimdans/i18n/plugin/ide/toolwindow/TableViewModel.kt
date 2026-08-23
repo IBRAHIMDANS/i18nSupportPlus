@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumulator
@@ -48,6 +49,33 @@ sealed interface NamespaceFilter {
         override val label: String get() = name
     }
 }
+
+/**
+ * What a locale cell says about its value.
+ *
+ * The distinction used to live only in the renderer, as two background tints: a reader who
+ * cannot tell them apart — greyscale screen, colour vision deficiency, a theme that flattens
+ * both — read three different states as one. Naming the states here lets the renderer pair
+ * each with an icon and a word, and lets them be tested without a Swing component.
+ */
+enum class ValueStatus {
+    /** No entry at all for this locale. */
+    MISSING,
+
+    /** The entry exists but holds nothing but whitespace. */
+    BLANK,
+
+    /** A real value. */
+    TRANSLATED,
+}
+
+/**
+ * What the Usage column knows about a key.
+ *
+ * [NOT_SCANNED] is not [ORPHAN]: nobody has looked yet, which is the distinction the `—`
+ * placeholder was carrying alone.
+ */
+enum class UsageStatus { NOT_SCANNED, ORPHAN, USED }
 
 /**
  * View model for the table-based translation view.
@@ -109,6 +137,70 @@ class TableViewModel {
             is NamespaceFilter.Named -> rows.filter { it.key.startsWith("${filter.name}:") }
         }
 
+    // ── Key shape ─────────────────────────────────────────────────────────────
+
+    /** The namespace [key] carries, i.e. the part before its `:`, or null when it carries none. */
+    fun namespaceOf(key: String): String? {
+        val colonIdx = key.indexOf(':')
+        return if (colonIdx > 0) key.substring(0, colonIdx) else null
+    }
+
+    /** The dot-separated path of [key], namespace prefix removed. */
+    fun keySegments(key: String): List<String> {
+        val colonIdx = key.indexOf(':')
+        val path = if (colonIdx > 0) key.substring(colonIdx + 1) else key
+        return path.split('.')
+    }
+
+    // ── Cell states ───────────────────────────────────────────────────────────
+
+    /** What a locale cell holding [raw] must say about itself. */
+    fun valueStatus(raw: String): ValueStatus = when {
+        raw.isEmpty() -> ValueStatus.MISSING
+        raw.isBlank() -> ValueStatus.BLANK
+        else -> ValueStatus.TRANSLATED
+    }
+
+    /** What the Usage column must say about a row whose [TranslationRow.usageCount] is [count]. */
+    fun usageStatus(count: Int): UsageStatus = when {
+        count < 0 -> UsageStatus.NOT_SCANNED
+        count == 0 -> UsageStatus.ORPHAN
+        else -> UsageStatus.USED
+    }
+
+    // ── Columns ───────────────────────────────────────────────────────────────
+
+    /**
+     * The locales the table shows, i.e. [locales] minus [hidden], in the original order.
+     * Hiding locales is what makes the table usable past four of them in a docked panel.
+     */
+    fun visibleLocales(locales: List<String>, hidden: Set<String>): List<String> =
+        locales.filterNot { it in hidden }
+
+    /**
+     * The hidden set after the user toggles [locale] in the column menu.
+     *
+     * Hiding the last visible locale is refused: a table reduced to its Key and Usage columns
+     * shows no translation at all, and nothing in the interface would explain why.
+     */
+    fun toggleLocale(locales: List<String>, hidden: Set<String>, locale: String): Set<String> {
+        if (locale !in locales) return hidden
+        if (locale in hidden) return hidden - locale
+        if (visibleLocales(locales, hidden).size <= 1) return hidden
+        return hidden + locale
+    }
+
+    /**
+     * Preferred pixel widths for the whole table: the Key column, then one per locale, then Usage.
+     *
+     * The table used to run on `AUTO_RESIZE_ALL_COLUMNS`, which hands every column an equal share
+     * of the viewport — so `common:navigation.menu.profile` got exactly as much room as `Usage`.
+     * The key is the longest text in the table and is what the user scans, so it starts widest;
+     * the columns stay draggable, and the table scrolls horizontally rather than crushing itself.
+     */
+    fun columnWidths(localeCount: Int): List<Int> =
+        listOf(KEY_COLUMN_WIDTH) + List(localeCount) { LOCALE_COLUMN_WIDTH } + USAGE_COLUMN_WIDTH
+
     /**
      * Writes [value] for [key] in [locale], routing to the right translation file
      * by namespace and locale. Creates the entry when the locale does not have it yet.
@@ -129,19 +221,35 @@ class TableViewModel {
         value: String,
         moduleConfig: ModuleConfig? = null,
     ): Boolean {
-        val colonIdx = key.indexOf(':')
-        val namespace = if (colonIdx > 0) key.substring(0, colonIdx) else null
-        val source = TranslationDataLoader.findSources(project, moduleConfig)
-            .firstOrNull { source ->
-                TranslationDataLoader.extractLocale(source) == locale &&
-                    (namespace == null || TranslationDataLoader.extractNamespace(source) == namespace)
-            } ?: return false
+        val source = findSourceFor(project, key, locale, moduleConfig) ?: return false
         return try {
             DialogViewModel(project).saveTranslation(source, KeysSynchronizer().buildFullKey(key), value)
             true
         } catch (e: RuntimeException) {
             false
         }
+    }
+
+    /**
+     * The localization source holding [key]'s namespace for [locale], or null when the module
+     * owns no such file.
+     *
+     * Shared by the in-place edit and by *Open translation file*: both have to land on the very
+     * file the displayed row was read from, which is why [moduleConfig] is threaded through
+     * rather than being resolved project-wide — see [saveValue] for what that costs in a monorepo.
+     */
+    internal fun findSourceFor(
+        project: Project,
+        key: String,
+        locale: String,
+        moduleConfig: ModuleConfig? = null,
+    ): LocalizationSource? {
+        val namespace = namespaceOf(key)
+        return TranslationDataLoader.findSources(project, moduleConfig)
+            .firstOrNull { source ->
+                TranslationDataLoader.extractLocale(source) == locale &&
+                    (namespace == null || TranslationDataLoader.extractNamespace(source) == namespace)
+            }
     }
 
     /**
@@ -186,5 +294,16 @@ class TableViewModel {
             )
             row.copy(usageCount = accumulator.entries().size)
         }
+    }
+
+    companion object {
+        /** Widest by design: the key is the longest text of the table and the one users scan. */
+        internal const val KEY_COLUMN_WIDTH = 320
+
+        /** Enough for a short sentence; the column stays draggable from there. */
+        internal const val LOCALE_COLUMN_WIDTH = 180
+
+        /** A count and a word, no more. */
+        internal const val USAGE_COLUMN_WIDTH = 110
     }
 }
