@@ -14,6 +14,7 @@ class ModuleConfigTest {
         assertEquals("", m.keyTemplate)
         assertEquals("", m.rootDirectory)
         assertEquals("", m.preset)
+        assertEquals("", m.referenceLocale)
     }
 
     @Test
