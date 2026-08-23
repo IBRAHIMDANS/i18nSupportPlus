@@ -24,6 +24,29 @@ import java.util.EnumSet
 //   3. Index rebuild noise
 //   4. Vue LSP (2025.3+): getPluginDistDirByClass() fails with lib/modules/ modular structure;
 //      VueLspServerSupportProvider cannot be instantiated in the test sandbox
+//   5. JS language service editor listener: on closeAllFiles(), JSLanguageServiceEditorListenerBase
+//      disposes a VisibleAreaListener the ScrollingModel has already dropped, and
+//      Logger.assertTrue turns that into a failure. It carries no message, fires during tearDown,
+//      and lands on whichever test happens to be closing an editor at the time — which is why it
+//      shows up as a different red test on every run. Matched on the stack, not the message.
+
+/**
+ * True when [t] — or any cause up the chain, or the attached [details] — was raised from one of
+ * the given `Class.method` frames. Matching on the frame rather than the message is what lets a
+ * message-less Logger.assertTrue be told apart from a genuine plugin assertion.
+ */
+private fun raisedFrom(t: Throwable?, details: Array<String>, vararg frames: String): Boolean {
+    val trace = StringBuilder()
+    var cause = t
+    var depth = 0
+    while (cause != null && depth++ < 10) {
+        cause.stackTrace.forEach { trace.append(it.className).append('.').append(it.methodName).append('\n') }
+        cause = cause.cause
+    }
+    details.forEach { trace.append(it).append('\n') }
+    return frames.any { trace.contains(it) }
+}
+
 private val infraErrorSuppressor = object : LoggedErrorProcessor() {
     override fun processError(
         category: String,
@@ -36,6 +59,13 @@ private val infraErrorSuppressor = object : LoggedErrorProcessor() {
         if (message.contains("updateWithMap") || message.contains("Index IdIndex will be rebuilt")) return EnumSet.of(Action.LOG)
         if (message.contains("VueLspServerSupportProvider") || message.contains("VueLspTypeScriptService")) return EnumSet.of(Action.LOG)
         if (t is IllegalAccessError || t?.cause is IllegalAccessError || message.contains("IllegalAccessError")) return EnumSet.of(Action.LOG)
+        if (raisedFrom(
+                t,
+                details,
+                "ScrollingModelImpl.removeVisibleAreaListener",
+                "JSLanguageServiceEditorListenerBase"
+            )
+        ) return EnumSet.of(Action.LOG)
         return super.processError(category, message, details, t)
     }
 }

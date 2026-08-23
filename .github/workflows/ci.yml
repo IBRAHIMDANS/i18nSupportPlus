@@ -6,9 +6,23 @@ on:
   pull_request:
     branches: [ main ]
 
+# A push onto a pull request makes the run already in flight obsolete. Cancelling it there frees
+# the runner instead of queueing a second full IntelliJ suite behind the first. On main every
+# commit is a candidate release point, so runs on main are always allowed to finish.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # Tests and coverage share one job on purpose. Run apart, they each paid the same five minutes
+  # to build the sandbox and execute the same ~1300 tests, and each drew independently on the
+  # platform flakes that make an IntelliJ suite red — two lotteries per pull request for one
+  # result. One job halves both the wall time and the exposure.
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v7
 
@@ -21,15 +35,14 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6.3.0
 
-      - name: Run tests
+      # cleanTest, so an up-to-date `test` is never skipped and the coverage report always
+      # reflects this commit. --max-workers=1 stays: the platform test fixture is not safe to
+      # fork, and a 2-vCPU runner has nothing to gain from parallel workers anyway.
+      - name: Run tests with coverage
         run: |
-          ./gradlew --stop || true
-          ./gradlew cleanTest test \
-            --no-daemon \
-            --no-build-cache \
+          ./gradlew cleanTest test jacocoTestReport \
             --no-configuration-cache \
             --stacktrace \
-            --info \
             --max-workers=1
 
       - name: Upload test report
@@ -38,6 +51,24 @@ jobs:
         with:
           name: test-report
           path: build/reports/tests/test/
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: build/reports/jacoco/test/html/
+
+      - name: Comment coverage on PR
+        if: github.event_name == 'pull_request'
+        uses: madrapps/jacoco-report@v1.8.0
+        with:
+          paths: build/reports/jacoco/test/jacocoTestReport.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: 'Code Coverage'
+          update-comment: true
+          min-coverage-overall: 60
+          min-coverage-changed-files: 70
 
   # The descriptor the *next* release would ship, not the one on this branch.
   #
