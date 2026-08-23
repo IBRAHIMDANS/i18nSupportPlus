@@ -275,12 +275,12 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
      * Only that fallback may be shown without the word "reference": nobody declared it, it is
      * merely the fullest one we could find.
      */
-    fun localeToCopyFrom(sources: Collection<LocalizationSource>): String? {
-        val candidates = sources.map { it.localeLabel() }.toSet()
-        val declared = Settings.getInstance(project).config().modules
-            .firstNotNullOfOrNull { module -> module.referenceLocale.takeIf { it in candidates } }
-        return declared ?: mostCompleteLocale(allTranslations, candidates)
-    }
+    fun localeToCopyFrom(sources: Collection<LocalizationSource>): String? =
+        donorLocale(
+            declared = Settings.getInstance(project).config().modules.map { it.referenceLocale },
+            translations = allTranslations,
+            candidates = sources.map { it.localeLabel() }.toSet()
+        )
 
     companion object {
 
@@ -332,6 +332,25 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
                 .mapValues { (_, value) -> expected - messageVariables(value) }
                 .filterValues { it.isNotEmpty() }
         }
+
+        /**
+         * The locale the dialog copies from: the first locale a module [declared] as its
+         * reference, or the most complete one when no module declares a usable one.
+         *
+         * A [declared] entry is usable only when it is among [candidates] — the field defaults
+         * to an empty string, and a module may name a locale this dialog is not showing (another
+         * module's, or one whose file has since gone). Falling back then keeps the button working
+         * instead of leaving it dead with no explanation.
+         *
+         * Only the fallback may be presented without the word "reference": nobody declared it.
+         */
+        internal fun donorLocale(
+            declared: List<String>,
+            translations: Map<String, Map<String, String>>,
+            candidates: Set<String>
+        ): String? =
+            declared.firstOrNull { it in candidates }
+                ?: mostCompleteLocale(translations, candidates)
 
         /**
          * The most complete locale among [candidates]: the one translated for the most keys of

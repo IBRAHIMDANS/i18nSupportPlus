@@ -166,4 +166,46 @@ class DialogViewModelRulesTest {
     fun `no candidate, no locale`() {
         assertNull(DialogViewModel.mostCompleteLocale(emptyMap(), emptySet()))
     }
+
+    // -----------------------------------------------------------------------
+    // Donor locale
+    // -----------------------------------------------------------------------
+
+    /** `fr` is the fullest here, so every fallback below lands on it. */
+    private val translations = mapOf(
+        "menu.home" to mapOf("en" to "Home", "fr" to "Accueil"),
+        "menu.about" to mapOf("fr" to "À propos")
+    )
+
+    @Test
+    fun `a declared reference locale wins over the fullest one`() {
+        assertEquals(
+            "en",
+            DialogViewModel.donorLocale(listOf("en"), translations, setOf("en", "fr")),
+            "the module says translators work from en, however thin en still is"
+        )
+    }
+
+    @Test
+    fun `an undeclared reference falls back to the fullest locale`() {
+        assertEquals("fr", DialogViewModel.donorLocale(listOf(""), translations, setOf("en", "fr")))
+        assertEquals("fr", DialogViewModel.donorLocale(emptyList(), translations, setOf("en", "fr")))
+    }
+
+    @Test
+    fun `a reference the dialog is not showing is no reference at all`() {
+        assertEquals(
+            "fr",
+            DialogViewModel.donorLocale(listOf("de"), translations, setOf("en", "fr")),
+            "de belongs to another module, or its file is gone: the button must still work"
+        )
+    }
+
+    @Test
+    fun `the first module declaring a usable reference decides`() {
+        assertEquals(
+            "en",
+            DialogViewModel.donorLocale(listOf("", "de", "en", "fr"), translations, setOf("en", "fr"))
+        )
+    }
 }
