@@ -160,6 +160,30 @@ intellijPlatform {
     }
 }
 
+// ── runWebStorm ───────────────────────────────────────────────────────────────
+//
+// A second sandbox, running on a locally installed WebStorm, for the manual checks the
+// IntelliJ IDEA Ultimate sandbox cannot host. That sandbox starts unlicensed, and an account
+// that has already held an Ultimate licence is refused the trial outright — the log says
+// `Trial dry-run: request was declined. Error code = EXISTING_LICENSE_IS_EXPIRED` — so the
+// tool window cannot be opened there at all. WebStorm bundles the JavaScript support this
+// plugin depends on, and it is the licence a JS developer already has.
+//
+// Opt-in and machine-local: pass `-PwebStormPath=/path/to/webstorm`, or set `webStormPath`
+// in `~/.gradle/gradle.properties`. Nothing is registered when the property is absent or the
+// path holds no `product-info.json`, so the build is byte-for-byte unchanged for everyone
+// else, CI included. The main platform stays IntelliJ IDEA Ultimate: compilation, `test`,
+// `buildPlugin` and `verifyPlugin` are untouched — this only adds a task.
+//
+// PHP and GNU GetText are not part of WebStorm, so that sandbox exercises everything except
+// those two optional integrations. Both are declared `optional="true"` in plugin.xml.
+val webStormPath: String? = providers.gradleProperty("webStormPath").orNull
+if (webStormPath != null && File(webStormPath, "product-info.json").isFile) {
+    intellijPlatformTesting.runIde.register("runWebStorm") {
+        localPath = file(webStormPath)
+    }
+}
+
 changelog {
     version = properties("pluginVersion")
     groups.set(emptyList())
