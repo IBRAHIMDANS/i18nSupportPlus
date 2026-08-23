@@ -275,7 +275,7 @@ When 2+ modules are configured, the tool window displays a tab layer with one ta
 
 ## Requirements
 
-- IntelliJ IDEA 2025.1+ (build 251–263.*), verified against 2025.1, 2025.2 and 2025.3
+- IntelliJ IDEA 2025.1+ (build 251–263.*), verified against 2025.1, 2025.2, 2025.3, 2026.1 and 2026.2
 - Java 21+
 
 ### Plugin Dependencies
