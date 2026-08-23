@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.utils.CsvTranslationCodec
 import com.ibrahimdans.i18n.plugin.utils.CsvTranslationCodec.ImportPlan
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -49,14 +50,14 @@ class ImportTranslationsAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
 
-        val scope = chooseModuleScope(project, "Import Translations") ?: return
+        val scope = chooseModuleScope(project, PluginBundle.message("action.import.title")) ?: return
 
         val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor("csv")
-            .withTitle("Import Translations from CSV")
+            .withTitle(PluginBundle.message("action.import.chooser.title"))
         val file = FileChooser.chooseFile(descriptor, project, null) ?: return
         val text = String(file.contentsToByteArray(), StandardCharsets.UTF_8)
 
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Analyzing CSV…", false) {
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.import.progress.analyzing"), false) {
             override fun run(indicator: ProgressIndicator) {
                 val plan = try {
                     val records = CsvTranslationCodec.parse(text)
@@ -65,14 +66,22 @@ class ImportTranslationsAction : AnAction() {
                     CsvTranslationCodec.computeImportPlan(existing, knownLocales, records)
                 } catch (ex: IllegalArgumentException) {
                     ApplicationManager.getApplication().invokeLater {
-                        Messages.showErrorDialog(project, ex.message ?: "Malformed CSV file.", "Import Translations")
+                        Messages.showErrorDialog(
+                            project,
+                            ex.message ?: PluginBundle.message("action.import.error.malformed"),
+                            PluginBundle.message("action.import.title")
+                        )
                     }
                     return
                 }
 
                 ApplicationManager.getApplication().invokeLater {
                     if (plan.entries.isEmpty()) {
-                        Messages.showInfoMessage(project, summaryOf(plan, applied = false), "Import Translations")
+                        Messages.showInfoMessage(
+                            project,
+                            summaryOf(plan, applied = false),
+                            PluginBundle.message("action.import.title")
+                        )
                         return@invokeLater
                     }
                     val dialog = ImportPreviewDialog(project, plan)
@@ -86,9 +95,9 @@ class ImportTranslationsAction : AnAction() {
 
     /** Applies all planned entries in one WriteCommandAction (single undo step). */
     private fun applyPlan(project: Project, plan: ImportPlan, scope: ModuleScope) {
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Importing translations…", false) {
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.import.progress.title"), false) {
             override fun run(indicator: ProgressIndicator) {
-                indicator.text = "Resolving target files…"
+                indicator.text = PluginBundle.message("action.import.progress.resolving")
                 val viewModel = DialogViewModel(project)
                 val synchronizer = KeysSynchronizer()
                 // Scoped to the chosen module: writing against the project-wide source
@@ -102,14 +111,20 @@ class ImportTranslationsAction : AnAction() {
                     Triple(source, synchronizer.buildFullKey(entry.key), entry.value)
                 }
 
-                indicator.text = "Writing ${operations.size} values…"
+                indicator.text = PluginBundle.message("action.import.progress.writing", operations.size)
                 ApplicationManager.getApplication().invokeAndWait {
-                    WriteCommandAction.runWriteCommandAction(project, "Import i18n Translations", null, {
+                    WriteCommandAction.runWriteCommandAction(
+                        project, PluginBundle.message("action.import.command"), null,
+                    {
                         for ((source, fullKey, value) in operations) {
                             viewModel.saveTranslation(source, fullKey, value)
                         }
                     })
-                    Messages.showInfoMessage(project, summaryOf(plan, applied = true), "Import Translations")
+                    Messages.showInfoMessage(
+                        project,
+                        summaryOf(plan, applied = true),
+                        PluginBundle.message("action.import.title")
+                    )
                 }
             }
         })
@@ -131,16 +146,28 @@ class ImportTranslationsAction : AnAction() {
     private fun summaryOf(plan: ImportPlan, applied: Boolean): String = buildString {
         val creations = plan.entries.count { it.isCreation }
         val updates = plan.entries.size - creations
-        if (applied) append("Imported ${plan.entries.size} value(s): $creations created, $updates updated.")
-        else append("Nothing to import: every non-empty CSV cell matches the current translations.")
+        if (applied) append(
+            PluginBundle.message("action.import.summary.applied", plan.entries.size, creations, updates)
+        ) else append(PluginBundle.message("action.import.summary.nothing"))
         if (plan.ignoredKeys.isNotEmpty()) {
-            append("\nIgnored ${plan.ignoredKeys.size} unknown key(s): ")
-            append(plan.ignoredKeys.take(5).joinToString(", "))
-            if (plan.ignoredKeys.size > 5) append(", …")
+            val sample = plan.ignoredKeys.take(SAMPLE_SIZE).joinToString(", ") +
+                if (plan.ignoredKeys.size > SAMPLE_SIZE) ", …" else ""
+            append("\n")
+            append(PluginBundle.message("action.import.summary.ignored.keys", plan.ignoredKeys.size, sample))
         }
         if (plan.ignoredColumns.isNotEmpty()) {
-            append("\nIgnored unknown locale column(s): ${plan.ignoredColumns.joinToString(", ")}")
+            append("\n")
+            append(
+                PluginBundle.message(
+                    "action.import.summary.ignored.columns", plan.ignoredColumns.joinToString(", ")
+                )
+            )
         }
+    }
+
+    private companion object {
+        /** How many of the ignored keys the summary names before trailing off. */
+        const val SAMPLE_SIZE = 5
     }
 }
 
@@ -154,17 +181,26 @@ private class ImportPreviewDialog(
 ) : DialogWrapper(project) {
 
     init {
-        title = "Import Translations — Preview (${plan.entries.size} changes)"
-        setOKButtonText("Import")
+        title = PluginBundle.message("action.import.preview.title", plan.entries.size)
+        setOKButtonText(PluginBundle.message("action.import.preview.ok"))
         init()
     }
 
     override fun createCenterPanel(): JComponent {
-        val model = object : DefaultTableModel(arrayOf("Key", "Locale", "Action", "New value"), 0) {
+        val columns = arrayOf(
+            PluginBundle.message("action.import.preview.column.key"),
+            PluginBundle.message("action.import.preview.column.locale"),
+            PluginBundle.message("action.import.preview.column.action"),
+            PluginBundle.message("action.import.preview.column.value")
+        )
+        val model = object : DefaultTableModel(columns, 0) {
             override fun isCellEditable(row: Int, column: Int) = false
         }
         plan.entries.forEach { entry ->
-            model.addRow(arrayOf(entry.key, entry.locale, if (entry.isCreation) "create" else "update", entry.value))
+            val action =
+                if (entry.isCreation) PluginBundle.message("action.import.preview.action.create")
+                else PluginBundle.message("action.import.preview.action.update")
+            model.addRow(arrayOf(entry.key, entry.locale, action, entry.value))
         }
         val table = JBTable(model)
         table.setShowGrid(false)
@@ -174,9 +210,9 @@ private class ImportPreviewDialog(
 
         val notes = buildList {
             if (plan.ignoredKeys.isNotEmpty())
-                add("${plan.ignoredKeys.size} unknown key(s) will be ignored (keys are never created from a CSV).")
+                add(PluginBundle.message("action.import.preview.note.keys", plan.ignoredKeys.size))
             if (plan.ignoredColumns.isNotEmpty())
-                add("Unknown locale column(s) ignored: ${plan.ignoredColumns.joinToString(", ")}.")
+                add(PluginBundle.message("action.import.preview.note.columns", plan.ignoredColumns.joinToString(", ")))
         }
         if (notes.isNotEmpty()) {
             panel.add(JBLabel("<html>${notes.joinToString("<br>")}</html>"), BorderLayout.SOUTH)

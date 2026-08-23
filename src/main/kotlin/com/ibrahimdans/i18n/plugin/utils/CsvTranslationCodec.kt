@@ -76,7 +76,7 @@ object CsvTranslationCodec {
                     else -> field.append(c)
                 }
                 c == '"' -> {
-                    require(field.isEmpty()) { "Malformed CSV: quote inside unquoted field at offset $i" }
+                    require(field.isEmpty()) { PluginBundle.message("csv.error.quote.inside.field", i) }
                     inQuotes = true
                 }
                 c == ',' -> endField()
@@ -86,7 +86,7 @@ object CsvTranslationCodec {
             }
             i++
         }
-        require(!inQuotes) { "Malformed CSV: unterminated quoted field" }
+        require(!inQuotes) { PluginBundle.message("csv.error.unterminated.quote") }
         if (field.isNotEmpty() || record.isNotEmpty()) endRecord()
 
         // Drop trailing fully-empty records (file ending with a newline).
@@ -115,9 +115,11 @@ object CsvTranslationCodec {
         knownLocales: List<String>,
         records: List<List<String>>,
     ): ImportPlan {
-        require(records.isNotEmpty()) { "Empty CSV: no header row" }
+        require(records.isNotEmpty()) { PluginBundle.message("csv.error.no.header") }
         val header = records.first()
-        require(header.firstOrNull() == KEY_COLUMN) { "Malformed CSV: first column must be '$KEY_COLUMN', got '${header.firstOrNull()}'" }
+        require(header.firstOrNull() == KEY_COLUMN) {
+            PluginBundle.message("csv.error.first.column", KEY_COLUMN, header.firstOrNull() ?: "")
+        }
 
         val localeColumns = header.drop(1)
         val ignoredColumns = localeColumns.filterNot { it in knownLocales }

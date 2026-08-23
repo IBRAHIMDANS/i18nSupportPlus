@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
 import com.intellij.json.psi.JsonProperty
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -58,15 +59,15 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
         val project = e.project ?: return
         val viewModel = TableViewModel()
 
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Scanning for unused i18n keys…", false) {
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.cleanup.progress.title"), false) {
             override fun run(indicator: ProgressIndicator) {
-                indicator.text = "Loading translations…"
+                indicator.text = PluginBundle.message("action.cleanup.progress.loading")
                 val rows = viewModel.loadRows(project)
 
-                indicator.text = "Counting usages for ${rows.size} keys…"
+                indicator.text = PluginBundle.message("action.cleanup.progress.counting", rows.size)
                 val candidates = viewModel.countUsages(project, rows).filter { it.usageCount == 0 }
 
-                indicator.text = "Checking references on ${candidates.size} candidates…"
+                indicator.text = PluginBundle.message("action.cleanup.progress.checking", candidates.size)
                 // Load the sources ONCE. findAllSources rebuilds the PSI tree of every
                 // translation file, so calling it per key made the scan O(keys × files):
                 // a few hundred dead keys over a few dozen locale files froze the IDE.
@@ -79,7 +80,11 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
 
                 ApplicationManager.getApplication().invokeLater {
                     if (orphans.isEmpty()) {
-                        Messages.showInfoMessage(project, "No unused key found. Nothing to clean up.", "Cleanup Unused Keys")
+                        Messages.showInfoMessage(
+                            project,
+                            PluginBundle.message("action.cleanup.none"),
+                            PluginBundle.message("action.cleanup.title")
+                        )
                         return@invokeLater
                     }
                     val dialog = CleanupPreviewDialog(project, orphans.map { it.key to it.values.size })
@@ -89,8 +94,8 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
                             val deletedEntries = deleteKeys(project, selected)
                             Messages.showInfoMessage(
                                 project,
-                                "Deleted ${selected.size} key(s) across $deletedEntries locale entrie(s).",
-                                "Cleanup Unused Keys"
+                                PluginBundle.message("action.cleanup.done", selected.size, deletedEntries),
+                                PluginBundle.message("action.cleanup.title")
                             )
                         }
                     }
@@ -149,7 +154,9 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
             keys.flatMap { leafProperties(sources, it) }
         }
         ApplicationManager.getApplication().invokeAndWait {
-            WriteCommandAction.runWriteCommandAction(project, "Cleanup Unused i18n Keys", null, {
+            WriteCommandAction.runWriteCommandAction(
+                project, PluginBundle.message("action.cleanup.command"), null,
+            {
                 properties.forEach { if (it.isValid) deletePropertyAndSeparator(it) }
             })
         }
@@ -167,15 +174,22 @@ private class CleanupPreviewDialog(
     orphans: List<Pair<String, Int>>,
 ) : DialogWrapper(project) {
 
-    private val model = object : DefaultTableModel(arrayOf("Delete", "Key", "Locales"), 0) {
+    private val model = object : DefaultTableModel(
+        arrayOf(
+            PluginBundle.message("action.cleanup.preview.column.delete"),
+            PluginBundle.message("action.cleanup.preview.column.key"),
+            PluginBundle.message("action.cleanup.preview.column.locales")
+        ),
+        0
+    ) {
         override fun getColumnClass(columnIndex: Int): Class<*> =
             if (columnIndex == 0) java.lang.Boolean::class.java else String::class.java
         override fun isCellEditable(row: Int, column: Int) = column == 0
     }
 
     init {
-        title = "Cleanup Unused Keys — Preview (${orphans.size} candidates)"
-        setOKButtonText("Delete Selected")
+        title = PluginBundle.message("action.cleanup.preview.title", orphans.size)
+        setOKButtonText(PluginBundle.message("action.cleanup.preview.ok"))
         orphans.sortedBy { it.first }.forEach { (key, localeCount) ->
             model.addRow(arrayOf<Any>(true, key, localeCount.toString()))
         }
@@ -196,7 +210,7 @@ private class CleanupPreviewDialog(
         val panel = JPanel(BorderLayout(0, 6))
         panel.add(JScrollPane(table).apply { preferredSize = Dimension(640, 320) }, BorderLayout.CENTER)
         panel.add(
-            JBLabel("Keys reachable through dynamic template usages are already excluded. Deletion removes the key from every locale (single undo)."),
+            JBLabel(PluginBundle.message("action.cleanup.preview.note")),
             BorderLayout.SOUTH
         )
         return panel
