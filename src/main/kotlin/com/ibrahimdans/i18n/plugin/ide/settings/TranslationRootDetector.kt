@@ -43,6 +43,24 @@ object TranslationRootDetector {
             ?.joinToString("/")
     }
 
+    /**
+     * The distinct roots [relativeFilePaths] point at, before any common prefix is taken.
+     *
+     * [detect] answers with one root and cannot say whether it had to widen to get there: on a
+     * monorepo holding `apps/web/locales` and `apps/api/locales` it returns `apps`, which is a
+     * *guess* presented exactly like a certainty. This returns both folders, so the caller can
+     * say so — and offer one module per root rather than a root wider than any of them.
+     *
+     * Sorted, so what is shown never depends on the order the file system returned.
+     */
+    fun candidates(relativeFilePaths: List<String>): List<String> =
+        relativeFilePaths
+            .map { rootSegmentsOf(it) }
+            .filter { it.isNotEmpty() }
+            .map { it.joinToString("/") }
+            .distinct()
+            .sorted()
+
     /** Folder segments of [path], minus the file name and the locale levels below the root. */
     private fun rootSegmentsOf(path: String): List<String> {
         var segments = path.replace('\\', '/')

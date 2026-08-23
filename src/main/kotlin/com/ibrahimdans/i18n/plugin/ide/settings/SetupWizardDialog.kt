@@ -1,36 +1,53 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.intellij.ide.wizard.AbstractWizard
+import com.intellij.ide.wizard.CommitStepException
+import com.intellij.ide.wizard.Step
+import com.intellij.ide.wizard.StepAdapter
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.openapi.util.text.StringUtil
+import com.intellij.ui.EditorNotificationPanel
+import com.intellij.ui.InlineBanner
+import com.intellij.ui.JBColor
+import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.components.JBTextField
+import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
-import java.awt.CardLayout
 import java.awt.Dimension
+import java.awt.FlowLayout
 import java.io.File
-import javax.swing.*
+import javax.swing.Box
+import javax.swing.BoxLayout
+import javax.swing.DefaultListModel
+import javax.swing.JCheckBox
+import javax.swing.JComponent
+import javax.swing.JPanel
 
 /**
- * Setup wizard dialog shown on first launch when no i18n config is detected.
- * Guides the user through 3 steps:
- *   1. Framework detection (i18next / vue-i18n / lingui / react-intl, see [FrameworkDetector])
- *   2. Translation file discovery (.json/.yaml/.po/.pot in locales, i18n, translations folders)
- *   3. Summary before applying configuration
+ * Setup wizard shown on first launch when no i18n configuration is detected.
+ *
+ * Three steps: the frameworks in use, the translation files found, and a summary that is a
+ * **form** rather than a paragraph — a root or a separator is corrected where it is read.
+ *
+ * Navigation comes from [AbstractWizard]. It used to be hand-rolled: three same-weight buttons
+ * with the platform's own OK and Cancel hidden behind `createActions() = emptyArray()`, so
+ * nothing said which one validated, Enter and Escape did not behave as they do in every other
+ * IntelliJ wizard, and "Skip" was at once a navigation button and the cancel button. The SDK
+ * gives all of that for free: one accented default button, a Previous that greys out on the
+ * first step, and a Cancel that stays a cancel — relabelled here to say plainly that it leaves
+ * without configuring anything.
  */
-class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
-
-    companion object {
-        private const val STEP_FRAMEWORK = "FRAMEWORK"
-        private const val STEP_FILES = "FILES"
-        private const val STEP_SUMMARY = "SUMMARY"
-        private val STEPS = listOf(STEP_FRAMEWORK, STEP_FILES, STEP_SUMMARY)
-    }
+class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
+    PluginBundle.message("wizard.title"),
+    project
+) {
 
     // -- Step 1: Framework
     private val frameworkCheckboxes: Map<String, JCheckBox> =
@@ -43,132 +60,286 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
     private val fileListModel = DefaultListModel<String>()
     private val fileList = JBList(fileListModel)
 
-    // -- Step 3: Summary
-    private val summaryLabel = JEditorPane().apply {
-        contentType = "text/html"
-        isEditable = false
-        isOpaque = false
-    }
+    private val rail = StepRail(
+        listOf(
+            PluginBundle.message("wizard.rail.frameworks"),
+            PluginBundle.message("wizard.rail.files"),
+            PluginBundle.message("wizard.rail.summary")
+        )
+    )
 
-    // Navigation
-    private val cardLayout = CardLayout()
-    private val cardPanel = JPanel(cardLayout)
-    private var currentStepIndex = 0
-    private val stepIndicatorLabel = JBLabel(PluginBundle.message("wizard.step.indicator", 1, STEPS.size))
-
-    private val backButton = JButton(PluginBundle.message("wizard.button.back"))
-    private val nextButton = JButton(PluginBundle.message("wizard.button.next"))
-    private val skipButton = JButton(PluginBundle.message("wizard.button.skip"))
+    private val summaryStep = SummaryStep()
 
     init {
-        title = PluginBundle.message("wizard.title")
         isResizable = true
+        addStep(FrameworkStep())
+        addStep(FilesStep())
+        addStep(summaryStep)
         init()
-        setOKButtonText(PluginBundle.message("wizard.button.apply"))
-        setCancelButtonText(PluginBundle.message("wizard.button.skip"))
+        // "Skip" named the same button that also moved between steps. The cancel button says
+        // what leaving actually means, and stops competing with the accented default one.
+        cancelButton.text = PluginBundle.message("wizard.button.later")
         detectFrameworks()
         scanTranslationFiles()
     }
 
+    /** The wizard's own panel, with the step rail above it. */
     override fun createCenterPanel(): JComponent {
-        buildStep1Panel()
-        buildStep2Panel()
-        buildStep3Panel()
-
-        val navPanel = JPanel()
-        navPanel.add(skipButton)
-        navPanel.add(backButton)
-        navPanel.add(nextButton)
-
-        backButton.isEnabled = false
-        nextButton.text = PluginBundle.message("wizard.button.next")
-
-        skipButton.addActionListener { doCancelAction() }
-        backButton.addActionListener { navigateTo(currentStepIndex - 1) }
-        nextButton.addActionListener {
-            if (currentStepIndex < STEPS.size - 1) {
-                navigateTo(currentStepIndex + 1)
-            } else {
-                doOKAction()
-            }
-        }
-
         val root = JPanel(BorderLayout())
-        root.preferredSize = Dimension(500, 380)
-        root.add(buildStepIndicator(), BorderLayout.NORTH)
-        root.add(cardPanel, BorderLayout.CENTER)
-        root.add(navPanel, BorderLayout.SOUTH)
+        root.preferredSize = Dimension(620, 460)
+        root.add(rail, BorderLayout.NORTH)
+        root.add(super.createCenterPanel(), BorderLayout.CENTER)
         return root
     }
 
-    // Hide default OK/Cancel buttons — we use custom nav buttons instead
-    override fun createActions(): Array<Action> = emptyArray()
-
-    private fun buildStepIndicator(): JComponent {
-        stepIndicatorLabel.border = JBUI.Borders.empty(8, 12)
-        return stepIndicatorLabel
+    override fun updateStep() {
+        super.updateStep()
+        rail.select(currentStep)
     }
 
-    private fun buildStep1Panel(): JPanel {
-        val panel = JPanel()
-        panel.layout = BoxLayout(panel, BoxLayout.Y_AXIS)
-        panel.border = JBUI.Borders.empty(16)
+    override fun getHelpID(): String? = null
 
-        panel.add(JBLabel(bold(PluginBundle.message("wizard.step1.title"))))
-        panel.add(Box.createVerticalStrut(12))
-        panel.add(JBLabel(PluginBundle.message("wizard.step1.hint")))
-        panel.add(Box.createVerticalStrut(8))
+    // -- Steps
 
-        for (cb in frameworkCheckboxes.values) {
-            panel.add(cb)
-            panel.add(Box.createVerticalStrut(4))
+    private inner class FrameworkStep : StepAdapter() {
+        private val component = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            border = JBUI.Borders.empty(16)
+            add(JBLabel(PluginBundle.message("wizard.step1.title")).apply { font = font.deriveFont(font.style or 1) })
+            add(Box.createVerticalStrut(12))
+            add(JBLabel(PluginBundle.message("wizard.step1.hint")))
+            add(Box.createVerticalStrut(8))
+            for (checkBox in frameworkCheckboxes.values) {
+                add(checkBox)
+                add(Box.createVerticalStrut(4))
+            }
         }
 
-        cardPanel.add(panel, STEP_FRAMEWORK)
-        return panel
+        override fun getComponent(): JComponent = component
+        override fun getPreferredFocusedComponent(): JComponent? = frameworkCheckboxes.values.firstOrNull()
     }
 
-    private fun buildStep2Panel(): JPanel {
-        val panel = JPanel(BorderLayout())
-        panel.border = JBUI.Borders.empty(16)
-
-        val header = JPanel()
-        header.layout = BoxLayout(header, BoxLayout.Y_AXIS)
-        header.add(JBLabel(bold(PluginBundle.message("wizard.step2.title"))))
-        header.add(Box.createVerticalStrut(8))
-        header.add(JBLabel(PluginBundle.message("wizard.step2.hint")))
-        header.add(Box.createVerticalStrut(8))
-
-        panel.add(header, BorderLayout.NORTH)
-        panel.add(JBScrollPane(fileList), BorderLayout.CENTER)
-
-        cardPanel.add(panel, STEP_FILES)
-        return panel
-    }
-
-    private fun buildStep3Panel(): JPanel {
-        val panel = JPanel(BorderLayout())
-        panel.border = JBUI.Borders.empty(16)
-
-        val header = JBLabel(bold(PluginBundle.message("wizard.step3.title")))
-        panel.add(header, BorderLayout.NORTH)
-        panel.add(JBScrollPane(summaryLabel), BorderLayout.CENTER)
-
-        cardPanel.add(panel, STEP_SUMMARY)
-        return panel
-    }
-
-    private fun navigateTo(index: Int) {
-        currentStepIndex = index.coerceIn(0, STEPS.size - 1)
-        cardLayout.show(cardPanel, STEPS[currentStepIndex])
-        stepIndicatorLabel.text = PluginBundle.message("wizard.step.indicator", currentStepIndex + 1, STEPS.size)
-        backButton.isEnabled = currentStepIndex > 0
-        nextButton.text =
-            if (currentStepIndex == STEPS.size - 1) PluginBundle.message("wizard.button.apply")
-            else PluginBundle.message("wizard.button.next")
-        if (currentStepIndex == STEPS.size - 1) {
-            refreshSummary()
+    private inner class FilesStep : StepAdapter() {
+        private val component = JPanel(BorderLayout()).apply {
+            border = JBUI.Borders.empty(16)
+            val header = JPanel().apply {
+                layout = BoxLayout(this, BoxLayout.Y_AXIS)
+                add(JBLabel(PluginBundle.message("wizard.step2.title")).apply { font = font.deriveFont(font.style or 1) })
+                add(Box.createVerticalStrut(8))
+                add(JBLabel(PluginBundle.message("wizard.step2.hint")))
+                add(Box.createVerticalStrut(8))
+            }
+            add(header, BorderLayout.NORTH)
+            add(JBScrollPane(fileList), BorderLayout.CENTER)
         }
+
+        override fun getComponent(): JComponent = component
+        override fun getPreferredFocusedComponent(): JComponent = fileList
+    }
+
+    /**
+     * The summary, as editable components.
+     *
+     * It used to be one concatenated HTML string: every value was readable and none was
+     * correctable, so fixing a root meant walking back through steps that do not hold it in the
+     * first place — the root is derived, not typed anywhere. Each value now sits in the field
+     * that will be stored, next to the evidence it was read from.
+     */
+    private inner class SummaryStep : StepAdapter() {
+
+        private val body = JPanel(BorderLayout())
+        private val rootField = JBTextField(28)
+        private val splitIntoModules = JBCheckBox().apply {
+            // Registered once: the form is rebuilt whenever the plan changes, and a listener
+            // added there would pile up a copy per rebuild.
+            addActionListener { rootField.isEnabled = !isSelected }
+        }
+        private val keySeparatorField = JBTextField(6)
+        private val nsSeparatorField = JBTextField(6)
+        private val applyBoxes = mutableMapOf<WizardPlan.Field, JBCheckBox>()
+        private val valueFields = mutableMapOf<WizardPlan.Field, JBTextField>()
+
+        /** The plan the form currently shows; a rebuild would discard what the user typed. */
+        private var shownPlan: WizardPlan.Plan? = null
+
+        override fun getComponent(): JComponent = body
+        override fun getPreferredFocusedComponent(): JComponent = rootField
+
+        override fun _init() {
+            val plan = WizardPlan.of(foundFiles, selectedFrameworks())
+            if (plan == shownPlan) return
+            shownPlan = plan
+            rebuild(plan)
+        }
+
+        /**
+         * Blocks *Apply* on the two values nothing else can repair.
+         *
+         * A blank separator is not a preference: it makes every composite key unresolvable, and
+         * `ConfigDiagnostics` already reports it as a problem afterwards. Saying so here — where
+         * the field is — is what the old wizard could not do, since it validated nothing at all.
+         */
+        override fun _commit(finishChosen: Boolean) {
+            if (keySeparatorField.text.isBlank()) {
+                throw CommitStepException(PluginBundle.message("wizard.summary.error.keySeparator"))
+            }
+            if (nsSeparatorField.text.isBlank()) {
+                throw CommitStepException(PluginBundle.message("wizard.summary.error.nsSeparator"))
+            }
+        }
+
+        private fun rebuild(plan: WizardPlan.Plan) {
+            val settings = Settings.getInstance(project)
+            val defaults = Config()
+
+            rootField.text = plan.root.detected.orEmpty()
+            // A previous plan may have left the field disabled behind a split that no longer
+            // applies; the two must be reset together or the root becomes uneditable.
+            rootField.isEnabled = true
+            keySeparatorField.text = settings.keySeparator
+            nsSeparatorField.text = settings.nsSeparator
+            splitIntoModules.isSelected = false
+            splitIntoModules.text = PluginBundle.message(
+                "wizard.summary.root.split",
+                plan.root.candidates.size,
+                plan.root.candidates.joinToString(", ")
+            )
+
+            applyBoxes.clear()
+            valueFields.clear()
+            for (deduction in plan.deductions) {
+                applyBoxes[deduction.field] = JBCheckBox(labelOf(deduction.field)).apply {
+                    // Pre-ticked only while the setting still holds its default: the wizard can
+                    // be reopened at any time, and it never overwrites a decision already made.
+                    isSelected = isUntouched(deduction.field, settings, defaults)
+                }
+                if (deduction.value.isNotEmpty()) {
+                    valueFields[deduction.field] = JBTextField(deduction.value, 16)
+                }
+            }
+
+            body.removeAll()
+            body.add(form(plan), BorderLayout.CENTER)
+            body.revalidate()
+            body.repaint()
+        }
+
+        private fun form(plan: WizardPlan.Plan): JComponent = panel {
+            if (plan.root.widened) {
+                row {
+                    // The root is a guess here, not a reading: TranslationRootDetector widened to
+                    // the longest common prefix because the catalogues disagreed. Announcing it
+                    // like a fact is what made "Translations root: apps" look configured.
+                    cell(
+                        InlineBanner(
+                            PluginBundle.message(
+                                "wizard.summary.root.widened",
+                                plan.root.detected.orEmpty(),
+                                plan.root.candidates.joinToString(", ")
+                            ),
+                            EditorNotificationPanel.Status.Warning
+                        )
+                    ).align(AlignX.FILL)
+                }
+            }
+
+            row(PluginBundle.message("wizard.summary.field.frameworks")) {
+                label(
+                    selectedFrameworks().joinToString(", ") { FrameworkDetector.LABELS[it] ?: it }
+                        .ifEmpty { PluginBundle.message("wizard.summary.frameworks.none") }
+                )
+            }
+            row(PluginBundle.message("wizard.summary.field.files")) {
+                val count = label(PluginBundle.message("wizard.summary.files.count", foundFiles.size))
+                if (foundFiles.isNotEmpty()) {
+                    count.comment(foundFiles.take(SAMPLE_SIZE).joinToString(", "))
+                }
+            }
+
+            row(PluginBundle.message("wizard.summary.field.root")) {
+                cell(rootField).comment(
+                    when {
+                        plan.root.detected == null -> PluginBundle.message("wizard.summary.root.missing")
+                        else -> PluginBundle.message(
+                            "wizard.summary.origin.files",
+                            plan.root.candidates.joinToString(", ")
+                        )
+                    }
+                )
+            }
+            if (plan.root.widened) {
+                row("") { cell(splitIntoModules) }
+            }
+
+            for (deduction in plan.deductions) {
+                row("") {
+                    cell(applyBoxes.getValue(deduction.field))
+                    valueFields[deduction.field]?.let { cell(it) }
+                }.rowComment(originOf(deduction))
+            }
+
+            row(PluginBundle.message("wizard.summary.field.keySeparator")) { cell(keySeparatorField) }
+            row(PluginBundle.message("wizard.summary.field.nsSeparator")) { cell(nsSeparatorField) }
+
+            if (foundFiles.any { it.endsWith(".po") || it.endsWith(".pot") }) {
+                row {
+                    cell(
+                        InlineBanner(
+                            PluginBundle.message("wizard.summary.gettext.warning"),
+                            EditorNotificationPanel.Status.Info
+                        )
+                    ).align(AlignX.FILL)
+                }
+            }
+        }.apply { border = JBUI.Borders.empty(16) }
+
+        /** Where a value was read from, said in the user's own terms rather than as a rule. */
+        private fun originOf(deduction: WizardPlan.Deduction): String = when {
+            deduction.origin.isEmpty() -> ""
+            deduction.field == WizardPlan.Field.FLAT_KEYS ->
+                PluginBundle.message("wizard.summary.origin.framework", deduction.origin)
+            else -> PluginBundle.message("wizard.summary.origin.file", deduction.origin)
+        }
+
+        private fun labelOf(field: WizardPlan.Field): String = when (field) {
+            WizardPlan.Field.DEFAULT_NS -> PluginBundle.message("wizard.summary.field.defaultNs")
+            WizardPlan.Field.GETTEXT -> PluginBundle.message("wizard.summary.field.gettext")
+            WizardPlan.Field.FLAT_KEYS -> PluginBundle.message("wizard.summary.field.flatKeys")
+            WizardPlan.Field.PREFERRED_LOCALIZATION -> PluginBundle.message("wizard.summary.field.preferredLocalization")
+        }
+
+        private fun isUntouched(field: WizardPlan.Field, settings: Settings, defaults: Config): Boolean = when (field) {
+            WizardPlan.Field.DEFAULT_NS -> settings.defaultNs == defaults.defaultNs
+            WizardPlan.Field.GETTEXT -> settings.gettext == defaults.gettext
+            WizardPlan.Field.FLAT_KEYS -> settings.flatKeys == defaults.flatKeys
+            WizardPlan.Field.PREFERRED_LOCALIZATION ->
+                WizardSettingsDeducer.isUntouchedPreferredLocalization(settings.preferredLocalization)
+        }
+
+        /** What the form says should be stored — nothing is re-derived at this point. */
+        fun choices(): WizardChoices {
+            val plan = shownPlan ?: return WizardChoices()
+            val splitting = plan.root.widened && splitIntoModules.isSelected
+            return WizardChoices(
+                translationsRoot = rootField.text.trim().takeUnless { splitting },
+                modules = if (splitting) {
+                    WizardPlan.modulesFor(plan.root, foundFiles, selectedFrameworks())
+                } else {
+                    emptyList()
+                },
+                defaultNs = chosenValue(WizardPlan.Field.DEFAULT_NS),
+                gettext = true.takeIf { isTicked(WizardPlan.Field.GETTEXT) },
+                flatKeys = true.takeIf { isTicked(WizardPlan.Field.FLAT_KEYS) },
+                preferredLocalization = chosenValue(WizardPlan.Field.PREFERRED_LOCALIZATION),
+                keySeparator = keySeparatorField.text,
+                nsSeparator = nsSeparatorField.text
+            )
+        }
+
+        private fun isTicked(field: WizardPlan.Field): Boolean = applyBoxes[field]?.isSelected == true
+
+        private fun chosenValue(field: WizardPlan.Field): String? =
+            valueFields[field]?.text?.trim()?.takeIf { isTicked(field) }
     }
 
     // -- Detection logic
@@ -221,136 +392,56 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
             emptyList()
         }
 
-    private fun refreshSummary() {
-        val selectedFrameworks = frameworkCheckboxes
-            .filterValues { it.isSelected }
-            .keys
-            .joinToString(", ")
-            .ifEmpty { PluginBundle.message("wizard.summary.frameworks.none") }
-            .let { StringUtil.escapeXmlEntities(it) }
-
-        val fileCount = foundFiles.size
-        val fileSample = foundFiles.take(5).joinToString("<br>") { "• ${StringUtil.escapeXmlEntities(it)}" }
-        val moreNote = if (fileCount > 5) "<br>" + PluginBundle.message("wizard.summary.files.more", fileCount - 5) else ""
-
-        val hasPo = foundFiles.any { it.endsWith(".po") || it.endsWith(".pot") }
-        val poNote = if (hasPo) warning(PluginBundle.message("wizard.summary.gettext.warning")) else ""
-
-        // Announcing "Apply stores the root" while none could be derived is what made the
-        // wizard look like it had configured the project when it had written nothing.
-        val detectedRoot = TranslationRootDetector.detect(foundFiles)
-        val rootNote = when {
-            fileCount == 0 -> ""
-            detectedRoot == null -> warning(PluginBundle.message("wizard.summary.root.missing"))
-            else -> "<p><b>" + PluginBundle.message("wizard.summary.root") + "</b> " +
-                StringUtil.escapeXmlEntities(detectedRoot) + "</p>"
-        }
-
-        // The ticked frameworks used to feed this sentence and nothing else. Listing what they
-        // actually change is what makes the checkboxes mean something.
-        val settingsNote = describeDeducedSettings()
-
-        val closing = if (fileCount > 0 && detectedRoot != null)
-            "<p style=\"color:gray\">" + PluginBundle.message("wizard.summary.closing") + "</p>"
-        else ""
-
-        val html = "<html><body style=\"font-family:sans-serif\">" +
-            "<p><b>" + PluginBundle.message("wizard.summary.frameworks") + "</b> $selectedFrameworks</p>" +
-            "<p><b>" + PluginBundle.message("wizard.summary.files") + "</b> " +
-            PluginBundle.message("wizard.summary.files.count", fileCount) + "</p>" +
-            (if (fileCount > 0) "<p>$fileSample$moreNote</p>" else "") +
-            rootNote +
-            settingsNote +
-            poNote +
-            closing +
-            "</body></html>"
-        summaryLabel.text = html
-    }
-
     /**
-     * Lists the settings *Apply* is about to write, or nothing when it would write none.
+     * Stores what the summary form holds — not what the scan implies.
      *
-     * Only the ones that will actually be stored are listed: a field the user already changed
-     * is left alone, so announcing it would be another promise the wizard does not keep.
-     */
-    private fun describeDeducedSettings(): String {
-        val deduced = WizardSettingsDeducer.deduce(foundFiles, selectedFrameworks())
-        if (deduced.isEmpty()) return ""
-
-        val settings = Settings.getInstance(project)
-        val defaults = Config()
-        val rows = buildList {
-            deduced.defaultNs
-                ?.takeIf { settings.defaultNs == defaults.defaultNs }
-                ?.let { add(PluginBundle.message("wizard.summary.settings.defaultNs", StringUtil.escapeXmlEntities(it))) }
-            deduced.gettext
-                ?.takeIf { settings.gettext == defaults.gettext }
-                ?.let { add(PluginBundle.message("wizard.summary.settings.gettext")) }
-            deduced.flatKeys
-                ?.takeIf { settings.flatKeys == defaults.flatKeys }
-                ?.let { add(PluginBundle.message("wizard.summary.settings.flatKeys")) }
-            deduced.preferredLocalization
-                ?.takeIf { WizardSettingsDeducer.isUntouchedPreferredLocalization(settings.preferredLocalization) }
-                ?.let { add(PluginBundle.message("wizard.summary.settings.preferredLocalization", StringUtil.escapeXmlEntities(it))) }
-        }
-        if (rows.isEmpty()) return ""
-        return "<p><b>" + PluginBundle.message("wizard.summary.settings") + "</b></p><p>" +
-            rows.joinToString("<br>") { "• $it" } + "</p>"
-    }
-
-    /**
-     * Applies the detected configuration to Settings when the user clicks Apply.
+     * The deduction still decides what is *offered*; the user decides what is *kept*. Writing
+     * the deduction again here would quietly undo every correction made on the last step.
      */
     override fun doOKAction() {
-        val settings = Settings.getInstance(project)
-
-        // foundFiles holds paths relative to the project, and translationsRoot is read back as
-        // "$basePath/$translationsRoot", so what is stored here must stay relative too.
-        TranslationRootDetector.detect(foundFiles)?.let { settings.translationsRoot = it }
-        applyDeducedSettings(settings)
-
+        summaryStep.choices().applyTo(Settings.getInstance(project))
         super.doOKAction()
     }
-
-    /**
-     * Applies what the scan and the ticked frameworks imply, without ever overwriting a value
-     * the user already changed.
-     *
-     * The wizard opens on first launch, but nothing guarantees it writes first: settings can
-     * be edited before it is answered, or it can be reopened later. Each field is therefore
-     * written only while it still holds the default from [Config] — which is also why
-     * `Deduced` uses nulls rather than falling back to defaults itself.
-     */
-    private fun applyDeducedSettings(settings: Settings) {
-        val deduced = WizardSettingsDeducer.deduce(foundFiles, selectedFrameworks())
-        val defaults = Config()
-
-        deduced.defaultNs
-            ?.takeIf { settings.defaultNs == defaults.defaultNs }
-            ?.let { settings.defaultNs = it }
-
-        deduced.gettext
-            ?.takeIf { settings.gettext == defaults.gettext }
-            ?.let { settings.gettext = it }
-
-        deduced.flatKeys
-            ?.takeIf { settings.flatKeys == defaults.flatKeys }
-            ?.let { settings.flatKeys = it }
-
-        deduced.preferredLocalization
-            ?.takeIf { WizardSettingsDeducer.isUntouchedPreferredLocalization(settings.preferredLocalization) }
-            ?.let { settings.preferredLocalization = it }
-    }
-
-    /** [text] as a standalone HTML label in bold — the wizard's step headers. */
-    private fun bold(text: String): String = "<html><b>$text</b></html>"
-
-    /** [text] as an HTML paragraph carrying the wizard's warning colour and sign. */
-    private fun warning(text: String): String = "<p style=\"color:#CC7700\">⚠ $text</p>"
 
     private fun selectedFrameworks(): Set<String> =
         frameworkCheckboxes.filterValues { it.isSelected }.keys
 
     // No doCancelAction override: skipping the wizard says nothing about wanting it gone. Only
     // "Don't show again", and the settings checkbox behind it, switch the suggestion off.
+
+    /**
+     * The step rail: every step named at once, the current one picked out.
+     *
+     * "Step 2 of 3" told the user where they were and nothing about where they were going.
+     */
+    private class StepRail(private val titles: List<String>) : JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)) {
+
+        private val labels = titles.mapIndexed { index, title ->
+            JBLabel("${index + 1}. $title").apply { border = JBUI.Borders.empty(8, 12) }
+        }
+
+        init {
+            border = JBUI.Borders.emptyLeft(4)
+            labels.forEach { add(it) }
+            select(0)
+        }
+
+        fun select(index: Int) {
+            labels.forEachIndexed { position, label ->
+                label.foreground = if (position == index) ACTIVE else INACTIVE
+                label.font = label.font.deriveFont(if (position == index) 1 else 0)
+            }
+        }
+
+        private companion object {
+            // From the IDE scheme rather than hand-picked RGB, as the stats bar does since #209.
+            val ACTIVE = JBColor.namedColor("Label.foreground", 0x000000, 0xBBBBBB)
+            val INACTIVE = JBColor.namedColor("Label.disabledForeground", 0x8C8C8C, 0x777777)
+        }
+    }
+
+    private companion object {
+        /** How many of the found files the summary names before falling back to the count. */
+        const val SAMPLE_SIZE = 5
+    }
 }

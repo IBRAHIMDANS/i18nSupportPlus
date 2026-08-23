@@ -104,4 +104,40 @@ class TranslationRootDetectorTest : PlatformBaseTest() {
             TranslationRootDetector.detect(listOf("apps/web/locales/en.json", "apps/api/locales/en.json"))
         )
     }
+
+    /**
+     * The widening above is invisible in [TranslationRootDetector.detect]'s answer, which is how
+     * the summary came to show a guessed `apps` in the same tone as a value read off disk.
+     * [TranslationRootDetector.candidates] is what lets the caller say so.
+     */
+    @Test
+    fun candidatesListEveryFolderTheCommonPrefixHadToSwallow() {
+        Assertions.assertEquals(
+            listOf("apps/api/locales", "apps/web/locales"),
+            TranslationRootDetector.candidates(listOf("apps/web/locales/en.json", "apps/api/locales/en.json")),
+            "sorted, so the summary never depends on the order the file system returned"
+        )
+    }
+
+    @Test
+    fun candidatesCollapseFilesSharingOneRoot() {
+        Assertions.assertEquals(
+            listOf("locales"),
+            TranslationRootDetector.candidates(listOf("locales/fr.json", "locales/en/common.json"))
+        )
+    }
+
+    @Test
+    fun candidatesDropAFileSittingAtTheProjectRoot() {
+        Assertions.assertEquals(
+            listOf("locales"),
+            TranslationRootDetector.candidates(listOf("en.json", "locales/fr.json")),
+            "a file with no folder above it names no candidate"
+        )
+    }
+
+    @Test
+    fun candidatesAreEmptyWithoutFiles() {
+        Assertions.assertEquals(emptyList<String>(), TranslationRootDetector.candidates(emptyList()))
+    }
 }
