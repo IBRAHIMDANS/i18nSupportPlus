@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
@@ -26,14 +27,14 @@ class SetupWizardStartupActivity : ProjectActivity {
         NotificationGroupManager.getInstance()
             .getNotificationGroup("i18n Support Plus")
             .createNotification(
-                "Configure i18n Support Plus",
-                "No translation configuration was detected in this project.",
+                PluginBundle.message("wizard.notification.title"),
+                PluginBundle.message("wizard.notification.content"),
                 NotificationType.INFORMATION
             )
-            .addAction(NotificationAction.createSimpleExpiring("Run Setup Wizard") {
+            .addAction(NotificationAction.createSimpleExpiring(PluginBundle.message("wizard.notification.action.run")) {
                 if (!project.isDisposed) SetupWizardDialog(project).show()
             })
-            .addAction(NotificationAction.createSimpleExpiring("Don't show again") {
+            .addAction(NotificationAction.createSimpleExpiring(PluginBundle.message("wizard.notification.action.dismiss")) {
                 Settings.getInstance(project).wizardDismissed = true
             })
             .notify(project)
