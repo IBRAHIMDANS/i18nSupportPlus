@@ -17,6 +17,7 @@ plugins {
     id("org.jetbrains.kotlin.jvm") version "2.4.10"
     id("org.jetbrains.intellij.platform") version "2.18.1"
     id("org.jetbrains.changelog") version "2.5.0"
+    id("org.gradle.test-retry") version "1.6.5"
     id("jacoco")
 }
 
@@ -277,6 +278,17 @@ tasks {
     test {
         useJUnitPlatform {
             excludeEngines("junit-vintage")
+        }
+
+        // A net for platform flakes, not for our own bugs. The IntelliJ test fixture occasionally
+        // trips over its own teardown — a listener already disposed, an editor already closed —
+        // and takes down whichever test was running at the time. A single retry separates that
+        // from a real defect: a real defect fails twice. Off locally, so a flake you introduce
+        // while writing a test stays visible instead of being quietly retried away; the CI run
+        // still reports the retried tests as flaky rather than passing them off as green.
+        retry {
+            maxRetries = if (providers.environmentVariable("CI").isPresent) 1 else 0
+            failOnPassedAfterRetry = false
         }
     }
 
