@@ -1,6 +1,8 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.intellij.openapi.progress.ProcessCanceledException
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.util.text.StringUtil
@@ -190,11 +192,34 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
         val base = File(project.basePath ?: return)
         foundFiles.clear()
         fileListModel.clear()
-        for (relative in TranslationFileScanner.scan(base)) {
+        for (relative in scanOffEdt(base)) {
             foundFiles.add(relative)
             fileListModel.addElement(relative)
         }
     }
+
+    /**
+     * Walks the project on a background thread, behind a cancellable progress.
+     *
+     * The walk used to run straight from `init`, on the EDT: on a large repository the window
+     * froze before it ever appeared. `runProcessWithProgressSynchronously` is the form that
+     * fits — the wizard needs the list before step 2 can be shown — and it keeps the walk off
+     * the EDT while the modal progress stays responsive.
+     *
+     * Cancelling is a deliberate answer, not a failure: the dialog then opens on an empty list,
+     * which is why the cancellation is caught here rather than propagated.
+     */
+    private fun scanOffEdt(base: File): List<String> =
+        try {
+            ProgressManager.getInstance().runProcessWithProgressSynchronously<List<String>, RuntimeException>(
+                { TranslationFileScanner.scan(base) { ProgressManager.checkCanceled() } },
+                PluginBundle.message("wizard.scan.progress.title"),
+                true,
+                project
+            ) ?: emptyList()
+        } catch (canceled: ProcessCanceledException) {
+            emptyList()
+        }
 
     private fun refreshSummary() {
         val selectedFrameworks = frameworkCheckboxes
@@ -278,7 +303,6 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
      */
     override fun doOKAction() {
         val settings = Settings.getInstance(project)
-        settings.wizardDismissed = true
 
         // foundFiles holds paths relative to the project, and translationsRoot is read back as
         // "$basePath/$translationsRoot", so what is stored here must stay relative too.
@@ -327,8 +351,6 @@ class SetupWizardDialog(private val project: Project) : DialogWrapper(project) {
     private fun selectedFrameworks(): Set<String> =
         frameworkCheckboxes.filterValues { it.isSelected }.keys
 
-    override fun doCancelAction() {
-        Settings.getInstance(project).wizardDismissed = true
-        super.doCancelAction()
-    }
+    // No doCancelAction override: skipping the wizard says nothing about wanting it gone. Only
+    // "Don't show again", and the settings checkbox behind it, switch the suggestion off.
 }
