@@ -267,22 +267,19 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
     /**
      * The locale whose value the dialog offers to copy into the locales left empty.
      *
-     * >>> Hook-up point for `ModuleConfig.referenceLocale` (TASK-UX-SETTINGS-MODULES) <<<
+     * A module that declares a [ModuleConfig.referenceLocale] decides: that locale is the one
+     * translators work from, whether or not it happens to be the fullest. The field defaults to
+     * an empty string, and a locale nobody is showing is no use here, so both cases fall back to
+     * the most complete locale among the ones the dialog displays.
      *
-     * That field does not exist yet, so the fallback the task documents applies: the most
-     * complete locale among the ones the dialog is showing. When the field lands, this becomes
-     * one added line —
-     *
-     *     val declared = Settings.getInstance(project).config().modules
-     *         .firstNotNullOfOrNull { module -> module.referenceLocale.takeIf { it in candidates } }
-     *     return declared ?: mostCompleteLocale(allTranslations, candidates)
-     *
-     * — and nothing else moves. Until then the interface deliberately never calls this locale a
-     * "reference": nobody declared it, it is only the fullest one we could find.
+     * Only that fallback may be shown without the word "reference": nobody declared it, it is
+     * merely the fullest one we could find.
      */
     fun localeToCopyFrom(sources: Collection<LocalizationSource>): String? {
         val candidates = sources.map { it.localeLabel() }.toSet()
-        return mostCompleteLocale(allTranslations, candidates)
+        val declared = Settings.getInstance(project).config().modules
+            .firstNotNullOfOrNull { module -> module.referenceLocale.takeIf { it in candidates } }
+        return declared ?: mostCompleteLocale(allTranslations, candidates)
     }
 
     companion object {

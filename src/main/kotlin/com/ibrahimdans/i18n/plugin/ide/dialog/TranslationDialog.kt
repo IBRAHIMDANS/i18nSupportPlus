@@ -354,8 +354,9 @@ class TranslationDialog(
     }
 
     /**
-     * Fills every locale left empty with the value of the fullest one. Deliberately not called
-     * a "reference" locale — see [DialogViewModel.localeToCopyFrom], nobody has declared one.
+     * Fills every locale left empty with the value of the donor locale: the one the module
+     * declares as its reference, or the fullest one when it declares none — see
+     * [DialogViewModel.localeToCopyFrom].
      */
     private fun copyToEmptyLocales() {
         val donorLocale = viewModel.localeToCopyFrom(textAreas.keys)
