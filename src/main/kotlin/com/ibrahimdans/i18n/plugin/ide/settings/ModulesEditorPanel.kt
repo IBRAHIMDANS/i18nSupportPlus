@@ -80,10 +80,18 @@ internal class ModulesEditorPanel(
             onSelectionChanged = ::bind
         )
         add(editor, BorderLayout.CENTER)
-        preferredSize = Dimension(700, 260)
 
         bind(null)
         editor.selectFirst()
+
+        // The height is a deliberate choice: how many rows of the list to show before it
+        // scrolls. The width is not ours to pick — it is whatever the detail form inside needs.
+        // Pinning it narrower does not scroll the overflow, it cuts it off the right edge, which
+        // is how the field comments reached the screen mid-sentence.
+        //
+        // Measured last, and not next to the `add` above: the preset combo is built empty and
+        // only receives its items in `bind`, so a width read before that misses them.
+        preferredSize = Dimension(maxOf(EDITOR_MIN_WIDTH, editor.preferredSize.width), EDITOR_HEIGHT)
     }
 
     // --- form ---
@@ -297,4 +305,12 @@ internal class ModulesEditorPanel(
      * only a configured module ever asks where the project lives.
      */
     private fun basePath(): String? = project.basePath
+
+    private companion object {
+        /** Width the editor asks for when the form inside it needs no more. */
+        const val EDITOR_MIN_WIDTH = 700
+
+        /** How much of the item list is visible before it scrolls. */
+        const val EDITOR_HEIGHT = 260
+    }
 }
