@@ -38,3 +38,30 @@ jobs:
         with:
           name: test-report
           path: build/reports/tests/test/
+
+  # The descriptor the *next* release would ship, not the one on this branch.
+  #
+  # Checking the branch as it stands proves nothing: pluginVersion still points at the last
+  # released section, so change-notes renders that section — two entries for 1.2.1 — while the
+  # release renders everything accumulated under Unreleased. That gap is why the 65 535-character
+  # cap on <change-notes> was first hit by the release workflow itself, after the tag was pushed
+  # and with nothing left to catch it. Patching the changelog under a throwaway version here
+  # reproduces exactly what `Prepare Release` does, on every pull request.
+  descriptor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6.3.0
+
+      - name: Verify the descriptor the next release would ship
+        run: |
+          ./gradlew patchChangelog -PpluginVersion=9.9.9 --no-daemon
+          ./gradlew verifyPluginStructure -PpluginVersion=9.9.9 --no-daemon --stacktrace
