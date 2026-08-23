@@ -6,7 +6,6 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader.extractN
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
-import com.intellij.icons.AllIcons
 import com.intellij.ide.DataManager
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
@@ -19,18 +18,17 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import com.intellij.ui.table.JBTable
+import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.Dimension
-import java.awt.FlowLayout
 import java.awt.Graphics
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.text.DecimalFormat
 import javax.swing.DefaultListModel
-import javax.swing.JButton
 import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JTable
@@ -39,6 +37,24 @@ import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.DefaultTableModel
 
 private val PERCENT_FORMAT = DecimalFormat("0.0")
+
+/** Coverage tiers, in percent, shared by the % column renderer and the legend. */
+private const val COMPLETE_THRESHOLD = 90
+private const val PARTIAL_THRESHOLD = 50
+
+/** Height, in pixels, of the coverage bar drawn under the percentage. */
+private const val BAR_HEIGHT = 3
+
+// Colors come from the IDE scheme rather than hand-picked RGB values, so the bar follows
+// the active theme (and any custom one). The RGB arguments are only fallbacks, taken from
+// the default light/dark themes. No `ProgressBar.*` key carries a warning tint, hence
+// `Component.warningFocusColor` for the middle tier.
+// Built lazily: the file also holds plain functions covered by a non-platform unit test,
+// and initializing Swing colors just to call one of them would be a needless dependency.
+private val COVERAGE_COMPLETE by lazy { JBColor.namedColor("ProgressBar.passedColor", 0x55A76A, 0x57965C) }
+private val COVERAGE_PARTIAL by lazy { JBColor.namedColor("Component.warningFocusColor", 0xFFAF0F, 0x9E814A) }
+private val COVERAGE_LOW by lazy { JBColor.namedColor("ProgressBar.failedColor", 0xE55765, 0xBD5757) }
+private val COVERAGE_TRACK by lazy { JBColor.namedColor("ProgressBar.trackColor", 0xDFE1E5, 0x43454A) }
 
 internal fun parseTranslationKey(fullKey: String): Pair<String?, List<String>> {
     val ns = if (fullKey.contains(":")) fullKey.substringBefore(":") else null
@@ -52,7 +68,9 @@ internal fun selectReferenceLocale(stats: List<LocaleStats>): String? =
 /**
  * Panel displaying translation coverage statistics per locale.
  * Columns: Locale | Total | Translated | Missing | %
- * The % column is color-coded: green >= 90%, orange 50-90%, red < 50%.
+ * The % column carries a coverage bar tinted per tier (see [COMPLETE_THRESHOLD] /
+ * [PARTIAL_THRESHOLD]); the legend spells the tiers out and the percentage stays
+ * printed as text, so nothing depends on telling the hues apart.
  *
  * Clicking any cell on a row with missing keys opens a popup listing
  * those keys. Each key navigates to its position in the reference locale file.
@@ -84,8 +102,9 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
             return if (rowStats.missing > 0) PluginBundle.message("toolwindow.stats.missing.tooltip", rowStats.missing) else null
         }
     }
-    private val statusLabel = JBLabel(PluginBundle.message("toolwindow.stats.idle"))
+    private val statusLabel = JBLabel(PluginBundle.message("toolwindow.stats.loading"))
     private var stats: List<LocaleStats> = emptyList()
+    private var loadRequested = false
 
     init {
         table.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
@@ -111,21 +130,26 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
             }
         })
 
-        val toolbar = buildToolbar()
-        add(toolbar, BorderLayout.NORTH)
+        val legend = JBLabel(PluginBundle.message("toolwindow.stats.legend", COMPLETE_THRESHOLD, PARTIAL_THRESHOLD))
+        legend.border = JBUI.Borders.empty(2, 4)
+        add(legend, BorderLayout.NORTH)
         add(JScrollPane(table), BorderLayout.CENTER)
         add(statusLabel, BorderLayout.SOUTH)
     }
 
-    private fun buildToolbar(): JPanel {
-        val panel = JPanel(FlowLayout(FlowLayout.LEFT, 4, 2))
-        val refreshButton = JButton(PluginBundle.message("toolwindow.stats.refresh"), AllIcons.Actions.Refresh)
-        refreshButton.addActionListener { refresh() }
-        panel.add(refreshButton)
-        return panel
+    /**
+     * Loads the statistics the first time the panel is shown. Refreshing is the tool
+     * window toolbar's job, so the panel would otherwise sit empty until the user
+     * clicked it. Swing calls this on the EDT, which is what [refresh] expects; the
+     * flag keeps the container's own initial [refresh] from being doubled.
+     */
+    override fun addNotify() {
+        super.addNotify()
+        if (!loadRequested) refresh()
     }
 
     fun refresh() {
+        loadRequested = true
         statusLabel.text = PluginBundle.message("toolwindow.stats.loading")
         ApplicationManager.getApplication().executeOnPooledThread {
             val stats = TranslationStatsAnalyzer.analyze(project, moduleConfig)
@@ -237,11 +261,10 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
     }
 
     /**
-     * Cell renderer for the % column: draws a compact progress bar whose width is
-     * the coverage percentage, colored green >= 90%, orange 50-90%, red < 50%,
-     * with the percentage text on top. A thin proportional bar reads as "coverage"
-     * where the previous full-cell background band just read as "alarm".
-     * Other columns use default rendering.
+     * Cell renderer for the % column: draws a thin coverage bar under the percentage,
+     * its width the coverage ratio and its tint the tier. The text is painted on the
+     * plain cell background, never over the bar, so the figure stays readable whatever
+     * the theme does with the tint. Other columns use default rendering.
      */
     private inner class PercentCellRenderer : DefaultTableCellRenderer() {
         private var barFraction = -1.0
@@ -262,9 +285,9 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
                 val pct = value?.toString()?.removeSuffix("%")?.toDoubleOrNull() ?: 0.0
                 barFraction = (pct / 100.0).coerceIn(0.0, 1.0)
                 barColor = when {
-                    pct >= 90.0 -> JBColor(Color(140, 200, 140), Color(60, 130, 60))
-                    pct >= 50.0 -> JBColor(Color(230, 190, 100), Color(150, 120, 40))
-                    else        -> JBColor(Color(220, 130, 130), Color(150, 60, 60))
+                    pct >= COMPLETE_THRESHOLD -> COVERAGE_COMPLETE
+                    pct >= PARTIAL_THRESHOLD  -> COVERAGE_PARTIAL
+                    else                      -> COVERAGE_LOW
                 }
                 isOpaque = false
                 cellBackground = if (isSelected) table.selectionBackground else table.background
@@ -276,14 +299,18 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
         }
 
         override fun paintComponent(g: Graphics) {
-            if (barFraction >= 0) {
-                g.color = cellBackground
-                g.fillRect(0, 0, width, height)
-                g.color = barColor
-                val inset = 3
-                g.fillRect(0, inset, (width * barFraction).toInt(), height - 2 * inset)
+            if (barFraction < 0) {
+                super.paintComponent(g)
+                return
             }
+            g.color = cellBackground
+            g.fillRect(0, 0, width, height)
             super.paintComponent(g)
+            val top = height - BAR_HEIGHT - 1
+            g.color = COVERAGE_TRACK
+            g.fillRect(0, top, width, BAR_HEIGHT)
+            g.color = barColor
+            g.fillRect(0, top, (width * barFraction).toInt(), BAR_HEIGHT)
         }
     }
 }

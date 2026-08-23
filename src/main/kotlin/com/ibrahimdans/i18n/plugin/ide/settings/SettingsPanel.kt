@@ -1,24 +1,15 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
-import com.ibrahimdans.i18n.plugin.ide.settings.rules.EditorRuleState
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
-import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.Align
+import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
-import java.awt.BorderLayout
-import java.awt.Dimension
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
-import javax.swing.BoxLayout
-import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JPanel
-import javax.swing.JScrollPane
-import javax.swing.JTable
 import javax.swing.JTextField
-import javax.swing.ListSelectionModel
-import javax.swing.table.DefaultTableModel
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.text.JTextComponent
@@ -45,6 +36,10 @@ private fun addLimitationsAndHandlers(component: JTextComponent, maxLength: Int,
  * Layout is built with the Kotlin UI DSL, but the components keep two contracts
  * the UI tests rely on: every control's `name` is its bundle label, and every
  * edit writes to [Settings] immediately (Configurable diffs against a snapshot).
+ *
+ * Modules and rules are edited by [ModulesEditorPanel] and [RulesEditorPanel], which hold
+ * the same contracts. Everything here stays plain Swing on purpose: the settings UI test
+ * builds this panel in a bare JFrame, with no running Application behind it.
  */
 class SettingsPanel(val settings: Settings, val project: Project) {
 
@@ -66,101 +61,101 @@ class SettingsPanel(val settings: Settings, val project: Project) {
         return panel {
             row { cell(diagnosticsPanel).align(AlignX.FILL) }
 
-            group(PluginBundle.getMessage("settings.group.namespaces")) {
-                row(PluginBundle.getMessage("settings.namespace.separator")) {
-                    cell(separatorField(PluginBundle.getMessage("settings.namespace.separator"), settings::nsSeparator))
+            group(PluginBundle.message("settings.group.namespaces")) {
+                row(PluginBundle.message("settings.namespace.separator")) {
+                    cell(separatorField(PluginBundle.message("settings.namespace.separator"), settings::nsSeparator))
                 }
-                row(PluginBundle.getMessage("settings.key.separator")) {
-                    cell(separatorField(PluginBundle.getMessage("settings.key.separator"), settings::keySeparator))
+                row(PluginBundle.message("settings.key.separator")) {
+                    cell(separatorField(PluginBundle.message("settings.key.separator"), settings::keySeparator))
                 }
                 row {
-                    cell(checkbox(PluginBundle.getMessage("settings.flat.keys"), settings::flatKeys))
-                        .comment(PluginBundle.getMessage("settings.flat.keys.comment"))
+                    cell(checkbox(PluginBundle.message("settings.flat.keys"), settings::flatKeys))
+                        .comment(PluginBundle.message("settings.flat.keys.comment"))
                 }
-                row(PluginBundle.getMessage("settings.plural.separator")) {
-                    cell(separatorField(PluginBundle.getMessage("settings.plural.separator"), settings::pluralSeparator))
+                row(PluginBundle.message("settings.plural.separator")) {
+                    cell(separatorField(PluginBundle.message("settings.plural.separator"), settings::pluralSeparator))
                 }
-                row(PluginBundle.getMessage("settings.default.namespace")) {
-                    cell(textField(PluginBundle.getMessage("settings.default.namespace"), settings::defaultNs, maxLength = 1000, columns = 20))
-                        .comment(PluginBundle.getMessage("settings.default.namespace.comment"))
+                row(PluginBundle.message("settings.default.namespace")) {
+                    cell(textField(PluginBundle.message("settings.default.namespace"), settings::defaultNs, maxLength = 1000, columns = 20))
+                        .comment(PluginBundle.message("settings.default.namespace.comment"))
                 }
             }
 
-            group(PluginBundle.getMessage("settings.group.scope")) {
+            group(PluginBundle.message("settings.group.scope")) {
                 row {
-                    cell(checkbox(PluginBundle.getMessage("settings.search.in.project.files.only"), settings::searchInProjectOnly))
+                    cell(checkbox(PluginBundle.message("settings.search.in.project.files.only"), settings::searchInProjectOnly))
                 }
-                row(PluginBundle.getMessage("settings.translations.root")) {
-                    cell(textField(PluginBundle.getMessage("settings.translations.root"), settings::translationsRoot, columns = 25))
-                        .comment(PluginBundle.getMessage("settings.translations.root.comment"))
+                row(PluginBundle.message("settings.translations.root")) {
+                    cell(textField(PluginBundle.message("settings.translations.root"), settings::translationsRoot, columns = 25))
+                        .comment(PluginBundle.message("settings.translations.root.comment"))
                 }
-                row(PluginBundle.getMessage("settings.excluded.directories")) {
-                    cell(textField(PluginBundle.getMessage("settings.excluded.directories"), settings::excludedDirectories, columns = 25))
-                        .comment(PluginBundle.getMessage("settings.excluded.directories.comment"))
+                row(PluginBundle.message("settings.excluded.directories")) {
+                    cell(textField(PluginBundle.message("settings.excluded.directories"), settings::excludedDirectories, columns = 25))
+                        .comment(PluginBundle.message("settings.excluded.directories.comment"))
                 }
-                row(PluginBundle.getMessage("settings.excluded.file.extensions")) {
-                    cell(textField(PluginBundle.getMessage("settings.excluded.file.extensions"), settings::excludedFileExtensions, columns = 25))
-                        .comment(PluginBundle.getMessage("settings.excluded.file.extensions.comment"))
+                row(PluginBundle.message("settings.excluded.file.extensions")) {
+                    cell(textField(PluginBundle.message("settings.excluded.file.extensions"), settings::excludedFileExtensions, columns = 25))
+                        .comment(PluginBundle.message("settings.excluded.file.extensions.comment"))
                 }
             }
 
-            group(PluginBundle.getMessage("settings.group.folding")) {
+            group(PluginBundle.message("settings.group.folding")) {
                 row {
-                    cell(checkbox(PluginBundle.getMessage("settings.folding.enabled"), settings::foldingEnabled))
+                    cell(checkbox(PluginBundle.message("settings.folding.enabled"), settings::foldingEnabled))
                 }
-                row(PluginBundle.getMessage("settings.folding.preferredLanguage")) {
-                    cell(textField(PluginBundle.getMessage("settings.folding.preferredLanguage"), settings::foldingPreferredLanguage, columns = 6))
+                row(PluginBundle.message("settings.folding.preferredLanguage")) {
+                    cell(textField(PluginBundle.message("settings.folding.preferredLanguage"), settings::foldingPreferredLanguage, columns = 6))
                 }
-                row(PluginBundle.getMessage("settings.folding.maxLength")) {
-                    cell(numberField(PluginBundle.getMessage("settings.folding.maxLength"), settings::foldingMaxLength))
+                row(PluginBundle.message("settings.folding.maxLength")) {
+                    cell(numberField(PluginBundle.message("settings.folding.maxLength"), settings::foldingMaxLength))
                 }
-                row(PluginBundle.getMessage("settings.preview.locale")) {
-                    cell(textField(PluginBundle.getMessage("settings.preview.locale"), settings::previewLocale, columns = 6))
+                row(PluginBundle.message("settings.preview.locale")) {
+                    cell(textField(PluginBundle.message("settings.preview.locale"), settings::previewLocale, columns = 6))
                 }
             }
 
-            group(PluginBundle.getMessage("settings.group.extraction")) {
+            group(PluginBundle.message("settings.group.extraction")) {
                 row {
-                    cell(checkbox(PluginBundle.getMessage("settings.extraction.sorted"), settings::extractSorted))
+                    cell(checkbox(PluginBundle.message("settings.extraction.sorted"), settings::extractSorted))
                 }
                 row {
-                    cell(checkbox(PluginBundle.getMessage("settings.sort.keys.alphabetically"), settings::sortKeysAlphabetically))
-                }
-            }
-
-            group(PluginBundle.getMessage("settings.group.gettext")) {
-                row {
-                    cell(checkbox(PluginBundle.getMessage("settings.gettext.enabled"), settings::gettext))
-                }
-                row(PluginBundle.getMessage("settings.gettext.aliases")) {
-                    cell(textField(PluginBundle.getMessage("settings.gettext.aliases"), settings::gettextAliases, columns = 20))
+                    cell(checkbox(PluginBundle.message("settings.sort.keys.alphabetically"), settings::sortKeysAlphabetically))
                 }
             }
 
-            group(PluginBundle.getMessage("settings.group.inspections")) {
+            group(PluginBundle.message("settings.group.gettext")) {
                 row {
-                    cell(checkbox(PluginBundle.getMessage("settings.annotations.partially.translated.enabled"), settings::partialTranslationInspectionEnabled))
+                    cell(checkbox(PluginBundle.message("settings.gettext.enabled"), settings::gettext))
+                }
+                row(PluginBundle.message("settings.gettext.aliases")) {
+                    cell(textField(PluginBundle.message("settings.gettext.aliases"), settings::gettextAliases, columns = 20))
                 }
             }
 
-            group(PluginBundle.getMessage("settings.group.appearance")) {
+            group(PluginBundle.message("settings.group.inspections")) {
                 row {
-                    cell(checkbox(PluginBundle.getMessage("settings.gutter.icons.enabled"), settings::gutterIconsEnabled))
-                }
-                row {
-                    cell(checkbox(PluginBundle.getMessage("settings.setup.wizard.enabled"), settings::setupWizardEnabled))
+                    cell(checkbox(PluginBundle.message("settings.annotations.partially.translated.enabled"), settings::partialTranslationInspectionEnabled))
                 }
             }
 
-            group(PluginBundle.getMessage("settings.modules.label")) {
+            group(PluginBundle.message("settings.group.appearance")) {
                 row {
-                    cell(modulesTable()).align(Align.FILL)
+                    cell(checkbox(PluginBundle.message("settings.gutter.icons.enabled"), settings::gutterIconsEnabled))
+                }
+                row {
+                    cell(checkbox(PluginBundle.message("settings.setup.wizard.enabled"), settings::setupWizardEnabled))
+                }
+            }
+
+            group(PluginBundle.message("settings.modules.label")) {
+                row {
+                    cell(ModulesEditorPanel(settings, project)).align(Align.FILL)
                 }.resizableRow()
             }
 
-            group(PluginBundle.getMessage("settings.rules.label")) {
+            group(PluginBundle.message("settings.rules.label")) {
                 row {
-                    cell(rulesTable()).align(Align.FILL)
+                    cell(RulesEditorPanel(settings)).align(Align.FILL)
                 }.resizableRow()
             }
         }
@@ -192,129 +187,5 @@ class SettingsPanel(val settings: Settings, val project: Project) {
         control.name = label
         addLimitationsAndHandlers(control, 2, { if (it.isNotBlank()) property.set(it.toInt()) }, {('0'..'9').contains(it)})
         return control
-    }
-
-    private fun modulesTable(): JPanel {
-        val columnNames = arrayOf(
-            PluginBundle.getMessage("settings.modules.name"),
-            PluginBundle.getMessage("settings.modules.pathTemplate"),
-            PluginBundle.getMessage("settings.modules.fileTemplate"),
-            PluginBundle.getMessage("settings.modules.keyTemplate"),
-            PluginBundle.getMessage("settings.modules.rootDirectory"),
-            PluginBundle.getMessage("settings.modules.preset")
-        )
-        val model = object : DefaultTableModel(columnNames, 0) {
-            override fun isCellEditable(row: Int, column: Int) = true
-        }
-        settings.modules.forEach { m ->
-            model.addRow(arrayOf(m.name, m.pathTemplate, m.fileTemplate, m.keyTemplate, m.rootDirectory, m.preset))
-        }
-        model.addTableModelListener {
-            settings.modules.clear()
-            for (row in 0 until model.rowCount) {
-                settings.modules.add(ModuleConfig(
-                    name          = model.getValueAt(row, 0) as? String ?: "",
-                    pathTemplate  = model.getValueAt(row, 1) as? String ?: "",
-                    fileTemplate  = model.getValueAt(row, 2) as? String ?: "",
-                    keyTemplate   = model.getValueAt(row, 3) as? String ?: "",
-                    rootDirectory = model.getValueAt(row, 4) as? String ?: "",
-                    preset        = model.getValueAt(row, 5) as? String ?: ""
-                ))
-            }
-        }
-        // Plain JTable/JButton on purpose: JBTable and ToolbarDecorator require a
-        // running Application, and this panel must stay buildable in plain Swing tests.
-        val table = JTable(model)
-        table.name = "modules.table"
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
-        table.fillsViewportHeight = true
-        return tableWithButtons(
-            table,
-            addLabel = PluginBundle.getMessage("settings.modules.add"),
-            addName = "modules.add",
-            removeLabel = PluginBundle.getMessage("settings.modules.remove"),
-            removeName = "modules.remove",
-            onAdd = { model.addRow(arrayOf("", "", "", "", "", "")) },
-            onRemove = { if (table.selectedRow >= 0) model.removeRow(table.selectedRow) }
-        )
-    }
-
-    private fun tableWithButtons(
-        table: JTable,
-        addLabel: String,
-        addName: String,
-        removeLabel: String,
-        removeName: String,
-        onAdd: () -> Unit,
-        onRemove: () -> Unit
-    ): JPanel {
-        val addButton = JButton(addLabel)
-        addButton.name = addName
-        addButton.addActionListener { onAdd() }
-
-        val removeButton = JButton(removeLabel)
-        removeButton.name = removeName
-        removeButton.addActionListener { onRemove() }
-
-        val buttonPanel = JPanel()
-        buttonPanel.layout = BoxLayout(buttonPanel, BoxLayout.X_AXIS)
-        buttonPanel.add(addButton)
-        buttonPanel.add(removeButton)
-
-        val panel = JPanel()
-        panel.layout = BorderLayout()
-        panel.add(JScrollPane(table), BorderLayout.CENTER)
-        panel.add(buttonPanel, BorderLayout.SOUTH)
-        panel.preferredSize = Dimension(700, 160)
-        return panel
-    }
-
-    private fun rulesTable(): JPanel {
-        val columnNames = arrayOf(
-            PluginBundle.getMessage("settings.rules.col.id"),
-            PluginBundle.getMessage("settings.rules.col.language"),
-            PluginBundle.getMessage("settings.rules.col.trigger"),
-            PluginBundle.getMessage("settings.rules.col.priority"),
-            PluginBundle.getMessage("settings.rules.col.exclude"),
-            PluginBundle.getMessage("settings.rules.col.type"),
-            PluginBundle.getMessage("settings.rules.col.value"),
-            PluginBundle.getMessage("settings.rules.col.matchMode"),
-            PluginBundle.getMessage("settings.rules.col.negated")
-        )
-        val model = object : DefaultTableModel(columnNames, 0) {
-            override fun isCellEditable(row: Int, column: Int) = true
-        }
-        settings.rules.forEach { r ->
-            model.addRow(arrayOf(r.id, r.language, r.trigger, r.priority.toString(), r.exclude.toString(), r.constraintType, r.value, r.matchMode, r.negated.toString()))
-        }
-        model.addTableModelListener {
-            settings.rules.clear()
-            for (row in 0 until model.rowCount) {
-                settings.rules.add(EditorRuleState(
-                    id             = model.getValueAt(row, 0) as? String ?: "",
-                    language       = model.getValueAt(row, 1) as? String ?: "",
-                    trigger        = model.getValueAt(row, 2) as? String ?: "",
-                    priority       = (model.getValueAt(row, 3) as? String)?.toIntOrNull() ?: 0,
-                    exclude        = (model.getValueAt(row, 4) as? String)?.toBooleanStrictOrNull() ?: false,
-                    constraintType = model.getValueAt(row, 5) as? String ?: "",
-                    value          = model.getValueAt(row, 6) as? String ?: "",
-                    matchMode      = model.getValueAt(row, 7) as? String ?: "",
-                    negated        = (model.getValueAt(row, 8) as? String)?.toBooleanStrictOrNull() ?: false
-                ))
-            }
-        }
-        val table = JTable(model)
-        table.name = "rules.table"
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
-        table.fillsViewportHeight = true
-        return tableWithButtons(
-            table,
-            addLabel = PluginBundle.getMessage("settings.rules.add"),
-            addName = "rules.add",
-            removeLabel = PluginBundle.getMessage("settings.rules.remove"),
-            removeName = "rules.remove",
-            onAdd = { model.addRow(arrayOf("", "", "", "0", "false", "", "", "", "false")) },
-            onRemove = { if (table.selectedRow >= 0) model.removeRow(table.selectedRow) }
-        )
     }
 }
