@@ -2,6 +2,8 @@ package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.intellij.openapi.ui.TestDialog
+import com.intellij.openapi.ui.TestDialogManager
 import com.intellij.testFramework.PlatformTestUtil
 import io.mockk.every
 import io.mockk.mockkObject
@@ -110,24 +112,9 @@ class TableViewPanelTest : PlatformBaseTest() {
 
     @Test
     fun `refresh lays out key, locale and usage columns and spells out the usage count`() {
-        mockkObject(TranslationDataLoader)
-        every { TranslationDataLoader.loadAllTranslations(project, null) } returns mapOf(
-            "en" to mapOf("menu.home" to "Home", "menu.about" to "About"),
-            "fr" to mapOf("menu.home" to "Accueil", "menu.about" to "À propos"),
-        )
-        every { TranslationDataLoader.discoverLocales(project, null) } returns listOf("en", "fr")
-
+        stubTranslations()
         val panel = TableViewPanel(project)
-        val table = find(panel, JTable::class.java)!!
-
-        // refresh() loads on a pooled thread and rebuilds through invokeLater. The test body
-        // runs on the EDT, so the posted rebuild only happens while we pump the queue.
-        panel.refresh()
-        val deadline = System.currentTimeMillis() + 15_000
-        while (table.columnCount == 0 && System.currentTimeMillis() < deadline) {
-            PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
-            Thread.sleep(20)
-        }
+        val table = loadedTable(panel)
 
         assertEquals(4, table.columnCount, "Key + en + fr + Usage")
         assertEquals(PluginBundle.message("toolwindow.table.column.key"), table.getColumnName(0))
@@ -136,6 +123,11 @@ class TableViewPanelTest : PlatformBaseTest() {
         assertEquals(PluginBundle.message("toolwindow.table.column.usage"), table.getColumnName(3))
 
         assertEquals(2, table.rowCount)
+        // Asserted by name, not by count: two locales and two keys are both 2, and a row count
+        // alone happily passes on a table whose key column lists the locales.
+        assertEquals("menu.about", table.model.getValueAt(0, 0))
+        assertEquals("menu.home", table.model.getValueAt(1, 0))
+        assertEquals("Accueil", table.model.getValueAt(1, 2))
         // Nothing has been scanned yet, so every row reads as not scanned rather than as zero —
         // the difference between "no usage found" and "never looked".
         for (row in 0 until table.rowCount) {
@@ -144,5 +136,133 @@ class TableViewPanelTest : PlatformBaseTest() {
             // expected, actual), whose first parameter is also a String, and it wins the overload.
             assertTrue(table.getValueAt(row, 3) == "—", "an unscanned row must not read as an orphan")
         }
+    }
+
+    // ── Edition en place ──────────────────────────────────────────────────────
+
+    /** Loads two rows through the panel's own refresh and returns its table, populated. */
+    private fun loadedTable(panel: TableViewPanel): JTable {
+        val table = find(panel, JTable::class.java)!!
+        panel.refresh()
+        val deadline = System.currentTimeMillis() + 15_000
+        while (table.columnCount == 0 && System.currentTimeMillis() < deadline) {
+            PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+            Thread.sleep(20)
+        }
+        return table
+    }
+
+    /**
+     * `loadAllTranslations` is keyed by translation key, each entry holding its locales — not the
+     * other way round. Getting that backwards produced a table whose key column read `en` and `fr`,
+     * with two rows, which is exactly what a row count alone would have failed to catch.
+     */
+    private fun stubTranslations() {
+        mockkObject(TranslationDataLoader)
+        every { TranslationDataLoader.loadAllTranslations(project, null) } returns mapOf(
+            "menu.home" to mapOf("en" to "Home", "fr" to "Accueil"),
+            "menu.about" to mapOf("en" to "About", "fr" to "À propos"),
+        )
+        every { TranslationDataLoader.discoverLocales(project, null) } returns listOf("en", "fr")
+    }
+
+    /**
+     * `saveValue` itself is covered by `TableViewModelSaveValueTest`, on real files, in six cases.
+     * What belongs here is only what the panel does with the boolean it gets back — and the
+     * fixture holds no translation file, so the real write refuses, which is the case to pin.
+     */
+    @Test
+    fun `a refused write leaves the cell on its previous value and says so`() {
+        stubTranslations()
+        val panel = TableViewPanel(project)
+        val table = loadedTable(panel)
+
+        var dialogs = 0
+        val previous = TestDialogManager.setTestDialog(TestDialog { dialogs++; 0 })
+        try {
+            table.model.setValueAt("Bonjour", 0, 2)
+        } finally {
+            TestDialogManager.setTestDialog(previous)
+        }
+
+        assertTrue(table.model.getValueAt(0, 2) == "À propos", "the cell must keep what is actually on disk")
+        assertEquals(1, dialogs, "a refused write has to be reported, not swallowed")
+    }
+
+    @Test
+    fun `retyping the same value attempts no write at all`() {
+        stubTranslations()
+        val panel = TableViewPanel(project)
+        val table = loadedTable(panel)
+
+        var dialogs = 0
+        val previous = TestDialogManager.setTestDialog(TestDialog { dialogs++; 0 })
+        try {
+            table.model.setValueAt("À propos", 0, 2)
+        } finally {
+            TestDialogManager.setTestDialog(previous)
+        }
+
+        // Leaving a cell editor without changing anything is the common case; it must not
+        // reach the files, and must not raise the failure dialog the fixture would trigger.
+        assertEquals(0, dialogs, "an unchanged value is not a write")
+        assertTrue(table.model.getValueAt(0, 2) == "À propos")
+    }
+
+    // ── Renderers ─────────────────────────────────────────────────────────────
+
+    @Test
+    fun `a locale cell is shown on one line with the raw value in its tooltip`() {
+        stubTranslations()
+        val panel = TableViewPanel(project)
+        val table = loadedTable(panel)
+        val renderer = table.columnModel.getColumn(1).cellRenderer
+
+        val rendered = renderer.getTableCellRendererComponent(
+            table, "Hello\n   world", false, false, 0, 1
+        ) as JLabel
+
+        assertEquals("Hello world", rendered.text)
+        assertTrue(rendered.toolTipText == "Hello\n   world", "the tooltip keeps the value verbatim")
+    }
+
+    @Test
+    fun `an empty locale cell is flagged, a filled one is not`() {
+        // Missing and blank are different states and the panel colours them differently; what
+        // matters here is that neither is left looking like an ordinary value.
+        stubTranslations()
+        val panel = TableViewPanel(project)
+        val table = loadedTable(panel)
+        val renderer = table.columnModel.getColumn(1).cellRenderer
+
+        val missing = renderer.getTableCellRendererComponent(table, "", false, false, 0, 1).background
+        val blank = renderer.getTableCellRendererComponent(table, "   ", false, false, 0, 1).background
+        val filled = renderer.getTableCellRendererComponent(table, "Home", false, false, 0, 1).background
+
+        assertEquals(table.background, filled, "a translated cell keeps the table background")
+        assertTrue(missing != table.background, "a missing value must stand out")
+        assertTrue(blank != table.background, "a blank value must stand out")
+        assertTrue(missing != blank, "missing and blank are not the same state")
+    }
+
+    @Test
+    fun `the usage column separates never scanned from orphan`() {
+        stubTranslations()
+        val panel = TableViewPanel(project)
+        val table = loadedTable(panel)
+        val renderer = table.columnModel.getColumn(3).cellRenderer
+
+        val notScanned = renderer.getTableCellRendererComponent(table, "—", false, false, 0, 3) as JLabel
+        val notScannedColor = notScanned.foreground
+        val notScannedTip = notScanned.toolTipText
+
+        val orphan = renderer.getTableCellRendererComponent(table, "0 (orphan)", false, false, 0, 3) as JLabel
+        val orphanColor = orphan.foreground
+
+        val used = renderer.getTableCellRendererComponent(table, "3", false, false, 0, 3).foreground
+
+        assertNotNull(notScannedTip, "not-scanned explains itself in a tooltip")
+        assertTrue(notScannedColor != orphanColor, "never scanned must not look like an orphan")
+        assertTrue(orphanColor != used, "an orphan must not look like a used key")
     }
 }
