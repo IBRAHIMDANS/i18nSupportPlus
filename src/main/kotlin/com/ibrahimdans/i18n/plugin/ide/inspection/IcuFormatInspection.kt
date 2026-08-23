@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.json.psi.JsonProperty
@@ -27,7 +28,7 @@ private fun areBalanced(text: String): Boolean {
 
 private fun checkIcuValue(holder: ProblemsHolder, element: PsiElement, value: String) {
     if (!areBalanced(value)) {
-        holder.registerProblem(element, "ICU format error: unbalanced braces in translation value")
+        holder.registerProblem(element, PluginBundle.message("inspection.icu.unbalanced"))
         return
     }
     for (match in ICU_BLOCK_REGEX.findAll(value)) {
@@ -36,10 +37,10 @@ private fun checkIcuValue(holder: ProblemsHolder, element: PsiElement, value: St
         val forms = Regex("""(\w+)\s*\{""").findAll(body).map { it.groupValues[1] }.toSet()
 
         if ("other" !in forms) {
-            holder.registerProblem(element, "ICU format error: '$type' block is missing the required 'other' form")
+            holder.registerProblem(element, PluginBundle.message("inspection.icu.missing.other", type))
         }
         if (type == "plural" && "one" !in forms && "zero" !in forms) {
-            holder.registerProblem(element, "ICU format error: 'plural' block must have at least 'one' or 'zero' form")
+            holder.registerProblem(element, PluginBundle.message("inspection.icu.plural.forms"))
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.json.psi.JsonFile
@@ -24,7 +25,6 @@ import org.jetbrains.yaml.psi.YAMLScalar
  */
 class DuplicateTranslationValueInspection : LocalInspectionTool() {
 
-    override fun getDisplayName(): String = "Duplicate translation value"
     override fun getGroupDisplayName(): String = "i18n Support Plus"
     override fun getShortName(): String = "I18nDuplicateValue"
 
@@ -69,6 +69,6 @@ class DuplicateTranslationValueInspection : LocalInspectionTool() {
     }
 
     private companion object {
-        const val MESSAGE = "Translation value is duplicated by another key in this file"
+        val MESSAGE: String get() = PluginBundle.message("inspection.duplicate.message")
     }
 }

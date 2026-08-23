@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.json.psi.JsonProperty
@@ -22,7 +23,6 @@ import org.jetbrains.yaml.psi.YAMLScalar
  */
 class EmptyTranslationValueInspection : LocalInspectionTool() {
 
-    override fun getDisplayName(): String = "Empty translation value"
     override fun getGroupDisplayName(): String = "i18n Support Plus"
     override fun getShortName(): String = "I18nEmptyValue"
 
@@ -55,6 +55,6 @@ class EmptyTranslationValueInspection : LocalInspectionTool() {
     }
 
     private companion object {
-        const val MESSAGE = "Translation value is empty"
+        val MESSAGE: String get() = PluginBundle.message("inspection.empty.message")
     }
 }
