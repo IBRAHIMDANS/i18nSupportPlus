@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
 import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.LocalQuickFix
@@ -18,7 +19,6 @@ import org.jetbrains.yaml.psi.YAMLScalar
 
 class UnusedTranslationKeyInspection : LocalInspectionTool() {
 
-    override fun getDisplayName(): String = "Unused translation key"
     override fun getGroupDisplayName(): String = "i18n Support Plus"
     override fun getShortName(): String = "I18nUnusedKey"
 
@@ -60,14 +60,14 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
     }
 
     private companion object {
-        const val MESSAGE = "Translation key is never used in code"
+        val MESSAGE: String get() = PluginBundle.message("inspection.unused.message")
     }
 }
 
 private class DeleteUnusedKeyFix : LocalQuickFix {
 
-    override fun getName(): String = "Delete unused key"
-    override fun getFamilyName(): String = "Delete unused key"
+    override fun getName(): String = PluginBundle.message("inspection.unused.fix.name")
+    override fun getFamilyName(): String = getName()
 
     override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
         val target = when (val parent = descriptor.psiElement.parent) {

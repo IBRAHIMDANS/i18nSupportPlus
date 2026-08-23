@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.json.psi.JsonProperty
@@ -125,7 +126,7 @@ class PlaceholderConsistencyInspection : LocalInspectionTool() {
         val literal = property.value as? JsonStringLiteral ?: return
         val value = literal.value
         if (!isSyntacticallyValid(value)) {
-            holder.registerProblem(literal, "Placeholder syntax error: unbalanced braces in translation value")
+            holder.registerProblem(literal, PluginBundle.message("inspection.placeholder.unbalanced"))
             return
         }
         val currentPlaceholders = extractPlaceholders(value)
@@ -134,7 +135,7 @@ class PlaceholderConsistencyInspection : LocalInspectionTool() {
         val refValue = refTranslations[key] ?: return
         val refPlaceholders = extractPlaceholders(refValue)
         for (missing in refPlaceholders - currentPlaceholders) {
-            holder.registerProblem(literal, "Placeholder '$missing' present in reference locale is missing here")
+            holder.registerProblem(literal, PluginBundle.message("inspection.placeholder.missing", missing))
         }
     }
 
@@ -146,7 +147,7 @@ class PlaceholderConsistencyInspection : LocalInspectionTool() {
         val scalar = keyValue.value as? YAMLScalar ?: return
         val value = scalar.textValue
         if (!isSyntacticallyValid(value)) {
-            holder.registerProblem(scalar, "Placeholder syntax error: unbalanced braces in translation value")
+            holder.registerProblem(scalar, PluginBundle.message("inspection.placeholder.unbalanced"))
             return
         }
         val currentPlaceholders = extractPlaceholders(value)
@@ -155,7 +156,7 @@ class PlaceholderConsistencyInspection : LocalInspectionTool() {
         val refValue = refTranslations[key] ?: return
         val refPlaceholders = extractPlaceholders(refValue)
         for (missing in refPlaceholders - currentPlaceholders) {
-            holder.registerProblem(scalar, "Placeholder '$missing' present in reference locale is missing here")
+            holder.registerProblem(scalar, PluginBundle.message("inspection.placeholder.missing", missing))
         }
     }
 }

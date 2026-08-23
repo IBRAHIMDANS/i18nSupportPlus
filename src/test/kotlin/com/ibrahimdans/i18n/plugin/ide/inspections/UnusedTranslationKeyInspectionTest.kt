@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.inspections
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -110,7 +111,7 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
     private fun applyDeleteFixAtCaret(content: String, expected: String) {
         myFixture.enableInspections(UnusedTranslationKeyInspection::class.java)
         myFixture.configureByText("en.json", content)
-        val fix = myFixture.getAvailableIntention("Delete unused key")
+        val fix = myFixture.getAvailableIntention(PluginBundle.getMessage("inspection.unused.fix.name"))
         assertTrue(fix != null, "quick fix should be offered at caret")
         myFixture.launchAction(fix!!)
         val actual = myFixture.file.text.filterNot { it.isWhitespace() }

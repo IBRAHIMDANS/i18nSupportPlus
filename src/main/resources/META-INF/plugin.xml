@@ -220,35 +220,35 @@
         <renameHandler implementation="com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler"/>
         <localInspection
             groupName="i18n Support Plus"
-            displayName="Placeholder consistency across locales"
+            key="inspection.placeholder.display.name"
             shortName="I18nPlaceholderConsistency"
             enabledByDefault="true"
             level="WARNING"
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.PlaceholderConsistencyInspection"/>
         <localInspection
             groupName="i18n Support Plus"
-            displayName="ICU message format validation"
+            key="inspection.icu.display.name"
             shortName="I18nIcuFormat"
             enabledByDefault="true"
             level="WARNING"
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.IcuFormatInspection"/>
         <localInspection
             groupName="i18n Support Plus"
-            displayName="Unused translation key"
+            key="inspection.unused.display.name"
             shortName="I18nUnusedKey"
             enabledByDefault="false"
             level="WARNING"
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection"/>
         <localInspection
             groupName="i18n Support Plus"
-            displayName="Empty translation value"
+            key="inspection.empty.display.name"
             shortName="I18nEmptyValue"
             enabledByDefault="false"
             level="WARNING"
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.EmptyTranslationValueInspection"/>
         <localInspection
             groupName="i18n Support Plus"
-            displayName="Duplicate translation value"
+            key="inspection.duplicate.display.name"
             shortName="I18nDuplicateValue"
             enabledByDefault="false"
             level="WEAK WARNING"
