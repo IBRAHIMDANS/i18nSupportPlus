@@ -272,7 +272,8 @@
                     icon="AllIcons.General.Modified"/>
         </group>
         <action id="com.ibrahimdans.i18n.ToggleFolding"
-                class="com.ibrahimdans.i18n.plugin.ide.actions.ToggleFoldingAction">
+                class="com.ibrahimdans.i18n.plugin.ide.actions.ToggleFoldingAction"
+                icon="AllIcons.General.InspectionsEye">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift T"/>
         </action>

@@ -2,17 +2,17 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
-import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.ToggleAction
 import com.intellij.openapi.application.ApplicationManager
 
-class ToggleFoldingAction : ToggleAction(
-    "Show Translations Inline",
-    "Toggle display of i18n keys as translated values",
-    AllIcons.General.InspectionsEye
-) {
+/**
+ * Text, description and icon all come from `plugin.xml`, which resolves the first two against
+ * the plugin's resource bundle. Passing them to the constructor as well would shadow the
+ * translation with the English literal for anyone running a localized IDE.
+ */
+class ToggleFoldingAction : ToggleAction() {
 
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
 

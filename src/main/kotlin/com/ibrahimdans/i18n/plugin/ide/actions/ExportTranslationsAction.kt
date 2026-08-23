@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.utils.CsvTranslationCodec
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -30,29 +31,35 @@ class ExportTranslationsAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
 
-        val scope = chooseModuleScope(project, "Export Translations") ?: return
+        val scope = chooseModuleScope(project, PluginBundle.message("action.export.title")) ?: return
 
-        val descriptor = FileSaverDescriptor("Export Translations to CSV", "Choose where to save the CSV file", "csv")
+        val descriptor = FileSaverDescriptor(
+            PluginBundle.message("action.export.chooser.title"),
+            PluginBundle.message("action.export.chooser.description"),
+            "csv"
+        )
         val wrapper = FileChooserFactory.getInstance()
             .createSaveFileDialog(descriptor, project)
             .save(null as com.intellij.openapi.vfs.VirtualFile?, "translations.csv") ?: return
         val target = wrapper.file
 
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Exporting translations…", false) {
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.export.progress.title"), false) {
             override fun run(indicator: ProgressIndicator) {
-                indicator.text = "Collecting translations…"
+                indicator.text = PluginBundle.message("action.export.progress.collecting")
                 val translations = TranslationDataLoader.loadAllTranslations(project, scope.config)
                 val locales = translations.values.flatMap { it.keys }.distinct().sorted()
 
-                indicator.text = "Writing ${translations.size} keys…"
+                indicator.text = PluginBundle.message("action.export.progress.writing", translations.size)
                 val csv = CsvTranslationCodec.encode(locales, translations)
                 target.writeText(csv, StandardCharsets.UTF_8)
 
                 ApplicationManager.getApplication().invokeLater {
                     Messages.showInfoMessage(
                         project,
-                        "Exported ${translations.size} keys x ${locales.size} locale(s) to ${target.absolutePath}",
-                        "Export Translations"
+                        PluginBundle.message(
+                            "action.export.done", translations.size, locales.size, target.absolutePath
+                        ),
+                        PluginBundle.message("action.export.title")
                     )
                 }
             }

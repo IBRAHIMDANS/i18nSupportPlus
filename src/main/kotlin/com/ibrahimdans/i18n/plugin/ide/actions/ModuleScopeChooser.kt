@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 
@@ -30,7 +31,7 @@ internal fun chooseModuleScope(project: Project, title: String): ModuleScope? {
     val names: Array<String> = modules.map { it.name.ifBlank { it.rootDirectory } }.toTypedArray()
     val index = Messages.showDialog(
         project,
-        "A CSV file has no module column, so it cannot span several modules.\nChoose the module to work on:",
+        PluginBundle.message("action.module.scope.prompt"),
         title,
         names,
         0,
