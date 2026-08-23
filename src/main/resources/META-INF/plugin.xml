@@ -256,56 +256,37 @@
     </extensions>
     <actions>
         <group id="com.ibrahimdans.i18n.ToolsMenu"
-               text="i18n Support Plus"
                popup="true">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
             <action id="com.ibrahimdans.i18n.RunSetupWizard"
-                    class="com.ibrahimdans.i18n.plugin.ide.actions.SetupWizardAction"
-                    text="Run Setup Wizard"
-                    description="Open the i18n configuration wizard"/>
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.SetupWizardAction"/>
             <action id="com.ibrahimdans.i18n.ExportTranslations"
-                    class="com.ibrahimdans.i18n.plugin.ide.actions.ExportTranslationsAction"
-                    text="Export Translations to CSV…"
-                    description="Export all translation keys and locale values to a CSV file"/>
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.ExportTranslationsAction"/>
             <action id="com.ibrahimdans.i18n.ImportTranslations"
-                    class="com.ibrahimdans.i18n.plugin.ide.actions.ImportTranslationsAction"
-                    text="Import Translations from CSV…"
-                    description="Import translation values from a CSV file, with a preview before writing"/>
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.ImportTranslationsAction"/>
             <action id="com.ibrahimdans.i18n.CleanupUnusedKeys"
-                    class="com.ibrahimdans.i18n.plugin.ide.actions.CleanupUnusedKeysAction"
-                    text="Cleanup Unused Keys…"
-                    description="Scan for translation keys never used in code and delete the selected ones from every locale"/>
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.CleanupUnusedKeysAction"/>
             <!-- No default keyboard shortcut: three are already taken (ctrl alt shift T/B/M). -->
             <action id="com.ibrahimdans.i18n.SyncKeys"
                     class="com.ibrahimdans.i18n.plugin.ide.actions.SyncKeysAction"
-                    icon="AllIcons.General.Modified"
-                    text="Sync Keys"
-                    description="Sync missing keys to all locales"/>
+                    icon="AllIcons.General.Modified"/>
         </group>
         <action id="com.ibrahimdans.i18n.ToggleFolding"
-                class="com.ibrahimdans.i18n.plugin.ide.actions.ToggleFoldingAction"
-                text="Show Translations Inline"
-                description="Toggle i18n key folding to show translations inline">
+                class="com.ibrahimdans.i18n.plugin.ide.actions.ToggleFoldingAction">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift T"/>
         </action>
         <action id="com.ibrahimdans.i18n.BatchExtractI18n"
-                class="com.ibrahimdans.i18n.plugin.ide.actions.BatchExtractI18nAction"
-                text="Batch Extract i18n Keys"
-                description="Extract multiple hardcoded strings as i18n keys in one pass">
+                class="com.ibrahimdans.i18n.plugin.ide.actions.BatchExtractI18nAction">
             <add-to-group group-id="CodeMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift B"/>
         </action>
         <action id="com.ibrahimdans.i18n.SortI18nKeys"
-                class="com.ibrahimdans.i18n.plugin.ide.actions.SortI18nKeysAction"
-                text="Sort i18n Keys Alphabetically"
-                description="Reorder the keys of the current JSON translation file alphabetically, recursively">
+                class="com.ibrahimdans.i18n.plugin.ide.actions.SortI18nKeysAction">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
         </action>
         <action id="com.ibrahimdans.i18n.MoveI18nKey"
-                class="com.ibrahimdans.i18n.plugin.ide.actions.MoveI18nKeyHandler"
-                text="Move i18n Key to Namespace…"
-                description="Move an i18n key from its current namespace to another namespace, updating all locale files and code references">
+                class="com.ibrahimdans.i18n.plugin.ide.actions.MoveI18nKeyHandler">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift M"/>
         </action>
