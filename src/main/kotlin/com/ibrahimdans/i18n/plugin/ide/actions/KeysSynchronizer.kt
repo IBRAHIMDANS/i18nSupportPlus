@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.service
@@ -37,9 +38,9 @@ class KeysSynchronizer {
      * Entry point. Collects missing keys, shows the preview dialog, and applies on confirm.
      */
     fun sync(project: Project) {
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Analyzing i18n keys…", false) {
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.sync.progress.analyzing"), false) {
             override fun run(indicator: ProgressIndicator) {
-                indicator.text = "Loading all translations…"
+                indicator.text = PluginBundle.message("action.sync.progress.loading")
                 val allTranslations = TranslationDataLoader.loadAllTranslations(project)
                 val allLocales = TranslationDataLoader.discoverLocales(project)
 
@@ -49,14 +50,14 @@ class KeysSynchronizer {
                         // passing it as parent anchors the dialog to the IDE frame.
                         Messages.showInfoMessage(
                             project,
-                            "No translation files found in this project.",
-                            "Sync Keys"
+                            PluginBundle.message("action.sync.none.sources"),
+                            PluginBundle.message("action.sync.title")
                         )
                     }
                     return
                 }
 
-                indicator.text = "Computing missing keys…"
+                indicator.text = PluginBundle.message("action.sync.progress.computing")
                 val allSources = project.service<LocalizationSourceService>().findAllSources(project)
                 val missing = findMissingEntries(allTranslations, allLocales, allSources)
 
@@ -64,8 +65,8 @@ class KeysSynchronizer {
                     if (missing.isEmpty()) {
                         Messages.showInfoMessage(
                             project,
-                            "All keys are present in every locale. Nothing to sync.",
-                            "Sync Keys"
+                            PluginBundle.message("action.sync.none.missing"),
+                            PluginBundle.message("action.sync.title")
                         )
                         return@invokeLater
                     }
@@ -137,20 +138,22 @@ class KeysSynchronizer {
      */
     private fun applyMissingKeys(project: Project, missing: List<MissingEntry>) {
         val viewModel = DialogViewModel(project)
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Syncing missing keys…", false) {
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.sync.progress.title"), false) {
             override fun run(indicator: ProgressIndicator) {
                 // Phase 1 (background): build all (source, fullKey) pairs — no EDT touch
-                indicator.text = "Preparing keys…"
+                indicator.text = PluginBundle.message("action.sync.progress.preparing")
                 val operations = missing.mapIndexed { index, entry ->
                     indicator.fraction = index.toDouble() / missing.size * 0.5
                     Triple(entry.source, buildFullKey(entry.key), entry)
                 }
 
                 // Phase 2 (EDT): apply all writes in a single WriteCommandAction
-                indicator.text = "Writing ${missing.size} keys…"
+                indicator.text = PluginBundle.message("action.sync.progress.writing", missing.size)
                 indicator.fraction = 0.5
                 ApplicationManager.getApplication().invokeAndWait {
-                    WriteCommandAction.runWriteCommandAction(project, "Sync i18n keys", null, {
+                    WriteCommandAction.runWriteCommandAction(
+                        project, PluginBundle.message("action.sync.command"), null,
+                    {
                         for ((source, fullKey, _) in operations) {
                             viewModel.saveTranslation(source, fullKey, "")
                         }
@@ -196,13 +199,17 @@ private class SyncPreviewDialog(
 ) : DialogWrapper(project) {
 
     init {
-        title = "Sync Missing Keys — Preview (${missing.size} entries)"
-        setOKButtonText("Apply")
+        title = PluginBundle.message("action.sync.preview.title", missing.size)
+        setOKButtonText(PluginBundle.message("action.sync.preview.ok"))
         init()
     }
 
     override fun createCenterPanel(): JComponent {
-        val columnNames = arrayOf("Key", "Locale", "File")
+        val columnNames = arrayOf(
+            PluginBundle.message("action.sync.preview.column.key"),
+            PluginBundle.message("action.sync.preview.column.locale"),
+            PluginBundle.message("action.sync.preview.column.file")
+        )
         val data: Array<Array<Any>> = missing.map { entry ->
             arrayOf<Any>(entry.key, entry.locale, entry.source.displayPath)
         }.toTypedArray()
@@ -224,10 +231,7 @@ private class SyncPreviewDialog(
         scroll.preferredSize = Dimension(620, 380)
 
         val panel = JPanel(BorderLayout(0, 8))
-        val info = JLabel(
-            "<html>The following keys are missing in some locales.<br>" +
-                    "Clicking <b>Apply</b> will insert them with an empty value.</html>"
-        )
+        val info = JLabel("<html>" + PluginBundle.message("action.sync.preview.note") + "</html>")
         panel.add(info, BorderLayout.NORTH)
         panel.add(scroll, BorderLayout.CENTER)
         return panel

@@ -48,6 +48,23 @@ class ActionLabelResolutionTest : PlatformBaseTest() {
         }
     }
 
+    /**
+     * `ToggleFoldingAction` used to pass its text and description to `ToggleAction`'s
+     * constructor. A literal set there wins over the bundle, so the entry would have stayed
+     * English in a localized IDE while every other one followed the language — the exact
+     * failure this whole batch exists to prevent, and one no static check can see.
+     */
+    @Test
+    fun `the folding toggle takes no label from its constructor`() {
+        val action = ActionManager.getInstance().getAction("com.ibrahimdans.i18n.ToggleFolding")
+
+        assertTrue(
+            action.templatePresentation.text == PluginBundle.getMessage("action.com.ibrahimdans.i18n.ToggleFolding.text"),
+            "expected the bundle to win, got '${action.templatePresentation.text}'"
+        )
+        assertNotNull(action.templatePresentation.icon, "the icon moved to plugin.xml with the label")
+    }
+
     @Test
     fun `the wizard entry reads what the bundle says`() {
         val action = ActionManager.getInstance().getAction("com.ibrahimdans.i18n.RunSetupWizard")

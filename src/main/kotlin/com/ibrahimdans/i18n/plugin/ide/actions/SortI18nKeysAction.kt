@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.json.psi.JsonFile
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
@@ -29,7 +30,7 @@ class SortI18nKeysAction : AnAction() {
         val file = e.getData(CommonDataKeys.PSI_FILE) as? JsonFile ?: return
         WriteCommandAction.runWriteCommandAction(
             project,
-            "Sort i18n Keys",
+            PluginBundle.message("action.sort.command"),
             null,
             { sort(file, project) },
             file
