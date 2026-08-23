@@ -100,6 +100,59 @@ kotlin {
     }
 }
 
+/**
+ * The plugin descriptor caps `<change-notes>` at this many characters.
+ *
+ * Past it, `intellij-plugin-structure` raises `TooLongPropertyValue` at ERROR level, which
+ * fails `verifyPluginStructure` — and therefore `buildPlugin` inside the release workflow,
+ * after the tag has been pushed and before `publishPlugin` ever runs.
+ *
+ * The cap is nowhere in JetBrains' public documentation; it is hard-coded in
+ * `PluginBeanValidator.validateChangeNotes`. 1.3.0 is the first release to reach it: its 101
+ * entries render to 89 233 characters, where 1.2.1 shipped two, so nothing had exercised it.
+ */
+val changeNotesMaxLength = 65_535
+
+/** Where the entries that do not fit can still be read in full. */
+val changelogUrl = "https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/CHANGELOG.md"
+
+/**
+ * [render] applied to as many of [entries] as the descriptor accepts, newest sections first.
+ *
+ * Entries are dropped from the end and the item re-rendered, rather than the HTML being cut at
+ * a character offset: what ships is then always well-formed and always ends on a whole entry,
+ * where a cut inside a `<li>` would reach the Plugins dialog as broken markup. Truncating is
+ * preferred to selecting sections by hand because it is bounded by construction — a rule that
+ * merely happens to fit today would re-cross the cap on some later release, silently.
+ *
+ * [render] is passed `null` for the unfiltered item, or the set of entries to keep.
+ */
+fun fitChangeNotes(entries: List<String>, render: (Set<String>?) -> String): String {
+    val full = render(null)
+    if (full.length <= changeNotesMaxLength) return full
+
+    fun attempt(keep: Int): String =
+        render(entries.take(keep).toSet()) + omittedEntriesNote(entries.size - keep)
+
+    // Largest prefix of entries that still fits, note included.
+    var low = 0
+    var high = entries.size
+    while (low < high) {
+        val middle = (low + high + 1) / 2
+        if (attempt(middle).length <= changeNotesMaxLength) low = middle else high = middle - 1
+    }
+
+    val fitted = attempt(low)
+    // Two entries sharing their exact text are both kept by the filter, which can make a
+    // rendering longer than the search measured. Falling back to none is degenerate but valid.
+    return if (fitted.length <= changeNotesMaxLength) fitted else attempt(0)
+}
+
+fun omittedEntriesNote(dropped: Int): String =
+    "<p><em>\u2026 and $dropped more entries, left out because the plugin descriptor caps this " +
+        "field at $changeNotesMaxLength characters. The complete changelog is at " +
+        "<a href=\"$changelogUrl\">$changelogUrl</a>.</em></p>"
+
 intellijPlatform {
     pluginConfiguration {
         version = properties("pluginVersion")
@@ -119,12 +172,15 @@ intellijPlatform {
             }
         }
 
-        changeNotes = changelog.renderItem(
-            changelog.run {
-                getOrNull(properties("pluginVersion").get()) ?: getLatest()
-            },
-            org.jetbrains.changelog.Changelog.OutputType.HTML
-        )
+        changeNotes = changelog.run {
+            val item = getOrNull(properties("pluginVersion").get()) ?: getLatest()
+            fitChangeNotes(item.sections.values.flatten()) { keep ->
+                renderItem(
+                    if (keep == null) item else item.withFilter { entry -> entry in keep },
+                    org.jetbrains.changelog.Changelog.OutputType.HTML
+                )
+            }
+        }
     }
 
     publishing {
