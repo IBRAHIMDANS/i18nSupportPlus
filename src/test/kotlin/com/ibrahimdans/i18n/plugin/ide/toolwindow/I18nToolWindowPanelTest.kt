@@ -6,6 +6,10 @@ import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.intellij.ui.HyperlinkLabel
 import com.intellij.ui.components.JBTabbedPane
+// PlatformBaseTest inherits junit.framework.TestCase, whose assertEquals(message, expected,
+// actual) is a *member* and so outranks this import as soon as all three arguments are Strings —
+// the message is then read as the expected value. Such calls go through `Assertions.` explicitly.
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -181,7 +185,7 @@ class I18nToolWindowPanelTest : PlatformBaseTest() {
 
     @Test
     fun `the count is labelled only once something is searched`() {
-        assertEquals("", SearchResults.label(3, ""), "No question, no answer")
+        Assertions.assertEquals("", SearchResults.label(3, ""), "No question, no answer")
         assertTrue(SearchResults.label(0, "menu").isNotBlank(), "No result must read differently from no search")
         assertTrue(SearchResults.label(1, "menu").contains("1"))
         assertTrue(SearchResults.label(7, "menu").contains("7"))
@@ -258,7 +262,7 @@ class I18nToolWindowPanelTest : PlatformBaseTest() {
             "One level of tabs: no second pane may nest inside the first"
         )
         assertEquals(3, built.tabs!!.tabCount, "Tree, table and statistics — one level, three tabs")
-        assertEquals("frontend", built.activeModule?.name, "The first module is shown to begin with")
+        Assertions.assertEquals("frontend", built.activeModule?.name, "The first module is shown to begin with")
     }
 
     @Test
