@@ -10,7 +10,7 @@ i18n
   .init({
     fallbackLng: 'en',
     supportedLngs: ['en', 'fr'],
-    ns: ['auth', 'common', 'navigation', 'dashboard'],
+    ns: ['auth', 'common', 'navigation', 'dashboard', 'deposit-box'],
     defaultNS: 'common',
     interpolation: {
       escapeValue: false, // React already escapes values

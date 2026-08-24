@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import Navigation from './components/Navigation';
 import LoginForm from './components/LoginForm';
 import Dashboard from './components/Dashboard';
+import DepositBox from './components/DepositBox';
 
 type View = 'login' | 'dashboard';
 
@@ -42,7 +43,10 @@ export default function App() {
           {view === 'login' ? (
               <LoginForm onLogin={handleLogin} />
           ) : (
-              <Dashboard userName={userName} />
+              <>
+                <Dashboard userName={userName} />
+                <DepositBox trusteeCount={2} status="pending" />
+              </>
           )}
         </main>
       </div>

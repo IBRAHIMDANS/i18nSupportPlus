@@ -17,5 +17,10 @@
   "emptyState": {
     "title": "Nothing here yet",
     "description": "Start by creating your first item."
+  },
+  "notifications": {
+    "title": "Notifications",
+    "unread_one": "{{count}} unread notification",
+    "unread_other": "{{count}} unread notifications"
   }
 }

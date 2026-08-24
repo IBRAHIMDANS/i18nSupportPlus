@@ -1,0 +1,40 @@
+{
+  "title": "Deposit box",
+  "myBoxes": {
+    "myTrustees": {
+      "modal": {
+        "confirmPassword": {
+          "addTrustee": {
+            "description_one": "To confirm the addition of a new trustee, please enter your password.",
+            "description_other": "To confirm the addition of new trustees, please enter your password."
+          },
+          "removeTrustee": {
+            "description": "To confirm the removal of this trustee, please enter your password."
+          }
+        }
+      },
+      "toasts": {
+        "trusteeAdded_one": "{{count}} trustee added",
+        "trusteeAdded_other": "{{count}} trustees added"
+      }
+    }
+  },
+  "activity": {
+    "entry": {
+      "fileAdded": "<b>{{actor}}</b> added the file \"<b>{{item}}</b>\".",
+      "boxShared": "Your deposit box <strong>{{name}}</strong> is now shared."
+    },
+    "tooltipInfo": "Activity is kept for 30 days.\nOlder entries are removed automatically."
+  },
+  "status": {
+    "pending": "Pending",
+    "accepted": "Accepted",
+    "declined": "Declined"
+  },
+  "retention": {
+    "unit": {
+      "day_one": "{{count}} day",
+      "day_other": "{{count}} days"
+    }
+  }
+}

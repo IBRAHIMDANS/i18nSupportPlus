@@ -13,6 +13,7 @@ export default function Dashboard({ userName }: DashboardProps) {
 
   const userCount = 42;
   const fileCount = 1;
+  const unreadCount = 3;
 
   return (
     <div>
@@ -26,6 +27,17 @@ export default function Dashboard({ userName }: DashboardProps) {
         {/* Pluralization: count_one vs count_other key selected by i18next */}
         <p>{t('dashboardd:statss.users.count', { count: userCount })}</p>
         <p>{t('stats.files.count', { count: fileCount })}</p>
+      </section>
+
+      <section style={{ marginBottom: '1.5rem' }}>
+        <h3>{t('dashboard:notifications.title')}</h3>
+        {/*
+          Pluralization behind an explicit namespace: the file holds
+          notifications.unread_one / notifications.unread_other, and the suffix is never
+          written here — i18next picks the form from { count }. Scan Orphans must still
+          count this call for both stored forms.
+        */}
+        <p>{t('dashboard:notifications.unread', { count: unreadCount })}</p>
       </section>
 
       <section style={{ marginBottom: '1.5rem', padding: '1rem', border: '1px dashed #ccc' }}>
