@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+- [Scan Orphans] Stop reporting every **pluralized key as an orphan**. A key stored as `account:…addTrustee.description_other` is a *form*, not a key: the source code writes `t('account:…addTrustee.description', { count })` and i18next appends the suffix at lookup time. The scan searched the sources for the stored form, which by construction is never written there, so every `_one` / `_other` / `_zero` / `_two` / `_few` / `_many` row — and every legacy numeric form (`key-1`, `key-2`, `key-5`) — came back with zero usages. The consequence went past a wrong number in the *Usage* column: *Cleanup unused keys* takes its candidates from that same count, so it offered to delete translations that were in use. The suffix is now stripped before searching, through the rule `KeyComposer` already applied when composing a key for a reference — which is why Ctrl+click from the JSON file always worked while the scan did not. A key merely *ending* like a plural form (`step_one`) is stripped too: the two are indistinguishable without reading the sibling keys, and reporting a used key as used is the safe side of that ambiguity
+- [Scan Orphans] Count a call site **once**, not once per search term. A key carrying a namespace is searched twice — prefixed (`navigation:menu.profile`) and bare (`menu.profile`), since the namespace may be implicit at the call site — and both searches accumulated into the same list without deduplication, so three real usages were reported as six. The count is now taken over distinct elements
+
+### Documentation
+
+- [Example project] Make `examples/react-multi-namespace` representative of a real i18next codebase rather than of the happy path. It held four flat namespaces, one call shape and no case the plugin could get wrong; the shapes now covered were read off a production project: a namespace carrying a dash (`deposit-box` — the plugin's default plural separator, in a namespace name), a six-level key path, CLDR plurals whose suffix is never written at the call site, a plural form sitting next to a plain key of the same name, markup in the value rendered through `<Trans>`, a multiline value, a key built at runtime as a template literal that nothing can resolve statically, and a key passed as an option of another key. The call sites follow: `useTranslation()` with no namespace and fully prefixed keys — the dominant form once a project has more than a handful of namespaces — alongside the single-namespace and array forms and `i18n.t` outside any hook. The README says what each case is for, so the project can be used as a checklist. `react-i18next` was also added to its `package.json`: every component imported it and no dependency declared it
+
 ## 1.3.0 - 2026-08-23
 
 ### New Features
