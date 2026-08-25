@@ -22,7 +22,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
 import com.intellij.psi.PsiElement
-import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.table.JBTable
@@ -39,13 +38,18 @@ import javax.swing.table.DefaultTableModel
  * the selected ones from every locale file, in a single WriteCommandAction
  * (one undo step for the entire cleanup).
  *
- * A key is only proposed for deletion when two independent signals agree:
- *  1. the text scan finds zero occurrences of the key (full and bare form) —
- *     the same scan as the Table View's "Scan Orphans";
- *  2. no PSI reference points at the key's property **or any of its ancestors**.
- *     The ancestor check is the dynamic-key guard: `t(`role.${'$'}{x}`)` resolves to
- *     the parent `role` object, so every child of a dynamically-accessed parent
- *     is protected. Better to keep a dead key than delete a live one.
+ * A key is only proposed for deletion when the scan behind the Table View's
+ * "Scan Orphans" leaves it at zero — which covers both the text search for the
+ * key itself and the guard against keys built at runtime, `t(`role.${'$'}{x}`)`,
+ * that no search for a name can find. Better to keep a dead key than delete a
+ * live one.
+ *
+ * That guard used to live here, as a second signal: no PSI reference on the key's
+ * property or any of its ancestors. It never protected anything — the reference a
+ * template literal carries resolves onto the property's *key literal*, while
+ * `ReferencesSearch` on the property compares against the property itself, so the
+ * answer was always "no reference". It is now [DynamicKeyUsages], asked once by the
+ * scan, so the preview and the table agree on the same set of orphans.
  */
 class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
 
@@ -67,16 +71,7 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
                 indicator.text = PluginBundle.message("action.cleanup.progress.counting", rows.size)
                 val candidates = viewModel.countUsages(project, rows).filter { it.usageCount == 0 }
 
-                indicator.text = PluginBundle.message("action.cleanup.progress.checking", candidates.size)
-                // Load the sources ONCE. findAllSources rebuilds the PSI tree of every
-                // translation file, so calling it per key made the scan O(keys × files):
-                // a few hundred dead keys over a few dozen locale files froze the IDE.
-                val sources = ReadAction.compute<List<LocalizationSource>, RuntimeException> {
-                    project.service<LocalizationSourceService>().findAllSources(project)
-                }
-                val orphans = candidates.filter { row ->
-                    ReadAction.compute<Boolean, RuntimeException> { !hasPsiReferences(sources, row.key) }
-                }
+                val orphans = candidates
 
                 ApplicationManager.getApplication().invokeLater {
                     if (orphans.isEmpty()) {
@@ -105,19 +100,6 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
     }
 
     // ── Detection (read actions) ──────────────────────────────────────────────
-
-    /**
-     * True when any locale's property for [key] — or any of its ancestor
-     * properties — has a PSI reference from code. The ancestor walk protects
-     * children of dynamically-accessed parents (template keys).
-     */
-    internal fun hasPsiReferences(sources: List<LocalizationSource>, key: String): Boolean {
-        return leafProperties(sources, key).any { property ->
-            generateSequence(property) { current ->
-                PsiTreeUtil.getParentOfType(current, JsonProperty::class.java, YAMLKeyValue::class.java)
-            }.any { ancestor -> ReferencesSearch.search(ancestor).findFirst() != null }
-        }
-    }
 
     /**
      * Resolves [key] in every matching localization source and returns the

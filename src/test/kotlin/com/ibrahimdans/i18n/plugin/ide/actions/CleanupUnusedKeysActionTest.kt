@@ -80,14 +80,4 @@ class CleanupUnusedKeysActionTest : PlatformBaseTest() {
         Assertions.assertNull(valueAt("locales/en/common.json", "c"))
     }
 
-    @Test
-    fun hasPsiReferences_falseForKeyNeverUsedInCode() {
-        addFileToProject("locales/en/common.json", """{"dead":{"key":"never used"}}""")
-
-        val referenced = ReadAction.compute<Boolean, RuntimeException> {
-            action.hasPsiReferences(sources(), "common:dead.key")
-        }
-
-        Assertions.assertFalse(referenced)
-    }
 }

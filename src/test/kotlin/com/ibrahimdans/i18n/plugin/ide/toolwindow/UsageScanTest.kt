@@ -56,6 +56,84 @@ class UsageScanTest : PlatformBaseTest() {
         assertEquals(2, usagesOf("common:menu.home"))
     }
 
+    /**
+     * The prefix match used to cross segment boundaries: `menu.home` counted the calls to
+     * `menu.homePage` too, so the column added up neighbouring keys and a dead key could read
+     * as used.
+     */
+    @Test
+    fun `a longer key of the same prefix is not counted`() {
+        myFixture.configureByText("Menu.tsx", tsx.generate("'common:menu.homePage'"))
+
+        assertEquals(0, usagesOf("common:menu.home"))
+    }
+
+    @Test
+    fun `a longer key separated by a dash is not counted either`() {
+        // The one the word search does let through: `-` ends a word, so `menu.home-page`
+        // reaches the filter where `menu.homePage` never does.
+        myFixture.configureByText("Menu.tsx", tsx.generate("'common:menu.home-page'"))
+
+        assertEquals(0, usagesOf("common:menu.home"))
+    }
+
+    /**
+     * A key naming an object is reached by every call under it — what makes navigation from a
+     * parent node find its children's call sites. The boundary rule must not take that away.
+     */
+    @Test
+    fun `a parent key is still reached by the calls under it`() {
+        myFixture.configureByText("Menu.tsx", tsx.generate("'common:menu.home'"))
+
+        assertEquals(1, usagesOf("common:menu"))
+    }
+
+    // ── The namespace the call site works under ───────────────────────────────
+
+    private fun withHook(namespace: String, key: String) {
+        myFixture.configureByText(
+            "Menu.tsx",
+            """
+            import { useTranslation } from 'react-i18next';
+
+            export const Menu = () => {
+                const { t } = useTranslation('$namespace');
+                return t('$key');
+            };
+            """.trimIndent()
+        )
+    }
+
+    /**
+     * The bare form is searched so that `useTranslation('navigation') + t('menu.profile')` is
+     * found, but nothing checked *which* namespace the hook declared: a call written under
+     * `common` was counted as a usage of every namespace holding a key of that name.
+     */
+    @Test
+    fun `a bare call counts only for the namespace its hook declares`() {
+        withHook("common", "menu.home")
+
+        assertEquals(1, usagesOf("common:menu.home"))
+        assertEquals(0, usagesOf("navigation:menu.home"))
+    }
+
+    @Test
+    fun `a call site declaring no namespace still counts`() {
+        // Nothing to compare against — and reporting a live key as an orphan is the error
+        // worth avoiding, so an unresolvable hook keeps its usages.
+        myFixture.configureByText("Menu.tsx", tsx.generate("'menu.home'"))
+
+        assertEquals(1, usagesOf("navigation:menu.home"))
+    }
+
+    @Test
+    fun `a namespace written at the call site wins over the hook`() {
+        withHook("common", "navigation:menu.home")
+
+        assertEquals(1, usagesOf("navigation:menu.home"))
+        assertEquals(0, usagesOf("common:menu.home"))
+    }
+
     @Test
     fun `a key no source mentions stays an orphan`() {
         myFixture.configureByText("Menu.tsx", tsx.generate("'common:menu.home'"))

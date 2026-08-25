@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumula
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
+import com.ibrahimdans.i18n.plugin.tree.Separators
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
 import com.intellij.psi.search.PsiSearchHelper
@@ -16,6 +17,7 @@ import com.intellij.psi.search.UsageSearchContext
  * Represents a single row in the translation table.
  *
  * @param usageCount Number of usages found in source code.
+ *   -2 = reached only through a runtime-built key ([TableViewModel.DYNAMIC_USAGE]),
  *   -1 = not yet scanned, 0 = orphan (unused), ≥1 = used.
  */
 data class TranslationRow(val key: String, val values: Map<String, String>, val usageCount: Int = -1)
@@ -75,8 +77,13 @@ enum class ValueStatus {
  *
  * [NOT_SCANNED] is not [ORPHAN]: nobody has looked yet, which is the distinction the `—`
  * placeholder was carrying alone.
+ *
+ * [DYNAMIC] is not [ORPHAN] either, and the distinction is what keeps a live key alive: a key
+ * only reached through `t(`status.${'$'}{kind}`)` names nothing a text scan can find, so it was
+ * reported as *Unused* — and *Cleanup unused keys*, which takes its candidates from that very
+ * count, offered to delete it. See [DynamicKeyUsages].
  */
-enum class UsageStatus { NOT_SCANNED, ORPHAN, USED }
+enum class UsageStatus { NOT_SCANNED, ORPHAN, DYNAMIC, USED }
 
 /**
  * View model for the table-based translation view.
@@ -163,9 +170,10 @@ class TableViewModel {
     }
 
     /** What the Usage column must say about a row whose [TranslationRow.usageCount] is [count]. */
-    fun usageStatus(count: Int): UsageStatus = when {
-        count < 0 -> UsageStatus.NOT_SCANNED
-        count == 0 -> UsageStatus.ORPHAN
+    fun usageStatus(count: Int): UsageStatus = when (count) {
+        DYNAMIC_USAGE -> UsageStatus.DYNAMIC
+        in Int.MIN_VALUE..-1 -> UsageStatus.NOT_SCANNED
+        0 -> UsageStatus.ORPHAN
         else -> UsageStatus.USED
     }
 
@@ -264,9 +272,16 @@ class TableViewModel {
         val searchScope = config.searchScope(project)
         val searchHelper = PsiSearchHelper.getInstance(project)
 
-        return rows.map { row ->
+        val separators = Separators(config.nsSeparator, config.keySeparator, config.pluralSeparator)
+        val counted = rows.map { row ->
             val query = usageQuery(row.key, config.pluralSeparator)
-            val accumulator = ReferencesAccumulator(query.bareKey)
+            val accumulator = ReferencesAccumulator(
+                query.bareKey,
+                separators,
+                // A key carrying no namespace lives in a default one, which is also what a
+                // call site writing no namespace works under.
+                query.namespace?.let { listOf(it) } ?: config.defaultNamespaces(),
+            )
 
             for (word in query.words) {
                 searchHelper.processElementsWithWord(
@@ -282,10 +297,21 @@ class TableViewModel {
             // and counting it twice inflated every usage of every prefixed key.
             row.copy(usageCount = accumulator.entries().distinct().size)
         }
+
+        // Only what the text scan left at zero can be reached dynamically, and asking on
+        // behalf of the whole batch is what keeps this to one search per distinct prefix.
+        val orphanKeys = counted.filter { it.usageCount == 0 }.map { it.key }
+        val reached = DynamicKeyUsages.reachedKeys(
+            orphanKeys, searchScope, searchHelper, config.nsSeparator, config.keySeparator,
+        )
+        if (reached.isEmpty()) return counted
+        return counted.map { row ->
+            if (row.key in reached) row.copy(usageCount = DYNAMIC_USAGE) else row
+        }
     }
 
     /** What [countUsages] searches the sources for, on behalf of one key. */
-    internal data class UsageQuery(val bareKey: String, val words: List<String>)
+    internal data class UsageQuery(val bareKey: String, val words: List<String>, val namespace: String? = null)
 
     /**
      * The search terms standing for [key], and the prefix a hit has to start with.
@@ -310,10 +336,22 @@ class TableViewModel {
         return UsageQuery(
             bareKey,
             listOfNotNull(namespace?.let { "$it:$bareKey" }, bareKey),
+            namespace,
         )
     }
 
     companion object {
+        /**
+         * [TranslationRow.usageCount] for a key no text search can find, but that a key built
+         * at runtime reaches — see [UsageStatus.DYNAMIC].
+         *
+         * A sentinel rather than a field of its own, because the table model carries the count
+         * itself into the *Usage* cell; `-1` already stands for "never scanned" there, and
+         * adding a column the renderer would have to look up sideways buys nothing. Every
+         * reading of it goes through [usageStatus].
+         */
+        internal const val DYNAMIC_USAGE = -2
+
         /** Widest by design: the key is the longest text of the table and the one users scan. */
         internal const val KEY_COLUMN_WIDTH = 320
 

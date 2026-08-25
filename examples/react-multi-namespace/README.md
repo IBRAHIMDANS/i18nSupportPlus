@@ -14,7 +14,7 @@ translations deliberately gather the key shapes a real codebase mixes.
 | Interpolation (`{{name}}`, `{{count}}`) | `common:pagination.page`, `dashboard:welcome` |
 | Markup in the value, rendered through `<Trans>` | `deposit-box:activity.entry.fileAdded` |
 | Multiline value | `deposit-box:activity.tooltipInfo` |
-| Key built at runtime as a template literal — nothing resolves it statically | `deposit-box:status.${status}` |
+| Key built at runtime as a template literal — no call site names the key; Scan Orphans reports the three `status.*` keys as *Dynamic*, not *Unused* | `deposit-box:status.${status}` |
 | A key passed as an option of another key | `deposit-box:activity.entry.boxShared` |
 | Missing key, on purpose | `dashboardd:statss.users.count`, `common:actions.saxve` |
 

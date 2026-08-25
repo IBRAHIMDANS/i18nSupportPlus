@@ -60,6 +60,8 @@ private val NOT_SCANNED_TOOLTIP = PluginBundle.message("toolwindow.table.usage.n
 private val NOT_SCANNED_LABEL = PluginBundle.message("toolwindow.table.usage.pending")
 private val ORPHAN_LABEL = PluginBundle.message("toolwindow.table.usage.orphan")
 private val ORPHAN_TOOLTIP = PluginBundle.message("toolwindow.table.usage.orphan.tooltip")
+private val DYNAMIC_LABEL = PluginBundle.message("toolwindow.table.usage.dynamic")
+private val DYNAMIC_TOOLTIP = PluginBundle.message("toolwindow.table.usage.dynamic.tooltip")
 private val MISSING_LABEL = PluginBundle.message("toolwindow.table.value.missing")
 private val MISSING_TOOLTIP = PluginBundle.message("toolwindow.table.value.missing.tooltip")
 private val BLANK_LABEL = PluginBundle.message("toolwindow.table.value.blank")
@@ -73,6 +75,9 @@ private val MISSING_BACKGROUND = JBColor.namedColor("FileColor.Rose", JBColor.PI
 private val BLANK_BACKGROUND = JBColor.namedColor("FileColor.Yellow", JBColor.YELLOW)
 private val ORPHAN_FOREGROUND = JBColor.namedColor("Label.errorForeground", JBColor.RED)
 private val NOT_SCANNED_FOREGROUND = JBColor.namedColor("Label.infoForeground", JBColor.GRAY)
+
+// Not the orphan red: the key is reachable, only not by a name written anywhere.
+private val DYNAMIC_FOREGROUND = JBColor.namedColor("Label.infoForeground", JBColor.GRAY)
 
 /** Input map keys for the two shortcuts the table binds on itself. */
 private const val ACTION_EDIT = "i18n.table.edit"
@@ -590,6 +595,13 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
                     icon = AllIcons.General.Warning
                     toolTipText = ORPHAN_TOOLTIP
                     if (!isSelected) foreground = ORPHAN_FOREGROUND
+                }
+
+                UsageStatus.DYNAMIC -> {
+                    text = DYNAMIC_LABEL
+                    icon = AllIcons.General.Information
+                    toolTipText = DYNAMIC_TOOLTIP
+                    if (!isSelected) foreground = DYNAMIC_FOREGROUND
                 }
 
                 UsageStatus.USED -> text = count.toString()
