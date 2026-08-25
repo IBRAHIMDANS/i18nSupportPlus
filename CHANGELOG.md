@@ -2,11 +2,13 @@
 
 ## Unreleased
 
-## 1.3.1 - 2026-08-25
-
 ### Bug Fixes
 
 - [Create key] Stop logging **"Read access is allowed from inside read-action only"** when the key is created. `CreateKeyQuickFix` resolved the composite key against the translation file's PSI *before* opening its write action, and every path into it runs on the EDT — the `invokeLater` of the quick fix itself, and the action listener of the file-choice popup. The EDT no longer carries an implicit read action on the current platform, so the very first PSI read (`JsonObject.findProperty`) tripped `assertReadAccessAllowed` and surfaced as an IDE internal error. The assertion is a soft one, so the key was still written and the failure looked cosmetic — it is not: the read was genuinely unguarded, and a PSI change landing between the lookup and the write it feeds is a corrupted file, not an error dialog. Resolution now happens inside the write action, which already grants read access, so no separate `ReadAction` is needed and lookup and generation became atomic
+
+## 1.3.1 - 2026-08-25
+
+### Bug Fixes
 
 - [Unused Key inspection] Stop underlining — and offering to delete — a key reached by a key built at runtime. The inspection is the third place that decides a key is dead, and the only one where the deletion is a single click with no preview in between. Both signals it reads come back empty on such a key: `t(`common:status.${kind}`)` writes no name to search for, and the reference it does carry resolves onto the property's *key literal*, which is not what `ReferencesSearch` on the property compares against. It now asks `DynamicKeyUsages`, like the scan does, with one cache of dynamic heads per file — the properties of a translation file share their prefixes almost entirely, so the search runs a handful of times rather than once per key on every keystroke. The key is composed on the spot rather than read from the element's own reference: the provider attaches one only when the key already occurs in the sources, which is by definition never true of the keys this inspection reports
 - [Scan Orphans] Stop counting a call to a **neighbouring key**. The match was a prefix one with no boundary, so `menu.home` counted `menu.home-page` as one of its usages. Its reach was narrower than it looks — `processElementsWithWord` matches whole words, so `menu.homePage` never reached the filter to begin with, and only a separator that ends a word (`-`, the default plural separator) got through — but it inflated the count and could hide a genuinely dead key. Whatever follows the key must now open a new segment, or be nothing at all. The prefix match itself stays: a key naming an *object* is legitimately reached by every call under it, which is what makes navigation from a parent node find its children's call sites
