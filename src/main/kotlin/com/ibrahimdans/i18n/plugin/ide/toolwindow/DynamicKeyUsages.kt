@@ -51,30 +51,58 @@ object DynamicKeyUsages {
         }
     }
 
+    /**
+     * Whether one key is reachable, for a caller holding one key at a time.
+     *
+     * [heads] is the caller's own cache, kept across the keys of one pass: an inspection visits
+     * every property of a translation file, and they share their prefixes almost entirely — the
+     * whole of `status.*` asks the same single word. Without it the same search would run once
+     * per property, on every keystroke.
+     */
+    fun isReached(
+        key: String,
+        scope: GlobalSearchScope,
+        searchHelper: PsiSearchHelper,
+        nsSeparator: String,
+        keySeparator: String,
+        heads: MutableMap<String, Set<String>>,
+    ): Boolean {
+        val bare = key.substringAfter(nsSeparator, key)
+        return prefixesOf(key, nsSeparator, keySeparator).any { word ->
+            heads.getOrPut(word) { staticHeads(word, scope, searchHelper) }
+                .any { key.startsWith(it) || bare.startsWith(it) }
+        }
+    }
+
     /** The static head of every dynamic key literal [words] leads to. */
     private fun staticHeads(
         words: List<String>,
         scope: GlobalSearchScope,
         searchHelper: PsiSearchHelper,
+    ): Set<String> = words.flatMapTo(mutableSetOf()) { staticHeads(it, scope, searchHelper) }
+
+    /** The static head of every dynamic key literal [word] leads to. */
+    private fun staticHeads(
+        word: String,
+        scope: GlobalSearchScope,
+        searchHelper: PsiSearchHelper,
     ): Set<String> {
         val heads = mutableSetOf<String>()
         val languages = Extensions.LANG.extensionList
-        for (word in words) {
-            searchHelper.processElementsWithWord(
-                { element, _ ->
-                    val literal = languages.firstNotNullOfOrNull { it.resolveLiteral(element) }
-                    val text = literal?.text?.unQuote()
-                    if (text != null && text.contains(INTERPOLATION)) {
-                        heads.add(text.substringBefore(INTERPOLATION))
-                    }
-                    true
-                },
-                scope,
-                word,
-                UsageSearchContext.ANY,
+        searchHelper.processElementsWithWord(
+            { element, _ ->
+                val literal = languages.firstNotNullOfOrNull { it.resolveLiteral(element) }
+                val text = literal?.text?.unQuote()
+                if (text != null && text.contains(INTERPOLATION)) {
+                    heads.add(text.substringBefore(INTERPOLATION))
+                }
                 true
-            )
-        }
+            },
+            scope,
+            word,
+            UsageSearchContext.ANY,
+            true
+        )
         return heads
     }
 

@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumula
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
+import com.ibrahimdans.i18n.plugin.tree.Separators
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
 import com.intellij.psi.search.PsiSearchHelper
@@ -271,9 +272,16 @@ class TableViewModel {
         val searchScope = config.searchScope(project)
         val searchHelper = PsiSearchHelper.getInstance(project)
 
+        val separators = Separators(config.nsSeparator, config.keySeparator, config.pluralSeparator)
         val counted = rows.map { row ->
             val query = usageQuery(row.key, config.pluralSeparator)
-            val accumulator = ReferencesAccumulator(query.bareKey)
+            val accumulator = ReferencesAccumulator(
+                query.bareKey,
+                separators,
+                // A key carrying no namespace lives in a default one, which is also what a
+                // call site writing no namespace works under.
+                query.namespace?.let { listOf(it) } ?: config.defaultNamespaces(),
+            )
 
             for (word in query.words) {
                 searchHelper.processElementsWithWord(
@@ -303,7 +311,7 @@ class TableViewModel {
     }
 
     /** What [countUsages] searches the sources for, on behalf of one key. */
-    internal data class UsageQuery(val bareKey: String, val words: List<String>)
+    internal data class UsageQuery(val bareKey: String, val words: List<String>, val namespace: String? = null)
 
     /**
      * The search terms standing for [key], and the prefix a hit has to start with.
@@ -328,6 +336,7 @@ class TableViewModel {
         return UsageQuery(
             bareKey,
             listOfNotNull(namespace?.let { "$it:$bareKey" }, bareKey),
+            namespace,
         )
     }
 

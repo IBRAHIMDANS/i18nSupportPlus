@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -140,5 +141,32 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
             """{"a":"1","b":"2","<caret>c":"3"}""",
             """{"a":"1","b":"2"}"""
         )
+    }
+
+    /**
+     * The defect the tool window's scan carried, in the editor — where the *Delete* quick fix
+     * is one click away and no preview stands between the user and the deletion.
+     * `t(`common:status.${kind}`)` writes no name to search for, so both signals the
+     * inspection reads come back empty on keys that are in use.
+     */
+    @Test
+    fun `a key reached by a runtime-built key is not reported`() {
+        myFixture.enableInspections(UnusedTranslationKeyInspection::class.java)
+        addFileToProject(
+            "src/Status.tsx",
+            "export const label = (kind: string) => i18n.t(`test:status.\${kind}`);"
+        )
+        val file = addFileToProject(
+            "assets/test.json",
+            """{"status":{"pending":"Pending"},"menu":{"home":"Home"}}"""
+        )
+        myFixture.configureFromExistingVirtualFile(file.virtualFile)
+
+        val flagged = myFixture.doHighlighting()
+            .filter { it.description == UNUSED_MSG }
+            .map { it.text.trim('"') }
+
+        assertFalse("pending" in flagged, "reached through the dynamic head")
+        assertTrue("home" in flagged, "nothing reaches it: still reported")
     }
 }
