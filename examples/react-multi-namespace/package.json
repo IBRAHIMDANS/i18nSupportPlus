@@ -14,7 +14,8 @@
     "react-dom": "^19.2.4",
     "i18next": "^26.0.1",
     "i18next-browser-languagedetector": "^8.2.1",
-    "i18next-http-backend": "^3.0.2"
+    "i18next-http-backend": "^3.0.2",
+    "react-i18next": "^17.0.1"
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",

@@ -2,7 +2,6 @@ package com.ibrahimdans.i18n.plugin.tree
 
 import com.ibrahimdans.i18n.plugin.utils.headTail
 import com.ibrahimdans.i18n.plugin.utils.whenMatches
-import com.ibrahimdans.i18n.plugin.utils.whenMatchesDo
 
 /**
  * Separators configuration
@@ -14,16 +13,8 @@ data class Separators(val ns: String, val key: String, val plural: String)
  */
 interface KeyComposer<T> {
 
-    private fun fixPlural(item: String, pluralSeparator: String): String {
-        val cldrSuffixes = listOf("_zero", "_one", "_two", "_few", "_many", "_other")
-        return item.whenMatchesDo(
-            { listOf(1, 2, 5).any { item.endsWith(pluralSeparator + it) } || cldrSuffixes.any { item.endsWith(it) } },
-            { key ->
-                if (cldrSuffixes.any { key.endsWith(it) }) key.substringBeforeLast("_")
-                else key.substringBeforeLast(pluralSeparator)
-            }
-        )
-    }
+    private fun fixPlural(item: String, pluralSeparator: String): String =
+        PluralKey.stripSuffix(item, pluralSeparator)
 
     /**
      * Composes string representation of key by given path

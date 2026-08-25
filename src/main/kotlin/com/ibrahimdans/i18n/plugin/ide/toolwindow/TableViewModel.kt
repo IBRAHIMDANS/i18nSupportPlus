@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumulator
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
 import com.intellij.psi.search.PsiSearchHelper
@@ -264,36 +265,52 @@ class TableViewModel {
         val searchHelper = PsiSearchHelper.getInstance(project)
 
         return rows.map { row ->
-            // Search with the full key (namespace:key.path) so that
-            // "navigation:menu.profile" matches t('navigation:menu.profile') in source.
-            // Also search with the bare key (without namespace) for cases where the
-            // namespace is implicit (e.g. useTranslation('navigation') + t('menu.profile')).
-            val colonIdx = row.key.indexOf(':')
-            val bareKey = if (colonIdx > 0) row.key.substring(colonIdx + 1) else row.key
+            val query = usageQuery(row.key, config.pluralSeparator)
+            val accumulator = ReferencesAccumulator(query.bareKey)
 
-            val accumulator = ReferencesAccumulator(bareKey)
-
-            // Search full key (with namespace prefix) first
-            if (colonIdx > 0) {
+            for (word in query.words) {
                 searchHelper.processElementsWithWord(
                     accumulator.process(),
                     searchScope,
-                    row.key,
+                    word,
                     UsageSearchContext.ANY,
                     true
                 )
             }
-
-            // Also search bare key for implicit namespace usage
-            searchHelper.processElementsWithWord(
-                accumulator.process(),
-                searchScope,
-                bareKey,
-                UsageSearchContext.ANY,
-                true
-            )
-            row.copy(usageCount = accumulator.entries().size)
+            // Distinct, because the same call site is reported once per word searched: a key
+            // carrying a namespace matches both `navigation:menu.profile` and `menu.profile`,
+            // and counting it twice inflated every usage of every prefixed key.
+            row.copy(usageCount = accumulator.entries().distinct().size)
         }
+    }
+
+    /** What [countUsages] searches the sources for, on behalf of one key. */
+    internal data class UsageQuery(val bareKey: String, val words: List<String>)
+
+    /**
+     * The search terms standing for [key], and the prefix a hit has to start with.
+     *
+     * Two forms are searched: the full key (`navigation:menu.profile`), so an explicitly
+     * namespaced call matches, and the bare one (`menu.profile`), for the implicit namespace
+     * of `useTranslation('navigation') + t('menu.profile')`.
+     *
+     * Both are stripped of their plural suffix first. A key read from a translation file is a
+     * *form* — `…addTrustee.description_other` — while the source only ever writes the key
+     * i18next appends the suffix to, `t('…addTrustee.description', { count })`. Searching the
+     * form found nothing by construction, so every pluralized key was reported as an orphan,
+     * and *Cleanup unused keys* offered to delete a key that was in use.
+     */
+    internal fun usageQuery(key: String, pluralSeparator: String): UsageQuery {
+        val colonIdx = key.indexOf(':')
+        val namespace = if (colonIdx > 0) key.substring(0, colonIdx) else null
+        val bareKey = PluralKey.stripSuffix(
+            if (colonIdx > 0) key.substring(colonIdx + 1) else key,
+            pluralSeparator,
+        )
+        return UsageQuery(
+            bareKey,
+            listOfNotNull(namespace?.let { "$it:$bareKey" }, bareKey),
+        )
     }
 
     companion object {

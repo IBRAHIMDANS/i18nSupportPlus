@@ -313,6 +313,49 @@ class TableViewModelTest {
         assertEquals(listOf("home"), viewModel.keySegments("home"))
     }
 
+    // ---- usage search ----
+
+    @Test
+    fun `a namespaced key is searched under both its forms`() {
+        val query = viewModel.usageQuery("navigation:menu.profile", "-")
+
+        assertEquals("menu.profile", query.bareKey)
+        assertEquals(listOf("navigation:menu.profile", "menu.profile"), query.words)
+    }
+
+    @Test
+    fun `a key without a namespace is searched once`() {
+        val query = viewModel.usageQuery("menu.profile", "-")
+
+        assertEquals("menu.profile", query.bareKey)
+        assertEquals(listOf("menu.profile"), query.words)
+    }
+
+    /**
+     * The bug: `t('account:…addTrustee.description', { count })` is what the sources hold, while
+     * the translation file holds `description_one` / `description_other`. Searching the stored
+     * form found nothing, so every pluralized key was reported as an orphan — and offered for
+     * deletion by *Cleanup unused keys*.
+     */
+    @Test
+    fun `a plural form is searched under the key the sources actually write`() {
+        val query = viewModel.usageQuery("account:trustees.modal.description_other", "-")
+
+        assertEquals("trustees.modal.description", query.bareKey)
+        assertEquals(
+            listOf("account:trustees.modal.description", "trustees.modal.description"),
+            query.words
+        )
+    }
+
+    @Test
+    fun `a legacy numeric plural form is searched the same way`() {
+        val query = viewModel.usageQuery("cart.item-5", "-")
+
+        assertEquals("cart.item", query.bareKey)
+        assertEquals(listOf("cart.item"), query.words)
+    }
+
     // ---- cell states ----
 
     /**

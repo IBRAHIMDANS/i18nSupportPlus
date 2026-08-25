@@ -17,5 +17,10 @@
   "emptyState": {
     "title": "Rien ici pour l'instant",
     "description": "Commencez par créer votre premier élément."
+  },
+  "notifications": {
+    "title": "Notifications",
+    "unread_one": "{{count}} notification non lue",
+    "unread_other": "{{count}} notifications non lues"
   }
 }

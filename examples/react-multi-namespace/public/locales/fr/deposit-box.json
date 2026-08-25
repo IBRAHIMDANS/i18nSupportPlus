@@ -1,0 +1,40 @@
+{
+  "title": "Coffre-fort",
+  "myBoxes": {
+    "myTrustees": {
+      "modal": {
+        "confirmPassword": {
+          "addTrustee": {
+            "description_one": "Pour confirmer l'ajout d'un nouveau trustee, veuillez saisir votre mot de passe.",
+            "description_other": "Pour confirmer l'ajout des nouveaux trustees, veuillez saisir votre mot de passe."
+          },
+          "removeTrustee": {
+            "description": "Pour confirmer le retrait de ce trustee, veuillez saisir votre mot de passe."
+          }
+        }
+      },
+      "toasts": {
+        "trusteeAdded_one": "{{count}} trustee ajouté",
+        "trusteeAdded_other": "{{count}} trustees ajoutés"
+      }
+    }
+  },
+  "activity": {
+    "entry": {
+      "fileAdded": "<b>{{actor}}</b> a ajouté le fichier « <b>{{item}}</b> ».",
+      "boxShared": "Votre coffre-fort <strong>{{name}}</strong> est maintenant partagé."
+    },
+    "tooltipInfo": "L'activité est conservée 30 jours.\nLes entrées plus anciennes sont supprimées automatiquement."
+  },
+  "status": {
+    "pending": "En attente",
+    "accepted": "Acceptée",
+    "declined": "Refusée"
+  },
+  "retention": {
+    "unit": {
+      "day_one": "{{count}} jour",
+      "day_other": "{{count}} jours"
+    }
+  }
+}
