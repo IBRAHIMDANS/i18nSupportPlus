@@ -82,4 +82,23 @@ class LocaleNamingTest {
         assertFalse(source("translation.json", "en").isLocaleNamedFile())
         assertFalse(source("messages.json", "api").isLocaleNamedFile())
     }
+
+    // ---- hasRecognizedLocale ----
+
+    @Test
+    fun `recognizes a locale carried by the parent directory or the stem`() {
+        assertTrue(source("common.json", "en").hasRecognizedLocale())
+        assertTrue(source("auth.json", "pt-BR").hasRecognizedLocale())
+        assertTrue(source("en.json", "locales").hasRecognizedLocale())
+        assertTrue(source("pt-BR.json", "locales").hasRecognizedLocale())
+    }
+
+    @Test
+    fun `rejects a file whose locale is only a fallback to its own name`() {
+        // A translationsRoot sweeps this file in (no {locale} segment in its path at all),
+        // and localeLabel() falls back to "my_page" so the data is not silently dropped —
+        // but "my_page" must not be usable as a locale in the per-locale grid it feeds.
+        assertFalse(source("my_page.json", "locales").hasRecognizedLocale())
+        assertFalse(source("common.json", "api").hasRecognizedLocale())
+    }
 }

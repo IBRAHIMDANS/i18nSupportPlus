@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.json.psi.JsonProperty
@@ -69,7 +70,10 @@ object TranslationDataLoader {
     }
 
     /**
-     * All localization sources, restricted to [moduleConfig]'s root directory when given.
+     * All localization sources, restricted to [moduleConfig]'s root directory when given, and
+     * to sources [LocalizationSource.hasRecognizedLocale] — see that rule for why a file with
+     * no locale anywhere in its path must not reach the per-locale grid this feeds.
+     *
      * Internal so that write paths (in-place table edit, CSV import) scope their target
      * files exactly like the read paths do — otherwise a module's edit can land in
      * another module's file that happens to share the same namespace and locale.
@@ -77,11 +81,18 @@ object TranslationDataLoader {
     internal fun findSources(project: Project, moduleConfig: ModuleConfig? = null): List<LocalizationSource> {
         val service = project.getService(LocalizationSourceService::class.java)
         val all = service.findAllSources(project)
-        if (moduleConfig == null || moduleConfig.rootDirectory.isBlank()) return all
-        // Filter to only sources whose displayPath starts with the module's rootDirectory
-        val rootDir = moduleConfig.rootDirectory.trimEnd('/')
-        return all.filter { source -> source.displayPath.startsWith(rootDir) }
+        val scoped = if (moduleConfig == null || moduleConfig.rootDirectory.isBlank()) all
+        else {
+            // Filter to only sources whose displayPath starts with the module's rootDirectory
+            val rootDir = moduleConfig.rootDirectory.trimEnd('/')
+            all.filter { source -> source.displayPath.startsWith(rootDir) }
+        }
+        return filterToRecognizedLocales(scoped)
     }
+
+    /** Extracted so the exclusion rule can be unit-tested without a project. */
+    internal fun filterToRecognizedLocales(sources: List<LocalizationSource>): List<LocalizationSource> =
+        sources.filter { it.hasRecognizedLocale() }
 
     /**
      * Extracts the locale code from a localization source, through the rule shared with the

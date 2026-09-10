@@ -39,3 +39,18 @@ internal fun LocalizationSource.localeLabel(): String {
  */
 internal fun LocalizationSource.isLocaleNamedFile(): Boolean =
     LocalizationSourceService.looksLikeLocale(name.substringBeforeLast('.'))
+
+/**
+ * False when neither the stem nor the parent directory looks like a locale, i.e. when
+ * [localeLabel] had to fall back to the file's own name for lack of a better designation.
+ *
+ * That fallback exists so a file a [Config.translationsRoot] sweeps in without a locale
+ * anywhere in its path (`i18n/locales/my_page.json`, no `{locale}` segment at all) still
+ * surfaces its content instead of it vanishing silently — see [LocalizationSourceService].
+ * It was never meant to make that file's own name usable *as* a locale: the per-locale grid
+ * (tool window table/tree, stats, CSV export/import, *Sync Keys*) compares real locales
+ * against each other, and mixing in a column named after a namespace reports every other
+ * locale as missing that "locale" for every single key, real orphan or not.
+ */
+internal fun LocalizationSource.hasRecognizedLocale(): Boolean =
+    LocalizationSourceService.looksLikeLocale(localeLabel())
