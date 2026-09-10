@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+- [Create key] Stop logging **"Read access is allowed from inside read-action only"** when the key is created. `CreateKeyQuickFix` resolved the composite key against the translation file's PSI *before* opening its write action, and every path into it runs on the EDT — the `invokeLater` of the quick fix itself, and the action listener of the file-choice popup. The EDT no longer carries an implicit read action on the current platform, so the very first PSI read (`JsonObject.findProperty`) tripped `assertReadAccessAllowed` and surfaced as an IDE internal error. The assertion is a soft one, so the key was still written and the failure looked cosmetic — it is not: the read was genuinely unguarded, and a PSI change landing between the lookup and the write it feeds is a corrupted file, not an error dialog. Resolution now happens inside the write action, which already grants read access, so no separate `ReadAction` is needed and lookup and generation became atomic
+
 ## 1.3.1 - 2026-08-25
 
 ### Bug Fixes

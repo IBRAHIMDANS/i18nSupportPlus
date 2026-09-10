@@ -94,24 +94,31 @@ class CreateKeyQuickFix(
         }
     }
 
+    /**
+     * Resolves the key inside the write action rather than before it.
+     *
+     * [resolveCompositeKey] walks the translation file's PSI, and every caller here reaches this
+     * method from the EDT — either straight from [invoke]'s `invokeLater`, or from the action
+     * listener of the [UserChoice] popup. Since the platform dropped the EDT's implicit read
+     * access, a bare PSI read there fails `assertReadAccessAllowed` ("Read access is allowed from
+     * inside read-action only"). The write action already grants read access, so resolving inside
+     * it needs no separate `ReadAction`, and it also makes resolution and generation atomic: the
+     * tree cannot be modified between the lookup and the write that depends on it.
+     */
     private fun createPropertyInFile(project: Project, target: LocalizationSource, translationValue: String) {
-        val ref = resolveCompositeKey(
-            fullKey.compositeKey,
-            target
-        ) ?: return
-        if (ref.element != null) {
-            CommandProcessor.getInstance().executeCommand(
-                project,
-                {
-                    ApplicationManager.getApplication().runWriteAction {
-                        createPropertiesChain(ref.element.value(), ref.unresolved, target.localization.contentGenerator(), translationValue)
-                        onComplete()
-                    }
-                },
-                commandCaption,
-                UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION
-            )
-        }
+        CommandProcessor.getInstance().executeCommand(
+            project,
+            {
+                ApplicationManager.getApplication().runWriteAction {
+                    val ref = resolveCompositeKey(fullKey.compositeKey, target) ?: return@runWriteAction
+                    val element = ref.element ?: return@runWriteAction
+                    createPropertiesChain(element.value(), ref.unresolved, target.localization.contentGenerator(), translationValue)
+                    onComplete()
+                }
+            },
+            commandCaption,
+            UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION
+        )
     }
 
     private fun createPropertiesChain(element: PsiElement, unresolved: List<Literal>, generator: ContentGenerator, translationValue: String) {

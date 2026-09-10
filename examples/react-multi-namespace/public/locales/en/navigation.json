@@ -8,5 +8,8 @@
   },
   "breadcrumb": {
     "home": "Home"
+  },
+  "breadrumb": {
+    "home": "test"
   }
 }
