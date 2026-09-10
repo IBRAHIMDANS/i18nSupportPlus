@@ -48,11 +48,29 @@ class LocalizationSourceService {
 
         private val ISO_COUNTRIES: Set<String> = java.util.Locale.getISOCountries().toSet()
 
+        // ISO 15924 script codes actually seen in real locale tags (zh-Hans, sr-Latn, uz-Cyrl…).
+        // The JDK exposes no registry for these — Character.UnicodeScript's names don't match the
+        // four-letter codes — so, like ISO_LANGUAGES above, this is a deliberately curated subset
+        // rather than the full ~200-entry registry: completeness would cost nothing here (an
+        // obscure script code colliding with a real directory name is far less likely than an
+        // obscure language code doing so), but a curated list documents which ones this plugin
+        // has actually needed. Any 4-letter subtag not in this set is presumed not to be a
+        // script — that used to be "any 4 letters", which let "my_page" pass as language "my"
+        // (Burmese) plus script "Page" (#220).
+        private val ISO_SCRIPTS: Set<String> = setOf(
+            "Latn", "Cyrl", "Grek", "Arab", "Hebr", "Hans", "Hant", "Jpan", "Kore",
+            "Deva", "Beng", "Guru", "Gujr", "Orya", "Taml", "Telu", "Knda", "Mlym",
+            "Sinh", "Thai", "Laoo", "Mymr", "Khmr", "Tibt", "Mong", "Geor", "Armn",
+            "Ethi", "Cher", "Cans", "Hang", "Bopo", "Hani", "Kana", "Hira", "Syrc",
+            "Thaa", "Adlm", "Vaii", "Cham", "Tglg"
+        )
+
         /**
          * True when [name] is a plausible locale code: an ISO language ("en", "fil"),
-         * optionally followed by an ISO region ("pt-BR", "zh_CN") or a 4-letter
-         * script ("sr-Latn"). Shape alone is not enough — "web", "ios" or "src"
-         * must not be mistaken for languages (they used to be).
+         * optionally followed by an ISO region ("pt-BR", "zh_CN") or an ISO 15924 script
+         * ("sr-Latn"). Shape alone is not enough — "web", "ios" or "src" must not be mistaken
+         * for languages, and neither must an arbitrary 4-letter word be mistaken for a script
+         * (they both used to be).
          */
         internal fun looksLikeLocale(name: String): Boolean {
             val parts = name.split('-', '_')
@@ -61,7 +79,7 @@ class LocalizationSourceService {
             if (parts.size == 1) return true
             val subtag = parts[1]
             return subtag.uppercase() in ISO_COUNTRIES ||
-                (subtag.length == 4 && subtag.all { it.isLetter() })
+                subtag.lowercase().replaceFirstChar { it.uppercase() } in ISO_SCRIPTS
         }
     }
 

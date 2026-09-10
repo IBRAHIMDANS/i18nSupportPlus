@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+- [Tool window] Stop a namespace file with no locale in its path from appearing as a **locale of its own**. `looksLikeLocale` accepted any 4-letter subtag as an ISO 15924 script, so `my_page.json` passed as language `my` (Burmese) plus script `Page` — a coincidence, not a rule. Once accepted, that fabricated locale reported every real locale as missing it for every key in the grid, an extra column entirely unrelated to the project's actual locales (#220). The script check now validates against a curated set of scripts real projects use, and even a file that still can't be assigned any locale — one whose path carries no locale segment at all — no longer surfaces its own name as if it were one in the tool window's table, tree, stats, CSV export/import or *Sync Keys*: it keeps being found for annotations, completion and references, just not folded into a per-locale comparison it was never part of
+
 ## 1.3.1 - 2026-08-25
 
 ### Bug Fixes

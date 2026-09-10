@@ -79,4 +79,27 @@ class TranslationDataLoaderTest {
         // A real namespace is unaffected by what the default one is.
         assertEquals("common", TranslationDataLoader.extractNamespace(source("common.json", "en"), "app"))
     }
+
+    // ---- filterToRecognizedLocales ----
+
+    @Test
+    fun `filterToRecognizedLocales keeps sources whose locale is real`() {
+        val sources = listOf(source("common.json", "en"), source("common.json", "fr"))
+
+        assertEquals(sources, TranslationDataLoader.filterToRecognizedLocales(sources))
+    }
+
+    @Test
+    fun `filterToRecognizedLocales drops a file that only names itself`() {
+        // Issue #220: translationsRoot swept in "i18n/locales/my_page.json", a namespace with
+        // no locale anywhere in its path. localeLabel() fell back to "my_page" so the file kept
+        // surfacing its content, and that fallback name was then usable as a locale — a full
+        // extra column in the tool window table, "Missing" under every real locale for every key.
+        val realLocale = source("common.json", "en")
+        val noLocaleAtAll = source("my_page.json", "locales")
+
+        val result = TranslationDataLoader.filterToRecognizedLocales(listOf(realLocale, noLocaleAtAll))
+
+        assertEquals(listOf(realLocale), result)
+    }
 }
