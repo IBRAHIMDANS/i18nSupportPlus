@@ -1,6 +1,8 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
@@ -109,8 +111,8 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
      * Takes the already-loaded [sources]: resolving them per key turned the scan
      * into O(keys × translation files) full PSI rebuilds.
      */
-    internal fun leafProperties(sources: List<LocalizationSource>, key: String): List<PsiElement> {
-        val fullKey = KeysSynchronizer().buildFullKey(key)
+    internal fun leafProperties(sources: List<LocalizationSource>, key: String, config: Config = Config()): List<PsiElement> {
+        val fullKey = KeysSynchronizer().buildFullKey(key, config)
         val namespace = fullKey.ns?.text
         return sources
             .filter { namespace == null || TranslationDataLoader.extractNamespace(it) == namespace }
@@ -133,7 +135,8 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
         val properties = ReadAction.compute<List<PsiElement>, RuntimeException> {
             // One source load for the whole batch, not one per key.
             val sources = project.service<LocalizationSourceService>().findAllSources(project)
-            keys.flatMap { leafProperties(sources, it) }
+            val config = Settings.getInstance(project).config()
+            keys.flatMap { leafProperties(sources, it, config) }
         }
         ApplicationManager.getApplication().invokeAndWait {
             WriteCommandAction.runWriteCommandAction(

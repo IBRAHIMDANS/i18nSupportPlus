@@ -1,6 +1,8 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader.extractLocale
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader.extractNamespace
 import com.ibrahimdans.i18n.plugin.tree.Tree
@@ -56,11 +58,8 @@ private val COVERAGE_PARTIAL by lazy { JBColor.namedColor("Component.warningFocu
 private val COVERAGE_LOW by lazy { JBColor.namedColor("ProgressBar.failedColor", 0xE55765, 0xBD5757) }
 private val COVERAGE_TRACK by lazy { JBColor.namedColor("ProgressBar.trackColor", 0xDFE1E5, 0x43454A) }
 
-internal fun parseTranslationKey(fullKey: String): Pair<String?, List<String>> {
-    val ns = if (fullKey.contains(":")) fullKey.substringBefore(":") else null
-    val keyPath = if (ns != null) fullKey.substringAfter(":") else fullKey
-    return ns to keyPath.split(".")
-}
+internal fun parseTranslationKey(fullKey: String, config: Config = Config()): Pair<String?, List<String>> =
+    KeySpelling.namespaceOf(fullKey) to KeySpelling.segmentsOf(fullKey, config)
 
 internal fun selectReferenceLocale(stats: List<LocaleStats>): String? =
     stats.maxByOrNull { it.translated }?.locale
@@ -229,7 +228,7 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
             val service = project.getService(LocalizationSourceService::class.java)
             val allSources = service.findAllSources(project)
 
-            val (ns, segments) = parseTranslationKey(fullKey)
+            val (ns, segments) = parseTranslationKey(fullKey, Settings.getInstance(project).config())
             val refSources = allSources.filter { extractLocale(it) == referenceLocale }
             val target = if (ns != null) {
                 refSources.firstOrNull { extractNamespace(it) == ns } ?: refSources.firstOrNull()

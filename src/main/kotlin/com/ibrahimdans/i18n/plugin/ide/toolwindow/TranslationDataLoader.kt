@@ -17,6 +17,51 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 
 /**
+ * How the tool window, *Sync Keys*, CSV export/import and the cleanup spell a key read from the
+ * translation files, and how that spelling is taken apart again to write back.
+ *
+ * Both halves used to hard-code `.` between levels and split on it: a flat key (react-intl,
+ * `flatKeys`) such as `"app.title"` came back as `[app, title]`, resolved to nothing, and an edit
+ * *created* `"app": {"title": …}` next to it. A project nesting with another separator was split
+ * on the wrong character. Levels are now joined and split with the configured key separator, and
+ * a flat key is a single segment whatever it contains.
+ *
+ * The namespace keeps the `:` prefix: it is this spelling's own convention, the one the CSV format
+ * exchanges, not the separator the code writes. A flat key carrying a `:` of its own and living in
+ * a default namespace (a GetText msgid such as `Error: failed`) remains ambiguous under it.
+ */
+internal object KeySpelling {
+
+    /** Separates a namespace from its key in this spelling. */
+    const val NAMESPACE_SEPARATOR = ":"
+
+    /** The separator levels are joined with, or null when keys are flat and never split. */
+    private fun levelSeparator(config: Config): String? =
+        config.keySeparator.takeUnless { config.usesFlatKeys() || it.isEmpty() }
+
+    /** [path] extended by one level, [segment]. */
+    fun child(config: Config, path: String, segment: String): String =
+        if (path.isEmpty()) segment else path + (levelSeparator(config) ?: config.keySeparator) + segment
+
+    /** The namespace [key] is prefixed with, or null. */
+    fun namespaceOf(key: String): String? {
+        val index = key.indexOf(NAMESPACE_SEPARATOR)
+        return if (index > 0) key.substring(0, index) else null
+    }
+
+    /** [key] without its namespace prefix. */
+    fun pathOf(key: String): String =
+        namespaceOf(key)?.let { key.substring(it.length + NAMESPACE_SEPARATOR.length) } ?: key
+
+    /** The levels of [key]'s path: one segment for a flat key, split on the key separator otherwise. */
+    fun segmentsOf(key: String, config: Config): List<String> {
+        val path = pathOf(key)
+        val separator = levelSeparator(config) ?: return listOf(path)
+        return path.split(separator)
+    }
+}
+
+/**
  * Loads all translation data from the project's localization sources.
  * Shared utility used by both Tree and Table views.
  */
@@ -35,7 +80,8 @@ object TranslationDataLoader {
     fun loadAllTranslations(project: Project, moduleConfig: ModuleConfig? = null): Map<String, Map<String, String>> {
         val result = mutableMapOf<String, MutableMap<String, String>>()
         val sources = findSources(project, moduleConfig)
-        val defaultNamespaces = Settings.getInstance(project).config().defaultNamespaces()
+        val config = Settings.getInstance(project).config()
+        val defaultNamespaces = config.defaultNamespaces()
         // Never empty: defaultNamespaces() falls back to Config's own default ("translation").
         val defaultNamespace = defaultNamespaces.first()
 
@@ -49,10 +95,10 @@ object TranslationDataLoader {
             for (source in sources) {
                 val locale = extractLocale(source)
                 val namespace = extractNamespace(source, defaultNamespace)
-                val nsPrefix = if (namespace in defaultNamespaces) "" else "$namespace:"
+                val nsPrefix = if (namespace in defaultNamespaces) "" else namespace + KeySpelling.NAMESPACE_SEPARATOR
                 val tree = source.tree
                 if (tree != null) {
-                    collectLeaves(tree, "", nsPrefix, locale, result)
+                    collectLeaves(config, tree, "", nsPrefix, locale, result)
                 } else {
                     LOG.warn("loadAllTranslations: null tree for source '${source.displayPath}' (locale=$locale, ns=$namespace)")
                 }
@@ -145,6 +191,7 @@ object TranslationDataLoader {
      * leaf values from nested objects.
      */
     private fun collectLeaves(
+        config: Config,
         tree: Tree<PsiElement>,
         prefix: String,
         nsPrefix: String,
@@ -156,13 +203,13 @@ object TranslationDataLoader {
             val childName = extractNodeName(child)
             if (childName.isNullOrEmpty()) continue
 
-            val fullPath = if (prefix.isEmpty()) childName else "$prefix.$childName"
+            val fullPath = KeySpelling.child(config, prefix, childName)
             val valueTree = tree.findChild(childName)
             if (valueTree == null || valueTree.isLeaf()) {
                 val value = if (valueTree != null) extractLeafValue(valueTree) else ""
                 result.getOrPut("$nsPrefix$fullPath") { mutableMapOf() }[locale] = value
             } else {
-                collectLeaves(valueTree, fullPath, nsPrefix, locale, result)
+                collectLeaves(config, valueTree, fullPath, nsPrefix, locale, result)
             }
         }
     }

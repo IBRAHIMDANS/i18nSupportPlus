@@ -2,6 +2,8 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.utils.CsvTranslationCodec
 import com.ibrahimdans.i18n.plugin.utils.CsvTranslationCodec.ImportPlan
@@ -100,6 +102,7 @@ class ImportTranslationsAction : AnAction() {
                 indicator.text = PluginBundle.message("action.import.progress.resolving")
                 val viewModel = DialogViewModel(project)
                 val synchronizer = KeysSynchronizer()
+                val config = Settings.getInstance(project).config()
                 // Scoped to the chosen module: writing against the project-wide source
                 // list would route a value into another module's file sharing the same
                 // namespace and locale.
@@ -108,7 +111,7 @@ class ImportTranslationsAction : AnAction() {
                 }
                 val operations = plan.entries.mapNotNull { entry ->
                     val source = findSourceFor(entry.key, entry.locale, sources) ?: return@mapNotNull null
-                    Triple(source, synchronizer.buildFullKey(entry.key), entry.value)
+                    Triple(source, synchronizer.buildFullKey(entry.key, config), entry.value)
                 }
 
                 indicator.text = PluginBundle.message("action.import.progress.writing", operations.size)
@@ -135,8 +138,7 @@ class ImportTranslationsAction : AnAction() {
      * (same routing as the Keys Synchronizer).
      */
     private fun findSourceFor(key: String, locale: String, sources: List<LocalizationSource>): LocalizationSource? {
-        val colonIdx = key.indexOf(':')
-        val namespace = if (colonIdx > 0) key.substring(0, colonIdx) else null
+        val namespace = KeySpelling.namespaceOf(key)
         return sources.firstOrNull { source ->
             TranslationDataLoader.extractLocale(source) == locale &&
                 (namespace == null || TranslationDataLoader.extractNamespace(source) == namespace)
