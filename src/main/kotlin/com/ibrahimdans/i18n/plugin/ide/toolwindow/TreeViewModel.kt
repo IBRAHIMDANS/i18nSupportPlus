@@ -100,7 +100,7 @@ class TreeViewModel {
             val namespace = KeySpelling.namespaceOf(fullKey)
             val segments = KeySpelling.segmentsOf(fullKey, config)
             val prefix = namespace?.let { it + KeySpelling.NAMESPACE_SEPARATOR }.orEmpty()
-            var current = if (grouped) namespaceGroup(root, namespace) else root
+            var current = if (grouped) namespaceGroup(root, namespace, config) else root
             for ((index, part) in segments.withIndex()) {
                 val partialPath = prefix + segments.take(index + 1).fold("") { path, segment -> KeySpelling.child(config, path, segment) }
                 val isLast = index == segments.lastIndex
@@ -128,11 +128,12 @@ class TreeViewModel {
      * keyed by its label rather than by a name: it stands for the keys spelled without a
      * prefix, which is what [NamespaceFilter.Default] means in the table's combo too.
      */
-    private fun namespaceGroup(root: TranslationNode, namespace: String?): TranslationNode {
+    private fun namespaceGroup(root: TranslationNode, namespace: String?, config: Config): TranslationNode {
         val filter = if (namespace == null) NamespaceFilter.Default else NamespaceFilter.Named(namespace)
         val prefix = namespace?.let { it + KeySpelling.NAMESPACE_SEPARATOR } ?: KeySpelling.NAMESPACE_SEPARATOR
-        return root.children.getOrPut(namespace ?: filter.label) {
-            TranslationNode(key = namespace ?: filter.label, fullPath = prefix, values = emptyMap(), namespace = filter)
+        val key = namespace ?: filter.label(config)
+        return root.children.getOrPut(key) {
+            TranslationNode(key = key, fullPath = prefix, values = emptyMap(), namespace = filter)
         }
     }
 

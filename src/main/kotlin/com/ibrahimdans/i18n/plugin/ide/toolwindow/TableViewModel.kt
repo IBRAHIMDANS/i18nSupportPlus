@@ -41,6 +41,14 @@ sealed interface NamespaceFilter {
     /** The text shown in the combo. Never compared against anything. */
     val label: String
 
+    /**
+     * The text shown for this filter under [config]. Only [Default] cares: its keys are the
+     * ones the loader stripped of their prefix because it belongs to a default namespace, so
+     * when the configuration names exactly one, the group can say which — `common (default)`
+     * rather than a bare `(default)` a reader looking for `common` never matched with it.
+     */
+    fun label(config: Config): String = label
+
     /** Every namespace, i.e. no filtering. */
     data object All : NamespaceFilter {
         override val label: String get() = PluginBundle.message("toolwindow.table.namespace.all")
@@ -49,6 +57,11 @@ sealed interface NamespaceFilter {
     /** Keys carrying no namespace prefix at all. */
     data object Default : NamespaceFilter {
         override val label: String get() = PluginBundle.message("toolwindow.table.namespace.default")
+
+        override fun label(config: Config): String =
+            config.defaultNamespaces().singleOrNull()
+                ?.let { PluginBundle.message("toolwindow.table.namespace.default.named", it) }
+                ?: label
     }
 
     /** One named namespace, the part of a key before its `:`. */
@@ -165,9 +178,9 @@ class TableViewModel {
     fun showsNamespaceColumn(filter: NamespaceFilter, filters: List<NamespaceFilter>): Boolean =
         filter == NamespaceFilter.All && filters.size > 2
 
-    /** What the Namespace column says for [key]: its namespace, or the default group's label. */
-    fun namespaceLabel(key: String): String =
-        namespaceOf(key)?.let { NamespaceFilter.Named(it).label } ?: NamespaceFilter.Default.label
+    /** What the Namespace column says for [key]: its namespace, or the default group's label under [config]. */
+    fun namespaceLabel(key: String, config: Config = Config()): String =
+        namespaceOf(key)?.let { NamespaceFilter.Named(it).label } ?: NamespaceFilter.Default.label(config)
 
     /** The key as the Key column shows it next to a Namespace column: without its prefix. */
     fun keyLabel(key: String): String = KeySpelling.pathOf(key)

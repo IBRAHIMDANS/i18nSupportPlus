@@ -147,7 +147,8 @@ class TreeViewModelTest {
 
         val root = viewModel.loadTranslations(project)
 
-        val default = root.children.getValue(NamespaceFilter.Default.label)
+        // Settings() names a single default namespace, so the group says which one.
+        val default = root.children.getValue("translation (default)")
         assertEquals(NamespaceFilter.Default, default.namespace)
         assertEquals(setOf("greeting"), default.children.keys)
         assertEquals("greeting", default.children.getValue("greeting").fullPath)
