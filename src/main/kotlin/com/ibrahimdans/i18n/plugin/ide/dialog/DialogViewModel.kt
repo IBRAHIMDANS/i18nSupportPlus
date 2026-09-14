@@ -79,11 +79,20 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
      * Loads all sources matching the given namespace name (file stem).
      * Returns empty values since this is for CREATE mode (no existing key to resolve).
      */
-    fun loadSourcesForNamespace(namespace: String): Map<LocalizationSource, String?> {
+    fun loadSourcesForNamespace(namespace: String, caller: PsiElement? = null): Map<LocalizationSource, String?> =
+        sourcesFor(listOf(namespace), caller).associateWith { null }
+
+    /**
+     * The sources of [namespaces], in the module of [caller] when one is given — a key created
+     * from a code file goes to that file's module, not to its neighbour's — and project-wide
+     * otherwise. Falls back to the files named after the namespace when the lookup finds none.
+     */
+    fun sourcesFor(namespaces: List<String>, caller: PsiElement? = null): List<LocalizationSource> {
         val sourceService = project.service<LocalizationSourceService>()
-        val sources = sourceService.findSources(listOf(namespace), project)
-            .ifEmpty { sourceService.findAllSources(project).filter { it.name.substringBeforeLast('.') == namespace } }
-        return sources.associateWith { null }
+        val found = if (caller != null) sourceService.findSources(namespaces, caller) else sourceService.findSources(namespaces, project)
+        return found.ifEmpty {
+            sourceService.findAllSources(project).filter { it.name.substringBeforeLast('.') in namespaces }
+        }
     }
 
     /**
@@ -424,6 +433,19 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
                 return KeyCheck.INVALID_SEGMENT
             }
             return if (trimmed in existingKeys) KeyCheck.TAKEN else KeyCheck.AVAILABLE
+        }
+
+        /**
+         * What the CREATE dialog opens on for [fullKey]: the namespace to select — the one the
+         * key carries or its hook declares, null when it says nothing — and the text of the key
+         * field, without that namespace's prefix. A key reaching the dialog from the editor
+         * (`t('deposit-box:title')`) used to land whole in the field, under a combo left on
+         * its first entry: the prefix read twice, and the wrong namespace was selected.
+         */
+        internal fun initialCreateState(fullKey: FullKey, nsSeparator: String): Pair<String?, String> {
+            val namespace = fullKey.allNamespaces().firstOrNull()
+            val text = if (namespace != null && nsSeparator.isNotEmpty()) fullKey.source.removePrefix("$namespace$nsSeparator") else fullKey.source
+            return namespace to text
         }
     }
 }

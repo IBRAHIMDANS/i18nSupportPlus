@@ -1,11 +1,9 @@
 package com.ibrahimdans.i18n.plugin.ide.annotator
 
 import com.ibrahimdans.i18n.Extensions
-import com.ibrahimdans.i18n.plugin.ide.quickfix.AllSourcesSelector
-import com.ibrahimdans.i18n.plugin.ide.quickfix.CreateKeyQuickFix
+import com.ibrahimdans.i18n.plugin.ide.quickfix.CreateKeyDialogQuickFix
 import com.ibrahimdans.i18n.plugin.ide.quickfix.CreateMissingKeysQuickFix
 import com.ibrahimdans.i18n.plugin.ide.quickfix.CreateTranslationFileQuickFix
-import com.ibrahimdans.i18n.plugin.ide.quickfix.UserChoice
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.PropertyReference
@@ -75,10 +73,10 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
             .newAnnotation(errorSeverity, PluginBundle.getMessage("annotator.unresolved.key"))
             .range(rangesCalculator.unresolvedKey(fullKey, mostResolvedReference.path))
         // A key with a runtime segment names no property to create: the fix would write the
-        // `${…}` text as a property name.
+        // `${…}` text as a property name. One fix, one dialog: it shows every locale, so a
+        // second "in all files" entry has nothing left to add.
         if (!fullKey.isDynamic) {
-            builder.withFix(CreateKeyQuickFix(fullKey, UserChoice(), PluginBundle.getMessage("quickfix.create.key")))
-            builder.withFix(CreateKeyQuickFix(fullKey, AllSourcesSelector(), PluginBundle.getMessage("quickfix.create.key.in.files")))
+            builder.withFix(CreateKeyDialogQuickFix(fullKey, PluginBundle.getMessage("quickfix.create.key")))
         }
         builder.create()
     }

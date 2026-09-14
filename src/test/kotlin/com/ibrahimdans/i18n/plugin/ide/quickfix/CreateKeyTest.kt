@@ -11,9 +11,10 @@ import com.ibrahimdans.i18n.plugin.utils.generator.code.JsCodeGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.JsonTranslationGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.TranslationGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.YamlTranslationGenerator
-import com.intellij.openapi.ui.InputValidator
-import com.intellij.openapi.ui.TestDialogManager.setTestInputDialog
-import com.intellij.openapi.ui.TestInputDialog
+import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
+import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
+import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ArgumentsSource
@@ -23,14 +24,21 @@ import org.junit.jupiter.api.Assertions.*
 class CreateKeyTest: PlatformBaseTest() {
 
     /**
-     * Simulates user cancelling the translation value dialog (null response).
-     * The quick fix will fall back to using the key source as translation value.
+     * Stands in for the translation dialog, which a headless container cannot show: writes
+     * the key into every file the dialog would offer — the module of the caller — with the
+     * key's own text as the value, through the same [DialogViewModel.saveTranslation] the
+     * dialog's OK runs. What these cases pin is the write into each file format.
      */
     private fun cancelTranslationValueDialog() {
-        setTestInputDialog(object : TestInputDialog {
-            override fun show(message: String): String? = null
-            override fun show(message: String, validator: InputValidator?): String? = null
-        })
+        CreateKeyDialogQuickFix.opener = { project, key, caller ->
+            val viewModel = DialogViewModel(project)
+            viewModel.sourcesFor(key.allNamespaces(), caller).forEach { viewModel.saveTranslation(it, key, key.source) }
+        }
+    }
+
+    @AfterEach
+    fun restoreDialog() {
+        CreateKeyDialogQuickFix.opener = { project, key, caller -> TranslationDialog(project, key, Mode.CREATE, caller).show() }
     }
 
     @ParameterizedTest
@@ -196,8 +204,10 @@ class CreateKeyTest: PlatformBaseTest() {
             contentRu(tg)
         )
         myFixture.configureByText("simple.${cg.ext()}", cg.generate("\"${ns}ref.section.mi<caret>ssing\""))
-        val action = myFixture.findSingleIntention("Create i18n key in all translation files")
+        // The dialog lists every locale: there is no separate "in all translation files" fix.
+        val action = myFixture.findSingleIntention("Create i18n key")
         assertNotNull(action)
+        cancelTranslationValueDialog()
         myFixture.launchActionAndWait(action)
         myFixture.checkResult(
             "assets/en/${translationFileName}",
