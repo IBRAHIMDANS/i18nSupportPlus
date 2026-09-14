@@ -26,7 +26,7 @@ abstract class CompositeKeyCompletionContributor(private val lang: Lang): Comple
 
     override fun fillCompletionVariants(parameters: CompletionParameters, result: CompletionResultSet) {
         if(parameters.position.text.unQuote().substringAfter(DUMMY_KEY).trim().isNotBlank()) return
-        val fullKey = lang.extractRawKey(parameters.position)?.let{RawKeyParser(parameters.position.project).parse(it)}
+        val fullKey = lang.extractRawKey(parameters.position)?.let{RawKeyParser(parameters.position.project).parse(it, parameters.position)}
         if (fullKey == null) {
             if (lang.canExtractKey(parameters.position.parent, Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() })) {
                 val prefix = parameters.position.text.replace(DUMMY_KEY, "").unQuote().trim()

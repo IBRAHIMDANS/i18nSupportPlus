@@ -6,8 +6,8 @@ import com.ibrahimdans.i18n.extensions.lang.js.extractors.ReactUseTranslationHoo
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.TemplateKeyExtractor
 import com.ibrahimdans.i18n.plugin.factory.ReferenceAssistant
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.key.FullKey
-import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
 import com.ibrahimdans.i18n.plugin.rules.RuleDecision
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.lang.javascript.patterns.JSPatterns
@@ -104,19 +104,13 @@ internal class JsReferenceAssistant: ReferenceAssistant {
         }
 
 
-    override fun extractKey(element: PsiElement): FullKey? {
-        val config = Settings.getInstance(element.project).config()
-        val flatKeys = config.usesFlatKeys()
-        val parser = (
-            if (flatKeys) KeyParserBuilder.withoutTokenizer()
-            else KeyParserBuilder.withSeparators(config.nsSeparator, config.keySeparator).withTemplateNormalizer()
-        ).build()
-        return listOf(
+    /** Parsed like the annotator parses it — a module's key template included — so both agree on the key. */
+    override fun extractKey(element: PsiElement): FullKey? =
+        listOf(
                 ReactUseTranslationHookExtractor(),
                 TemplateKeyExtractor(),
                 LiteralKeyExtractor()
         )
             .find {it.canExtract(element)}
-            ?.let {parser.parse(it.extract(element), emptyNamespace = flatKeys, firstComponentNamespace = config.firstComponentNs)}
-    }
+            ?.let { RawKeyParser(element.project).parse(it.extract(element), element) }
 }

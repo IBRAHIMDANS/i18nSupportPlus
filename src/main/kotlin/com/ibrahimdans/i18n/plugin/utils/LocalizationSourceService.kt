@@ -268,11 +268,7 @@ class LocalizationSourceService {
         return ModuleSources.match(config.modules, projectPath(file, basePath))
     }
 
-    /** [file]'s path relative to the project directory when it lives under it, absolute otherwise. */
-    private fun projectPath(file: VirtualFile, basePath: String): ModuleSources.FilePath {
-        val anchored = basePath.isNotEmpty() && file.path.startsWith("$basePath/")
-        return ModuleSources.FilePath(if (anchored) file.path.removePrefix("$basePath/") else file.path, anchored)
-    }
+    private fun projectPath(file: VirtualFile, basePath: String) = ModuleSources.FilePath.of(file, basePath)
 
     private fun sourceOf(
         project: Project,

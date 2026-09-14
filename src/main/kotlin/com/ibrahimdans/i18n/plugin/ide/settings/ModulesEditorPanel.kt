@@ -21,6 +21,8 @@ import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.JTextArea
+import com.ibrahimdans.i18n.plugin.parser.KeyTemplate
+import com.intellij.ui.JBColor
 
 /**
  * Modules editor: the configured modules on the left, one typed form on the right.
@@ -53,6 +55,12 @@ internal class ModulesEditorPanel(
 
     private val keyField = boundTextField(PluginBundle.message("settings.modules.keyTemplate"), 24) { module, value ->
         module.copy(keyTemplate = value)
+    }
+
+    private val keyTemplateProblem = JLabel().apply {
+        name = PluginBundle.message("settings.modules.keyTemplate.invalid")
+        foreground = JBColor.RED
+        isVisible = false
     }
 
     private val referenceLocaleField =
@@ -107,7 +115,10 @@ internal class ModulesEditorPanel(
             cell(pathField).comment(PluginBundle.message("settings.modules.pathTemplate.comment"))
         }
         row(PluginBundle.message("settings.modules.fileTemplate")) { cell(fileField) }
-        row(PluginBundle.message("settings.modules.keyTemplate")) { cell(keyField) }
+        row(PluginBundle.message("settings.modules.keyTemplate")) {
+            cell(keyField).comment(PluginBundle.message("settings.modules.keyTemplate.comment"))
+        }
+        row("") { cell(keyTemplateProblem) }
         row(PluginBundle.message("settings.modules.referenceLocale")) {
             cell(referenceLocaleField).comment(PluginBundle.message("settings.modules.referenceLocale.comment"))
         }
@@ -197,6 +208,9 @@ internal class ModulesEditorPanel(
     }
 
     override fun onItemChanged() {
+        val template = editor.selected()?.keyTemplate.orEmpty()
+        keyTemplateProblem.isVisible = template.isNotBlank() && KeyTemplate.parse(template) == null
+        keyTemplateProblem.text = if (keyTemplateProblem.isVisible) PluginBundle.message("settings.modules.keyTemplate.invalid") else ""
         resolutionArea.text = report(editor.selected())
     }
 

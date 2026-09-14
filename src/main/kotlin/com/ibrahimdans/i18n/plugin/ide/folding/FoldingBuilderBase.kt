@@ -57,7 +57,7 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
                     // extractor does not match folding-provider element types.
                     val rawKey = lang.extractRawKey(literal)
                         ?: RawKey(listOf(KeyElement.literal(literal.text.unQuote())))
-                    RawKeyParser(literal.project).parse(rawKey)
+                    RawKeyParser(literal.project).parse(rawKey, literal)
                         ?.let { key -> resolve(container, literal, config, key) }
                         ?.let { resolved ->
                             val foldRange = foldingProvider.getFoldingRange(container, offset, resolved.psiElement)
