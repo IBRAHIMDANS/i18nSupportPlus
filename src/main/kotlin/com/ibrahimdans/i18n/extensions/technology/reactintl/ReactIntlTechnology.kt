@@ -14,5 +14,7 @@ import com.ibrahimdans.i18n.extensions.technology.SimpleTechnology
  * rather than a function name.
  */
 class ReactIntlTechnology : SimpleTechnology() {
+    override fun frameworkId(): String = "react-intl"
+
     override fun translationFunctionNames(): List<String> = listOf("formatMessage")
 }

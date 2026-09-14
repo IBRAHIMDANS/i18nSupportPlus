@@ -8,6 +8,7 @@ import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.rules.RuleCalls
 import com.ibrahimdans.i18n.plugin.rules.RuleDecision
+import com.ibrahimdans.i18n.plugin.utils.ModulePresets
 import com.ibrahimdans.i18n.plugin.utils.type
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.lang.javascript.patterns.JSPatterns
@@ -49,18 +50,28 @@ open class JsLang : Lang {
     /** Extractors owning their syntax; JSX adds the tag- and attribute-based ones. */
     protected open fun syntaxOwnedExtractors(): List<KeyExtractor> = SYNTAX_OWNED_EXTRACTORS
 
+    /**
+     * The syntax-owned extractors of the frameworks a module preset leaves active for [element].
+     * An extractor recognises one framework's syntax, so a preset naming another one silences it.
+     */
+    private fun activeExtractors(preset: String?): List<KeyExtractor> =
+        syntaxOwnedExtractors().filter { ModulePresets.allows(preset, frameworkOf(it)) }
+
     override fun canExtractKey(element: PsiElement, translationFunctionNames: List<String>): Boolean {
         val decision = jsRuleDecision(element)
         if (decision == RuleDecision.EXCLUDE) return false
-        if (syntaxOwnedExtractors().any { it.canExtract(element) }) return true
+        // A module preset keeps its framework's calls only; a rule including a call still wins.
+        val preset = ModulePresets.presetOf(element)
+        if (activeExtractors(preset).any { it.canExtract(element) }) return true
         // Claiming `id` is not enough: the descriptor's other properties would still reach
         // the generic path below, which matches any string literal of a first-argument
         // object — reporting `defaultMessage` as an unresolved key.
         if (REACT_INTL_EXTRACTOR.isInsideMessageDescriptor(element)) return false
         // A call a rule includes is matched by its method name, like a published one.
+        val presetNames = ModulePresets.restrict(translationFunctionNames, preset)
         val names = if (decision == RuleDecision.INCLUDE) {
-            translationFunctionNames + listOfNotNull(calleeOf(element)?.substringAfterLast('.'))
-        } else translationFunctionNames
+            presetNames + listOfNotNull(calleeOf(element)?.substringAfterLast('.'))
+        } else presetNames
         return names.any { t ->
             JSPatterns.jsArgument(t, 0).let { pattern ->
                 pattern.accepts(element) ||
@@ -68,7 +79,7 @@ open class JsLang : Lang {
                         !isInsideConditionalCondition(element) &&
                         pattern.accepts(PsiTreeUtil.findFirstParent(element) { it.parent?.type() == "JS:ARGUMENT_LIST" }))
             }
-        } && isDirectOrConfiguredCall(element, translationFunctionNames)
+        } && isDirectOrConfiguredCall(element, presetNames)
           && extractRawKey(element) != null
     }
 
@@ -99,7 +110,7 @@ open class JsLang : Lang {
     }
 
     override fun extractRawKey(element: PsiElement): RawKey? {
-        syntaxOwnedExtractors().firstOrNull { it.canExtract(element) }?.let { return it.extract(element) }
+        activeExtractors(ModulePresets.presetOf(element)).firstOrNull { it.canExtract(element) }?.let { return it.extract(element) }
         return listOf(
                     ReactUseTranslationHookExtractor(),
                     TemplateKeyExtractor(),
@@ -119,6 +130,15 @@ open class JsLang : Lang {
             else if (typeName == "JS:STRING_TEMPLATE_PART") entry.parent
             else null
     }
+}
+
+/** The framework whose syntax [extractor] recognises, as a module preset names it. */
+private fun frameworkOf(extractor: KeyExtractor): String? = when (extractor) {
+    is ReactIntlExtractor, is DefineMessagesExtractor, is FormattedMessageExtractor -> "react-intl"
+    is NgxTranslateExtractor, is NgxTranslatePipeExtractor -> "ngx-translate"
+    is SvelteI18nExtractor -> "svelte-i18n"
+    is LinguiTransKeyExtractor -> "lingui"
+    else -> null
 }
 
 /**
