@@ -25,9 +25,10 @@ whether a key exists, in which namespace, and whether it's translated everywhere
 - **Edit safely** — extract hardcoded strings (`Alt+Enter`), rename across all
   locales and code (`Shift+F6`), move a key to another namespace (`Ctrl+Alt+Shift+M`),
   sort keys alphabetically.
-- **Stay healthy** — tool window with tree/table views, per-locale coverage stats,
-  Keys Synchronizer (propagate missing keys in bulk), Scan Orphans (find unused keys),
-  and empty/duplicate-value inspections.
+- **Stay healthy** — tool window with tree/table views grouped by namespace, coverage
+  stats per namespace and locale, Keys Synchronizer (propagate missing keys in bulk),
+  Scan Orphans (find unused keys), CSV export/import, and inspections for empty,
+  duplicate or inconsistent values.
 
 Works with **i18next, vue-i18n, lingui, react-intl, ngx-translate, svelte-i18n & i18n-js**
 across JS/TS/JSX/TSX, Vue SFC and PHP, with JSON, YAML and PO/POT files.
@@ -89,7 +90,7 @@ namespace.
 
 On first launch, a wizard guides you through configuration in 3 steps:
 
-1. **Framework detection** — auto-detects i18next, vue-i18n, lingui, or react-intl in your project
+1. **Framework detection** — auto-detects i18next, vue-i18n, lingui, react-intl, ngx-translate, svelte-i18n or i18n-js from your `package.json`
 2. **Translation file discovery** — scans for `.json`, `.yaml`, `.po`, and `.pot` files in `locales/`, `i18n/`, `translations/` folders (PO/POT support requires the optional **GNU GetText** plugin — see Plugin Dependencies)
 3. **Summary** — review and apply the configuration
 
@@ -120,6 +121,7 @@ Highlights i18n keys with visual feedback on resolution status:
 
 **Ctrl+Click** on any i18n key navigates directly to the translation value in the JSON/YAML file.
 
+- Opens the **preview locale** (the folding language when none is set) rather than asking which file; when that locale lacks the key, every target is offered
 - Works with partially resolved keys (navigates to the deepest resolved node)
 - Bidirectional: navigate from translation files back to code usage
 
@@ -175,7 +177,31 @@ Replaces i18n keys with their translation values inline for better readability. 
 
 ### Rename Refactoring
 
-Rename i18n keys across all translation files and source code references with **Shift+F6**.
+Rename i18n keys across all translation files and source code references with **Shift+F6** — every call site, whether written with its namespace, under a hook namespace or under a key prefix; plural suffixes (`_one`, `_other`) are kept.
+
+### Bulk Actions
+
+| Action | Where | What it does |
+|--------|-------|--------------|
+| Batch Extract i18n Keys | **Code** menu, `Ctrl+Alt+Shift+B` | Extract several hardcoded strings of a file as keys in one pass |
+| Move i18n Key to Namespace… | editor context menu, `Ctrl+Alt+Shift+M` | Move a key to another namespace, updating every locale file and code reference |
+| Sort i18n Keys Alphabetically | editor context menu, in a translation file | Reorder the file's keys, recursively |
+| Sync Keys | **Tools > i18n Support Plus**, tool window toolbar | Create in every locale the keys it lacks, with a batch dialog to fill the values |
+| Export Translations to CSV… | **Tools > i18n Support Plus** | One row per key, one column per locale |
+| Import Translations from CSV… | **Tools > i18n Support Plus** | Write values back from a CSV, with a preview of what changes before anything is written |
+| Cleanup Unused Keys… | **Tools > i18n Support Plus** | Scan the code for keys never used and delete the selected ones from every locale |
+
+### Inspections
+
+Enabled under **Settings > Editor > Inspections > i18n Support Plus**:
+
+| Inspection | Reports |
+|------------|---------|
+| Empty translation value | A key whose value is blank in a translation file |
+| Duplicate translation value | Two keys of a file holding the same value |
+| Placeholder consistency across locales | A `{name}` or `%s` placeholder present in one locale and not in another, or an unbalanced brace |
+| ICU message format validation | Unbalanced braces, a `plural` block without `one`/`other`, … |
+| Unused translation key | A key of a translation file no code refers to |
 
 ### Wildcard Traversal
 
@@ -193,21 +219,26 @@ Intermediate `*` wildcards in composite key resolution allow matching any segmen
 
 The **I18n** tool window (bottom panel) provides a centralized view of all translations in the project.
 
+The toolbar holds the actions — add a translation, add a namespace, refresh, Sync Keys, Scan Orphans, settings —, a **search field** filtering the tree and the table by key or value (with a result count), and, when several modules are configured, a **module selector**. A project in which nothing can be read shows where the plugin looked and links to the setup wizard and the settings. The window reloads itself when a translation file changes.
+
 ### Tree View
 
-Hierarchical view of translation keys with color-coded nodes:
-- **Red** — missing keys (not present in all locales)
-- **Orange** — empty values
-- Double-click to edit a translation value
+Keys grouped by **namespace**, then by segment. Every key carries its status three times over — an icon, per-locale badges (`EN✓ FR✗`) and a colour — so it survives a colour-blind reader or a custom theme; a branch shows how many of its keys are fully translated (`12/14 (86%)`), and a namespace row how complete the namespace is.
+
+- **Enter** or double-click edits the key, **F4** opens the translation file at the key, typing jumps to a key
+- Right-click: edit, open file, copy key
+- A permanent legend sits at the bottom
 
 ![Tool Window Tree](docs/img/toolwindow-tree.png)
 
 ### Table View
 
-Flat table with columns: **Key**, one column per locale, and **Usage** count. Features:
-- Namespace filtering via dropdown
-- **Scan Orphans** — identifies unused translation keys (usage count = 0)
-- Right-click on orphan keys to delete them
+Flat table: a **Namespace** column while the rows span several namespaces, the **Key**, one column per locale, and **Usage**. Every cell says what it is — a *Missing* or *Empty* word with an icon, the value otherwise — before being tinted.
+
+- Locale cells are **editable in place**; the value is written straight to the file, and the entry created when the locale lacks it
+- Namespace filter in the dropdown; right-click the header to hide locale columns
+- **Scan Orphans** (toolbar) fills the Usage column; keys reached only through a dynamic key (`` t(`status.${kind}`) ``) are told from unused ones
+- Right-click: edit, open file, delete an unused key
 
 ![Tool Window Table](docs/img/toolwindow-table.png)
 ![Tool Window Orphans](docs/img/toolwindow-table-orphans.png)
@@ -218,60 +249,92 @@ Propagates missing keys across all locales in one click. When a key exists in `e
 
 ![Sync Missing Keys](docs/img/sync-missing-keys.png)
 
-### Stats Panel
+### Stats
 
-Translation coverage statistics per locale: total keys, translated count, missing count, and completion percentage.
+Coverage as a matrix: one row per **namespace** under a **Total** row, one column per **locale**. A cell reads `11/13 [=====    ] 84.6%` — translated keys over the namespace's keys, a bar tinted by tier (≥ 90% complete, ≥ 50% partial, below incomplete), the percentage.
 
-![Stats Panel](docs/img/toolwindow-stats.png)
+Clicking a cell lists that namespace's untranslated keys in that locale — **missing** and **empty** told apart, each next to what it says in the reference locale. **Enter** or a click opens the translation dialog on the key; **F4** opens the reference file.
+
+![Stats](docs/img/toolwindow-stats.png)
+![Stats popup](docs/img/toolwindow-stats-popup.png)
 
 ### Multi-Module Support
 
-When 2+ modules are configured, the tool window displays a tab layer with one tab per module, each with its own Tree/Table/Stats panels.
+A monorepo is described as **modules** in the settings (root directory, path template, key template, framework preset). With two or more, the toolbar's module selector switches the three views from one module to the next; a code file inside a module's root directory resolves its keys against that module's translation files only.
 
 ## Configuration
 
-**File > Tools > i18n Support Plus Configuration**
+**Settings > Tools > i18n Support Plus Configuration**
 
-### General
+### Namespaces and separators
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Search in project only | `true` | Limit translation file search to the project |
 | Namespace separator | `:` | Separates namespace from key (e.g. `common:key`) |
 | Key separator | `.` | Separates nested keys (e.g. `parent.child`) |
 | Plural separator | `-` | Separates plural forms |
-| Default namespace | `translation` | Default namespace(s), separated by `;`, `,` or whitespace |
-| First component as namespace | `false` | Treat first key component as namespace (for Vue) |
-| JS configuration file | *(empty)* | Path to i18next config file for namespace discovery |
-| Translations root | *(empty)* | Custom root directory for translation files |
+| Default namespace | `translation` | Namespace(s) used for keys without a prefix, separated by `;`, `,` or whitespace |
+| First component as namespace | `false` | Treat the first key component as the namespace (vue-i18n) |
+| Treat keys as flat | `false` | Look a key up as a single property, without splitting (react-intl / FormatJS) |
+
+### Where translations are searched
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Search in project files only | `true` | Skip libraries and external roots |
+| Translations root directory | *(empty)* | In a monorepo, path from the project root to the translations directory |
+| i18next configuration files | *(empty)* | Files declaring i18next `resources` inline, comma-separated (`src/i18n.ts`) |
+| Excluded directories | *(empty)* | Directory names skipped when scanning for translation files |
+| Excluded file extensions | *(empty)* | Extensions on which annotations are suppressed (`php,vue`) |
+
+### Modules
+
+One entry per application of a monorepo: a **name**, a **root directory**, a **path template** designating its translation files (`locales/{lang}/{ns}.json`, `messages/{lang}.yml`), an optional **file template**, a **key template** saying how its code writes keys (`{ns}:{key}`, `{ns}.{key}`, `{key}`) and a framework **preset**. A diagnostics panel underneath says what each template resolves to.
+
+### Key assistance rules
+
+Rules make other calls behave like `t`: a **trigger** (`translate`, `i18n.translate`, `__`) turns a function into a translation call, an **exclude** rule takes one out. Each rule can be limited to a language (`js`, `php`) and constrained on the file path, the file's imports or the key — exact, prefix or regular expression, optionally negated.
+
+### Folding and preview
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Enable folding | `false` | Show translation values inline in place of the keys |
+| Preferred folding language | `en` | Locale used by folding |
+| Folding max length | `20` | Max characters shown in a folded translation |
+| Preview locale | *(empty)* | Locale shown by inlay hints, first in the hover table and opened by Ctrl+click; the folding language when empty |
+
+### Key extraction
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Extract translation sorted by key | `false` | Insert extracted keys in alphabetical order |
+| Sort keys alphabetically | `false` | Keep JSON translation files sorted after every key creation |
+
+### Inspections
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Partially translated keys inspection | `false` | Warn when a key exists in some locales but not others |
+
+### PHP / gettext
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| PHP gettext & plain object files support | `false` | Enable gettext/PO file support |
+| gettext aliases | `gettext,_,__` | Function names recognized as gettext calls |
+
+### Translation file formats
+
+Per-format settings; the first one is the **indentation of the keys generated in YAML files** (2 spaces). JSON follows the IDE's code style.
+
+### Appearance
+
+| Setting | Default | Description |
+|---------|---------|-------------|
 | Show gutter icons | `true` | Display resolution badges in the editor gutter |
-
-### Folding
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Folding enabled | `false` | Show translation values inline in the editor |
-| Preferred language | `en` | Language used for inline folding display |
-| Max length | `20` | Max characters shown in folded translation |
-
-### Inspection
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Partial translation inspection | `false` | Warn when a key exists in some locales but not others |
-
-### Gettext
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Gettext enabled | `false` | Enable gettext/PO file support |
-| Gettext aliases | `gettext,_,__` | Function names recognized as gettext calls |
-
-### Extraction
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Extract sorted | `false` | Insert extracted keys in alphabetical order |
+| Show setup wizard on new projects | `true` | Run the wizard the first time an unconfigured project opens |
+| Announce plugin updates | `true` | After an update, a notification linking to the changelog (applies to every project) |
 
 ## Requirements
 
