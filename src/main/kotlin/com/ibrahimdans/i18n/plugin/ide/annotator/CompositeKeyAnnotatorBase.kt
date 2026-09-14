@@ -61,7 +61,7 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
             KeyRangesCalculator(element.textRange.shiftRight(element.text.unQuote().indexOf(fullKey.source)), element.text.isQuoted()),
         )
         val sourceService = element.project.service<LocalizationSourceService>()
-        val files = sourceService.findSources(fullKey.allNamespaces(), element.project)
+        val files = sourceService.findSources(fullKey.allNamespaces(), element)
         if (files.isEmpty()) {
             if (fullKey.ns == null) {
                 annotationHelper.unresolvedDefaultNs(fullKey)

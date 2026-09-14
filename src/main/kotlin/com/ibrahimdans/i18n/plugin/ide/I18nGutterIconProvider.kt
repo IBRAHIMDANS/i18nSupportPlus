@@ -74,7 +74,7 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
         // for an explicit namespace matching no file too, so `t('common:user.name')` with no
         // common.json would show per-locale statuses computed against unrelated files while
         // the annotator reports an unresolved namespace — two verdicts on one key.
-        val sources = sourceService.findSources(fullKey.allNamespaces(), project)
+        val sources = sourceService.findSources(fullKey.allNamespaces(), element)
         if (sources.isEmpty()) return null
 
         val pluralSeparator = config.pluralSeparator

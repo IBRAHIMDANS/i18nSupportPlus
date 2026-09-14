@@ -129,6 +129,35 @@ class LocalizationSourceService {
         return findAllSources(project)
     }
 
+    /**
+     * [findSources] for a key written in [caller]'s file: in a monorepo, restricted to the module
+     * whose `rootDirectory` holds that file.
+     *
+     * Two modules each owning a `common.json` used to be one pool: `t('common:title')` in
+     * `apps/admin` resolved against `apps/web`'s file too, so a key missing from its own module was
+     * never reported, and navigation and hints mixed both. A file in no module, a project without
+     * modules, and a module whose translations all live outside its root directory (a shared
+     * package) keep the project-wide result.
+     */
+    fun findSources(fileNames: List<String>, caller: PsiElement): List<LocalizationSource> {
+        val project = caller.project
+        val sources = findSources(fileNames, project)
+        val config = Settings.getInstance(project).config()
+        if (config.modules.isEmpty()) return sources
+        val callerFile = caller.containingFile?.originalFile?.virtualFile ?: return sources
+        val basePath = project.basePath ?: ""
+        val module = ModuleSources.owner(config.modules, projectPath(callerFile, basePath)) ?: return sources
+
+        fun inModule(source: LocalizationSource): Boolean {
+            val file = (source.tree?.value() ?: source.host)?.containingFile?.virtualFile ?: return false
+            return ModuleSources.contains(module, projectPath(file, basePath))
+        }
+        val scoped = sources.filter(::inModule)
+        // Asked of the cached scan only when this lookup found nothing inside the module.
+        if (scoped.isEmpty() && findAllSources(project).none(::inModule)) return sources
+        return scoped
+    }
+
     fun findNamespaceFiles(fileNames: List<String>, project: Project): List<LocalizationSource> {
         if (fileNames.isEmpty()) return emptyList()
         return findVirtualFilesByName(project, fileNames).distinctBy { it.displayPath }
@@ -236,9 +265,13 @@ class LocalizationSourceService {
      */
     private fun moduleMatch(config: Config, file: VirtualFile, basePath: String): ModuleSources.Match? {
         if (config.modules.isEmpty()) return null
+        return ModuleSources.match(config.modules, projectPath(file, basePath))
+    }
+
+    /** [file]'s path relative to the project directory when it lives under it, absolute otherwise. */
+    private fun projectPath(file: VirtualFile, basePath: String): ModuleSources.FilePath {
         val anchored = basePath.isNotEmpty() && file.path.startsWith("$basePath/")
-        val path = if (anchored) file.path.removePrefix("$basePath/") else file.path
-        return ModuleSources.match(config.modules, path, anchored)
+        return ModuleSources.FilePath(if (anchored) file.path.removePrefix("$basePath/") else file.path, anchored)
     }
 
     private fun sourceOf(

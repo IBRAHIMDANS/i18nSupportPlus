@@ -81,7 +81,7 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
 
     private fun resolve(container: PsiElement, element: PsiElement, config: Config, fullKey: FullKey): ElementToReferenceBinding? {
         return element.project.service<LocalizationSourceService>()
-            .findSources(fullKey.allNamespaces(), container.project)
+            .findSources(fullKey.allNamespaces(), element)
             // Through localeLabel, not the parent directory: `locales/en.json` has `locales` as its
             // parent, so the "one file per locale" layout never matched and got no folding at all.
             .filter { it.localeLabel() == config.foldingPreferredLanguage }

@@ -23,16 +23,33 @@ internal object ModuleSources {
     private val NAMESPACE_NAMES = setOf("ns", "namespace")
 
     /**
-     * The match of [path] against the first module template it fits, or null.
-     *
-     * [path] is project-relative when the file lives under the project directory; [anchored] says
-     * so. An unanchored path (outside the project directory, as in light test fixtures) only needs
-     * to end with the template.
+     * A file's path: project-relative when the file lives under the project directory, which
+     * [anchored] says. An unanchored path (outside the project directory, as in light test
+     * fixtures) only needs to end with a template, or to go through a root directory.
      */
+    data class FilePath(val path: String, val anchored: Boolean)
+
+    /** The match of [file] against the first module template it fits, or null. */
+    fun match(modules: List<ModuleConfig>, file: FilePath): Match? = match(modules, file.path, file.anchored)
+
     fun match(modules: List<ModuleConfig>, path: String, anchored: Boolean): Match? =
         modules.asSequence()
             .mapNotNull { patternOf(it, anchored) }
             .firstNotNullOfOrNull { pattern -> matchWith(pattern, path.trim('/')) }
+
+    /** The module whose root directory holds [file] — the innermost one when roots nest — or null. */
+    fun owner(modules: List<ModuleConfig>, file: FilePath): ModuleConfig? =
+        modules.filter { rootOf(it).isNotEmpty() && contains(it, file) }.maxByOrNull { rootOf(it).length }
+
+    /** Whether [module]'s root directory holds [file]. A module without one holds nothing. */
+    fun contains(module: ModuleConfig, file: FilePath): Boolean {
+        val root = rootOf(module)
+        if (root.isEmpty()) return false
+        val path = file.path.trim('/')
+        return if (file.anchored) path.startsWith("$root/") else "/$path".contains("/$root/")
+    }
+
+    private fun rootOf(module: ModuleConfig) = module.rootDirectory.trim().trim('/')
 
     /** Whether any module declares a usable template. */
     fun hasTemplates(modules: List<ModuleConfig>): Boolean = modules.any { patternOf(it, true) != null }

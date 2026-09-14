@@ -71,7 +71,7 @@ abstract class CompositeKeyCompletionContributor(private val lang: Lang): Comple
 
     private fun findCompletions(prefix: String, source: String, namespaces: List<String>, compositeKey: List<Literal>, element: PsiElement): List<LookupElementBuilder> {
         return groupPlurals(
-            element.project.service<LocalizationSourceService>().findSources(namespaces, element.project).flatMap {
+            element.project.service<LocalizationSourceService>().findSources(namespaces, element).flatMap {
                 listCompositeKeyVariants(compositeKey, prefix, it).map { it.value().text.unQuote() }
             },
             Settings.getInstance(element.project).config().pluralSeparator
