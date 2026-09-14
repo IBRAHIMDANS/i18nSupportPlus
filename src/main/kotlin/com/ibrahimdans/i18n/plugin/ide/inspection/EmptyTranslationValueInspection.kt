@@ -28,6 +28,7 @@ class EmptyTranslationValueInspection : LocalInspectionTool() {
 
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
         if (DumbService.isDumb(holder.project)) return PsiElementVisitor.EMPTY_VISITOR
+        if (TranslationFileScope.sourceOf(holder.file) == null) return PsiElementVisitor.EMPTY_VISITOR
 
         return object : PsiElementVisitor() {
             override fun visitElement(element: PsiElement) {
