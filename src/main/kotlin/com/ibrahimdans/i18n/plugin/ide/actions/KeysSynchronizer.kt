@@ -63,7 +63,7 @@ class KeysSynchronizer {
 
                 indicator.text = PluginBundle.message("action.sync.progress.computing")
                 val allSources = project.service<LocalizationSourceService>().findAllSources(project)
-                val missing = findMissingEntries(allTranslations, allLocales, allSources)
+                val missing = findMissingEntries(allTranslations, allLocales, allSources, Settings.getInstance(project).config().defaultNamespaces())
 
                 ApplicationManager.getApplication().invokeLater {
                     if (missing.isEmpty()) {
@@ -93,11 +93,15 @@ class KeysSynchronizer {
      * `cart.item` has the plural, whatever categories its language uses, and a locale lacking the
      * whole group receives `cart.item_other` alone — the one form every language defines. Comparing
      * forms one by one proposed `cart.item_few` for English and `cart.item_one` for Japanese.
+     *
+     * [defaultNamespaces] says where a key spelled without a prefix lives — see
+     * [findSourceForKeyAndLocale].
      */
     internal fun findMissingEntries(
         allTranslations: Map<String, Map<String, String>>,
         allLocales: List<String>,
-        allSources: List<LocalizationSource>
+        allSources: List<LocalizationSource>,
+        defaultNamespaces: List<String> = Config().defaultNamespaces(),
     ): List<MissingEntry> {
         val missing = mutableListOf<MissingEntry>()
 
@@ -107,7 +111,7 @@ class KeysSynchronizer {
             val keyToCreate = if (forms.size == 1 && forms.single() == key) key else PluralKey.defaultForm(key)
 
             for (targetLocale in absentLocales) {
-                val source = findSourceForKeyAndLocale(keyToCreate, targetLocale, allSources) ?: continue
+                val source = findSourceForKeyAndLocale(keyToCreate, targetLocale, allSources, defaultNamespaces) ?: continue
                 missing.add(MissingEntry(keyToCreate, targetLocale, source))
             }
         }
@@ -116,19 +120,25 @@ class KeysSynchronizer {
     }
 
     /**
-     * Finds the LocalizationSource that corresponds to the given key's namespace and target locale.
-     * The key may be prefixed with a namespace, e.g. "common:menu.home".
+     * The source [key] is written to for [targetLocale]: the file of the namespace the key is
+     * prefixed with, or, for a key spelled without one, a file of a default namespace — that is
+     * where the loader read it from, since it strips exactly that prefix.
+     *
+     * A prefix-less key used to take the **first** file of the locale, whatever its namespace:
+     * with `common` as the default namespace, `actions.save` was routed to `fr/auth.json`,
+     * the first name in alphabetical order. A locale holding a single file keeps it as the
+     * fallback — the one-file-per-locale layout names it after the locale, not the namespace.
      */
     private fun findSourceForKeyAndLocale(
         key: String,
         targetLocale: String,
-        allSources: List<LocalizationSource>
+        allSources: List<LocalizationSource>,
+        defaultNamespaces: List<String>,
     ): LocalizationSource? {
-        val namespace = KeySpelling.namespaceOf(key)
-        return allSources.firstOrNull { source ->
-            TranslationDataLoader.extractLocale(source) == targetLocale &&
-                    (namespace == null || TranslationDataLoader.extractNamespace(source) == namespace)
-        }
+        val wanted = KeySpelling.namespaceOf(key)?.let { listOf(it) } ?: defaultNamespaces
+        val ofLocale = allSources.filter { TranslationDataLoader.extractLocale(it) == targetLocale }
+        return ofLocale.firstOrNull { TranslationDataLoader.extractNamespace(it, defaultNamespaces.first()) in wanted }
+            ?: ofLocale.singleOrNull()
     }
 
     /**
