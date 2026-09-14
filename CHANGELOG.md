@@ -5,6 +5,7 @@
 ### Bug Fixes
 
 - [Inlay hints] **Show the hints again.** The provider was declared on `codeInsight.declarativeInlayHintsProvider`, an extension point that does not exist — the platform ignores an unknown one without a word — so since the move to the declarative API no `↦ value` hint ever showed and *i18n translations* was listed nowhere under *Editor > Inlay Hints*. It is now declared on `codeInsight.declarativeInlayProvider`, with the settings group the page requires, and a test drives the real highlighting pass on a `.tsx` file rather than the collector alone
+- [Updates] Find the plugin through **public API only**. The 2025.1 workaround of 1.4.0 scanned `PluginManagerCore.getPlugins()`, which the Marketplace verifier reports as internal API. The lookup now goes through `PluginId.getId` and `PluginManagerCore.getPlugin`, called from a Java class so that the compiled call binds to the static method both 2025.1 and 2025.3 carry rather than to a Kotlin companion 2025.1 lacks
 
 ## 1.4.0 - 2026-09-14
 
