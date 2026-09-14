@@ -1,5 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.hint
 
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.utils.generator.code.*
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.JsonTranslationGenerator
@@ -92,6 +94,21 @@ class HintTest: PlatformBaseTest() {
             assertTrue("Hint should contain English translation", hint.contains("Hello"))
             assertTrue("Hint should contain French translation", hint.contains("Bonjour"))
             assertTrue("Hint should contain German translation", hint.contains("Hallo"))
+        }
+    }
+
+    /** The preview locale leads the hover table, whatever order the files were found in. */
+    @Test
+    fun testPreviewLocaleLeadsTheHintTable() = myFixture.runWithConfig(Config(previewLocale = "fr")) {
+        val tg = JsonTranslationGenerator()
+        myFixture.addFileToProject("de/lead.${tg.ext()}", tg.generateContent("root", "first", "second", "Hallo"))
+        myFixture.addFileToProject("en/lead.${tg.ext()}", tg.generateContent("root", "first", "second", "Hello"))
+        myFixture.addFileToProject("fr/lead.${tg.ext()}", tg.generateContent("root", "first", "second", "Bonjour"))
+        myFixture.configureByText("content_lead.js", JsCodeGenerator().generate("\"lead:root.first.<caret>second\"", 0))
+        read {
+            val hint = HintProvider().generateDoc(null, myFixture.file.findElementAt(myFixture.caretOffset))!!
+            val bonjour = hint.indexOf("Bonjour")
+            assertTrue("fr must come first: $hint", bonjour >= 0 && bonjour < hint.indexOf("Hello") && bonjour < hint.indexOf("Hallo"))
         }
     }
 

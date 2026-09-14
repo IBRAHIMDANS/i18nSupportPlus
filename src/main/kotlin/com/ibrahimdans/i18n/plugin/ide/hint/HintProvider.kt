@@ -77,9 +77,12 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
         val sources = project.service<LocalizationSourceService>().findSources(fullKey.allNamespaces(), project)
         if (sources.isEmpty()) return null
 
-        val pluralSeparator = Settings.getInstance(project).config().pluralSeparator
+        val config = Settings.getInstance(project).config()
+        val pluralSeparator = config.pluralSeparator
+        // The preview locale leads the table: it is the one the user reads the code in.
+        val previewLocale = config.previewLocale.ifBlank { config.foldingPreferredLanguage }
 
-        val rows = sources.mapNotNull { source ->
+        val rows = sources.sortedByDescending { it.localeLabel() == previewLocale }.mapNotNull { source ->
             val refs = resolve(fullKey.compositeKey, source, pluralSeparator)
             val displayed = refs.asSequence()
                 .filter { it.unresolved.isEmpty() }
