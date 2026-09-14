@@ -155,4 +155,75 @@ class TranslationStatsAnalyzerTest {
         assertEquals(1, enStats.missing)   // "c" only in fr
         assertEquals(2, frStats.missing)   // "a" and "b" only in en
     }
+
+    // ---- report: one row per namespace ----
+
+    @Test
+    fun `report lays out a total row then one row per namespace, default group first`() {
+        val report = TranslationStatsAnalyzer.report(mapOf(
+            "common:title" to mapOf("en" to "Title", "fr" to "Titre"),
+            "common:save" to mapOf("en" to "Save"),
+            "auth:login" to mapOf("en" to "Log in", "fr" to "Connexion"),
+            "greeting" to mapOf("en" to "Hello", "fr" to "Bonjour"),
+        ))
+
+        assertEquals(listOf("en", "fr"), report.locales)
+        assertEquals(
+            listOf(null, NamespaceFilter.Default, NamespaceFilter.Named("auth"), NamespaceFilter.Named("common")),
+            report.rows.map { it.group }
+        )
+        assertEquals(listOf(4, 1, 1, 2), report.rows.map { it.total })
+
+        val common = report.namespaces.first { it.group == NamespaceFilter.Named("common") }
+        assertEquals(50.0, common.of("fr")!!.percent)
+        assertEquals(listOf("common:save"), common.of("fr")!!.missingKeys)
+        assertEquals(100.0, common.of("en")!!.percent)
+
+        // The total row is the per-locale coverage the tab used to show alone.
+        assertEquals(75.0, report.total.of("fr")!!.percent)
+        assertNull(report.total.of("de"), "a locale the project does not have")
+    }
+
+    @Test
+    fun `report gives a namespace a 0% cell in a locale that holds none of its keys`() {
+        val report = TranslationStatsAnalyzer.report(mapOf(
+            "common:title" to mapOf("en" to "Title", "fr" to "Titre"),
+            "billing:total" to mapOf("en" to "Total"),
+        ))
+
+        val billing = report.namespaces.first { it.group == NamespaceFilter.Named("billing") }
+        val fr = billing.of("fr")
+        assertNotNull(fr, "fr is a locale of the project, so the row must carry it")
+        assertEquals(0.0, fr!!.percent)
+        assertEquals(listOf("billing:total"), fr.missingKeys)
+    }
+
+    @Test
+    fun `report leaves the total row out when every key sits in one group`() {
+        val single = TranslationStatsAnalyzer.report(mapOf(
+            "menu.home" to mapOf("en" to "Home", "fr" to "Accueil"),
+            "menu.about" to mapOf("en" to "About"),
+        ))
+
+        assertEquals(1, single.rows.size)
+        assertEquals(NamespaceFilter.Default, single.rows.single().group)
+        assertEquals(50.0, single.rows.single().of("fr")!!.percent)
+
+        val empty = TranslationStatsAnalyzer.report(emptyMap())
+        assertTrue(empty.rows.isEmpty())
+        assertTrue(empty.locales.isEmpty())
+    }
+
+    @Test
+    fun `report counts a plural group once per namespace`() {
+        val report = TranslationStatsAnalyzer.report(mapOf(
+            "common:item_one" to mapOf("en" to "item", "fr" to "élément"),
+            "common:item_other" to mapOf("en" to "items", "fr" to "éléments"),
+            "common:title" to mapOf("en" to "Title"),
+        ))
+
+        val common = report.namespaces.single()
+        assertEquals(2, common.total)
+        assertEquals(50.0, common.of("fr")!!.percent)
+    }
 }
