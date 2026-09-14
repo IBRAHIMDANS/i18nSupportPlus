@@ -467,8 +467,20 @@ class TableViewModelTest {
         assertEquals("common", viewModel.namespaceLabel("common:menu.home"))
         assertEquals("menu.home", viewModel.keyLabel("common:menu.home"))
 
-        assertEquals(NamespaceFilter.Default.label, viewModel.namespaceLabel("menu.home"))
+        assertEquals(NamespaceFilter.Default.label(Config()), viewModel.namespaceLabel("menu.home"))
         assertEquals("menu.home", viewModel.keyLabel("menu.home"))
+    }
+
+    @Test
+    fun `the default group names its namespace when the configuration has exactly one`() {
+        val one = Config(defaultNs = "common")
+        val several = Config(defaultNs = "common, shared")
+
+        assertEquals("common (default)", NamespaceFilter.Default.label(one))
+        assertEquals(NamespaceFilter.Default.label, NamespaceFilter.Default.label(several), "no single name to show")
+        assertEquals("common (default)", viewModel.namespaceLabel("menu.home", one))
+        assertEquals("auth", viewModel.namespaceLabel("auth:menu.home", one), "a named group never changes")
+        assertEquals(NamespaceFilter.All.label, NamespaceFilter.All.label(one))
     }
 
     // ---- source routing ----

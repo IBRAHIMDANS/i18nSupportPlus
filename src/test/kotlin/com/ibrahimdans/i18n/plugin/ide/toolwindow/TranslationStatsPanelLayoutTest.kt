@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.testFramework.PlatformTestUtil
@@ -60,7 +61,7 @@ class TranslationStatsPanelLayoutTest : PlatformBaseTest() {
         val table = loadedTable(TranslationStatsPanel(project))
 
         assertEquals(1, table.rowCount)
-        assertEquals(NamespaceFilter.Default.label, table.getValueAt(0, 0))
+        assertEquals(NamespaceFilter.Default.label(Config()), table.getValueAt(0, 0))
         assertNull(table.rowSorter, "rows keep the report's order")
     }
 

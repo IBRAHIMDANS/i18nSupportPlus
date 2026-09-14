@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
 import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
@@ -186,6 +187,9 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     private val keyColumn: Int get() = leadingColumns - 1
 
     private var allRows: List<TranslationRow> = emptyList()
+
+    /** The configuration the rows were loaded under; what the default group is called depends on it. */
+    private var config: Config = Config()
     private var currentFilter: String = ""
     private var currentNamespace: NamespaceFilter = NamespaceFilter.All
     private var scanning: Boolean = false
@@ -200,7 +204,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             override fun getListCellRendererComponent(
                 list: JList<*>?, value: Any?, index: Int, selected: Boolean, focused: Boolean
             ): Component = super.getListCellRendererComponent(
-                list, (value as? NamespaceFilter)?.label ?: value, index, selected, focused
+                list, (value as? NamespaceFilter)?.label(config) ?: value, index, selected, focused
             )
         }
     }
@@ -279,6 +283,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     fun refresh() {
         ApplicationManager.getApplication().executeOnPooledThread {
             val rows = viewModel.loadRows(project, moduleConfig)
+            config = Settings.getInstance(project).config()
             val discovered = viewModel.getLocales(project, moduleConfig)
             locales = discovered
             allRows = rows
@@ -328,7 +333,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         // how it reads, and the context menu no longer has to sniff a label for a leading "0".
         val data = rows.map { row ->
             val cells = ArrayList<Any>(locales.size + leadingColumns + 1)
-            if (withNamespace) cells.add(viewModel.namespaceLabel(row.key))
+            if (withNamespace) cells.add(viewModel.namespaceLabel(row.key, config))
             cells.add(row.key)
             locales.mapTo(cells) { locale -> row.values[locale] ?: "" }
             cells.add(row.usageCount)

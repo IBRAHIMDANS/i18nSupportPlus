@@ -127,6 +127,9 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
     }
     private val statusLabel = JBLabel(PluginBundle.message("toolwindow.stats.loading"))
     private var report: CoverageReport? = null
+
+    /** The configuration the report was computed under; what the default group is called depends on it. */
+    private var config: Config = Config()
     private var loadRequested = false
 
     init {
@@ -182,7 +185,9 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
         statusLabel.text = PluginBundle.message("toolwindow.stats.loading")
         ApplicationManager.getApplication().executeOnPooledThread {
             val report = TranslationStatsAnalyzer.report(project, moduleConfig)
+            val config = Settings.getInstance(project).config()
             ApplicationManager.getApplication().invokeLater {
+                this.config = config
                 rebuildTable(report)
             }
         }
@@ -245,7 +250,7 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
     private fun rowLabel(row: Int): String = report?.rows?.getOrNull(row)?.let { rowLabel(it) }.orEmpty()
 
     private fun rowLabel(row: NamespaceStats): String =
-        row.group?.label ?: PluginBundle.message("toolwindow.stats.row.total")
+        row.group?.label(config) ?: PluginBundle.message("toolwindow.stats.row.total")
 
     /** One line of the popup: a key the locale lacks ([LocaleState.MISSING]) or leaves blank ([LocaleState.EMPTY]). */
     private data class UntranslatedKey(val key: String, val state: LocaleState)
