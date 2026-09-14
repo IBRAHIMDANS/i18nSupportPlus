@@ -146,4 +146,27 @@ class ReferencesUseTranslationArrayTest : PlatformBaseTest() {
         }
     }
 
+
+    /** A namespace written in the key replaces the hook's, as i18next does: a mistyped one resolves nowhere. */
+    @ParameterizedTest
+    @ValueSource(strings = ["jsx", "tsx"])
+    fun testWrittenNamespaceReplacesTheHookNamespaces(ext: String) {
+        addFileToProject("assets/dashboard.${tg.ext()}", tg.generateContent("title", "Dashboard"))
+        addFileToProject("assets/common.${tg.ext()}", tg.generateContent("title", "Common"))
+
+        myFixture.configureByText("testWrittenNs.$ext", useTranslationCode("['dashboard']", "common:title", ext))
+        read {
+            val element = myFixture.file.findElementAt(myFixture.caretOffset)?.parent!!
+            assertEquals("Common", element.references.firstOrNull()?.resolve()?.text?.unQuote())
+        }
+
+        myFixture.configureByText("testMistypedNs.$ext", useTranslationCode("['dashboard']", "dashboardd:title", ext))
+        read {
+            val element = myFixture.file.findElementAt(myFixture.caretOffset)?.parent!!
+            assertTrue(
+                "dashboardd is no namespace: the key must not resolve in the hook's dashboard",
+                element.references.none { it.resolve() != null }
+            )
+        }
+    }
 }
