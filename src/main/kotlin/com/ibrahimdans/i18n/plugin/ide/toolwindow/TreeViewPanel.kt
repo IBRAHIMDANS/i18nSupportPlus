@@ -159,6 +159,12 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
         buildTreeNodes(root, rootTreeNode)
         treeModel.reload()
         tree.expandRow(0)
+        // Namespace groups open by default: they are headings over the first level the tree
+        // used to show flat, not one more click between the user and the keys.
+        for (index in rootTreeNode.childCount - 1 downTo 0) {
+            val child = rootTreeNode.getChildAt(index) as DefaultMutableTreeNode
+            if ((child.userObject as? TranslationNodeData)?.namespace != null) tree.expandRow(index + 1)
+        }
     }
 
     private fun buildTreeNodes(node: TranslationNode, parent: DefaultMutableTreeNode) {
@@ -169,7 +175,8 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
                 key = child.key,
                 fullPath = child.fullPath,
                 isLeaf = child.isLeaf,
-                status = nodeStatuses[child.fullPath] ?: NEUTRAL_STATUS
+                status = nodeStatuses[child.fullPath] ?: NEUTRAL_STATUS,
+                namespace = child.namespace,
             )
             val treeNode = DefaultMutableTreeNode(data)
             parent.add(treeNode)
@@ -214,7 +221,11 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
             addActionListener { openTranslationFile(data) }
         })
         menu.add(JMenuItem(PluginBundle.message("toolwindow.tree.menu.copy.key")).apply {
-            addActionListener { CopyPasteManager.getInstance().setContents(StringSelection(data.fullPath)) }
+            // A namespace group has no key: what its row names, and what a call site
+            // writes before the `:`, is the namespace itself.
+            val text = (data.namespace as? NamespaceFilter.Named)?.name ?: data.fullPath
+            isEnabled = data.namespace !is NamespaceFilter.Default
+            addActionListener { CopyPasteManager.getInstance().setContents(StringSelection(text)) }
         })
         menu.show(e.component, e.x, e.y)
     }
@@ -231,12 +242,29 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
      * Opens the first translation file holding [data]'s key, at the key's own offset.
      * Namespaced keys are looked up in the sources of that namespace first, so `common:x`
      * does not land in another file that happens to define `x` too.
+     *
+     * On a namespace group there is no key to land on: the first file of that namespace
+     * opens at its top instead.
      */
     private fun openTranslationFile(data: TranslationNodeData) {
         val keyString = data.fullPath
         ApplicationManager.getApplication().executeOnPooledThread {
             val sources = TranslationDataLoader.findSources(project, moduleConfig)
-            val (namespace, segments) = parseTranslationKey(keyString, Settings.getInstance(project).config())
+            val config = Settings.getInstance(project).config()
+            if (data.namespace != null) {
+                val defaultNamespaces = config.defaultNamespaces()
+                val wanted: (String) -> Boolean = when (val group = data.namespace) {
+                    is NamespaceFilter.Named -> { namespace -> namespace == group.name }
+                    else -> { namespace -> namespace in defaultNamespaces }
+                }
+                val file = ReadAction.compute<VirtualFile?, RuntimeException> {
+                    sources.firstOrNull { wanted(TranslationDataLoader.extractNamespace(it, defaultNamespaces.first())) }
+                        ?.tree?.value()?.containingFile?.virtualFile
+                } ?: return@executeOnPooledThread
+                ApplicationManager.getApplication().invokeLater { OpenFileDescriptor(project, file, 0).navigate(true) }
+                return@executeOnPooledThread
+            }
+            val (namespace, segments) = parseTranslationKey(keyString, config)
             val candidates = if (namespace.isNullOrEmpty()) sources
             else sources.filter { TranslationDataLoader.extractNamespace(it) == namespace }.ifEmpty { sources }
 
@@ -305,12 +333,14 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
     /**
      * Data holder for tree node user objects. [status] is the headless description
      * computed by [TreeViewModel]; the renderer only turns it into pixels.
+     * [namespace] is set on a namespace group row, see [TranslationNode.namespace].
      */
     private data class TranslationNodeData(
         val key: String,
         val fullPath: String,
         val isLeaf: Boolean,
-        val status: NodeStatus
+        val status: NodeStatus,
+        val namespace: NamespaceFilter? = null,
     ) {
         override fun toString(): String = key
     }
@@ -319,7 +349,9 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
 
     /**
      * Draws a node as: status icon + key + per-locale badges (leaf), or
-     * folder icon + key + completeness (branch).
+     * folder icon + key + completeness (branch). A namespace group gets its own icon and
+     * a bold label, so the boundary between two namespaces is read from the shape of the
+     * row rather than from a prefix repeated on every key.
      *
      * On a selected row the badge colors are dropped in favour of the selection
      * foreground — the marks and the icon still carry the status, and readable text
@@ -343,11 +375,15 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
                 return
             }
 
-            icon = if (data.isLeaf) statusIcon(data.status.status) else AllIcons.Nodes.Folder
-            append(data.key, SimpleTextAttributes.REGULAR_ATTRIBUTES)
+            icon = when {
+                data.namespace != null -> AllIcons.Nodes.ModuleGroup
+                data.isLeaf -> statusIcon(data.status.status)
+                else -> AllIcons.Nodes.Folder
+            }
+            append(data.key, if (data.namespace != null) SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES else SimpleTextAttributes.REGULAR_ATTRIBUTES)
             if (data.isLeaf) appendLocaleBadges(data, selected) else appendCompleteness(data, selected)
 
-            toolTipText = data.fullPath
+            toolTipText = if (data.namespace != null) PluginBundle.message("toolwindow.tree.namespace.tooltip", data.key) else data.fullPath
             // Screen readers get the status as words, not as a color.
             setAccessibleStatusText(statusLabel(data.status.status))
         }

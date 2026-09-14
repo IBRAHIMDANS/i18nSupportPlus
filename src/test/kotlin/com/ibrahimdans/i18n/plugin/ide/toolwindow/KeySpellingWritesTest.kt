@@ -60,7 +60,7 @@ class KeySpellingWritesTest : PlatformBaseTest() {
     @Test
     fun treeLevelsFollowTheKeySeparator() {
         val root = TreeViewModel().buildTree(mapOf("common:menu/home" to mapOf("en" to "Home")), Config(keySeparator = "/"))
-        val menu = root.children.getValue("common:menu")
+        val menu = root.children.getValue("common").children.getValue("menu")
         val home = menu.children.getValue("home")
         assertEquals("common:menu/home", home.fullPath)
         assertTrue(home.isLeaf)

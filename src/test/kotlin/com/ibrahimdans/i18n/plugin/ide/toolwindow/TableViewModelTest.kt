@@ -436,6 +436,41 @@ class TableViewModelTest {
         assertEquals(widths[1], widths[3], "every locale column starts on the same width")
     }
 
+    @Test
+    fun `columnWidths puts a narrower namespace column in front of the key when asked`() {
+        val widths = viewModel.columnWidths(2, withNamespace = true)
+
+        assertEquals(5, widths.size, "Namespace + Key + two locales + Usage")
+        assertTrue(widths[0] < widths[1], "the namespace is a short word, the key is not")
+        assertEquals(viewModel.columnWidths(2), widths.drop(1), "the other columns keep their width")
+    }
+
+    // ---- namespace column ----
+
+    @Test
+    fun `showsNamespaceColumn only under All when the rows span several groups`() {
+        val several = listOf(NamespaceFilter.All, NamespaceFilter.Named("auth"), NamespaceFilter.Named("common"))
+        val withDefault = listOf(NamespaceFilter.All, NamespaceFilter.Default, NamespaceFilter.Named("common"))
+        val single = listOf(NamespaceFilter.All, NamespaceFilter.Named("common"))
+        val none = listOf(NamespaceFilter.All, NamespaceFilter.Default)
+
+        assertTrue(viewModel.showsNamespaceColumn(NamespaceFilter.All, several))
+        assertTrue(viewModel.showsNamespaceColumn(NamespaceFilter.All, withDefault))
+        assertFalse(viewModel.showsNamespaceColumn(NamespaceFilter.All, single), "one namespace would repeat on every row")
+        assertFalse(viewModel.showsNamespaceColumn(NamespaceFilter.All, none), "a project without namespaces has nothing to show")
+        assertFalse(viewModel.showsNamespaceColumn(NamespaceFilter.Named("auth"), several), "filtered to one namespace already")
+        assertFalse(viewModel.showsNamespaceColumn(NamespaceFilter.Default, withDefault))
+    }
+
+    @Test
+    fun `namespaceLabel and keyLabel split a key the way the two columns show it`() {
+        assertEquals("common", viewModel.namespaceLabel("common:menu.home"))
+        assertEquals("menu.home", viewModel.keyLabel("common:menu.home"))
+
+        assertEquals(NamespaceFilter.Default.label, viewModel.namespaceLabel("menu.home"))
+        assertEquals("menu.home", viewModel.keyLabel("menu.home"))
+    }
+
     // ---- source routing ----
 
     private fun source(displayPath: String, name: String, parent: String) =

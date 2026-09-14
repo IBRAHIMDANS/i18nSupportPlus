@@ -7,13 +7,20 @@ import com.intellij.openapi.project.Project
 
 /**
  * Represents a node in the hierarchical translation tree.
+ *
+ * [namespace] is set on a namespace group node only — the level [TreeViewModel.buildTree]
+ * inserts under the root when the data spans several namespaces — and null on every key
+ * node. Its [fullPath] is then the namespace prefix alone (`common:`), which no key can spell
+ * since a key always carries a path after the separator, so statuses keyed by path never
+ * collide with a key's.
  */
 data class TranslationNode(
     val key: String,
     val fullPath: String,
     var values: Map<String, String>,
     val children: MutableMap<String, TranslationNode> = mutableMapOf(),
-    var isLeaf: Boolean = false
+    var isLeaf: Boolean = false,
+    val namespace: NamespaceFilter? = null,
 )
 
 /**
@@ -73,21 +80,30 @@ class TreeViewModel {
 
     /**
      * The tree of [flatData], split into levels the way [KeySpelling] joined them: on the configured
-     * key separator, and not at all for a flat key. The namespace prefix stays on the first level,
-     * so each node's `fullPath` is a key [KeySpelling] can take apart again.
+     * key separator, and not at all for a flat key. Each key node's `fullPath` is the whole key,
+     * namespace prefix included, so [KeySpelling] can take it apart again.
+     *
+     * When at least one key carries a namespace, the first level under the root is the namespace
+     * itself — one group per namespace, plus a [NamespaceFilter.Default] group for the keys that
+     * carry none — and the keys hang below it without their prefix. The prefix used to be glued
+     * to the first segment instead (`common:actions`, `common:appName`, …), which spread one
+     * namespace over as many top-level rows as it had first segments: nothing marked where
+     * `common` ended and `dashboard` began, no row said how complete a namespace was, and none
+     * could fold it away. A project with a single, default namespace has nothing to group and
+     * keeps its keys directly under the root.
      */
     internal fun buildTree(flatData: Map<String, Map<String, String>>, config: Config): TranslationNode {
         val root = TranslationNode(key = "root", fullPath = "", values = emptyMap())
+        val grouped = flatData.keys.any { KeySpelling.namespaceOf(it) != null }
 
         for ((fullKey, localeValues) in flatData) {
             val namespace = KeySpelling.namespaceOf(fullKey)
             val segments = KeySpelling.segmentsOf(fullKey, config)
-            val parts = if (namespace == null) segments
-                else listOf(namespace + KeySpelling.NAMESPACE_SEPARATOR + segments.first()) + segments.drop(1)
-            var current = root
-            for ((index, part) in parts.withIndex()) {
-                val partialPath = parts.take(index + 1).fold("") { path, segment -> KeySpelling.child(config, path, segment) }
-                val isLast = index == parts.lastIndex
+            val prefix = namespace?.let { it + KeySpelling.NAMESPACE_SEPARATOR }.orEmpty()
+            var current = if (grouped) namespaceGroup(root, namespace) else root
+            for ((index, part) in segments.withIndex()) {
+                val partialPath = prefix + segments.take(index + 1).fold("") { path, segment -> KeySpelling.child(config, path, segment) }
+                val isLast = index == segments.lastIndex
                 current = current.children.getOrPut(part) {
                     TranslationNode(
                         key = part,
@@ -105,6 +121,19 @@ class TreeViewModel {
         }
 
         return root
+    }
+
+    /**
+     * The group node of [namespace] under [root], created on first use. The default group is
+     * keyed by its label rather than by a name: it stands for the keys spelled without a
+     * prefix, which is what [NamespaceFilter.Default] means in the table's combo too.
+     */
+    private fun namespaceGroup(root: TranslationNode, namespace: String?): TranslationNode {
+        val filter = if (namespace == null) NamespaceFilter.Default else NamespaceFilter.Named(namespace)
+        val prefix = namespace?.let { it + KeySpelling.NAMESPACE_SEPARATOR } ?: KeySpelling.NAMESPACE_SEPARATOR
+        return root.children.getOrPut(namespace ?: filter.label) {
+            TranslationNode(key = namespace ?: filter.label, fullPath = prefix, values = emptyMap(), namespace = filter)
+        }
     }
 
     /**

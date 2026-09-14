@@ -113,6 +113,92 @@ class TreeViewModelTest {
         assertEquals("Startseite", home.values["de"])
     }
 
+    // --- namespace grouping ---
+
+    @Test
+    fun `loadTranslations groups keys under their namespace`() {
+        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+            "common:actions.save" to mapOf("en" to "Save"),
+            "common:appName" to mapOf("en" to "App"),
+            "dashboard:title" to mapOf("en" to "Dashboard")
+        )
+
+        val root = viewModel.loadTranslations(project)
+
+        assertEquals(setOf("common", "dashboard"), root.children.keys)
+        val common = root.children.getValue("common")
+        assertEquals(NamespaceFilter.Named("common"), common.namespace)
+        assertEquals("common:", common.fullPath)
+        assertFalse(common.isLeaf)
+        // Keys hang below the group without their prefix, but keep the full key as path.
+        assertEquals(setOf("actions", "appName"), common.children.keys)
+        assertEquals("common:actions", common.children.getValue("actions").fullPath)
+        assertEquals("common:actions.save", common.children.getValue("actions").children.getValue("save").fullPath)
+        assertEquals("common:appName", common.children.getValue("appName").fullPath)
+        assertNull(common.children.getValue("appName").namespace)
+    }
+
+    @Test
+    fun `loadTranslations puts prefix-less keys in a default group when namespaces exist`() {
+        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+            "common:appName" to mapOf("en" to "App"),
+            "greeting" to mapOf("en" to "Hello")
+        )
+
+        val root = viewModel.loadTranslations(project)
+
+        val default = root.children.getValue(NamespaceFilter.Default.label)
+        assertEquals(NamespaceFilter.Default, default.namespace)
+        assertEquals(setOf("greeting"), default.children.keys)
+        assertEquals("greeting", default.children.getValue("greeting").fullPath)
+    }
+
+    @Test
+    fun `loadTranslations does not group a single default namespace`() {
+        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+            "menu.home" to mapOf("en" to "Home"),
+            "greeting" to mapOf("en" to "Hello")
+        )
+
+        val root = viewModel.loadTranslations(project)
+
+        assertEquals(setOf("menu", "greeting"), root.children.keys)
+        assertTrue(root.children.values.all { it.namespace == null })
+    }
+
+    @Test
+    fun `describeTree aggregates completeness on the namespace group`() {
+        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+            "common:actions.save" to mapOf("en" to "Save", "fr" to "Enregistrer"),
+            "common:actions.cancel" to mapOf("en" to "Cancel"),
+            "common:appName" to mapOf("en" to "App", "fr" to "App")
+        )
+
+        val root = viewModel.loadTranslations(project)
+        val statuses = viewModel.describeTree(root, listOf("en", "fr"))
+
+        val common = statuses.getValue("common:")
+        assertEquals(KeyStatus.MISSING, common.status)
+        assertEquals(NodeCompleteness(complete = 2, total = 3), common.completeness)
+        assertTrue(common.localeStates.isEmpty())
+    }
+
+    @Test
+    fun `filter keeps the namespace group of a matching key`() {
+        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+            "common:actions.save" to mapOf("en" to "Save"),
+            "dashboard:title" to mapOf("en" to "Dashboard")
+        )
+
+        val root = viewModel.loadTranslations(project)
+        val filtered = viewModel.filter("save", root)
+
+        assertEquals(setOf("common"), filtered.children.keys)
+        val common = filtered.children.getValue("common")
+        assertEquals(NamespaceFilter.Named("common"), common.namespace)
+        assertEquals(setOf("actions"), common.children.keys)
+    }
+
     // --- getMissingKeys tests ---
 
     @Test

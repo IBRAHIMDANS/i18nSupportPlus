@@ -154,6 +154,24 @@ class TableViewModel {
     /** The namespace [key] carries, i.e. the part before its `:`, or null when it carries none. */
     fun namespaceOf(key: String): String? = KeySpelling.namespaceOf(key)
 
+    /**
+     * Whether the table lays out a Namespace column in front of the key.
+     *
+     * Only when the rows shown can come from more than one namespace: [filter] is
+     * [NamespaceFilter.All] and [filters] — the combo's entries, `All` included — offers more
+     * than one group. Under a single namespace the column would repeat one word on every row,
+     * and a project without namespaces has nothing to put in it at all.
+     */
+    fun showsNamespaceColumn(filter: NamespaceFilter, filters: List<NamespaceFilter>): Boolean =
+        filter == NamespaceFilter.All && filters.size > 2
+
+    /** What the Namespace column says for [key]: its namespace, or the default group's label. */
+    fun namespaceLabel(key: String): String =
+        namespaceOf(key)?.let { NamespaceFilter.Named(it).label } ?: NamespaceFilter.Default.label
+
+    /** The key as the Key column shows it next to a Namespace column: without its prefix. */
+    fun keyLabel(key: String): String = KeySpelling.pathOf(key)
+
     /** The levels of [key]'s path, namespace prefix removed — a single one when keys are flat. */
     fun keySegments(key: String, config: Config = Config()): List<String> = KeySpelling.segmentsOf(key, config)
 
@@ -197,15 +215,17 @@ class TableViewModel {
     }
 
     /**
-     * Preferred pixel widths for the whole table: the Key column, then one per locale, then Usage.
+     * Preferred pixel widths for the whole table: the Namespace column when [withNamespace],
+     * the Key column, then one per locale, then Usage.
      *
      * The table used to run on `AUTO_RESIZE_ALL_COLUMNS`, which hands every column an equal share
      * of the viewport — so `common:navigation.menu.profile` got exactly as much room as `Usage`.
      * The key is the longest text in the table and is what the user scans, so it starts widest;
      * the columns stay draggable, and the table scrolls horizontally rather than crushing itself.
      */
-    fun columnWidths(localeCount: Int): List<Int> =
-        listOf(KEY_COLUMN_WIDTH) + List(localeCount) { LOCALE_COLUMN_WIDTH } + USAGE_COLUMN_WIDTH
+    fun columnWidths(localeCount: Int, withNamespace: Boolean = false): List<Int> =
+        listOfNotNull(NAMESPACE_COLUMN_WIDTH.takeIf { withNamespace }, KEY_COLUMN_WIDTH) +
+            List(localeCount) { LOCALE_COLUMN_WIDTH } + USAGE_COLUMN_WIDTH
 
     /**
      * Writes [value] for [key] in [locale], routing to the right translation file
@@ -408,6 +428,9 @@ class TableViewModel {
          * reading of it goes through [usageStatus].
          */
         internal const val DYNAMIC_USAGE = -2
+
+        /** Namespaces are short words (`common`, `deposit-box`): narrower than a locale value. */
+        internal const val NAMESPACE_COLUMN_WIDTH = 120
 
         /** Widest by design: the key is the longest text of the table and the one users scan. */
         internal const val KEY_COLUMN_WIDTH = 320

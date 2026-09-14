@@ -34,6 +34,7 @@ import com.intellij.ui.table.JBTable
 import com.intellij.util.concurrency.AppExecutorUtil
 import java.awt.BorderLayout
 import java.awt.Component
+import java.awt.Font
 import java.awt.event.ActionEvent
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
@@ -100,7 +101,12 @@ internal fun displayValue(raw: String, maxLength: Int = DISPLAY_VALUE_MAX_LENGTH
 
 /**
  * Panel displaying translations in a flat table format.
- * Columns: "Key" + one column per visible locale + "Usage".
+ * Columns: "Key" + one column per visible locale + "Usage", with a "Namespace" column in
+ * front of the key while the rows span several namespaces (see
+ * [TableViewModel.showsNamespaceColumn]). The key cell always holds the full key, prefix
+ * included — every action reads it from there — and only *displays* it without the prefix
+ * when the Namespace column carries it: under *All namespaces* the rows used to run as one
+ * flow of `auth:…`, `common:…` with nothing marking where one namespace ended.
  * Includes a namespace combo box to filter rows by namespace prefix.
  *
  * Every cell state is written out — an icon and a word — and only *then* tinted: a background
@@ -128,9 +134,9 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
     private val viewModel = TableViewModel()
     private val tableModel = object : DefaultTableModel() {
-        // Editable: locale columns only — not "Key" (column 0) nor "Usage" (last).
+        // Editable: locale columns only — not "Namespace"/"Key" (leading) nor "Usage" (last).
         override fun isCellEditable(row: Int, column: Int): Boolean =
-            column in 1 until columnCount - 1
+            column in leadingColumns until columnCount - 1
 
         override fun setValueAt(aValue: Any?, row: Int, column: Int) {
             if (!isCellEditable(row, column)) {
@@ -140,7 +146,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             val newValue = aValue?.toString() ?: ""
             val oldValue = getValueAt(row, column)?.toString() ?: ""
             if (newValue == oldValue) return
-            val key = getValueAt(row, 0) as? String ?: return
+            val key = getValueAt(row, keyColumn) as? String ?: return
             val locale = getColumnName(column)
 
             // moduleConfig is mandatory here: it scopes the write to the same module
@@ -170,6 +176,14 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
     /** The locales currently laid out as columns, i.e. [locales] minus [hiddenLocales]. */
     private var shownLocales: List<String> = emptyList()
+
+    /**
+     * How many columns precede the locales: the key alone, or Namespace + Key. Every column
+     * index of the panel derives from it, so laying the Namespace column out or not moves
+     * nothing else.
+     */
+    private var leadingColumns: Int = 1
+    private val keyColumn: Int get() = leadingColumns - 1
 
     private var allRows: List<TranslationRow> = emptyList()
     private var currentFilter: String = ""
@@ -205,7 +219,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             override fun mouseClicked(e: MouseEvent) {
                 // Only the read-only key column opens the edit dialog: on locale
                 // columns a double-click starts the in-place cell editor instead.
-                if (e.clickCount == 2 && e.button == MouseEvent.BUTTON1 && table.columnAtPoint(e.point) == 0) {
+                if (e.clickCount == 2 && e.button == MouseEvent.BUTTON1 && table.columnAtPoint(e.point) in 0 until leadingColumns) {
                     editSelectedRow()
                 }
             }
@@ -290,7 +304,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
     private fun applyFilters() {
         val filtered = viewModel.filter(currentFilter, viewModel.filterByNamespace(currentNamespace, allRows))
-        rebuildTable(filtered, viewModel.visibleLocales(locales, hiddenLocales))
+        val withNamespace = viewModel.showsNamespaceColumn(currentNamespace, viewModel.namespaceFilters(allRows))
+        rebuildTable(filtered, viewModel.visibleLocales(locales, hiddenLocales), withNamespace)
     }
 
     private fun updateNamespaceCombo(items: List<NamespaceFilter>) {
@@ -301,13 +316,19 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         else currentNamespace = NamespaceFilter.All
     }
 
-    private fun rebuildTable(rows: List<TranslationRow>, locales: List<String>) {
+    private fun rebuildTable(rows: List<TranslationRow>, locales: List<String>, withNamespace: Boolean = false) {
         shownLocales = locales
-        val columnNames = arrayOf(PluginBundle.message("toolwindow.table.column.key")) + locales.toTypedArray() + USAGE_COLUMN_NAME
+        leadingColumns = if (withNamespace) 2 else 1
+        val leadingNames = listOfNotNull(
+            PluginBundle.message("toolwindow.table.column.namespace").takeIf { withNamespace },
+            PluginBundle.message("toolwindow.table.column.key"),
+        )
+        val columnNames = leadingNames.toTypedArray() + locales.toTypedArray() + USAGE_COLUMN_NAME
         // The usage cell holds the count itself, not a rendered string: the renderer decides
         // how it reads, and the context menu no longer has to sniff a label for a leading "0".
         val data = rows.map { row ->
-            val cells = ArrayList<Any>(locales.size + 2)
+            val cells = ArrayList<Any>(locales.size + leadingColumns + 1)
+            if (withNamespace) cells.add(viewModel.namespaceLabel(row.key))
             cells.add(row.key)
             locales.mapTo(cells) { locale -> row.values[locale] ?: "" }
             cells.add(row.usageCount)
@@ -316,10 +337,10 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
         tableModel.setDataVector(data, columnNames)
 
-        val translationRenderer = TranslationCellRenderer(locales.size)
+        val translationRenderer = TranslationCellRenderer(leadingColumns, locales.size)
         val usageRenderer = UsageCellRenderer()
-        val usageColIdx = 1 + locales.size
-        val widths = viewModel.columnWidths(locales.size)
+        val usageColIdx = leadingColumns + locales.size
+        val widths = viewModel.columnWidths(locales.size, withNamespace)
 
         for (i in 0 until table.columnCount) {
             val column = table.columnModel.getColumn(i)
@@ -330,7 +351,9 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         val sorter = TableRowSorter(tableModel)
         table.rowSorter = sorter
         if (tableModel.columnCount > 0) {
-            sorter.sortKeys = listOf(RowSorter.SortKey(0, SortOrder.ASCENDING))
+            // Namespace first, then the full key: the rows of one namespace stay together, and
+            // that is what lets the column read as group boundaries rather than as a label.
+            sorter.sortKeys = (0 until leadingColumns).map { RowSorter.SortKey(it, SortOrder.ASCENDING) }
         }
     }
 
@@ -349,7 +372,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             table.editorComponent?.requestFocusInWindow()
             return
         }
-        val key = table.getValueAt(row, 0) as? String ?: return
+        val key = table.getValueAt(row, keyColumn) as? String ?: return
         val dialog = TranslationDialog(project, buildFullKey(key), Mode.EDIT)
         if (dialog.showAndGet()) {
             refresh()
@@ -364,7 +387,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     private fun openSelectedRowFile() {
         val row = table.selectedRow
         if (row < 0) return
-        val key = table.getValueAt(row, 0) as? String ?: return
+        val key = table.getValueAt(row, keyColumn) as? String ?: return
         val locale = localeAt(table.selectedColumn) ?: shownLocales.firstOrNull() ?: return
 
         ApplicationManager.getApplication().executeOnPooledThread {
@@ -393,9 +416,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         return file to psi.textOffset
     }
 
-    /** The locale [column] displays, or null when it is the key or the usage column. */
-    private fun localeAt(column: Int): String? =
-        if (column in 1..shownLocales.size) shownLocales[column - 1] else null
+    /** The locale [column] displays, or null when it is a leading or the usage column. */
+    private fun localeAt(column: Int): String? = shownLocales.getOrNull(column - leadingColumns)
 
     // ── Context menu ──────────────────────────────────────────────────────────
 
@@ -406,8 +428,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         val column = table.columnAtPoint(e.point)
         if (column >= 0) table.setColumnSelectionInterval(column, column)
 
-        val key = table.getValueAt(row, 0) as? String ?: return
-        val usageCount = table.getValueAt(row, 1 + shownLocales.size) as? Int ?: -1
+        val key = table.getValueAt(row, keyColumn) as? String ?: return
+        val usageCount = table.getValueAt(row, leadingColumns + shownLocales.size) as? Int ?: -1
         val isOrphan = viewModel.usageStatus(usageCount) == UsageStatus.ORPHAN
 
         val menu = JPopupMenu()
@@ -514,9 +536,17 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      * was the whole message: a cell with no entry and a cell holding `"   "` differed by two
      * shades of nothing, and neither was distinguishable from a translated cell in greyscale.
      *
-     * [localeCount] is the number of locale columns (column 0 is "Key", columns 1..localeCount are locales).
+     * The leading columns are the key's: with a Namespace column in front, the namespace cell
+     * is set in bold — the tree does the same on its group rows — and the key cell drops the
+     * prefix the namespace cell already shows, keeping the full key in its tooltip.
+     *
+     * [leading] is the number of columns before the locales (Key alone, or Namespace + Key);
+     * [localeCount] the number of locale columns that follow.
      */
-    private inner class TranslationCellRenderer(private val localeCount: Int) : DefaultTableCellRenderer() {
+    private inner class TranslationCellRenderer(
+        private val leading: Int,
+        private val localeCount: Int,
+    ) : DefaultTableCellRenderer() {
         override fun getTableCellRendererComponent(
             table: JTable,
             value: Any?,
@@ -531,9 +561,18 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             // previous cell set has to be cleared, not merely overwritten on some branches.
             icon = null
             toolTipText = null
+            font = table.font
             if (!isSelected) background = table.background
 
-            if (column <= 0 || column > localeCount) return component
+            if (column < leading) {
+                if (leading > 1 && column == 0) font = table.font.deriveFont(Font.BOLD)
+                if (leading > 1 && column == leading - 1) {
+                    text = viewModel.keyLabel(raw)
+                    toolTipText = raw
+                }
+                return component
+            }
+            if (column >= leading + localeCount) return component
 
             when (viewModel.valueStatus(raw)) {
                 ValueStatus.MISSING -> {

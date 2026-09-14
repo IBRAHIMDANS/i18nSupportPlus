@@ -173,6 +173,39 @@ class TableViewPanelTest : PlatformBaseTest() {
     }
 
     @Test
+    fun `rows spanning several namespaces get a namespace column, the key cell keeping the full key`() {
+        mockkObject(TranslationDataLoader)
+        every { TranslationDataLoader.loadAllTranslations(project, null) } returns mapOf(
+            "common:menu.home" to mapOf("en" to "Home"),
+            "auth:login.title" to mapOf("en" to "Sign in"),
+            "greeting" to mapOf("en" to "Hello"),
+        )
+        every { TranslationDataLoader.discoverLocales(project, null) } returns listOf("en")
+        val panel = TableViewPanel(project)
+        val table = loadedTable(panel)
+
+        assertEquals(4, table.columnCount, "Namespace + Key + en + Usage")
+        assertEquals(PluginBundle.message("toolwindow.table.column.namespace"), table.getColumnName(0))
+        assertEquals(PluginBundle.message("toolwindow.table.column.key"), table.getColumnName(1))
+        assertEquals("en", table.getColumnName(2))
+
+        // Sorted on the namespace first: the default group's label sorts before any name, and
+        // every action still reads the *full* key from the key cell.
+        assertEquals(NamespaceFilter.Default.label, table.getValueAt(0, 0))
+        assertEquals("greeting", table.getValueAt(0, 1))
+        assertEquals("auth", table.getValueAt(1, 0))
+        assertEquals("auth:login.title", table.getValueAt(1, 1))
+        assertEquals("common", table.getValueAt(2, 0))
+        assertEquals("common:menu.home", table.getValueAt(2, 1))
+
+        val model = table.model
+        assertFalse(model.isCellEditable(0, 0), "the namespace column is read-only")
+        assertFalse(model.isCellEditable(0, 1), "the key column is read-only")
+        assertTrue(model.isCellEditable(0, 2), "en is editable in place")
+        assertFalse(model.isCellEditable(0, 3), "the usage count is computed, not typed")
+    }
+
+    @Test
     fun `the key column starts wider than a locale column`() {
         // AUTO_RESIZE_ALL_COLUMNS used to hand every column an equal share of the viewport, so
         // `common:navigation.menu.profile` got exactly as much room as `Usage`, and past four
