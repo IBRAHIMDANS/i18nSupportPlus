@@ -8,6 +8,8 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
+import com.intellij.util.concurrency.AppExecutorUtil
+import org.jetbrains.concurrency.CancellablePromise
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -18,8 +20,8 @@ import java.util.concurrent.atomic.AtomicReference
  *
  * It never scans anything itself, because it runs for every file the IDE writes. It answers
  * from a snapshot of the paths the last reload displayed, taken by [rememberDisplayedSources]
- * while `findAllSources` is still cached — asking the service from here would rescan the whole
- * project on every keystroke instead, since editing a file invalidates that cache.
+ * in the background — asking the service from here would rescan the whole project on every
+ * keystroke instead, since editing a file invalidates the `findAllSources` cache.
  *
  * A file absent from the snapshot only matches on a *structural* change — created, deleted,
  * moved or renamed — and only for a format a `Localization` declares. Those events are rare,
@@ -51,10 +53,17 @@ class TranslationSourceMatcher(private val project: Project) {
 
     /**
      * Records the translation files currently displayed, so a later content change can be
-     * recognised without scanning. Call right after a reload, while the scan is cached.
+     * recognised without scanning. Call right after a reload.
+     *
+     * The scan runs off the EDT: `findAllSources` walks the file-type index, which the platform
+     * forbids there as a slow operation, and both callers run on the EDT — the tool window
+     * factory and the debounced reload. The cache the scan was once assumed to hit is not warm
+     * at that point either, since the panels refresh on pooled threads. The snapshot is an
+     * atomic reference, so nothing needs to come back to the EDT; until it lands, the matcher
+     * answers from the previous one. A newer request cancels a pending one.
      */
-    fun rememberDisplayedSources() {
-        displayedPaths.set(ReadAction.compute<Set<String>, RuntimeException> {
+    fun rememberDisplayedSources(): CancellablePromise<Set<String>> =
+        ReadAction.nonBlocking<Set<String>> {
             project.service<LocalizationSourceService>().findAllSources(project)
                 .mapNotNull { source ->
                     source.tree?.value()
@@ -64,8 +73,12 @@ class TranslationSourceMatcher(private val project: Project) {
                         ?.path
                 }
                 .toSet()
-        })
-    }
+                .also { displayedPaths.set(it) }
+        }
+            .inSmartMode(project)
+            .expireWith(project)
+            .coalesceBy(this)
+            .submit(AppExecutorUtil.getAppExecutorService())
 
     /** Visible for tests: the snapshot the rule answers from. */
     internal fun displayedSourcePaths(): Set<String> = displayedPaths.get()

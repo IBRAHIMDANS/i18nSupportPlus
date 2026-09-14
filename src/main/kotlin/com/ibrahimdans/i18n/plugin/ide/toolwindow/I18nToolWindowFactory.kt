@@ -40,15 +40,13 @@ class I18nToolWindowFactory : ToolWindowFactory {
         content: Content
     ) {
         val matcher = TranslationSourceMatcher(project)
-        // The panel reloaded during its own init, so the scan is cached and this is free.
         matcher.rememberDisplayedSources()
 
         val watcher = TranslationChangeWatcher(
             isVisible = { toolWindow.isVisible },
             reload = {
                 panel.refresh()
-                // Cheap here too — refresh() just warmed the scan cache — and it is what
-                // lets the next content change be recognised, new files included.
+                // Lets the next content change be recognised, new files included.
                 matcher.rememberDisplayedSources()
             },
             scheduler = AlarmRefreshScheduler(content, TranslationChangeWatcher.DEFAULT_DEBOUNCE_MS)

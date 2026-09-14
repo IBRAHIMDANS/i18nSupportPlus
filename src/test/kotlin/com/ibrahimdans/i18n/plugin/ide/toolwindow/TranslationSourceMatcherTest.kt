@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.intellij.testFramework.PlatformTestUtil
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -16,7 +17,7 @@ class TranslationSourceMatcherTest : PlatformBaseTest() {
 
     private fun matcherSeededWith(vararg files: String): TranslationSourceMatcher {
         files.forEach { addFileToProject(it, """{"hello": "Bonjour"}""") }
-        return TranslationSourceMatcher(project).apply { rememberDisplayedSources() }
+        return TranslationSourceMatcher(project).apply { PlatformTestUtil.waitForPromise(rememberDisplayedSources()) }
     }
 
     @Test
@@ -24,7 +25,7 @@ class TranslationSourceMatcherTest : PlatformBaseTest() {
         val file = addFileToProject("locales/fr/common.json", """{"hello": "Bonjour"}""").virtualFile
         val matcher = TranslationSourceMatcher(project)
 
-        matcher.rememberDisplayedSources()
+        PlatformTestUtil.waitForPromise(matcher.rememberDisplayedSources())
 
         assertTrue(
             matcher.displayedSourcePaths().contains(file.path),
