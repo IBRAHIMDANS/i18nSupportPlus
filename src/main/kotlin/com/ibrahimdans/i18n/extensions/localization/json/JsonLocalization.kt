@@ -57,6 +57,16 @@ private class JsonContentGenerator: ContentGenerator {
     override fun getLanguage(): Language = JsonLanguage.INSTANCE
     override fun getDescription(): String = PluginBundle.getMessage("quickfix.create.json.translation.files")
     override fun isSuitable(element: PsiElement): Boolean = element is JsonObject
+    /**
+     * Adds `"key": value` to [item], a JSON object.
+     *
+     * The property goes in first and the comma joining it to its neighbour second. It used to
+     * be the other way round — comma after the last property, then the property after the
+     * comma — so anything failing between the two left the file with a dangling comma and no
+     * property: invalid JSON, and every key of that namespace unreadable in that locale. The
+     * property is the step that can fail (it is the one built from user text); once it is in,
+     * the comma joins two properties that both exist.
+     */
     override fun generateTranslationEntry(item: PsiElement, key: String, value: String) {
         val obj = item as JsonObject
         val generator = JsonElementGenerator(item.project)
@@ -65,19 +75,14 @@ private class JsonContentGenerator: ContentGenerator {
         if (props.isEmpty()) {
             obj.addAfter(keyValue, obj.findElementAt(0))
         } else {
-            val separator = generator.createComma()
-            val (element, anchor) = if (Settings.getInstance(item.project).extractSorted) {
-                val before = props.takeWhile {it.name < key}
-                if (before.isEmpty()) {
-                    Pair(separator, obj.addBefore(keyValue, props.first()))
-                } else {
-                    Pair(keyValue, obj.addAfter(separator, before.last()))
-                }
+            val before = if (Settings.getInstance(item.project).extractSorted) props.takeWhile { it.name < key } else props
+            if (before.isEmpty()) {
+                val inserted = obj.addBefore(keyValue, props.first())
+                obj.addAfter(generator.createComma(), inserted)
+            } else {
+                val inserted = obj.addAfter(keyValue, before.last())
+                obj.addBefore(generator.createComma(), inserted)
             }
-            else {
-                Pair(keyValue, obj.addAfter(separator, props.last()))
-            }
-            obj.addAfter(element, anchor)
         }
         // When the user keeps files alphabetically sorted, re-sort the whole file after each
         // insertion so the new key lands in order even if the file was not already sorted.
