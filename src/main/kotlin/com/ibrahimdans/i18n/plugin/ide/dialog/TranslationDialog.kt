@@ -11,6 +11,7 @@ import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.ValidationInfo
+import com.intellij.psi.PsiFile
 import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
@@ -60,7 +61,9 @@ enum class Mode { CREATE, EDIT }
 class TranslationDialog(
     private val project: Project,
     private val fullKey: FullKey,
-    private val mode: Mode = Mode.EDIT
+    private val mode: Mode = Mode.EDIT,
+    /** The code file the key is created from, when there is one: its module scopes the files offered. */
+    private val caller: PsiFile? = null,
 ) : DialogWrapper(project) {
 
     private val viewModel = DialogViewModel(project)
@@ -70,7 +73,25 @@ class TranslationDialog(
     private val variableWarnings = LinkedHashMap<LocalizationSource, JBLabel>()
     private val variableWarningRows = LinkedHashMap<LocalizationSource, Row>()
 
-    private val keyField = JBTextField(fullKey.source)
+    private val nsSeparator: String = Settings.getInstance(project).config().nsSeparator
+
+    /**
+     * Empty when the project stores flat keys: there is then nothing to split, and a dot inside
+     * a key is a character like any other rather than a level change.
+     */
+    private val keySeparator: String =
+        Settings.getInstance(project).config().let { if (it.usesFlatKeys()) "" else it.keySeparator }
+
+    /**
+     * What a CREATE dialog opens on — see [DialogViewModel.initialCreateState]. In EDIT mode
+     * the field shows the key whole and the namespace is the key's own.
+     */
+    private val initialNamespace: String? =
+        if (mode == Mode.CREATE) DialogViewModel.initialCreateState(fullKey, nsSeparator).first else null
+
+    private val keyField = JBTextField(
+        if (mode == Mode.CREATE) DialogViewModel.initialCreateState(fullKey, nsSeparator).second else fullKey.source
+    )
     private val keyStatusLabel = JBLabel()
     private val namespacePrefixLabel = JBLabel()
 
@@ -94,15 +115,6 @@ class TranslationDialog(
 
     /** Keys already defined under the selected namespace; refreshed together with the sources. */
     private var keysInNamespace: Set<String> = emptySet()
-
-    private val nsSeparator: String = Settings.getInstance(project).config().nsSeparator
-
-    /**
-     * Empty when the project stores flat keys: there is then nothing to split, and a dot inside
-     * a key is a character like any other rather than a level change.
-     */
-    private val keySeparator: String =
-        Settings.getInstance(project).config().let { if (it.usesFlatKeys()) "" else it.keySeparator }
 
     init {
         title =
@@ -154,7 +166,7 @@ class TranslationDialog(
         if (mode == Mode.CREATE) {
             val namespace = selectedNamespace()
             refreshSources(
-                if (namespace == null) emptyMap() else viewModel.loadSourcesForNamespace(namespace),
+                if (namespace == null) emptyMap() else viewModel.loadSourcesForNamespace(namespace, caller),
                 namespace
             )
         } else {
@@ -173,11 +185,14 @@ class TranslationDialog(
      * selection is the one the sources are first built for.
      */
     private fun namespaceComboBox(): JComboBox<String> {
-        val combo = JComboBox(viewModel.loadNamespaces().toTypedArray())
+        val namespaces = viewModel.loadNamespaces()
+        val combo = JComboBox(namespaces.toTypedArray())
         namespaceCombo = combo
+        // Selected before the listener is attached: the initial rows are built once, below.
+        if (initialNamespace in namespaces) combo.selectedItem = initialNamespace
         combo.addActionListener {
             val selected = combo.selectedItem as? String ?: return@addActionListener
-            refreshSources(viewModel.loadSourcesForNamespace(selected), selected)
+            refreshSources(viewModel.loadSourcesForNamespace(selected, caller), selected)
         }
         return combo
     }
@@ -214,7 +229,7 @@ class TranslationDialog(
             combo.selectedItem = input
             // Selecting an item the combo already held fires no event, so the refresh the
             // listener would have done is asked for explicitly.
-            refreshSources(viewModel.loadSourcesForNamespace(input), input)
+            refreshSources(viewModel.loadSourcesForNamespace(input, caller), input)
         }
         return addButton
     }

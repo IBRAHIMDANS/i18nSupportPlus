@@ -1,8 +1,8 @@
 package com.ibrahimdans.i18n.plugin.ide
 
 import com.ibrahimdans.i18n.Extensions
-import com.ibrahimdans.i18n.plugin.ide.quickfix.AllSourcesSelector
-import com.ibrahimdans.i18n.plugin.ide.quickfix.CreateKeyQuickFix
+import com.ibrahimdans.i18n.plugin.ide.quickfix.CreateKeyDialogQuickFix
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
@@ -117,11 +117,7 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
                     ?.let { it as? TextEditor }
                     ?.editor
                     ?: return@GutterIconNavigationHandler
-                CreateKeyQuickFix(
-                    fullKey,
-                    AllSourcesSelector(),
-                    "Create missing i18n key"
-                ).invoke(project, editor)
+                CreateKeyDialogQuickFix(fullKey, PluginBundle.getMessage("quickfix.create.key")).invoke(project, editor)
             }
         } else null
 

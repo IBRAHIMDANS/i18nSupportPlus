@@ -1,5 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.dialog
 
+import com.ibrahimdans.i18n.plugin.key.FullKey
+import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -207,5 +209,26 @@ class DialogViewModelRulesTest {
             "en",
             DialogViewModel.donorLocale(listOf("", "de", "en", "fr"), translations, setOf("en", "fr"))
         )
+    }
+
+    // ---- what the CREATE dialog opens on ----
+
+    private fun key(source: String, ns: String?, hook: List<String>? = null) =
+        FullKey(source = source, ns = ns?.let(::Literal), compositeKey = source.substringAfter(":").split(".").map(::Literal), namespaces = hook)
+
+    @Test
+    fun `a key written with its namespace opens on that namespace, the field without the prefix`() {
+        assertEquals("deposit-box" to "title", DialogViewModel.initialCreateState(key("deposit-box:title", "deposit-box"), ":"))
+    }
+
+    @Test
+    fun `a key under a hook namespace opens on the hook's`() {
+        assertEquals("auth" to "login.title", DialogViewModel.initialCreateState(key("login.title", null, listOf("auth", "common")), ":"))
+    }
+
+    @Test
+    fun `a key saying nothing opens as Add translation does`() {
+        assertEquals(null to "", DialogViewModel.initialCreateState(FullKey(source = "", ns = null, compositeKey = emptyList()), ":"))
+        assertEquals(null to "menu.home", DialogViewModel.initialCreateState(key("menu.home", null), ":"))
     }
 }
