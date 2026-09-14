@@ -8,6 +8,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
+import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.application.ApplicationManager
@@ -85,24 +86,29 @@ class KeysSynchronizer {
     // ── Internal helpers ──────────────────────────────────────────────────────
 
     /**
-     * Computes missing entries: for every (key, locale) pair where the key exists
-     * in at least one other locale but is absent in the target locale, it looks up
-     * the LocalizationSource that matches the target locale/namespace so we can write to it.
+     * Computes missing entries: for every key present in at least one locale and absent from
+     * another, the source matching the target locale and namespace to write it to.
+     *
+     * Plural forms are compared as a group ([PluralKey.groupForms]): a locale holding any form of
+     * `cart.item` has the plural, whatever categories its language uses, and a locale lacking the
+     * whole group receives `cart.item_other` alone — the one form every language defines. Comparing
+     * forms one by one proposed `cart.item_few` for English and `cart.item_one` for Japanese.
      */
-    private fun findMissingEntries(
+    internal fun findMissingEntries(
         allTranslations: Map<String, Map<String, String>>,
         allLocales: List<String>,
         allSources: List<LocalizationSource>
     ): List<MissingEntry> {
         val missing = mutableListOf<MissingEntry>()
 
-        for ((key, localeValues) in allTranslations) {
-            val presentLocales = localeValues.keys
+        for ((key, forms) in PluralKey.groupForms(allTranslations.keys)) {
+            val presentLocales = forms.flatMapTo(mutableSetOf()) { allTranslations[it].orEmpty().keys }
             val absentLocales = allLocales - presentLocales
+            val keyToCreate = if (forms.size == 1 && forms.single() == key) key else PluralKey.defaultForm(key)
 
             for (targetLocale in absentLocales) {
-                val source = findSourceForKeyAndLocale(key, targetLocale, allSources) ?: continue
-                missing.add(MissingEntry(key, targetLocale, source))
+                val source = findSourceForKeyAndLocale(keyToCreate, targetLocale, allSources) ?: continue
+                missing.add(MissingEntry(keyToCreate, targetLocale, source))
             }
         }
 
