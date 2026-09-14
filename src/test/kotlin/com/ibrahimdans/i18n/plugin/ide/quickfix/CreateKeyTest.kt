@@ -1,6 +1,9 @@
 package com.ibrahimdans.i18n.plugin.ide.quickfix
 
 import com.ibrahimdans.i18n.plugin.ide.launchActionAndWait
+import com.ibrahimdans.i18n.plugin.ide.runWithConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.JsCodeAndTranslationGeneratorsNs
 import com.ibrahimdans.i18n.plugin.utils.generator.code.CodeGenerator
@@ -51,6 +54,26 @@ class CreateKeyTest: PlatformBaseTest() {
             expectedEn(tg, "${ns}ref.section.missing"),
             false
         )
+    }
+
+    /** In a monorepo, the key is created in the module of the file it is written in, not in its neighbour. */
+    @Test
+    fun testCreateKeyInTheModuleOfTheFile() = myFixture.runWithConfig(Config(modules = listOf(
+        ModuleConfig(name = "web", rootDirectory = "apps/web"),
+        ModuleConfig(name = "admin", rootDirectory = "apps/admin"),
+    ))) {
+        val web = myFixture.addFileToProject("apps/web/locales/en/common.json", "{}")
+        val admin = myFixture.addFileToProject("apps/admin/locales/en/common.json", "{}")
+        val code = myFixture.addFileToProject("apps/admin/src/Page.js", "t('common:mis<caret>sing')")
+        myFixture.configureFromExistingVirtualFile(code.virtualFile)
+
+        val hint = "Create i18n key"
+        val action = myFixture.filterAvailableIntentions(hint).find { it.text == hint }!!
+        cancelTranslationValueDialog()
+        myFixture.launchActionAndWait(action)
+
+        assertTrue(admin.text.contains("\"missing\""), "the key must be created in admin: ${admin.text}")
+        assertTrue(web.text == "{}", "web's file must be left alone: ${web.text}")
     }
 
     @Test

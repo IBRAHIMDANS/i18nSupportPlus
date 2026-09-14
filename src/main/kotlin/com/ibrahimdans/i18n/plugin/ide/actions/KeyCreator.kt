@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
+import com.intellij.psi.PsiDocumentManager
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.ide.quickfix.CreateKeyQuickFix
 import com.ibrahimdans.i18n.plugin.ide.quickfix.CreateTranslationFileQuickFix
@@ -29,7 +30,11 @@ class KeyCreator {
      */
     fun createKey(project:Project, i18nKey: FullKey, source: String, editor:Editor, onComplete: () -> Unit) {
         ReadAction.nonBlocking<Boolean> {
-            project.service<LocalizationSourceService>().findSources(i18nKey.allNamespaces(), project).isNotEmpty()
+            // Asked in the caller's module, like the quick fix that writes the key.
+            val service = project.service<LocalizationSourceService>()
+            val caller = PsiDocumentManager.getInstance(project).getPsiFile(editor.document)
+            (if (caller != null) service.findSources(i18nKey.allNamespaces(), caller)
+            else service.findSources(i18nKey.allNamespaces(), project)).isNotEmpty()
         }
             .inSmartMode(project)
             .expireWith(project)
