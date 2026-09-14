@@ -18,6 +18,7 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.util.concurrency.AppExecutorUtil
 
@@ -51,7 +52,11 @@ class CreateKeyQuickFix(
             // operation: the read access it takes is fine, the thread is not. The lookup runs in
             // the background, and only the popup, dialog and writes come back to the EDT.
             ReadAction.nonBlocking<List<LocalizationSource>> {
-                project.service<LocalizationSourceService>().findSources(fullKey.allNamespaces(), project)
+                // In a monorepo, the key goes to the module of the file it is written in.
+                val service = project.service<LocalizationSourceService>()
+                val caller = PsiDocumentManager.getInstance(project).getPsiFile(editor.document)
+                if (caller != null) service.findSources(fullKey.allNamespaces(), caller)
+                else service.findSources(fullKey.allNamespaces(), project)
             }
                 .inSmartMode(project)
                 .expireWith(project)
