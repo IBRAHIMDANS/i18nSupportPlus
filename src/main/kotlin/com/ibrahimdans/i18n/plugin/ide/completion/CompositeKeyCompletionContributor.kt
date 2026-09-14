@@ -42,7 +42,7 @@ abstract class CompositeKeyCompletionContributor(private val lang: Lang): Comple
     }
 
     private fun emptyKeyCompletions(prefix: String, element: PsiElement): List<LookupElementBuilder> = findCompletions(
-        prefix, "", null, emptyList(), element
+        prefix, "", emptyList(), emptyList(), element
     )
 
     private fun groupPlurals(completions: List<String>, pluralSeparator: String): List<String> {
@@ -63,12 +63,15 @@ abstract class CompositeKeyCompletionContributor(private val lang: Lang): Comple
         fullKey.compositeKey.lastOrNull().nullableToList().flatMap { last ->
             val source = fullKey.source.replace(last.text, "")
             val prefix = last.text.replace(DUMMY_KEY, "")
-            findCompletions(prefix, source, fullKey.ns?.text, fullKey.compositeKey.dropLast(1), element)
+            // allNamespaces, not ns: a key written without one works in the namespaces its hook
+            // declares (`useTranslation('auth')`), exactly as the annotator resolves it. Asking for
+            // the explicit namespace alone offered the default namespace's keys — or every file's.
+            findCompletions(prefix, source, fullKey.allNamespaces(), fullKey.compositeKey.dropLast(1), element)
         }
 
-    private fun findCompletions(prefix: String, source: String, ns: String?, compositeKey: List<Literal>, element: PsiElement): List<LookupElementBuilder> {
+    private fun findCompletions(prefix: String, source: String, namespaces: List<String>, compositeKey: List<Literal>, element: PsiElement): List<LookupElementBuilder> {
         return groupPlurals(
-            element.project.service<LocalizationSourceService>().findSources(ns.nullableToList(), element.project).flatMap {
+            element.project.service<LocalizationSourceService>().findSources(namespaces, element.project).flatMap {
                 listCompositeKeyVariants(compositeKey, prefix, it).map { it.value().text.unQuote() }
             },
             Settings.getInstance(element.project).config().pluralSeparator
