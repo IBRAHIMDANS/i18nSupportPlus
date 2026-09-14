@@ -62,9 +62,11 @@ private val COLOR_COMPLETE = JBColor.namedColor("Label.successForeground", JBCol
 private val COLOR_EMPTY = JBColor.namedColor("Label.warningForeground", JBColor(Color(0xA1740B), Color(0xF2C55C)))
 private val COLOR_MISSING = JBColor.namedColor("Label.errorForeground", JBColor(Color(0xC7222D), Color(0xFF5261)))
 
+// ICON_EMPTY and ICON_MISSING are shared with the statistics tab's list of untranslated
+// keys, so an empty value wears the same mark in both places.
 private val ICON_COMPLETE: Icon = IconLoader.getIcon("/icons/gutter_resolved.svg", TreeViewPanel::class.java)
-private val ICON_EMPTY: Icon = IconLoader.getIcon("/icons/gutter_partial.svg", TreeViewPanel::class.java)
-private val ICON_MISSING: Icon = IconLoader.getIcon("/icons/gutter_missing.svg", TreeViewPanel::class.java)
+internal val ICON_EMPTY: Icon = IconLoader.getIcon("/icons/gutter_partial.svg", TreeViewPanel::class.java)
+internal val ICON_MISSING: Icon = IconLoader.getIcon("/icons/gutter_missing.svg", TreeViewPanel::class.java)
 
 private const val ACTION_EDIT = "i18n.tree.edit"
 private const val ACTION_OPEN_FILE = "i18n.tree.openFile"
