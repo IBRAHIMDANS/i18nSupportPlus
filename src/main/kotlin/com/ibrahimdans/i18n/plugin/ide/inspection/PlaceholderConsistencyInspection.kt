@@ -7,8 +7,8 @@ import com.intellij.json.psi.JsonProperty
 import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
+import com.intellij.openapi.project.DumbService
 import com.intellij.psi.PsiFile
-import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.yaml.psi.YAMLFile
 import org.jetbrains.yaml.psi.YAMLKeyValue
@@ -25,14 +25,19 @@ private fun extractPlaceholders(text: String): Set<String> =
 private fun isSyntacticallyValid(text: String): Boolean =
     !UNCLOSED_BRACE_REGEX.containsMatchIn(text) && !UNOPENED_BRACE_REGEX.containsMatchIn(text)
 
-private fun siblingFileTranslations(file: PsiFile, referenceName: String): Map<String, String> {
-    val dir = file.virtualFile?.parent ?: return emptyMap()
-    val refVFile = dir.findChild("$referenceName.json")
-        ?: dir.findChild("$referenceName.yaml")
-        ?: dir.findChild("$referenceName.yml")
-        ?: return emptyMap()
-    val refPsiFile = PsiManager.getInstance(file.project).findFile(refVFile) ?: return emptyMap()
-    return flattenTranslations(refPsiFile)
+/**
+ * The translations of the same namespace in the reference locale.
+ *
+ * Found through the source scan rather than as a sibling `en.json`: on `locales/fr/common.json` the
+ * reference is `locales/en/common.json`, which no sibling lookup could reach, so the inspection
+ * compared nothing on the most common i18next layout.
+ */
+private fun referenceTranslations(file: PsiFile): Map<String, String> {
+    val source = TranslationFileScope.sourceOf(file) ?: return emptyMap()
+    val referenceLocale = TranslationFileScope.referenceLocaleFor(file, source)
+    val reference = TranslationFileScope.counterpartOf(file, source, referenceLocale) ?: return emptyMap()
+    val referenceFile = reference.tree?.value()?.containingFile ?: return emptyMap()
+    return flattenTranslations(referenceFile)
 }
 
 private fun flattenTranslations(file: PsiFile): Map<String, String> {
@@ -105,8 +110,10 @@ class PlaceholderConsistencyInspection : LocalInspectionTool() {
     override fun getShortName(): String = "I18nPlaceholderConsistency"
 
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
+        if (DumbService.isDumb(holder.project)) return PsiElementVisitor.EMPTY_VISITOR
         val file = holder.file
-        val refTranslations: Map<String, String> by lazy { siblingFileTranslations(file, "en") }
+        if (TranslationFileScope.sourceOf(file) == null) return PsiElementVisitor.EMPTY_VISITOR
+        val refTranslations: Map<String, String> by lazy { referenceTranslations(file) }
 
         return object : PsiElementVisitor() {
             override fun visitElement(element: PsiElement) {
