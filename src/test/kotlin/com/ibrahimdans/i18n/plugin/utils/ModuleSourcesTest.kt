@@ -6,8 +6,11 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.intellij.openapi.components.service
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Test
 
 /**
@@ -45,5 +48,52 @@ class ModuleSourcesTest : PlatformBaseTest() {
         assertEquals(1, sources.size, "a template file must be scanned even though `english` is no ISO code")
         assertEquals("english", sources.single().localeLabel())
         assertEquals(Config().defaultNs, TranslationDataLoader.extractNamespace(sources.single()))
+    }
+
+    private val monorepo = Config(modules = listOf(
+        ModuleConfig(name = "web", rootDirectory = "apps/web"),
+        ModuleConfig(name = "admin", rootDirectory = "apps/admin"),
+        ModuleConfig(name = "mobile", rootDirectory = "apps/mobile"),
+    ))
+
+    private fun addMonorepoTranslations() {
+        myFixture.addFileToProject("apps/web/locales/en/common.json", """{"title": "Web"}""")
+        myFixture.addFileToProject("apps/admin/locales/en/common.json", """{"menu": "Admin"}""")
+    }
+
+    private fun sourcePathsFor(codePath: String): List<String> {
+        val code = myFixture.addFileToProject(codePath, "t('common:title')")
+        return project.service<LocalizationSourceService>().findSources(listOf("common"), code).map { it.displayPath }
+    }
+
+    /** Two modules owning a `common` namespace: each code file sees its own module's file only. */
+    @Test
+    fun aKeyResolvesInTheModuleOfItsFile() = myFixture.runWithConfig(monorepo) {
+        addMonorepoTranslations()
+
+        assertTrue(sourcePathsFor("apps/web/src/Home.js").single().endsWith("apps/web/locales/en/common.json"))
+        assertTrue(sourcePathsFor("apps/admin/src/Menu.js").single().endsWith("apps/admin/locales/en/common.json"))
+    }
+
+    /** Outside any module, or in a module whose translations live elsewhere, the whole project answers. */
+    @Test
+    fun aFileInNoModuleOrInAModuleWithoutTranslationsSeesTheProject() = myFixture.runWithConfig(monorepo) {
+        addMonorepoTranslations()
+
+        assertEquals(2, sourcePathsFor("scripts/build.js").size)
+        assertEquals(2, sourcePathsFor("apps/mobile/src/App.js").size)
+    }
+
+    /** The annotator goes through the module: a key only the other module defines is unresolved. */
+    @Test
+    fun aKeyOnlyAnotherModuleDefinesIsReportedUnresolved() = myFixture.runWithConfig(monorepo) {
+        addMonorepoTranslations()
+        val unresolved = PluginBundle.getMessage("annotator.unresolved.key")
+
+        myFixture.configureFromExistingVirtualFile(myFixture.addFileToProject("apps/admin/src/Page.js", "t('common:title')").virtualFile)
+        assertTrue(myFixture.doHighlighting().mapNotNull { it.description }.contains(unresolved), "admin defines no common:title")
+
+        myFixture.configureFromExistingVirtualFile(myFixture.addFileToProject("apps/web/src/Page.js", "t('common:title')").virtualFile)
+        assertFalse(myFixture.doHighlighting().mapNotNull { it.description }.contains(unresolved), "web defines common:title")
     }
 }
