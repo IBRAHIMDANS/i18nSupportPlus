@@ -201,6 +201,8 @@ class TranslationStatsAnalyzerTest {
         // The total row is the per-locale coverage the tab used to show alone.
         assertEquals(75.0, report.total.of("fr")!!.percent)
         assertNull(report.total.of("de"), "a locale the project does not have")
+        // The popup shows what a missing key says in the reference locale.
+        assertEquals("Save", report.translations["common:save"]?.get("en"))
     }
 
     @Test

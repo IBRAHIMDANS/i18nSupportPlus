@@ -54,7 +54,13 @@ data class NamespaceStats(
  * missing 4% sat: with five namespaces, finding the one dragging a language down meant
  * opening the list of missing keys and reading its prefixes.
  */
-data class CoverageReport(val locales: List<String>, val total: NamespaceStats, val namespaces: List<NamespaceStats>) {
+data class CoverageReport(
+    val locales: List<String>,
+    val total: NamespaceStats,
+    val namespaces: List<NamespaceStats>,
+    /** The values the report was computed from, key -> locale -> value: what a missing key says in another locale. */
+    val translations: Map<String, Map<String, String>> = emptyMap(),
+) {
     val rows: List<NamespaceStats> get() = if (namespaces.size > 1) listOf(total) + namespaces else namespaces
 }
 
@@ -133,7 +139,7 @@ object TranslationStatsAnalyzer {
                 NamespaceStats(group, PluralKey.groupForms(keys.keys).size, analyze(keys, locales))
             }
             .sortedWith(compareBy<NamespaceStats> { it.group !is NamespaceFilter.Default }.thenBy { it.group?.label })
-        return CoverageReport(locales, total, namespaces)
+        return CoverageReport(locales, total, namespaces, allTranslations)
     }
 
     private fun localesOf(allTranslations: Map<String, Map<String, String>>): List<String> =

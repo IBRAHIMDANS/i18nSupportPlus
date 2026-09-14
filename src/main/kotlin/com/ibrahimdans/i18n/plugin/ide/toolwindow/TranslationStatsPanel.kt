@@ -1,5 +1,8 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
+import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
+import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
@@ -8,7 +11,6 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader.extractN
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
-import com.intellij.ide.DataManager
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
@@ -18,6 +20,8 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.JBColor
+import com.intellij.ui.ListSpeedSearch
+import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
@@ -30,6 +34,7 @@ import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.Font
 import java.awt.Graphics
+import java.awt.Point
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
@@ -58,6 +63,14 @@ private const val PERCENT_AREA_WIDTH = 60
 
 /** Unscaled inset of a locale cell's contents; the bar and the count start there. */
 private const val CELL_INSET = 4
+
+/** Bounds of the popup listing untranslated keys, unscaled pixels; rows beyond the max scroll. */
+private const val POPUP_MAX_ROWS = 12
+private const val POPUP_MIN_WIDTH = 320
+private const val POPUP_MAX_WIDTH = 720
+private const val POPUP_PADDING = 24
+/** Title bar plus hint line of the popup, added to the list's own height. */
+private const val POPUP_CHROME_HEIGHT = 56
 
 /** Unscaled preferred widths of the Namespace and Keys columns; the locales share the rest. */
 private const val NAMESPACE_COLUMN_WIDTH = 180
@@ -128,9 +141,11 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
         table.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 val row = table.rowAtPoint(e.point)
-                val cell = cellAt(row, table.columnAtPoint(e.point)) ?: return
+                val column = table.columnAtPoint(e.point)
+                val cell = cellAt(row, column) ?: return
                 if (cell.untranslated == 0) return
-                showMissingKeysPopup(rowLabel(row), cell)
+                val rect = table.getCellRect(row, column, true)
+                showMissingKeysPopup(rowLabel(row), cell, RelativePoint(table, Point(rect.x, rect.y + rect.height)))
             }
         })
         // Hand cursor over drillable cells, so the click affordance is visible.
@@ -236,23 +251,35 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
     private data class UntranslatedKey(val key: String, val state: LocaleState)
 
     /**
-     * Shows a popup listing the untranslated keys of [cell] — one namespace in one locale, or
-     * the whole locale from the total row — the missing ones first, then the empty ones, each
-     * wearing the tree's mark for its state. Clicking a key, or pressing Enter on it,
-     * navigates to it in the reference locale file (the locale with the highest coverage).
+     * Shows, under the clicked cell, the untranslated keys of [cell] — one namespace in one
+     * locale, or the whole locale from the total row — the missing ones first, then the empty
+     * ones, each wearing the tree's mark for its state and what the key says in the reference
+     * locale (the one with the highest coverage), which is what the translator needs to read.
+     *
+     * Enter or a click opens the translation dialog on the key, the one way to *fix* what
+     * the popup lists; F4 opens the reference file at the key instead. The popup used to open
+     * far from the cell, at a fixed 480×320 for two lines, and its only gesture led to the
+     * reference file — reading the gap rather than closing it.
      */
-    private fun showMissingKeysPopup(rowLabel: String, cell: LocaleStats) {
+    private fun showMissingKeysPopup(rowLabel: String, cell: LocaleStats, at: RelativePoint) {
         val referenceLocale = selectReferenceLocale(report?.total?.byLocale.orEmpty()) ?: return
+        val translations = report?.translations.orEmpty()
 
         val listModel = DefaultListModel<UntranslatedKey>()
         cell.missingKeys.forEach { listModel.addElement(UntranslatedKey(it, LocaleState.MISSING)) }
         cell.emptyKeys.forEach { listModel.addElement(UntranslatedKey(it, LocaleState.EMPTY)) }
         val list = JBList(listModel)
         list.selectionMode = ListSelectionModel.SINGLE_SELECTION
+        list.visibleRowCount = listModel.size.coerceIn(1, POPUP_MAX_ROWS)
         list.cellRenderer = object : ColoredListCellRenderer<UntranslatedKey>() {
             override fun customizeCellRenderer(list: JList<out UntranslatedKey>, value: UntranslatedKey, index: Int, selected: Boolean, hasFocus: Boolean) {
                 icon = if (value.state == LocaleState.EMPTY) ICON_EMPTY else ICON_MISSING
                 append(value.key)
+                val reference = translations[value.key]?.get(referenceLocale)
+                if (!reference.isNullOrBlank()) {
+                    append("  ")
+                    append(displayValue(reference), SimpleTextAttributes.GRAYED_ATTRIBUTES)
+                }
                 append("  ")
                 append(
                     PluginBundle.message(if (value.state == LocaleState.EMPTY) "toolwindow.tree.status.empty" else "toolwindow.tree.status.missing"),
@@ -260,36 +287,66 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
                 )
             }
         }
+        ListSpeedSearch.installOn(list) { it.key }
 
-        val navigate = { list.selectedValue?.let { navigateToKeyInReferenceFile(it.key, referenceLocale) } }
-        list.addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                navigate()
-            }
-        })
-        // The popup takes the focus, so the keyboard must lead somewhere too.
-        list.addKeyListener(object : KeyAdapter() {
-            override fun keyPressed(e: KeyEvent) {
-                if (e.keyCode == KeyEvent.VK_ENTER) navigate()
-            }
-        })
-
-        val scrollPane = JScrollPane(list)
-        scrollPane.preferredSize = Dimension(480, 320)
-
-        JBPopupFactory.getInstance()
-            .createComponentPopupBuilder(scrollPane, list)
+        val popup = JBPopupFactory.getInstance()
+            .createComponentPopupBuilder(JScrollPane(list), list)
             .setTitle(
                 PluginBundle.message(
                     "toolwindow.stats.missing.popup.title",
                     rowLabel, cell.locale, cell.missing, cell.empty, referenceLocale
                 )
             )
+            .setAdText(PluginBundle.message("toolwindow.stats.missing.popup.hint", referenceLocale))
             .setResizable(true)
             .setMovable(true)
             .setRequestFocus(true)
             .createPopup()
-            .showInBestPositionFor(DataManager.getInstance().getDataContext(table))
+
+        val translate = {
+            list.selectedValue?.let { chosen ->
+                popup.cancel()
+                editTranslation(chosen.key)
+            }
+        }
+        val reference = {
+            list.selectedValue?.let { chosen ->
+                popup.cancel()
+                navigateToKeyInReferenceFile(chosen.key, referenceLocale)
+            }
+        }
+        list.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (e.button == MouseEvent.BUTTON1 && list.locationToIndex(e.point) >= 0) translate()
+            }
+        })
+        list.addKeyListener(object : KeyAdapter() {
+            override fun keyPressed(e: KeyEvent) {
+                when (e.keyCode) {
+                    KeyEvent.VK_ENTER -> translate()
+                    KeyEvent.VK_F4 -> reference()
+                }
+            }
+        })
+        list.selectedIndex = 0
+
+        // Under the cell, sized to its lines: the popup is an annotation of the cell, not a window.
+        val preferred = list.preferredScrollableViewportSize
+        popup.size = Dimension(
+            (preferred.width + JBUI.scale(POPUP_PADDING)).coerceIn(JBUI.scale(POPUP_MIN_WIDTH), JBUI.scale(POPUP_MAX_WIDTH)),
+            preferred.height + JBUI.scale(POPUP_CHROME_HEIGHT)
+        )
+        popup.show(at)
+    }
+
+    /** One line of [value], so a multi-line reference does not stretch the popup. */
+    private fun displayValue(value: String): String =
+        value.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" ")
+
+    /** Opens the translation dialog on [key] and reloads the tab once a value is written. */
+    private fun editTranslation(key: String) {
+        val fullKey = KeysSynchronizer().buildFullKey(key, Settings.getInstance(project).config())
+        if (TranslationDialog(project, fullKey, Mode.EDIT).showAndGet()) refresh()
     }
 
     /**
