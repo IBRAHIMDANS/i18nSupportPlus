@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+- [Folding] Stop folded keys from **expanding back until the next keystroke**. The folding builder shared, across calls on a document, the set of ranges it had already folded, and only reset it when the document changed — so any pass replayed without an edit (a daemon restart, turning *Show Translations Inline* on) found every range already claimed and returned no region. The set is now local to a single pass
+- [Inlay hints] Stop inlay hints from **disappearing until the next keystroke**, for the same reason: a document cache of offsets that had received a hint, reset only on edit. The duplicate it was hiding within a pass — a literal expression and its string token both producing a hint at the same offset — is now filtered without any state
+- [Folding / Inlay hints] Show translations for the **one file per locale** layout (`locales/en.json`). Both compared the preferred language to the translation file's parent directory, which is `locales` there, so no file ever matched; they now read the locale the way the rest of the plugin does
+
 ## 1.3.3 - 2026-09-14
 
 ### Features

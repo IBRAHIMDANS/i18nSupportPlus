@@ -12,6 +12,7 @@ import com.ibrahimdans.i18n.plugin.tree.PropertyReference
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ellipsis
+import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.ibrahimdans.i18n.plugin.utils.renderIcu
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.lang.ASTNode
@@ -21,11 +22,8 @@ import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.project.DumbAware
-import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
-import java.util.Collections
-import java.util.concurrent.ConcurrentHashMap
 
 internal data class ElementToReferenceBinding(val psiElement: PsiElement, val reference: PropertyReference)
 
@@ -33,14 +31,6 @@ internal data class ElementToReferenceBinding(val psiElement: PsiElement, val re
  * Provides folding mechanism for i18n keys
  */
 abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), DumbAware, CompositeKeyResolver<PsiElement> {
-
-    companion object {
-        // Tracks TextRanges already claimed by a previous builder call for the same host document.
-        // Prevents duplicate folding descriptors when multiple language builders (TypeScript, JavaScript,
-        // TypeScript JSX, Vue) are each invoked by IntelliJ for the same underlying content.
-        // The Long is the document modificationStamp so the set is invalidated on each edit.
-        private val FOLDING_CACHE_KEY = Key.create<Pair<Long, MutableSet<TextRange>>>("i18n.folding.cache")
-    }
 
     override fun getPlaceholderText(node: ASTNode): String? = ""
 
@@ -50,9 +40,12 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
         val foldingProvider = lang.foldingProvider()
         val injectionManager = InjectedLanguageManager.getInstance(root.project)
 
-        // Resolve the host document to share the claimed-ranges set across all language builder calls
-        val hostDoc = injectionManager.getTopLevelFile(root).viewProvider.document ?: document
-        val processedRanges = getOrResetProcessedRanges(hostDoc)
+        // Local to this call on purpose. A set shared across calls on the document, invalidated
+        // only when it was edited, emptied every pass replayed without an edit (daemon restart,
+        // toggling folding on): all ranges were already claimed and no region came back.
+        // Folding builders are looked up per exact language, so the three declarations in
+        // plugin.xml never run on the same file; only one call's own repeats need filtering.
+        val processedRanges = mutableSetOf<TextRange>()
 
         return foldingProvider.collectContainers(root)
             .flatMap { container ->
@@ -68,7 +61,7 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
                         ?.let { key -> resolve(container, literal, config, key) }
                         ?.let { resolved ->
                             val foldRange = foldingProvider.getFoldingRange(container, offset, resolved.psiElement)
-                            // Skip if another language builder already claimed this range
+                            // The same call can meet a range twice (e.g. through an injection host)
                             if (!processedRanges.add(foldRange)) return@mapNotNull null
                             // For injected elements (e.g. JS inside Vue <template>), use the injection host's node
                             val node = if (injectionManager.getTopLevelFile(container) !== container.containingFile) {
@@ -86,23 +79,12 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
             .toTypedArray()
     }
 
-    private fun getOrResetProcessedRanges(document: Document): MutableSet<TextRange> {
-        synchronized(document) {
-            val modStamp = document.modificationStamp
-            val cached = document.getUserData(FOLDING_CACHE_KEY)
-            if (cached != null && cached.first == modStamp) return cached.second
-            val newSet: MutableSet<TextRange> = Collections.newSetFromMap(ConcurrentHashMap())
-            document.putUserData(FOLDING_CACHE_KEY, Pair(modStamp, newSet))
-            return newSet
-        }
-    }
-
     private fun resolve(container: PsiElement, element: PsiElement, config: Config, fullKey: FullKey): ElementToReferenceBinding? {
         return element.project.service<LocalizationSourceService>()
             .findSources(fullKey.allNamespaces(), container.project)
-            .filter {
-                it.parent == config.foldingPreferredLanguage
-            }
+            // Through localeLabel, not the parent directory: `locales/en.json` has `locales` as its
+            // parent, so the "one file per locale" layout never matched and got no folding at all.
+            .filter { it.localeLabel() == config.foldingPreferredLanguage }
             .mapNotNull { resolveCompositeKey(fullKey.compositeKey, it) }
             // A nested plural group holds no value of its own but is displayed through its
             // representative branch, so `isLeaf` is not the test — PluralGroup is.
