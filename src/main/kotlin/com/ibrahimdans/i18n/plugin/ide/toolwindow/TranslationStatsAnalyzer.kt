@@ -7,8 +7,11 @@ import com.intellij.openapi.project.Project
 /**
  * Statistics for a single locale.
  * [total] is the union of all keys across all locales.
- * [translated] is the number of non-empty values for this locale.
- * [missingKeys] is the list of key names absent or blank for this locale.
+ * [translated] is the number of non-blank values for this locale.
+ * [missing] and [missingKeys] are the keys this locale does not carry at all; [empty] and
+ * [emptyKeys] the ones it carries with a blank value. The two used to be folded into one
+ * count while the tree told them apart (`✗` against `!`): `3 missing` here next to two `✗`
+ * and one `!` there did not add up for a reader.
  */
 data class LocaleStats(
     val locale: String,
@@ -16,8 +19,13 @@ data class LocaleStats(
     val translated: Int,
     val missing: Int,
     val percent: Double,
-    val missingKeys: List<String> = emptyList()
-)
+    val missingKeys: List<String> = emptyList(),
+    val empty: Int = 0,
+    val emptyKeys: List<String> = emptyList(),
+) {
+    /** Keys that are not translated, whichever way: absent or blank. */
+    val untranslated: Int get() = missing + empty
+}
 
 /**
  * Coverage of one row of the statistics table: the keys of one namespace group, or of the
@@ -89,11 +97,13 @@ object TranslationStatsAnalyzer {
         if (totalKeys == 0) return emptyList()
 
         return locales.map { locale ->
-            val missingKeys = groups.values
-                .filter { forms -> forms.all { allTranslations[it]?.get(locale).isNullOrBlank() } }
-                .map { forms -> forms.sorted().first() }
-                .sorted()
-            val translated = totalKeys - missingKeys.size
+            // A group is translated by any non-blank form, empty when it only has blank ones,
+            // missing when the locale carries none of its forms.
+            val untranslated = groups.values.filter { forms -> forms.none { !allTranslations[it]?.get(locale).isNullOrBlank() } }
+            val (emptyGroups, missingGroups) = untranslated.partition { forms -> forms.any { allTranslations[it]?.get(locale) != null } }
+            val missingKeys = missingGroups.map { forms -> forms.sorted().first() }.sorted()
+            val emptyKeys = emptyGroups.map { forms -> forms.sorted().first() }.sorted()
+            val translated = totalKeys - missingKeys.size - emptyKeys.size
             val percent = translated.toDouble() / totalKeys * 100.0
             LocaleStats(
                 locale = locale,
@@ -101,7 +111,9 @@ object TranslationStatsAnalyzer {
                 translated = translated,
                 missing = missingKeys.size,
                 percent = percent,
-                missingKeys = missingKeys
+                missingKeys = missingKeys,
+                empty = emptyKeys.size,
+                emptyKeys = emptyKeys,
             )
         }
     }

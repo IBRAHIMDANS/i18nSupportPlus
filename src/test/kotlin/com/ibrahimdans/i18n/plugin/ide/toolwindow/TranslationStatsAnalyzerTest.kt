@@ -56,10 +56,9 @@ class TranslationStatsAnalyzerTest {
         val result = TranslationStatsAnalyzer.analyze(project)
         val frStats = result.first { it.locale == "fr" }
 
-        assertEquals(2, frStats.missing)
-        assertTrue(frStats.missingKeys.contains("common.delete"))
-        assertTrue(frStats.missingKeys.contains("common.cancel"))
-        assertFalse(frStats.missingKeys.contains("common.save"))
+        assertEquals(2, frStats.untranslated)
+        assertEquals(listOf("common.delete"), frStats.missingKeys)
+        assertEquals(listOf("common.cancel"), frStats.emptyKeys)
     }
 
     @Test
@@ -128,16 +127,36 @@ class TranslationStatsAnalyzerTest {
     }
 
     @Test
-    fun `analyze treats blank value as missing`() {
+    fun `analyze counts a blank value as empty, not as missing, and neither as translated`() {
         every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
-            "key" to mapOf("en" to "Hello", "fr" to "   ")
+            "blank" to mapOf("en" to "Hello", "fr" to "   "),
+            "absent" to mapOf("en" to "Bye"),
+            "done" to mapOf("en" to "Ok", "fr" to "Ok"),
         )
 
-        val result = TranslationStatsAnalyzer.analyze(project)
-        val frStats = result.first { it.locale == "fr" }
+        val frStats = TranslationStatsAnalyzer.analyze(project).first { it.locale == "fr" }
 
+        assertEquals(1, frStats.translated)
+        assertEquals(1, frStats.empty)
+        assertEquals(listOf("blank"), frStats.emptyKeys)
         assertEquals(1, frStats.missing)
-        assertTrue(frStats.missingKeys.contains("key"))
+        assertEquals(listOf("absent"), frStats.missingKeys)
+        assertEquals(2, frStats.untranslated)
+        assertEquals(100.0 / 3, frStats.percent, 0.01)
+    }
+
+    @Test
+    fun `a plural group is empty only when every form it carries is blank`() {
+        val stats = TranslationStatsAnalyzer.analyze(mapOf(
+            "item_one" to mapOf("en" to "item", "fr" to ""),
+            "item_other" to mapOf("en" to "items", "fr" to "éléments"),
+            "box_one" to mapOf("en" to "box", "fr" to ""),
+            "box_other" to mapOf("en" to "boxes", "fr" to " "),
+        )).first { it.locale == "fr" }
+
+        assertEquals(1, stats.translated, "item has a non-blank form")
+        assertEquals(listOf("box_one"), stats.emptyKeys)
+        assertEquals(0, stats.missing)
     }
 
     @Test

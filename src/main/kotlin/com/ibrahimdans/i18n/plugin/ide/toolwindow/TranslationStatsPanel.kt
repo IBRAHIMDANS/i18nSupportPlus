@@ -16,7 +16,9 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
+import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.JBColor
+import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import com.intellij.ui.table.JBTable
@@ -34,6 +36,7 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.text.DecimalFormat
 import javax.swing.DefaultListModel
+import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JTable
@@ -94,7 +97,7 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
     private val table = object : JBTable(tableModel) {
         override fun getToolTipText(e: MouseEvent): String? {
             val cell = cellAt(rowAtPoint(e.point), columnAtPoint(e.point)) ?: return null
-            return if (cell.missing > 0) PluginBundle.message("toolwindow.stats.cell.tooltip.missing", cell.translated, cell.total, cell.missing)
+            return if (cell.untranslated > 0) PluginBundle.message("toolwindow.stats.cell.tooltip.missing", cell.translated, cell.total, cell.missing, cell.empty)
             else PluginBundle.message("toolwindow.stats.cell.tooltip.complete", cell.total)
         }
     }
@@ -110,7 +113,7 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
             override fun mouseClicked(e: MouseEvent) {
                 val row = table.rowAtPoint(e.point)
                 val cell = cellAt(row, table.columnAtPoint(e.point)) ?: return
-                if (cell.missing == 0) return
+                if (cell.untranslated == 0) return
                 showMissingKeysPopup(rowLabel(row), cell)
             }
         })
@@ -118,7 +121,7 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
         table.addMouseMotionListener(object : MouseAdapter() {
             override fun mouseMoved(e: MouseEvent) {
                 val cell = cellAt(table.rowAtPoint(e.point), table.columnAtPoint(e.point))
-                table.cursor = if (cell != null && cell.missing > 0)
+                table.cursor = if (cell != null && cell.untranslated > 0)
                     Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
                 else
                     Cursor.getDefaultCursor()
@@ -194,20 +197,36 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
     private fun rowLabel(row: NamespaceStats): String =
         row.group?.label ?: PluginBundle.message("toolwindow.stats.row.total")
 
+    /** One line of the popup: a key the locale lacks ([LocaleState.MISSING]) or leaves blank ([LocaleState.EMPTY]). */
+    private data class UntranslatedKey(val key: String, val state: LocaleState)
+
     /**
-     * Shows a popup listing the missing keys of [cell] — one namespace in one locale, or the
-     * whole locale from the total row. Clicking a key, or pressing Enter on it, navigates to
-     * it in the reference locale file (the locale with the highest translation coverage).
+     * Shows a popup listing the untranslated keys of [cell] — one namespace in one locale, or
+     * the whole locale from the total row — the missing ones first, then the empty ones, each
+     * wearing the tree's mark for its state. Clicking a key, or pressing Enter on it,
+     * navigates to it in the reference locale file (the locale with the highest coverage).
      */
     private fun showMissingKeysPopup(rowLabel: String, cell: LocaleStats) {
         val referenceLocale = selectReferenceLocale(report?.total?.byLocale.orEmpty()) ?: return
 
-        val listModel = DefaultListModel<String>()
-        cell.missingKeys.forEach { listModel.addElement(it) }
+        val listModel = DefaultListModel<UntranslatedKey>()
+        cell.missingKeys.forEach { listModel.addElement(UntranslatedKey(it, LocaleState.MISSING)) }
+        cell.emptyKeys.forEach { listModel.addElement(UntranslatedKey(it, LocaleState.EMPTY)) }
         val list = JBList(listModel)
         list.selectionMode = ListSelectionModel.SINGLE_SELECTION
+        list.cellRenderer = object : ColoredListCellRenderer<UntranslatedKey>() {
+            override fun customizeCellRenderer(list: JList<out UntranslatedKey>, value: UntranslatedKey, index: Int, selected: Boolean, hasFocus: Boolean) {
+                icon = if (value.state == LocaleState.EMPTY) ICON_EMPTY else ICON_MISSING
+                append(value.key)
+                append("  ")
+                append(
+                    PluginBundle.message(if (value.state == LocaleState.EMPTY) "toolwindow.tree.status.empty" else "toolwindow.tree.status.missing"),
+                    SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES
+                )
+            }
+        }
 
-        val navigate = { list.selectedValue?.let { navigateToKeyInReferenceFile(it, referenceLocale) } }
+        val navigate = { list.selectedValue?.let { navigateToKeyInReferenceFile(it.key, referenceLocale) } }
         list.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 navigate()
@@ -228,7 +247,7 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
             .setTitle(
                 PluginBundle.message(
                     "toolwindow.stats.missing.popup.title",
-                    rowLabel, cell.locale, cell.missing, referenceLocale
+                    rowLabel, cell.locale, cell.missing, cell.empty, referenceLocale
                 )
             )
             .setResizable(true)
