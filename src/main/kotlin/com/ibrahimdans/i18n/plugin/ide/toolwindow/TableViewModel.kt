@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
@@ -7,10 +8,12 @@ import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumula
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.tree.Separators
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
+import com.intellij.psi.PsiElement
 import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.UsageSearchContext
 
@@ -294,16 +297,74 @@ class TableViewModel {
             row.copy(usageCount = accumulator.entries().distinct().size)
         }
 
+        // A key written under a hook's key prefix names only its tail at the call site, which the
+        // text scan never matches: count those before anything is declared an orphan.
+        val prefixed = countPrefixedUsages(project, counted.filter { it.usageCount == 0 }.map { it.key }, config)
+        val withPrefixed = if (prefixed.isEmpty()) counted
+            else counted.map { row -> prefixed[row.key]?.let { row.copy(usageCount = it) } ?: row }
+
         // Only what the text scan left at zero can be reached dynamically, and asking on
         // behalf of the whole batch is what keeps this to one search per distinct prefix.
-        val orphanKeys = counted.filter { it.usageCount == 0 }.map { it.key }
+        val orphanKeys = withPrefixed.filter { it.usageCount == 0 }.map { it.key }
         val reached = DynamicKeyUsages.reachedKeys(
             orphanKeys, searchScope, searchHelper, config.nsSeparator, config.keySeparator,
         )
-        if (reached.isEmpty()) return counted
-        return counted.map { row ->
+        if (reached.isEmpty()) return withPrefixed
+        return withPrefixed.map { row ->
             if (row.key in reached) row.copy(usageCount = DYNAMIC_USAGE) else row
         }
+    }
+
+    /**
+     * Usages of [keys] through a hook key prefix — react-i18next's `keyPrefix`, next-intl's
+     * `useTranslations('Home')` — keyed by the keys found, absent ones left out.
+     *
+     * The call site writes only the key's last levels (`t('title')` for `header.title`), so the
+     * last segment is searched as a word, and a literal counts only when the key it resolves to —
+     * extracted and parsed the way the annotator does, prefix applied — has exactly this path and
+     * works in this key's namespace. Literals without a prefix are left to the text scan, which
+     * already counted them: counting them here too would double every usage.
+     */
+    internal fun countPrefixedUsages(project: Project, keys: List<String>, config: Config): Map<String, Int> {
+        if (keys.isEmpty()) return emptyMap()
+        val defaultNamespaces = config.defaultNamespaces()
+        val languages = Extensions.LANG.extensionList
+        val parser = RawKeyParser(project)
+        val found = mutableMapOf<String, MutableSet<PsiElement>>()
+
+        val byWord = keys.groupBy { key ->
+            KeySpelling.segmentsOf(PluralKey.stripSuffix(key, config.pluralSeparator), config).last()
+        }
+        for ((word, wordKeys) in byWord) {
+            if (word.isBlank()) continue
+            val wanted = wordKeys.associateWith { key ->
+                KeySpelling.segmentsOf(PluralKey.stripSuffix(key, config.pluralSeparator), config)
+            }
+            PsiSearchHelper.getInstance(project).processElementsWithWord(
+                { element, _ ->
+                    val literal = languages.firstNotNullOfOrNull { it.resolveLiteral(element) } ?: return@processElementsWithWord true
+                    val fullKey = languages.firstNotNullOfOrNull { it.extractRawKey(literal) }
+                        ?.let { parser.parse(it) }
+                        ?.takeIf { it.keyPrefix.isNotEmpty() }
+                        ?: return@processElementsWithWord true
+                    val path = fullKey.compositeKey.map { it.text }
+                    val namespaces = fullKey.allNamespaces()
+                    for ((key, segments) in wanted) {
+                        if (path != segments) continue
+                        val namespace = KeySpelling.namespaceOf(key)
+                        val inNamespace = if (namespace == null) namespaces.isEmpty() || namespaces.any { it in defaultNamespaces }
+                            else namespaces.isEmpty() || namespace in namespaces
+                        if (inNamespace) found.getOrPut(key) { mutableSetOf() } += literal
+                    }
+                    true
+                },
+                config.searchScope(project),
+                word,
+                UsageSearchContext.ANY,
+                true
+            )
+        }
+        return found.mapValues { it.value.size }
     }
 
     /** What [countUsages] searches the sources for, on behalf of one key. */
