@@ -134,4 +134,25 @@ class I18nInlayHintsProviderTest : PlatformBaseTest() {
         assertTrue(hint.contains("Hello"), "The preferred language must be shown: $hint")
         assertFalse(hint.contains("Bonjour"), "Another locale must not be shown: $hint")
     }
+
+    /**
+     * The daemon replays the inlay pass without any edit. A document cache of offsets, invalidated
+     * only on edit, made that second pass find every offset taken and show nothing.
+     */
+    @Test
+    fun testSecondPassOnUnchangedDocumentKeepsItsHint() = myFixture.runWithConfig(Config()) {
+        configure("again", "Hello")
+        assertEquals(1, collectHints().size)
+        assertEquals(1, collectHints().size, "An unchanged document must keep its hint")
+    }
+
+    /** `locales/en.json`: the locale is the file name, and the parent directory is `locales`. */
+    @Test
+    fun testOneFilePerLocaleLayoutProducesHint() = myFixture.runWithConfig(Config(foldingPreferredLanguage = "en")) {
+        addFileToProject("locales/en.json", """{"home": {"title": "Welcome"}}""")
+        addFileToProject("locales/fr.json", """{"home": {"title": "Bienvenue"}}""")
+        myFixture.configureByText("flat.js", JsCodeGenerator().generate("\"home.title\"", 0))
+        val hint = collectHints().single()
+        assertTrue(hint.contains("Welcome"), "The preferred locale of a flat layout must be shown: $hint")
+    }
 }
