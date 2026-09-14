@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.dialog
 
 import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
@@ -10,15 +11,19 @@ import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
+import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.CommandProcessor
 import com.intellij.openapi.command.UndoConfirmationPolicy
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.psi.PsiElement
@@ -91,71 +96,48 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
     }
 
     /**
-     * Creates JSON files for the given namespace in each detected locale directory.
+     * Creates the files of namespace [name], one per locale, next to the project's existing
+     * namespace files — see [planNamespace] for where and why.
      *
-     * Detection strategy:
-     * 1. If [Settings.translationsRoot] is configured → use "$projectBase/$translationsRoot/$locale/$name.json"
-     *    where locales are inferred from existing sources (or ["en", "fr"] as fallback).
-     * 2. Otherwise → infer root and locales from existing sources via findAllSources().
-     * 3. If no sources found → create "public/locales/en/$name.json" and "public/locales/fr/$name.json".
-     *
-     * Files are created via IntelliJ VFS to ensure the index is updated.
+     * The files are created in one command, so a single undo removes them. When the project keeps
+     * one file per locale (`locales/en.json`), a namespace has nowhere to go: the user is told so
+     * rather than handed a stray file.
      */
     fun createNamespace(name: String) {
-        val log = logger<DialogViewModel>()
         val config = Settings.getInstance(project).config()
         val basePath = project.basePath ?: return
-        val sourceService = project.service<LocalizationSourceService>()
+        val sources = project.service<LocalizationSourceService>().findAllSources(project)
 
-        // Determine (rootPath, locale) pairs where files should be created
-        val targets: List<Pair<String, String>> = if (config.translationsRoot.isNotBlank()) {
-            // Configured root: $projectBase/$translationsRoot/$locale/$name.json
-            // Infer locales from existing sources; fall back to ["en", "fr"]
-            val existingSources = sourceService.findAllSources(project)
-            val locales = existingSources.map { it.parent }.distinct().filter { it.isNotBlank() }
-                .ifEmpty { listOf("en", "fr") }
-            val rootPath = "$basePath/${config.translationsRoot}".trimEnd('/')
-            locales.map { locale -> Pair(rootPath, locale) }
-        } else {
-            // No configured root: infer from existing sources
-            val existingSources = sourceService.findAllSources(project)
-            if (existingSources.isNotEmpty()) {
-                // displayPath is like "public/locales/en/auth.json" (relative to project base)
-                // parent field is the locale dir name; we reconstruct the root from displayPath
-                existingSources.map { source ->
-                    val locale = source.parent
-                    val relPath = source.displayPath  // "locales/en/auth.json" or similar
-                    // Root is displayPath minus "/$locale/$filename"
-                    val rootSegment = relPath.substringBeforeLast("/$locale/", relPath.substringBeforeLast("/"))
-                    val rootPath = if (rootSegment.startsWith("/")) rootSegment else "$basePath/$rootSegment"
-                    Pair(rootPath.trimEnd('/'), locale)
-                }.distinctBy { (root, locale) -> "$root/$locale" }
-            } else {
-                // No sources at all: use default structure
-                val rootPath = "$basePath/public/locales"
-                listOf(Pair(rootPath, "en"), Pair(rootPath, "fr"))
-            }
-        }
-
-        ApplicationManager.getApplication().runWriteAction {
-            for ((rootPath, locale) in targets) {
-                try {
-                    val dirPath = "$rootPath/$locale"
-                    val dir = VfsUtil.createDirectoryIfMissing(dirPath)
-                    if (dir == null) {
-                        log.warn("createNamespace: could not create directory $dirPath")
-                        continue
-                    }
-                    // Skip if file already exists
-                    if (dir.findChild("$name.json") != null) continue
-                    val file = dir.createChildData(this, "$name.json")
-                    file.setBinaryContent("{}\n".toByteArray())
-                } catch (e: Exception) {
-                    log.error("createNamespace: failed to create $rootPath/$locale/$name.json", e)
+        when (val plan = planNamespace(name, sources, config, basePath)) {
+            NamespacePlan.OneFilePerLocale -> Messages.showInfoMessage(
+                project,
+                PluginBundle.message("toolwindow.action.add.namespace.flat.layout"),
+                PluginBundle.message("toolwindow.action.add.namespace")
+            )
+            is NamespacePlan.Create -> WriteCommandAction.runWriteCommandAction(
+                project, PluginBundle.message("toolwindow.action.add.namespace"), null, {
+                    for (path in plan.files) createFile(path)
                 }
-            }
+            )
         }
         LocalFileSystem.getInstance().refresh(false)
+    }
+
+    private fun createFile(path: String) {
+        val log = logger<DialogViewModel>()
+        try {
+            val dir = VfsUtil.createDirectoryIfMissing(path.substringBeforeLast('/'))
+            if (dir == null) {
+                log.warn("createNamespace: could not create directory of $path")
+                return
+            }
+            val fileName = path.substringAfterLast('/')
+            // An existing file is the user's: never overwritten.
+            if (dir.findChild(fileName) != null) return
+            dir.createChildData(this, fileName).setBinaryContent(emptyContentFor(fileName).toByteArray())
+        } catch (e: Exception) {
+            log.error("createNamespace: failed to create $path", e)
+        }
     }
 
     /**
@@ -287,7 +269,58 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
             candidates = sources.map { it.localeLabel() }.toSet()
         )
 
+    /** Where [createNamespace] writes, or why it cannot. */
+    internal sealed interface NamespacePlan {
+        /** Absolute paths of the files to create. */
+        data class Create(val files: List<String>) : NamespacePlan
+
+        /** The project names its files after locales: a namespace has no place in that layout. */
+        data object OneFilePerLocale : NamespacePlan
+    }
+
     companion object {
+
+        private const val FALLBACK_ROOT = "public/locales"
+        private val FALLBACK_LOCALES = listOf("en", "fr")
+
+        /**
+         * The files namespace [name] needs: one per locale directory the project's namespace files
+         * already live in, with the extension those files use.
+         *
+         * The locale was read from the file's parent directory and the files were always `.json`:
+         * a YAML project got JSON files, and on `locales/en.json` the "locale" was `locales`, so
+         * the namespace landed beside the locale files as one file with no locale at all. The
+         * locale now comes from [localeLabel], a locale-named layout is refused, and only when the
+         * project has no translation at all does the conventional `public/locales/{en,fr}` apply —
+         * under the configured root if there is one, in the preferred format.
+         */
+        internal fun planNamespace(name: String, sources: List<LocalizationSource>, config: Config, basePath: String): NamespacePlan {
+            val recognized = sources.filter { it.hasRecognizedLocale() }
+            val namespaced = recognized.filterNot { it.isLocaleNamedFile() }
+            if (namespaced.isEmpty() && recognized.isNotEmpty()) return NamespacePlan.OneFilePerLocale
+
+            if (namespaced.isNotEmpty()) {
+                return NamespacePlan.Create(
+                    namespaced
+                        .groupBy { it.displayPath.substringBeforeLast('/', "") }
+                        .map { (directory, inDirectory) ->
+                            val extension = inDirectory.first().name.substringAfterLast('.', "json")
+                            val absolute = if (directory.isEmpty()) basePath else "$basePath/$directory"
+                            "$absolute/$name.$extension"
+                        }
+                        .distinct()
+                        .sorted()
+                )
+            }
+
+            val root = config.translationsRoot.trim('/').ifBlank { FALLBACK_ROOT }
+            val extension = if (config.preferredLocalization == "yaml") "yml" else "json"
+            return NamespacePlan.Create(FALLBACK_LOCALES.map { "$basePath/$root/$it/$name.$extension" })
+        }
+
+        /** What a new, empty translation file holds in its format. */
+        internal fun emptyContentFor(fileName: String): String =
+            if (fileName.endsWith(".json") || fileName.endsWith(".json5")) "{}\n" else ""
 
         /**
          * Message variables, in the three shapes the plugin already recognises elsewhere:
