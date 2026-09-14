@@ -152,9 +152,10 @@ Line markers in the editor gutter indicate key resolution status at a glance:
 | ⚠️ Yellow | Key resolved in **some** locales (partial) |
 | ❌ Red | Key not found in **any** locale |
 
-Clicking a partial/missing badge triggers the quick fix to create the missing key.
+Hovering a badge lists the locales; clicking a partial/missing badge triggers the quick fix to create the missing key.
 
 ![Gutter Icons](docs/img/gutter-icons.png)
+![Gutter Icons tooltip](docs/img/gutter-icons-tooltip.png)
 
 ### Inlay Hints
 
@@ -241,6 +242,7 @@ Flat table: a **Namespace** column while the rows span several namespaces, the *
 - Right-click: edit, open file, delete an unused key
 
 ![Tool Window Table](docs/img/toolwindow-table.png)
+![Tool Window namespace filter](docs/img/toolwindow-table-namespace-filter.png)
 ![Tool Window Orphans](docs/img/toolwindow-table-orphans.png)
 
 ### Keys Synchronizer
@@ -265,6 +267,8 @@ A monorepo is described as **modules** in the settings (root directory, path tem
 ## Configuration
 
 **Settings > Tools > i18n Support Plus Configuration**
+
+![Settings](docs/img/settings.png)
 
 ### Namespaces and separators
 
@@ -291,11 +295,17 @@ A monorepo is described as **modules** in the settings (root directory, path tem
 
 One entry per application of a monorepo: a **name**, a **root directory**, a **path template** designating its translation files (`locales/{lang}/{ns}.json`, `messages/{lang}.yml`), an optional **file template**, a **key template** saying how its code writes keys (`{ns}:{key}`, `{ns}.{key}`, `{key}`) and a framework **preset**. A diagnostics panel underneath says what each template resolves to.
 
+![Settings — modules](docs/img/settings-modules.png)
+
 ### Key assistance rules
 
 Rules make other calls behave like `t`: a **trigger** (`translate`, `i18n.translate`, `__`) turns a function into a translation call, an **exclude** rule takes one out. Each rule can be limited to a language (`js`, `php`) and constrained on the file path, the file's imports or the key — exact, prefix or regular expression, optionally negated.
 
+![Settings — key assistance rules](docs/img/settings-rules.png)
+
 ### Folding and preview
+
+![Settings — folding, extraction, gettext, inspections](docs/img/settings-folding.png)
 
 | Setting | Default | Description |
 |---------|---------|-------------|
