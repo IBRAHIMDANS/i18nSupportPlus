@@ -111,6 +111,7 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                 }
                 row(PluginBundle.message("settings.preview.locale")) {
                     cell(textField(PluginBundle.message("settings.preview.locale"), settings::previewLocale, columns = 6))
+                        .comment(PluginBundle.message("settings.preview.locale.comment"))
                 }
             }
 
