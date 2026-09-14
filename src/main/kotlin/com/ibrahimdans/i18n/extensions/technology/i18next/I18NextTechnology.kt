@@ -26,8 +26,14 @@ class I18NextTechnology : Technology {
 
     private var cfgNamespaces: List<String> = listOf()
 
+    /**
+     * Qualified names are listed in full: a call qualified by anything else than `this` is only
+     * accepted when its whole text is a published name, which is what keeps `toast.t('…')` out.
+     * `props.t` / `this.props.t` are what the `withTranslation` HOC injects, and `i18next.t` is the
+     * instance API used outside React.
+     */
     override fun translationFunctionNames(): List<String> {
-        return listOf("t", "i18n.t")
+        return listOf("t", "i18n.t", "i18next.t", "props.t", "this.props.t")
     }
 
     override fun findSourcesByConfiguration(project: Project): List<LocalizationSource> {
