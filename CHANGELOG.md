@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Editor] **Switch the preview locale from the status bar.** `i18n: en` at the bottom right lists the project's locales; picking one makes it the locale inlay hints, hover, Ctrl+click *and* folding read in, and the open editors follow. A *Switch Preview Locale* action in the editor's context menu cycles through the locales the same way, ready for a shortcut. Going from `fr` to `en` was a trip through *Settings*, twice — *Preview locale* and *Preferred folding language* are two fields; both stay there for anyone who wants them apart
+
 ### Bug Fixes
 
 - [Inlay hints] **Show the hints again.** The provider was declared on `codeInsight.declarativeInlayHintsProvider`, an extension point that does not exist — the platform ignores an unknown one without a word — so since the move to the declarative API no `↦ value` hint ever showed and *i18n translations* was listed nowhere under *Editor > Inlay Hints*. It is now declared on `codeInsight.declarativeInlayProvider`, with the settings group the page requires, and a test drives the real highlighting pass on a `.tsx` file rather than the collector alone

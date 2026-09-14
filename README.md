@@ -169,6 +169,10 @@ Displays the resolved translation value inline after each i18n key expression, d
 
 ![Hover Hint](docs/img/hover-hint.png)
 
+### Preview Locale
+
+`i18n: en` in the status bar says which locale inlay hints, hover, Ctrl+click and folding read in. Click it to pick another of the project's locales; **Switch Preview Locale** in the editor's context menu cycles through them, ready for a shortcut. The *Preview locale* and *Preferred folding language* settings stay for anyone who wants the two apart.
+
 ### Code Folding
 
 Replaces i18n keys with their translation values inline for better readability. Toggle with **Ctrl+Alt+Shift+T** or via the editor context menu.
