@@ -168,9 +168,11 @@
     <extensions defaultExtensionNs="com.intellij">
         <errorHandler implementation="com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter"/>
         <notificationGroup id="i18n Support Plus" displayType="STICKY_BALLOON"/>
-        <annotator language="JavaScript" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompositeKeyAnnotator"/>
-        <annotator language="JSX Harmony" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsxCompositeKeyAnnotator"/>
-        <annotator language="TypeScript JSX" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsxCompositeKeyAnnotator"/>
+        <!-- One annotator for every JS dialect: annotators are inherited, so JSX, TypeScript and TSX
+             get it through JavaScript. The JSX one is used because its language is a superset of
+             JsLang, whose markup extractors need XML PSI that plain JS/TS files never hold. A
+             declaration per dialect annotated a .tsx key once per class. -->
+        <annotator language="JavaScript" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsxCompositeKeyAnnotator"/>
         <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.lang.js.JsReferenceContributor"/>
         <psi.referenceContributor language="JSX Harmony" implementation="com.ibrahimdans.i18n.extensions.lang.js.JsxReferenceContributor"/>
         <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.localization.js.TsLocalizationReferenceContributor"/>

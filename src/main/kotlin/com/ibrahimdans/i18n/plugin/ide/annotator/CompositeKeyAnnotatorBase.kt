@@ -33,13 +33,26 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
         if (excludedDirs.isNotEmpty() && filePath.split('/').any { it in excludedDirs }) return
         val excludedExts = config.excludedFileExtensionSet()
         if (excludedExts.isNotEmpty() && virtualFile.extension?.lowercase() in excludedExts) return
-        if(lang.canExtractKey(element, Extensions.TECHNOLOGY.extensionList.flatMap {it.translationFunctionNames()})) {
+        val translationFunctionNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
+        if (isLeafOfClaimedParent(element, translationFunctionNames)) return
+        if(lang.canExtractKey(element, translationFunctionNames)) {
             lang.extractRawKey(element)?.let { rawKey ->
                 RawKeyParser(element.project).parse(rawKey)
             }?.also {
                 annotateI18nLiteral(it, element, holder, config)
             }
         }
+    }
+
+    /**
+     * A literal expression and its leaf token are both claimed, and both annotate the same range:
+     * every unresolved key was reported twice. The parent owns the annotation — the same stateless
+     * rule the gutter and inlay hints apply.
+     */
+    private fun isLeafOfClaimedParent(element: PsiElement, translationFunctionNames: List<String>): Boolean {
+        if (element.firstChild != null) return false
+        val parent = element.parent ?: return false
+        return parent.firstChild === element && lang.canExtractKey(parent, translationFunctionNames)
     }
 
     private fun annotateI18nLiteral(fullKey: FullKey, element: PsiElement, holder: AnnotationHolder, config: Config) {
