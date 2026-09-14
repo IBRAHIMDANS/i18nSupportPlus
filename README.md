@@ -222,6 +222,11 @@ The **I18n** tool window (bottom panel) provides a centralized view of all trans
 
 The toolbar holds the actions — add a translation, add a namespace, refresh, Sync Keys, Scan Orphans, settings —, a **search field** filtering the tree and the table by key or value (with a result count), and, when several modules are configured, a **module selector**. A project in which nothing can be read shows where the plugin looked and links to the setup wizard and the settings. The window reloads itself when a translation file changes.
 
+**Add translation** opens the same dialog as the quick fix: the key is checked as you type, one field per locale says which file it writes to, **Copy to empty locales** fills the blanks from the reference locale, and the `+` next to the namespace creates a new one on the spot.
+
+![Create Translation](docs/img/toolwindow-create-translation.png)
+![Add Namespace](docs/img/toolwindow-create-namespace.png)
+
 ### Tree View
 
 Keys grouped by **namespace**, then by segment. Every key carries its status three times over — an icon, per-locale badges (`EN✓ FR✗`) and a colour — so it survives a colour-blind reader or a custom theme; a branch shows how many of its keys are fully translated (`12/14 (86%)`), and a namespace row how complete the namespace is.

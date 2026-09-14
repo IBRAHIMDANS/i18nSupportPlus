@@ -31,6 +31,8 @@ Sources : `~/Pictures/Screenshots/Screenshot from 2026-09-14 14-4*.png`, rognée
 | `settings-folding.png` | *Folding and preview*, *Key extraction*, *PHP / gettext*, *Inspections* | DONE (nouvelle) |
 | `settings-modules.png` | *Appearance*, *Translation file formats*, *Modules configuration* | DONE (nouvelle) |
 | `settings-rules.png` | *Key assistance rules* | DONE (nouvelle) |
+| `toolwindow-create-translation.png` | dialogue *Create Translation* rempli (clé vérifiée, chemins, *Copy to empty locales*) — frame de `Screencast from 2026-09-14 14-45-40.mp4` à 26 s | DONE (nouvelle) |
+| `toolwindow-create-namespace.png` | sous-dialogue *Add Namespace* ouvert par le `+` — même vidéo à 12 s | DONE (nouvelle) |
 
 ### Reste à refaire
 
@@ -68,7 +70,7 @@ Sources : `~/Pictures/Screenshots/Screenshot from 2026-09-14 14-4*.png`, rognée
 
 | Statut | Nombre |
 |--------|--------|
-| Refaites le 2026-09-14 | 12 |
+| Refaites le 2026-09-14 | 14 |
 | À refaire | 1 (`toolwindow-table-orphans`) |
 | À vérifier | 2 (`sync-missing-keys`, `navigation`) |
 | Inchangées | 15 |
