@@ -196,7 +196,7 @@ class LocalizationSourceService {
 
     private fun computeAllSources(project: Project, config: Config): List<LocalizationSource> {
         val basePath = project.basePath ?: ""
-        return Extensions.LOCALIZATION.extensionList.flatMap { findAllSourcesByFileType(project, it, config.translationsRoot, basePath) } +
+        return Extensions.LOCALIZATION.extensionList.flatMap { findAllSourcesByFileType(project, it, config, basePath) } +
                 findSourcesByConfiguration(project)
     }
 
@@ -208,32 +208,56 @@ class LocalizationSourceService {
     private fun findAllSourcesByFileType(
         project: Project,
         localization: Localization<PsiElement>,
-        translationsRoot: String,
+        config: Config,
         basePath: String
     ): List<LocalizationSource> {
         return ReadAction.compute<List<LocalizationSource>, RuntimeException> {
-            val searchScope = Settings.getInstance(project).config().searchScope(project)
+            val searchScope = config.searchScope(project)
             localization.types().flatMap { localizationType ->
                 FileTypeIndex
                     .getFiles(localizationType.languageFileType, searchScope)
-                    .filter { file -> !isExcludedPath(file, project) && isIncluded(file, translationsRoot, basePath) }
-                    .mapNotNull { virtualFile ->
-                        PsiManager.getInstance(project).findFile(virtualFile)?.let { file ->
-                            val dir = file.containingDirectory ?: return@let null
-                            LocalizationSource(
-                                localization.elementsTree(file),
-                                file.name,
-                                dir.name,
-                                pathToRoot(
-                                    file.project.basePath ?: "",
-                                    dir.virtualFile.path
-                                ).trim('/') + '/' + file.name,
-                                localization
-                            )
+                    .filter { file -> !isExcludedPath(file, project) }
+                    .mapNotNull { file ->
+                        val template = moduleMatch(config, file, basePath)
+                        when {
+                            template != null -> file to template
+                            isIncluded(file, config.translationsRoot, basePath) -> file to null
+                            else -> null
                         }
                     }
+                    .mapNotNull { (virtualFile, template) -> sourceOf(project, localization, virtualFile, template) }
             }
         }
+    }
+
+    /**
+     * The locale and namespace a module template gives [file], or null when no module template
+     * designates it. A file a template designates is a translation source whatever its name.
+     */
+    private fun moduleMatch(config: Config, file: VirtualFile, basePath: String): ModuleSources.Match? {
+        if (config.modules.isEmpty()) return null
+        val anchored = basePath.isNotEmpty() && file.path.startsWith("$basePath/")
+        val path = if (anchored) file.path.removePrefix("$basePath/") else file.path
+        return ModuleSources.match(config.modules, path, anchored)
+    }
+
+    private fun sourceOf(
+        project: Project,
+        localization: Localization<PsiElement>,
+        virtualFile: VirtualFile,
+        template: ModuleSources.Match?
+    ): LocalizationSource? {
+        val file = PsiManager.getInstance(project).findFile(virtualFile) ?: return null
+        val dir = file.containingDirectory ?: return null
+        return LocalizationSource(
+            localization.elementsTree(file),
+            file.name,
+            dir.name,
+            pathToRoot(file.project.basePath ?: "", dir.virtualFile.path).trim('/') + '/' + file.name,
+            localization,
+            locale = template?.locale,
+            namespace = template?.namespace
+        )
     }
 
     /**
@@ -269,19 +293,8 @@ class LocalizationSourceService {
                     .getFiles(localizationType.languageFileType, searchScope)
                     .filter { file -> !isExcludedPath(file, project) && localization.matches(localizationType, file, fileNames) }
                     .mapNotNull { virtualFile ->
-                        PsiManager.getInstance(project).findFile(virtualFile)?.let { file ->
-                            val dir = file.containingDirectory ?: return@let null
-                            LocalizationSource(
-                                localization.elementsTree(file),
-                                file.name,
-                                dir.name,
-                                pathToRoot(
-                                    file.project.basePath ?: "",
-                                    dir.virtualFile.path
-                                ).trim('/') + '/' + file.name,
-                                localization
-                            )
-                        }
+                        val config = Settings.getInstance(project).config()
+                        sourceOf(project, localization, virtualFile, moduleMatch(config, virtualFile, project.basePath ?: ""))
                     }
             }
         }

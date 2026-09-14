@@ -4,6 +4,7 @@
 
 ### Features
 
+- [Modules] A module's **path template now designates its translation files**. `Root directory` + `Path template` (+ `File template`) — `apps/web/messages/{lang}.json`, `locales/{lang}/{ns}.yml` — were edited, validated and previewed in the settings but read by nothing: files were still found by guessing a locale from folder and file names, and a module whose layout the guess did not recognise showed no translation. A file a module template matches is now a translation source whatever its name, with the locale and namespace read from the template's placeholders. Modules without a template, and projects without modules, behave as before
 - [Settings] **i18next configuration files**: name the files that declare i18next `resources` inline (relative to the project, comma-separated, JS or TS). The setting had been stored since the first release with no field and no reader; the plugin could only find such a config by searching the word `translation` and then looking the file up by name among TypeScript files, which missed a `.js` config and could pick a namesake in another folder. Left empty, the search still applies
 - [Settings] **Preview locale** now does what its field says: it picks the locale inlay hints display and the locale listed first in the hover table, so code can be read in one language while folding shows another. It was saved but read nowhere. Left empty, it follows the folding language as before
 
