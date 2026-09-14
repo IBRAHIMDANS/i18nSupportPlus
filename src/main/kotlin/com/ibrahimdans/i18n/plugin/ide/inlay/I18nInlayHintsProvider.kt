@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.tree.PluralGroup
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ellipsis
+import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.ibrahimdans.i18n.plugin.utils.renderIcu
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.codeInsight.hints.declarative.HintFormat
@@ -17,27 +18,20 @@ import com.intellij.codeInsight.hints.declarative.InlineInlayPosition
 import com.intellij.codeInsight.hints.declarative.SharedBypassCollector
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Editor
-import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
-import java.util.Collections
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Displays the resolved i18n translation inline after each key expression.
  * Toggled via Editor > Inlay Hints > "i18n translations" (native IntelliJ setting).
  * Independent from the folding mechanism.
  *
- * This provider is registered for multiple languages (JS, JSX, TS, TSX). IntelliJ invokes
- * createCollector once per matching language registration for the same file, which would
- * produce duplicate hints. A document-level cache (keyed by modificationStamp) deduplicates
- * by tracking text offsets that have already received a hint in the current pass.
+ * A document cache of the offsets already given a hint, invalidated only on edit, used to guard
+ * against duplicates: every pass replayed without an edit found each offset already taken and
+ * showed no hint at all. The duplicate it was actually hiding within a pass — a literal expression
+ * and its leaf token both claimed — is filtered below without any state.
  */
 class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiElement> {
-
-    companion object {
-        private val HINTS_CACHE_KEY = Key.create<Pair<Long, MutableSet<Int>>>("i18n.inlay.offsets")
-    }
 
     override fun createCollector(file: PsiFile, editor: Editor): InlayHintsCollector =
         object : SharedBypassCollector {
@@ -51,12 +45,21 @@ class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiEleme
                     .firstOrNull { it.canExtractKey(element, translationFunctionNames) }
                     ?: return
 
+                // A literal expression and its leaf token are both claimed and end at the same
+                // offset: the parent owns the hint, the leaf would stack a second one on it.
+                if (element.firstChild == null) {
+                    val parent = element.parent
+                    if (parent != null && parent.firstChild === element &&
+                        Extensions.LANG.extensionList.any { it.canExtractKey(parent, translationFunctionNames) }
+                    ) return
+                }
+
                 val rawKey = lang.extractRawKey(element) ?: return
                 val fullKey = RawKeyParser(project).parse(rawKey) ?: return
 
                 val translation = project.service<LocalizationSourceService>()
                     .findSources(fullKey.allNamespaces(), project)
-                    .filter { it.parent == config.foldingPreferredLanguage }
+                    .filter { it.localeLabel() == config.foldingPreferredLanguage }
                     .mapNotNull { resolveCompositeKey(fullKey.compositeKey, it) }
                     .filter { it.unresolved.isEmpty() }
                     .firstNotNullOfOrNull { PluralGroup.displayableValue(it.element) }
@@ -65,24 +68,7 @@ class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiEleme
                     ?.ellipsis(config.foldingMaxLength)
                     ?: return
 
-                // Deduplicate across multiple language-registration collector calls for the same file.
-                // IntelliJ invokes createCollector once per registered language (JS/JSX/TS/TSX),
-                // so without this guard the same hint would appear N times at the same offset.
                 val offset = element.textRange.endOffset
-                val doc = editor.document
-                val processedOffsets = synchronized(doc) {
-                    val modStamp = doc.modificationStamp
-                    val cached = doc.getUserData(HINTS_CACHE_KEY)
-                    if (cached != null && cached.first == modStamp) {
-                        cached.second
-                    } else {
-                        val newSet: MutableSet<Int> = Collections.newSetFromMap(ConcurrentHashMap())
-                        doc.putUserData(HINTS_CACHE_KEY, Pair(modStamp, newSet))
-                        newSet
-                    }
-                }
-                if (!processedOffsets.add(offset)) return
-
                 sink.addPresentation(InlineInlayPosition(offset, true), null, null, HintFormat.default) {
                     text("↦ $translation")
                 }
