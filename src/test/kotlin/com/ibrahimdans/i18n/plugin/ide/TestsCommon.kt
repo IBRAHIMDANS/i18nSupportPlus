@@ -2,11 +2,14 @@ package com.ibrahimdans.i18n.plugin.ide
 
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.intellij.codeInsight.intention.IntentionAction
 import com.intellij.ide.plugins.PluginManagerCore
+import com.intellij.openapi.application.impl.NonBlockingReadActionImpl
 import com.intellij.openapi.extensions.PluginId
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.impl.source.tree.injected.InjectedLanguageUtil
+import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture
 import org.junit.jupiter.api.Assumptions.assumeTrue
 
@@ -19,6 +22,20 @@ internal fun CodeInsightTestFixture.runWithConfig (config: Config, block: () -> 
     } finally {
         settings.setConfig(original)
     }
+}
+
+/**
+ * Launches [action] and waits for the work it hands off to finish before returning.
+ *
+ * Key creation looks its translation files up in a non-blocking read action, off the EDT, then
+ * writes from `finishOnUiThread`. `launchAction` alone returns before that write, so a
+ * `checkResult` right after it would compare the file as it was.
+ */
+internal fun CodeInsightTestFixture.launchActionAndWait(action: IntentionAction) {
+    launchAction(action)
+    PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+    NonBlockingReadActionImpl.waitForAsyncTaskCompletion()
+    PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 }
 
 /** The Vue plugin, which the plugin depends on optionally (`vueConfig.xml`). */

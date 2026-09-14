@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.quickfix
 
+import com.ibrahimdans.i18n.plugin.ide.launchActionAndWait
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
@@ -59,7 +60,7 @@ class CreateMissingTranslationsTest: PlatformBaseTest() {
         myFixture.configureByText("sample.tsx", cg.generate("'test:root.sub.ba<caret>se'"))
         val action = myFixture.getAllQuickFixes().find {it.text == hint}!!
         assertNotNull(action)
-        myFixture.launchAction(action)
+        myFixture.launchActionAndWait(action)
         myFixture.checkResult(
             "ru/test.json",
             """

@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
+import com.ibrahimdans.i18n.plugin.ide.launchActionAndWait
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.intellij.openapi.ui.InputValidator
@@ -43,7 +44,7 @@ abstract class ExtractionTestBase: PlatformBaseTest() {
         assertNotNull(action)
         setTestInputDialog(inputDialog)
         if (message != null) setTestDialog(message)
-        myFixture.launchAction(action)
+        myFixture.launchActionAndWait(action)
         myFixture.checkResult(patched)
         myFixture.checkResult(translationName, patchedTranslation, false)
     }

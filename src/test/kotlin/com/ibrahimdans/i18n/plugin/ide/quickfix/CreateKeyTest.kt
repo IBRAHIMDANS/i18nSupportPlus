@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.quickfix
 
+import com.ibrahimdans.i18n.plugin.ide.launchActionAndWait
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.JsCodeAndTranslationGeneratorsNs
 import com.ibrahimdans.i18n.plugin.utils.generator.code.CodeGenerator
@@ -44,7 +45,7 @@ class CreateKeyTest: PlatformBaseTest() {
         val action = myFixture.filterAvailableIntentions(hint).find {it.text == hint}!!
         assertNotNull(action)
         cancelTranslationValueDialog()
-        myFixture.launchAction(action)
+        myFixture.launchActionAndWait(action)
         myFixture.checkResult(
             translationFileName,
             expectedEn(tg, "${ns}ref.section.missing"),
@@ -66,7 +67,7 @@ class CreateKeyTest: PlatformBaseTest() {
         val action = myFixture.filterAvailableIntentions(hint).find {it.text == hint}!!
         assertNotNull(action)
         cancelTranslationValueDialog()
-        myFixture.launchAction(action)
+        myFixture.launchActionAndWait(action)
         myFixture.checkResult(
                 translationFileName,
                 """
@@ -96,7 +97,7 @@ class CreateKeyTest: PlatformBaseTest() {
         val action = myFixture.filterAvailableIntentions(hint).find {it.text == hint}!!
         assertNotNull(action)
         cancelTranslationValueDialog()
-        myFixture.launchAction(action)
+        myFixture.launchActionAndWait(action)
         myFixture.checkResult(
                 translationFileName,
                 """
@@ -121,7 +122,7 @@ class CreateKeyTest: PlatformBaseTest() {
         val action = myFixture.filterAvailableIntentions(hint).find {it.text == hint}!!
         assertNotNull(action)
         cancelTranslationValueDialog()
-        myFixture.launchAction(action)
+        myFixture.launchActionAndWait(action)
         myFixture.checkResult(
                 translationFileName,
                 """
@@ -146,7 +147,7 @@ class CreateKeyTest: PlatformBaseTest() {
         val action = myFixture.filterAvailableIntentions(hint).find {it.text == hint}!!
         assertNotNull(action)
         cancelTranslationValueDialog()
-        myFixture.launchAction(action)
+        myFixture.launchActionAndWait(action)
         myFixture.checkResult(
                 translationFileName,
                 """
@@ -174,7 +175,7 @@ class CreateKeyTest: PlatformBaseTest() {
         myFixture.configureByText("simple.${cg.ext()}", cg.generate("\"${ns}ref.section.mi<caret>ssing\""))
         val action = myFixture.findSingleIntention("Create i18n key in all translation files")
         assertNotNull(action)
-        myFixture.launchAction(action)
+        myFixture.launchActionAndWait(action)
         myFixture.checkResult(
             "assets/en/${translationFileName}",
             expectedEn(tg, "${ns}ref.section.missing"),

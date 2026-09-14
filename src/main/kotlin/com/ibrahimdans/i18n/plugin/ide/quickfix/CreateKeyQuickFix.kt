@@ -10,6 +10,8 @@ import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.CommandProcessor
 import com.intellij.openapi.command.UndoConfirmationPolicy
 import com.intellij.openapi.components.service
@@ -17,6 +19,7 @@ import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.psi.PsiElement
+import com.intellij.util.concurrency.AppExecutorUtil
 
 /**
  * Quick fix for missing key creation.
@@ -44,36 +47,55 @@ class CreateKeyQuickFix(
                 Messages.getQuestionIcon()
             )
             val translationValue = if (inputValue.isNullOrEmpty()) fallback else inputValue
-            val sourceService = project.service<LocalizationSourceService>()
-            val allSources = sourceService.findSources(fullKey.allNamespaces(), project)
-
-            if (allSources.size == 1) {
-                createPropertyInFile(project, allSources.first(), translationValue)
-            } else if (allSources.size > 1) {
-                // Track which sources were actually written by the selector
-                val writtenSources = mutableListOf<LocalizationSource>()
-                selector.select(
-                    allSources,
-                    { selectedSources ->
-                        selectedSources.forEach { source ->
-                            createPropertyInFile(project, source, translationValue)
-                            writtenSources.add(source)
-                        }
-                        // After writing to selected sources, offer to fill the remaining ones
-                        val remainingSources = allSources.filter { it !in writtenSources }
-                        if (remainingSources.isNotEmpty()) {
-                            offerPlaceholderForRemainingLocales(project, remainingSources, translationValue)
-                        }
-                    },
-                    editor
-                )
+            // findSources reaches FileTypeIndex, which the platform forbids on the EDT as a slow
+            // operation: the read access it takes is fine, the thread is not. The lookup runs in
+            // the background, and only the popup, dialog and writes come back to the EDT.
+            ReadAction.nonBlocking<List<LocalizationSource>> {
+                project.service<LocalizationSourceService>().findSources(fullKey.allNamespaces(), project)
             }
+                .inSmartMode(project)
+                .expireWith(project)
+                .expireWhen { editor.isDisposed }
+                .finishOnUiThread(ModalityState.defaultModalityState()) { allSources ->
+                    createKeyInSources(project, editor, allSources, translationValue)
+                }
+                .submit(AppExecutorUtil.getAppExecutorService())
+        }
+    }
+
+    /** Writes the key into [allSources], asking which ones when there are several. Runs on the EDT. */
+    private fun createKeyInSources(
+        project: Project,
+        editor: Editor,
+        allSources: List<LocalizationSource>,
+        translationValue: String
+    ) {
+        if (allSources.size == 1) {
+            createPropertyInFile(project, allSources.first(), translationValue)
+        } else if (allSources.size > 1) {
+            // Track which sources were actually written by the selector
+            val writtenSources = mutableListOf<LocalizationSource>()
+            selector.select(
+                allSources,
+                { selectedSources ->
+                    selectedSources.forEach { source ->
+                        createPropertyInFile(project, source, translationValue)
+                        writtenSources.add(source)
+                    }
+                    // After writing to selected sources, offer to fill the remaining ones
+                    val remainingSources = allSources.filter { it !in writtenSources }
+                    if (remainingSources.isNotEmpty()) {
+                        offerPlaceholderForRemainingLocales(project, remainingSources, translationValue)
+                    }
+                },
+                editor
+            )
         }
     }
 
     /**
      * Shows [BatchPlaceholderDialog] and applies the chosen placeholder strategy to [remainingSources].
-     * Must be called from the EDT (already guaranteed by [invokeLater]).
+     * Must be called from the EDT (guaranteed by `finishOnUiThread`).
      */
     private fun offerPlaceholderForRemainingLocales(
         project: Project,
