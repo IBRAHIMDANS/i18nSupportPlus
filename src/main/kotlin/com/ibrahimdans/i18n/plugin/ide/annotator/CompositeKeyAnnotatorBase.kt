@@ -37,7 +37,7 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
         if (isLeafOfClaimedParent(element, translationFunctionNames)) return
         if(lang.canExtractKey(element, translationFunctionNames)) {
             lang.extractRawKey(element)?.let { rawKey ->
-                RawKeyParser(element.project).parse(rawKey)
+                RawKeyParser(element.project).parse(rawKey, element)
             }?.also {
                 annotateI18nLiteral(it, element, holder, config)
             }

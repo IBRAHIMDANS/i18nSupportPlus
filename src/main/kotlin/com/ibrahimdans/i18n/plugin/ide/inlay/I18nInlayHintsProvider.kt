@@ -55,7 +55,7 @@ class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiEleme
                 }
 
                 val rawKey = lang.extractRawKey(element) ?: return
-                val fullKey = RawKeyParser(project).parse(rawKey) ?: return
+                val fullKey = RawKeyParser(project).parse(rawKey, element) ?: return
 
                 val translation = project.service<LocalizationSourceService>()
                     .findSources(fullKey.allNamespaces(), element)

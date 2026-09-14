@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.utils
 
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleTemplateResolver
+import com.intellij.openapi.vfs.VirtualFile
 
 /**
  * The translation files a module's templates designate, and the locale and namespace each path
@@ -27,7 +28,15 @@ internal object ModuleSources {
      * [anchored] says. An unanchored path (outside the project directory, as in light test
      * fixtures) only needs to end with a template, or to go through a root directory.
      */
-    data class FilePath(val path: String, val anchored: Boolean)
+    data class FilePath(val path: String, val anchored: Boolean) {
+        companion object {
+            /** [file]'s path relative to [basePath] when it lives under it, absolute otherwise. */
+            fun of(file: VirtualFile, basePath: String): FilePath {
+                val anchored = basePath.isNotEmpty() && file.path.startsWith("$basePath/")
+                return FilePath(if (anchored) file.path.removePrefix("$basePath/") else file.path, anchored)
+            }
+        }
+    }
 
     /** The match of [file] against the first module template it fits, or null. */
     fun match(modules: List<ModuleConfig>, file: FilePath): Match? = match(modules, file.path, file.anchored)

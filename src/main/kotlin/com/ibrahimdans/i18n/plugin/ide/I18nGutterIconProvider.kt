@@ -61,7 +61,7 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
         }
 
         val rawKey = lang.extractRawKey(element) ?: return null
-        val fullKey = RawKeyParser(project).parse(rawKey) ?: return null
+        val fullKey = RawKeyParser(project).parse(rawKey, element) ?: return null
         if (fullKey.compositeKey.isEmpty()) return null
 
         val config = Settings.getInstance(project).config()
