@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.settings
 
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.ConfigurationProperty
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.ui.dsl.builder.panel
 import javax.swing.JPanel
@@ -19,8 +20,12 @@ import javax.swing.event.DocumentListener
  */
 internal class LocalizationSettingsPanel(private val settings: Settings) {
 
-    /** The form, or null when no format declares any setting. */
+    /**
+     * The form, or null when no format declares any setting — or when no application runs to declare
+     * one: the settings UI test builds the panel in a bare JFrame, where reading an extension throws.
+     */
     fun build(): JPanel? {
+        if (ApplicationManager.getApplication() == null) return null
         val declared = Extensions.LOCALIZATION.extensionList
             .map { it.config() }
             .filter { it.props().isNotEmpty() }
