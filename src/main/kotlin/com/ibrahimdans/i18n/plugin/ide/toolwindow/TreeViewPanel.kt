@@ -170,7 +170,7 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
     }
 
     private fun buildTreeNodes(node: TranslationNode, parent: DefaultMutableTreeNode) {
-        for ((_, child) in node.children.toSortedMap()) {
+        for (child in viewModel.orderedChildren(node)) {
             // Statuses are looked up by full path, so a filtered view still reports the
             // completeness of the real key set rather than of what survived the filter.
             val data = TranslationNodeData(

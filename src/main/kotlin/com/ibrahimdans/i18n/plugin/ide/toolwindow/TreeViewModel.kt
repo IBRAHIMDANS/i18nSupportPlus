@@ -138,6 +138,15 @@ class TreeViewModel {
     }
 
     /**
+     * The children of [node] in display order: the default namespace's group first — it is
+     * the project's main namespace, and the Stats and the table's combo already lead with it
+     * — then the rest by key. The tree used to sort every level by key alone, which put
+     * `common (default)` between `auth` and `dashboard` while the other views led with it.
+     */
+    fun orderedChildren(node: TranslationNode): List<TranslationNode> =
+        node.children.values.sortedWith(compareBy({ it.namespace !is NamespaceFilter.Default }, { it.key }))
+
+    /**
      * Finds keys that are missing in at least one locale.
      */
     fun getMissingKeys(root: TranslationNode, allLocales: List<String>): Set<String> {

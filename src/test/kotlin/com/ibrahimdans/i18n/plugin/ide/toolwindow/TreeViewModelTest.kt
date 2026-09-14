@@ -155,6 +155,21 @@ class TreeViewModelTest {
     }
 
     @Test
+    fun `the default group comes first, the other groups and keys by name`() {
+        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+            "navigation:menu" to mapOf("en" to "Menu"),
+            "auth:login" to mapOf("en" to "Log in"),
+            "greeting" to mapOf("en" to "Hello"),
+            "auth:errors" to mapOf("en" to "Errors"),
+        )
+
+        val root = viewModel.loadTranslations(project)
+
+        assertEquals(listOf("translation (default)", "auth", "navigation"), viewModel.orderedChildren(root).map { it.key })
+        assertEquals(listOf("errors", "login"), viewModel.orderedChildren(root.children.getValue("auth")).map { it.key })
+    }
+
+    @Test
     fun `loadTranslations does not group a single default namespace`() {
         every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
             "menu.home" to mapOf("en" to "Home"),

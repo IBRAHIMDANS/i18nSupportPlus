@@ -190,15 +190,16 @@ class TableViewPanelTest : PlatformBaseTest() {
         assertEquals(PluginBundle.message("toolwindow.table.column.key"), table.getColumnName(1))
         assertEquals("en", table.getColumnName(2))
 
-        // Sorted on the namespace label: the default group is named after its namespace
-        // (`translation (default)` under a fresh Config) and sorts with the others, and every
-        // action still reads the *full* key from the key cell.
-        assertEquals("auth", table.getValueAt(0, 0))
-        assertEquals("auth:login.title", table.getValueAt(0, 1))
-        assertEquals("common", table.getValueAt(1, 0))
-        assertEquals("common:menu.home", table.getValueAt(1, 1))
-        assertEquals(NamespaceFilter.Default.label(Config()), table.getValueAt(2, 0))
-        assertEquals("greeting", table.getValueAt(2, 1))
+        // Sorted on the namespace: the default group first — named after its namespace,
+        // `translation (default)` under a fresh Config — then the names alphabetically, as
+        // the tree, the combo and the Stats order them. Every action still reads the *full*
+        // key from the key cell.
+        assertEquals(NamespaceFilter.Default.label(Config()), table.getValueAt(0, 0))
+        assertEquals("greeting", table.getValueAt(0, 1))
+        assertEquals("auth", table.getValueAt(1, 0))
+        assertEquals("auth:login.title", table.getValueAt(1, 1))
+        assertEquals("common", table.getValueAt(2, 0))
+        assertEquals("common:menu.home", table.getValueAt(2, 1))
 
         val model = table.model
         assertFalse(model.isCellEditable(0, 0), "the namespace column is read-only")
