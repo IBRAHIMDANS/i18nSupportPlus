@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.intellij.openapi.project.Project
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -12,7 +13,10 @@ import org.junit.jupiter.api.Test
 
 class TreeViewModelTest {
 
-    private val project = mockk<Project>()
+    private val project = mockk<Project> {
+        // loadTranslations splits keys with the project's separators; defaults are what these cases use.
+        every { getService(Settings::class.java) } returns Settings()
+    }
     private val viewModel = TreeViewModel()
 
     @BeforeEach

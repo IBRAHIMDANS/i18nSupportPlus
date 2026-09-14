@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin.ide.toolwindow
 import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
 import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.Tree as KeyTree
@@ -235,7 +236,7 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
         val keyString = data.fullPath
         ApplicationManager.getApplication().executeOnPooledThread {
             val sources = TranslationDataLoader.findSources(project, moduleConfig)
-            val (namespace, segments) = parseTranslationKey(keyString)
+            val (namespace, segments) = parseTranslationKey(keyString, Settings.getInstance(project).config())
             val candidates = if (namespace.isNullOrEmpty()) sources
             else sources.filter { TranslationDataLoader.extractNamespace(it) == namespace }.ifEmpty { sources }
 
@@ -264,7 +265,7 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
      *   "common:menu.home" → FullKey(ns=Literal(common), compositeKey=[menu, home])
      */
     private fun buildFullKey(keyString: String): FullKey {
-        val (namespace, segments) = parseTranslationKey(keyString)
+        val (namespace, segments) = parseTranslationKey(keyString, Settings.getInstance(project).config())
         return FullKey(
             source = keyString,
             ns = namespace?.takeIf { it.isNotEmpty() }?.let { Literal(it) },

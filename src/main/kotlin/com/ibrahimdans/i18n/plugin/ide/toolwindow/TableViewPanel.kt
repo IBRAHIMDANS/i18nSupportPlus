@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
 import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.tree.Tree
@@ -384,7 +385,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     private fun locate(key: String, locale: String): Pair<VirtualFile, Int>? {
         val source = viewModel.findSourceFor(project, key, locale, moduleConfig) ?: return null
         var node: Tree<PsiElement> = source.tree ?: return null
-        for (segment in viewModel.keySegments(key)) {
+        for (segment in viewModel.keySegments(key, Settings.getInstance(project).config())) {
             node = node.findChild(segment) ?: break
         }
         val psi = node.value()
@@ -500,7 +501,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      * Delegates to the synchronizer's parser, which the in-place edit already goes
      * through — the panel used to carry a second copy that kept empty segments.
      */
-    private fun buildFullKey(keyString: String): FullKey = KeysSynchronizer().buildFullKey(keyString)
+    private fun buildFullKey(keyString: String): FullKey =
+        KeysSynchronizer().buildFullKey(keyString, Settings.getInstance(project).config())
 
     // ── Cell Renderers ────────────────────────────────────────────────────────
 
