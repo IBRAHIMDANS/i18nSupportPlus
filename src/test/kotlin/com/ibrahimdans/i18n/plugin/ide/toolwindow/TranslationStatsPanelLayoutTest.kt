@@ -8,7 +8,9 @@ import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.awt.Container
 import javax.swing.JTable
@@ -34,8 +36,12 @@ class TranslationStatsPanelLayoutTest : PlatformBaseTest() {
         assertEquals(4, table.columnCount, "Namespace + Keys + en + fr")
         assertEquals(PluginBundle.message("toolwindow.stats.column.namespace"), table.getColumnName(0))
         assertEquals(PluginBundle.message("toolwindow.stats.column.keys"), table.getColumnName(1))
-        assertEquals("en", table.getColumnName(2))
-        assertEquals("fr", table.getColumnName(3))
+        // Spelled like the tree's badges. No message: with a String expected value the inherited
+        // junit.framework assertEquals(message, expected, actual) wins the overload.
+        assertEquals("EN", table.getColumnName(2))
+        assertEquals("FR", table.getColumnName(3))
+        assertTrue(table.columnModel.getColumn(1).maxWidth < table.columnModel.getColumn(2).preferredWidth, "two digits never get a locale's share")
+        assertFalse(table.rowSelectionAllowed, "a click opens a popup, nothing to select")
 
         assertEquals(3, table.rowCount)
         assertEquals(PluginBundle.message("toolwindow.stats.row.total"), table.getValueAt(0, 0))
