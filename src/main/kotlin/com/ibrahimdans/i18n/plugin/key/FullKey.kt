@@ -14,7 +14,13 @@ data class FullKey(
     val keyPrefix: List<Literal> = listOf(),
     val keyPrefixSource: String? = null
 ) {
-    fun allNamespaces(): List<String> {
-        return ns?.text.nullableToList() + (namespaces ?: listOf())
-    }
+    /**
+     * The namespaces the key is looked up in: the one written in the key, or else those its hook
+     * declares (`useTranslation(['dashboard', 'common'])`).
+     *
+     * A written namespace replaces the hook's, as i18next does. Both used to be combined, so
+     * `t('dashboardd:stats.count')` under `useTranslation(['dashboard'])` resolved in `dashboard`:
+     * the typo got a green gutter icon and translated hints while i18next finds nothing at runtime.
+     */
+    fun allNamespaces(): List<String> = ns?.text.nullableToList().ifEmpty { namespaces.orEmpty() }
 }
