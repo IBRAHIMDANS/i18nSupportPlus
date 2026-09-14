@@ -72,7 +72,13 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
         val leavesByNamespace: Map<String, List<PsiElement>>,
     )
 
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+    /**
+     * BGT: [update] reads `PSI_FILE` and resolves the references under the caret, which the
+     * platform refuses on the EDT ("'psi.File' is requested on EDT") — and it runs every time the
+     * editor context menu opens. On BGT the update gets read access; nothing in it needs Swing.
+     * [actionPerformed] still runs on the EDT, the flag only concerns [update].
+     */
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun update(e: AnActionEvent) {
         val editor = e.getData(CommonDataKeys.EDITOR)
