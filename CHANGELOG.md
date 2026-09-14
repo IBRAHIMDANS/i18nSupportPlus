@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Settings] **Preview locale** now does what its field says: it picks the locale inlay hints display and the locale listed first in the hover table, so code can be read in one language while folding shows another. It was saved but read nowhere. Left empty, it follows the folding language as before
+
 ### Bug Fixes
 
 - [Keys] Recognise `props.t`, `this.props.t` and `i18next.t` as translation calls. A qualified call is only accepted when its whole text is a published name — that is what keeps `toast.t('…')` out — and i18next published `t` and `i18n.t` alone, so keys passed through the `withTranslation` HOC or the i18next instance got no annotation, completion, navigation nor folding: a missing key went unreported. The qualified-call rule is now one function shared by annotation, references and folding, which each carried their own copy
