@@ -6,6 +6,11 @@
 
 - [Diagnostics] Report plugin exceptions and freezes to the **JetBrains Marketplace**. The plugin now registers the platform's `JetBrainsMarketplaceErrorReportSubmitter` as its error handler, so an internal error raised by the plugin can be sent from the IDE's error dialog, and reports appear in the plugin's *Exceptions* / *Freezes* tabs on Marketplace
 
+### Bug Fixes
+
+- [Gutter] Count **locales**, not translation files, in the gutter badge. A file declaring several namespaces (`useTranslation(['dashboard', 'common'])`) yields one source per namespace per locale, so a key translated everywhere read *Partial translation (2/4 locales)* with `en` and `fr` listed twice, and every key of such a file carried the yellow warning. Sources are now grouped by locale, and a locale counts as resolved when any of its namespaces holds the key — the rule the annotator already applies
+- [Gutter] Stop badges from **disappearing until the next keystroke**. Duplicate markers were hidden by a cache that lived until the document changed, but the daemon replays the line-marker pass without any edit (focus, scroll, indexing, restart): on that second pass every range was already cached and the gutter emptied. The cache is gone, along with both causes it covered for: the provider is now declared on `JavaScript` only — JSX, TypeScript and TSX inherit it — and a leaf token no longer produces a marker when its literal expression already owns that range
+
 ## 1.3.2 - 2026-09-10
 
 ### Bug Fixes
