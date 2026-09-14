@@ -103,4 +103,41 @@ class LocalizationSourceServiceTest : PlatformBaseTest() {
 
         Assertions.assertFalse(fromPool.isEmpty(), "the cached scan must still be served")
     }
+
+    private fun findSources(vararg namespaces: String): List<LocalizationSource> =
+        ReadAction.compute<List<LocalizationSource>, RuntimeException> {
+            project.service<LocalizationSourceService>().findSources(namespaces.toList(), project)
+        }
+
+    /** The per-namespace lookup is cached like the scan: every key of every feature asks it on each pass. */
+    @Test
+    fun findSources_reusesTheLookupWhenNothingChanged() {
+        addFileToProject("assets/common.json", """{"menu":"Home"}""")
+
+        val first = findSources("common")
+
+        Assertions.assertEquals(1, first.size)
+        Assertions.assertSame(first, findSources("common"), "the second call must be served from the cache")
+        Assertions.assertTrue(findSources("auth").isEmpty(), "each namespace list gets its own answer")
+    }
+
+    @Test
+    fun findSources_seesANamespaceFileAddedAfterTheFirstLookup() {
+        addFileToProject("assets/common.json", """{"menu":"Home"}""")
+        Assertions.assertTrue(findSources("auth").isEmpty())
+
+        addFileToProject("assets/auth.json", """{"login":"Log in"}""")
+
+        Assertions.assertEquals(1, findSources("auth").size, "a new file must invalidate the cached lookup")
+    }
+
+    @Test
+    fun findSources_isRecomputedWhenTheConfigurationChanges() {
+        addFileToProject("assets/common.json", """{"menu":"Home"}""")
+        val first = findSources("common")
+
+        myFixture.runWithConfig(Config(defaultNs = "other")) {
+            Assertions.assertNotSame(first, findSources("common"), "a configuration change must drop the cached lookup")
+        }
+    }
 }
