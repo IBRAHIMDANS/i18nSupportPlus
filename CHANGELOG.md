@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+- [Updates] Find the plugin through **public API only**. The 2025.1 workaround of 1.4.0 scanned `PluginManagerCore.getPlugins()`, which the Marketplace verifier reports as internal API. The lookup now goes through `PluginId.getId` and `PluginManagerCore.getPlugin`, called from a Java class so that the compiled call binds to the static method both 2025.1 and 2025.3 carry rather than to a Kotlin companion 2025.1 lacks
+
 ## 1.4.0 - 2026-09-14
 
 ### Features
