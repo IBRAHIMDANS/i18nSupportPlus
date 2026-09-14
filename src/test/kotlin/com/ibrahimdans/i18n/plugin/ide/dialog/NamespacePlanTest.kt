@@ -20,6 +20,9 @@ class NamespacePlanTest {
         every { name } returns displayPath.substringAfterLast('/')
         every { parent } returns displayPath.substringBeforeLast('/').substringAfterLast('/')
         every { this@mockk.displayPath } returns displayPath
+        // A relaxed mock answers "" for these, which reads as a locale a template stated.
+        every { locale } returns null
+        every { namespace } returns null
     }
 
     private fun plan(vararg paths: String, config: Config = Config()) =
