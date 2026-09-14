@@ -21,4 +21,10 @@ class WhatsNewDeciderTest {
     fun `a changed version is announced`() {
         assertEquals(Decision.NOTIFY, WhatsNewDecider.decide("1.3.3", "1.4.0"))
     }
+
+    @Test
+    fun `a muted user is not announced a new version, which is still recorded`() {
+        assertEquals(Decision.RECORD_ONLY, WhatsNewDecider.decide("1.3.3", "1.4.0", muted = true))
+        assertEquals(Decision.NONE, WhatsNewDecider.decide("1.4.0", "1.4.0", muted = true))
+    }
 }

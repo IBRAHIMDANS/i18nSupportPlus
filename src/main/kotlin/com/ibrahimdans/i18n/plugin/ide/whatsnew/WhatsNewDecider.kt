@@ -23,9 +23,14 @@ object WhatsNewDecider {
         NOTIFY,
     }
 
-    fun decide(lastSeenVersion: String?, currentVersion: String): Decision = when {
+    /**
+     * [muted] is set once the user chose *Don't Show Again*: a new version is then recorded without
+     * being announced, so the notification never comes back for an update that is already old.
+     */
+    fun decide(lastSeenVersion: String?, currentVersion: String, muted: Boolean = false): Decision = when {
         lastSeenVersion.isNullOrBlank() -> Decision.RECORD_ONLY
         lastSeenVersion == currentVersion -> Decision.NONE
+        muted -> Decision.RECORD_ONLY
         else -> Decision.NOTIFY
     }
 }
