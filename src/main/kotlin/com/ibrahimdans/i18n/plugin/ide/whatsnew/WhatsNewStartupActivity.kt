@@ -3,7 +3,6 @@ package com.ibrahimdans.i18n.plugin.ide.whatsnew
 import com.ibrahimdans.i18n.plugin.ide.whatsnew.WhatsNewDecider.Decision
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.ide.BrowserUtil
-import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
@@ -34,10 +33,9 @@ class WhatsNewStartupActivity : ProjectActivity {
 
     override suspend fun execute(project: Project) {
         if (ApplicationManager.getApplication().isUnitTestMode) return
-        // Not PluginManagerCore.getPlugin(PluginId.getId(…)): compiled against 2025.3, where PluginId is a
-        // Kotlin class, that call goes through PluginId.Companion, which 2025.1 lacks — NoSuchFieldError on
-        // every project opening there. Matching the id string uses nothing newer than the minimum build.
-        val currentVersion = PluginManagerCore.plugins.firstOrNull { it.pluginId.idString == PLUGIN_ID }?.version ?: return
+        // Through Java: see PluginLookup for why neither a Kotlin PluginId.getId nor a scan of the
+        // plugin list will do.
+        val currentVersion = PluginLookup.find(PLUGIN_ID)?.version ?: return
         val properties = PropertiesComponent.getInstance()
 
         // Recorded before notifying: several projects opening together must not each announce it.
