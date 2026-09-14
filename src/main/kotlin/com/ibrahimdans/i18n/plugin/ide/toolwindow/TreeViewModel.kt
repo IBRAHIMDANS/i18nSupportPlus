@@ -1,6 +1,8 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.intellij.openapi.project.Project
 
 /**
@@ -66,13 +68,25 @@ class TreeViewModel {
      */
     fun loadTranslations(project: Project, moduleConfig: ModuleConfig? = null): TranslationNode {
         val flatData = TranslationDataLoader.loadAllTranslations(project, moduleConfig)
+        return buildTree(flatData, Settings.getInstance(project).config())
+    }
+
+    /**
+     * The tree of [flatData], split into levels the way [KeySpelling] joined them: on the configured
+     * key separator, and not at all for a flat key. The namespace prefix stays on the first level,
+     * so each node's `fullPath` is a key [KeySpelling] can take apart again.
+     */
+    internal fun buildTree(flatData: Map<String, Map<String, String>>, config: Config): TranslationNode {
         val root = TranslationNode(key = "root", fullPath = "", values = emptyMap())
 
         for ((fullKey, localeValues) in flatData) {
-            val parts = fullKey.split(".")
+            val namespace = KeySpelling.namespaceOf(fullKey)
+            val segments = KeySpelling.segmentsOf(fullKey, config)
+            val parts = if (namespace == null) segments
+                else listOf(namespace + KeySpelling.NAMESPACE_SEPARATOR + segments.first()) + segments.drop(1)
             var current = root
             for ((index, part) in parts.withIndex()) {
-                val partialPath = parts.take(index + 1).joinToString(".")
+                val partialPath = parts.take(index + 1).fold("") { path, segment -> KeySpelling.child(config, path, segment) }
                 val isLast = index == parts.lastIndex
                 current = current.children.getOrPut(part) {
                     TranslationNode(

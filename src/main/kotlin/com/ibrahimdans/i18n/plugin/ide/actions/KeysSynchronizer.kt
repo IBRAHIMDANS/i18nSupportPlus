@@ -2,6 +2,9 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
@@ -115,20 +118,11 @@ class KeysSynchronizer {
         targetLocale: String,
         allSources: List<LocalizationSource>
     ): LocalizationSource? {
-        val namespace = extractNamespaceFromKey(key)
+        val namespace = KeySpelling.namespaceOf(key)
         return allSources.firstOrNull { source ->
             TranslationDataLoader.extractLocale(source) == targetLocale &&
                     (namespace == null || TranslationDataLoader.extractNamespace(source) == namespace)
         }
-    }
-
-    /**
-     * Returns the namespace portion of a namespaced key like "common:menu.home" → "common",
-     * or null if the key has no namespace prefix.
-     */
-    private fun extractNamespaceFromKey(key: String): String? {
-        val colonIdx = key.indexOf(':')
-        return if (colonIdx > 0) key.substring(0, colonIdx) else null
     }
 
     /**
@@ -138,13 +132,14 @@ class KeysSynchronizer {
      */
     private fun applyMissingKeys(project: Project, missing: List<MissingEntry>) {
         val viewModel = DialogViewModel(project)
+        val config = Settings.getInstance(project).config()
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.sync.progress.title"), false) {
             override fun run(indicator: ProgressIndicator) {
                 // Phase 1 (background): build all (source, fullKey) pairs — no EDT touch
                 indicator.text = PluginBundle.message("action.sync.progress.preparing")
                 val operations = missing.mapIndexed { index, entry ->
                     indicator.fraction = index.toDouble() / missing.size * 0.5
-                    Triple(entry.source, buildFullKey(entry.key), entry)
+                    Triple(entry.source, buildFullKey(entry.key, config), entry)
                 }
 
                 // Phase 2 (EDT): apply all writes in a single WriteCommandAction
@@ -165,24 +160,20 @@ class KeysSynchronizer {
     }
 
     /**
-     * Builds a FullKey from a flat key string, handling optional namespace prefix.
-     * Examples:
+     * Builds a FullKey from a key as [KeySpelling] writes it, namespace prefix included.
      *   "menu.home"        → FullKey(ns=null, compositeKey=[menu, home])
      *   "common:menu.home" → FullKey(ns=common, compositeKey=[menu, home])
+     *   "app.title"        → FullKey(ns=null, compositeKey=[app.title]) when keys are flat
+     *
+     * [config] defaults to the plugin's own defaults for callers holding no project; every write
+     * path passes the project's, or a flat key is split into levels it does not have.
      */
-    internal fun buildFullKey(key: String): FullKey {
-        val colonIdx = key.indexOf(':')
-        val (ns, keyPath) = if (colonIdx > 0) {
-            val nsText = key.substring(0, colonIdx)
-            val path = key.substring(colonIdx + 1)
-            Literal(nsText) to path
-        } else {
-            null to key
-        }
-
-        if (keyPath.isBlank()) return FullKey(source = key, ns = ns, compositeKey = emptyList())
-        val compositeKey = keyPath.split('.').filter { it.isNotEmpty() }.map { Literal(it) }
-        return FullKey(source = key, ns = ns, compositeKey = compositeKey)
+    internal fun buildFullKey(key: String, config: Config = Config()): FullKey {
+        val namespace = KeySpelling.namespaceOf(key)
+        val path = KeySpelling.pathOf(key)
+        if (path.isBlank()) return FullKey(source = key, ns = namespace?.let(::Literal), compositeKey = emptyList())
+        val compositeKey = KeySpelling.segmentsOf(key, config).filter { it.isNotEmpty() }.map { Literal(it) }
+        return FullKey(source = key, ns = namespace?.let(::Literal), compositeKey = compositeKey)
     }
 }
 

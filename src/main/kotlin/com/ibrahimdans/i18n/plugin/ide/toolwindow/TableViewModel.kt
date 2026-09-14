@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumulator
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
@@ -148,17 +149,10 @@ class TableViewModel {
     // ── Key shape ─────────────────────────────────────────────────────────────
 
     /** The namespace [key] carries, i.e. the part before its `:`, or null when it carries none. */
-    fun namespaceOf(key: String): String? {
-        val colonIdx = key.indexOf(':')
-        return if (colonIdx > 0) key.substring(0, colonIdx) else null
-    }
+    fun namespaceOf(key: String): String? = KeySpelling.namespaceOf(key)
 
-    /** The dot-separated path of [key], namespace prefix removed. */
-    fun keySegments(key: String): List<String> {
-        val colonIdx = key.indexOf(':')
-        val path = if (colonIdx > 0) key.substring(colonIdx + 1) else key
-        return path.split('.')
-    }
+    /** The levels of [key]'s path, namespace prefix removed — a single one when keys are flat. */
+    fun keySegments(key: String, config: Config = Config()): List<String> = KeySpelling.segmentsOf(key, config)
 
     // ── Cell states ───────────────────────────────────────────────────────────
 
@@ -232,7 +226,9 @@ class TableViewModel {
     ): Boolean {
         val source = findSourceFor(project, key, locale, moduleConfig) ?: return false
         return try {
-            DialogViewModel(project).saveTranslation(source, KeysSynchronizer().buildFullKey(key), value)
+            DialogViewModel(project).saveTranslation(
+                source, KeysSynchronizer().buildFullKey(key, Settings.getInstance(project).config()), value
+            )
             true
         } catch (e: RuntimeException) {
             false
