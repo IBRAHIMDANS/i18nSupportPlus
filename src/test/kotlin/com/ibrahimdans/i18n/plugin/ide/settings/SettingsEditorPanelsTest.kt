@@ -216,6 +216,44 @@ class RulesEditorPanelTest {
         assertEquals(7, settings.rules[0].priority)
     }
 
+    /** Language, constraint and match mode offer what the rules engine reads, not free text. */
+    @Test
+    fun testTheRuleChoicesAreListsOfWhatTheEngineReads() {
+        val (settings, panel) = panelWith(EditorRuleState(id = "first"))
+
+        val type = requireByName(panel, "settings.rules.col.type") as JComboBox<*>
+        val mode = requireByName(panel, "settings.rules.col.matchMode") as JComboBox<*>
+        val language = requireByName(panel, "settings.rules.col.language") as JComboBox<*>
+        assertEquals(listOf("", "filePath", "import", "keyPattern"), (0 until type.itemCount).map { type.getItemAt(it) })
+        assertEquals(listOf("exact", "prefix", "regex"), (0 until mode.itemCount).map { mode.getItemAt(it) })
+
+        type.selectedItem = "filePath"
+        mode.selectedItem = "regex"
+        language.selectedItem = "php"
+
+        assertEquals(EditorRuleState(id = "first", language = "php", constraintType = "filePath", matchMode = "regex"), settings.rules[0])
+    }
+
+    /** A value written by hand or by a newer version stays selected instead of being rewritten. */
+    @Test
+    fun testAnUnknownStoredValueIsKept() {
+        val (settings, panel) = panelWith(EditorRuleState(id = "first", constraintType = "branch"))
+
+        val type = requireByName(panel, "settings.rules.col.type") as JComboBox<*>
+        assertEquals("branch", type.selectedItem)
+        assertEquals("branch", settings.rules[0].constraintType)
+    }
+
+    @Test
+    fun testAnInvalidRegexIsFlagged() {
+        val (_, panel) = panelWith(EditorRuleState(id = "first", constraintType = "keyPattern", matchMode = "regex", value = "a("))
+        val problem = requireByName(panel, "settings.rules.value.invalidRegex")
+        assertTrue(problem.isVisible, "an uncompilable regex must be flagged")
+
+        (requireByName(panel, "settings.rules.col.value") as JTextField).text = "a(b)"
+        assertTrue(!problem.isVisible, "a valid regex must clear the flag")
+    }
+
     @Test
     fun testTheRuleFormIsNotSqueezed() {
         assertFormIsNotSqueezed(panelWith(EditorRuleState(id = "first")).second, "the rules editor")
