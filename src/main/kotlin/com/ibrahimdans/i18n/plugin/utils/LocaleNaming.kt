@@ -25,6 +25,8 @@ import com.ibrahimdans.i18n.LocalizationSource
  * source folder that never described a language.
  */
 internal fun LocalizationSource.localeLabel(): String {
+    // A module template states the locale: it is not guessed then.
+    locale?.let { return it }
     val stem = name.substringBeforeLast('.')
     return when {
         LocalizationSourceService.looksLikeLocale(stem) -> stem
@@ -38,7 +40,8 @@ internal fun LocalizationSource.localeLabel(): String {
  * layout. Such a file holds no namespace: everything inside it is the project's default one.
  */
 internal fun LocalizationSource.isLocaleNamedFile(): Boolean =
-    LocalizationSourceService.looksLikeLocale(name.substringBeforeLast('.'))
+    if (locale != null) namespace == null
+    else LocalizationSourceService.looksLikeLocale(name.substringBeforeLast('.'))
 
 /**
  * False when neither the stem nor the parent directory looks like a locale, i.e. when
@@ -53,4 +56,4 @@ internal fun LocalizationSource.isLocaleNamedFile(): Boolean =
  * locale as missing that "locale" for every single key, real orphan or not.
  */
 internal fun LocalizationSource.hasRecognizedLocale(): Boolean =
-    LocalizationSourceService.looksLikeLocale(localeLabel())
+    locale != null || LocalizationSourceService.looksLikeLocale(localeLabel())

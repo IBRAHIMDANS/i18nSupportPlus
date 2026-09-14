@@ -179,8 +179,9 @@ object TranslationDataLoader {
         source: LocalizationSource,
         defaultNamespace: String = Config().defaultNs,
     ): String =
-        if (source.isLocaleNamedFile()) defaultNamespace
-        else source.name.substringBeforeLast('.')
+        source.namespace
+            ?: if (source.isLocaleNamedFile()) defaultNamespace
+            else source.name.substringBeforeLast('.')
 
     /**
      * Recursively collects leaf values from a translation tree.

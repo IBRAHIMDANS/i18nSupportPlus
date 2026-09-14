@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Modules] A module's **path template now designates its translation files**. `Root directory` + `Path template` (+ `File template`) — `apps/web/messages/{lang}.json`, `locales/{lang}/{ns}.yml` — were edited, validated and previewed in the settings but read by nothing: files were still found by guessing a locale from folder and file names, and a module whose layout the guess did not recognise showed no translation. A file a module template matches is now a translation source whatever its name, with the locale and namespace read from the template's placeholders. Modules without a template, and projects without modules, behave as before
+
 ### Bug Fixes
 
 - [Keys] Recognise `props.t`, `this.props.t` and `i18next.t` as translation calls. A qualified call is only accepted when its whole text is a published name — that is what keeps `toast.t('…')` out — and i18next published `t` and `i18n.t` alone, so keys passed through the `withTranslation` HOC or the i18next instance got no annotation, completion, navigation nor folding: a missing key went unreported. The qualified-call rule is now one function shared by annotation, references and folding, which each carried their own copy
