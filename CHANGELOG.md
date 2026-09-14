@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.5.0 - 2026-09-14
+
 ### Features
 
 - [Editor] **Switch the preview locale from the status bar.** `i18n: en` at the bottom right lists the project's locales; picking one makes it the locale inlay hints, hover, Ctrl+click *and* folding read in, and the open editors follow. A *Switch Preview Locale* action in the editor's context menu cycles through the locales the same way, ready for a shortcut. Going from `fr` to `en` was a trip through *Settings*, twice — *Preview locale* and *Preferred folding language* are two fields; both stay there for anyone who wants them apart. The switch, and *Show Translations Inline*, now actually redraw the open editors: the inlay and folding passes cache on the file's modification stamp, which a settings change does not move, so a bare daemon restart changed nothing on screen until the next keystroke
