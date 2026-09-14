@@ -260,6 +260,17 @@ tasks {
         }
     }
 
+    // The plugin reads its own version from this resource rather than asking the platform:
+    // PluginManagerCore.getPlugin is @Internal from 2026.2 on, and every public replacement is
+    // either internal as well or missing from 2025.1 — see PluginVersion.
+    processResources {
+        val pluginVersion = properties("pluginVersion")
+        inputs.property("pluginVersion", pluginVersion)
+        filesMatching("com/ibrahimdans/i18n/plugin-version.properties") {
+            expand("pluginVersion" to pluginVersion.get())
+        }
+    }
+
     wrapper {
         gradleVersion = properties("gradleVersion").get()
     }
