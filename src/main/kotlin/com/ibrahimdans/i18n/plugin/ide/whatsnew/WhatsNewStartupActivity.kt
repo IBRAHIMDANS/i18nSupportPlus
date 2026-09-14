@@ -25,7 +25,6 @@ import com.intellij.openapi.startup.ProjectActivity
 class WhatsNewStartupActivity : ProjectActivity {
 
     private companion object {
-        const val PLUGIN_ID = "com.ibrahimdans.i18n"
         const val LAST_SEEN_VERSION = "com.ibrahimdans.i18n.whatsNew.lastSeenVersion"
         const val CHANGELOG_URL = "https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/CHANGELOG.md"
         val LOCK = Any()
@@ -33,9 +32,8 @@ class WhatsNewStartupActivity : ProjectActivity {
 
     override suspend fun execute(project: Project) {
         if (ApplicationManager.getApplication().isUnitTestMode) return
-        // Through Java: see PluginLookup for why neither a Kotlin PluginId.getId nor a scan of the
-        // plugin list will do.
-        val currentVersion = PluginLookup.find(PLUGIN_ID)?.version ?: return
+        // From a build-time resource: see PluginVersion for why the platform is not asked.
+        val currentVersion = PluginVersion.current ?: return
         val properties = PropertiesComponent.getInstance()
 
         // Recorded before notifying: several projects opening together must not each announce it.
