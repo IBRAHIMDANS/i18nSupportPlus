@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.preview
 
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
@@ -49,9 +50,11 @@ class PreviewLocaleWidget(private val project: Project) : StatusBarWidget, Statu
     override fun getTooltipText(): String = PluginBundle.message("preview.locale.widget.tooltip")
 
     override fun getPopup(): JBPopup? {
-        val current = PreviewLocaleSwitcher.effective(Settings.getInstance(project).config())
-        // The current locale is offered even when the scan has not found it, so the list never
-        // hides what the editor is showing.
+        val setting = PreviewLocaleSwitcher.effective(Settings.getInstance(project).config())
+        // What the editor shows for the setting — `en-GB` for `en` in a project without a plain
+        // `en` — is the entry selected; a setting matching nothing is offered as it is, so the
+        // list never hides what the editor is set to.
+        val current = LocaleMatching.pick(setting, locales) ?: setting
         val choices = (locales + current).distinct()
         return JBPopupFactory.getInstance()
             .createPopupChooserBuilder(choices)
