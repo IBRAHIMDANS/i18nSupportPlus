@@ -6,6 +6,8 @@ import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.RawKey
+import com.ibrahimdans.i18n.plugin.rules.RuleCalls
+import com.ibrahimdans.i18n.plugin.rules.RuleDecision
 import com.ibrahimdans.i18n.plugin.utils.type
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.lang.javascript.patterns.JSPatterns
@@ -13,6 +15,7 @@ import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.lang.javascript.psi.JSThisExpression
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
 
 open class JsLang : Lang {
@@ -47,12 +50,18 @@ open class JsLang : Lang {
     protected open fun syntaxOwnedExtractors(): List<KeyExtractor> = SYNTAX_OWNED_EXTRACTORS
 
     override fun canExtractKey(element: PsiElement, translationFunctionNames: List<String>): Boolean {
+        val decision = jsRuleDecision(element)
+        if (decision == RuleDecision.EXCLUDE) return false
         if (syntaxOwnedExtractors().any { it.canExtract(element) }) return true
         // Claiming `id` is not enough: the descriptor's other properties would still reach
         // the generic path below, which matches any string literal of a first-argument
         // object — reporting `defaultMessage` as an unresolved key.
         if (REACT_INTL_EXTRACTOR.isInsideMessageDescriptor(element)) return false
-        return translationFunctionNames.any { t ->
+        // A call a rule includes is matched by its method name, like a published one.
+        val names = if (decision == RuleDecision.INCLUDE) {
+            translationFunctionNames + listOfNotNull(calleeOf(element)?.substringAfterLast('.'))
+        } else translationFunctionNames
+        return names.any { t ->
             JSPatterns.jsArgument(t, 0).let { pattern ->
                 pattern.accepts(element) ||
                     (!isNestedInsideTemplateExpression(element) &&
@@ -121,6 +130,11 @@ open class JsLang : Lang {
  * own, which is how a name accepted in one place could be rejected in another.
  */
 internal fun isDirectOrConfiguredCall(element: PsiElement, translationFunctionNames: Collection<String>): Boolean {
+    when (jsRuleDecision(element)) {
+        RuleDecision.INCLUDE -> return true
+        RuleDecision.EXCLUDE -> return false
+        RuleDecision.NONE -> {}
+    }
     val callExpr = PsiTreeUtil.getParentOfType(element, JSCallExpression::class.java) ?: return true
     val refExpr = callExpr.methodExpression as? JSReferenceExpression ?: return true
     val qualifier = refExpr.qualifier ?: return importsTheFrameworkOf(refExpr.text, element)
@@ -148,3 +162,23 @@ internal fun importsTheFrameworkOf(name: String, element: PsiElement): Boolean {
     val text = file.text
     return packages.any { pkg -> Regex("""(from|require\(|import)\s*['"]${Regex.escape(pkg)}""").containsMatchIn(text) }
 }
+
+/** The called function as written — `translate`, `i18n.t` — for the call holding [element], or null. */
+internal fun calleeOf(element: PsiElement): String? =
+    (PsiTreeUtil.getParentOfType(element, JSCallExpression::class.java)?.methodExpression as? JSReferenceExpression)?.text
+
+/**
+ * What the *Key assistance rules* decide about the call holding [element]: an including rule makes
+ * it a translation call even though no framework publishes its name, an excluding one takes it out
+ * even though one does.
+ */
+internal fun jsRuleDecision(element: PsiElement): RuleDecision {
+    val callee = calleeOf(element) ?: return RuleDecision.NONE
+    return RuleCalls.decide(element, "js", callee, ::importsOf)
+}
+
+private val IMPORT_SPECIFIER = Regex("""(?:from|require\(|import)\s*['"]([^'"]+)['"]""")
+
+/** The module specifiers [file] imports or requires. */
+private fun importsOf(file: PsiFile): Set<String> =
+    IMPORT_SPECIFIER.findAll(file.text).mapTo(mutableSetOf()) { it.groupValues[1] }
