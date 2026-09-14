@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.5.1 - 2026-09-14
+
 ### Bug Fixes
 
 - [Updates] Read the plugin's own version **without any platform API**. The 2025.1 workaround of 1.4.0 scanned `PluginManagerCore.getPlugins()`, and its replacement `PluginManagerCore.getPlugin` is reported as internal API too from 2026.2 on — as are `PluginManager.findEnabledPlugin` and `getPluginByClass`, while `PluginDetailsService` only exists from 2026.3. The build now writes `pluginVersion` into a resource of the plugin jar, which the *What's new* notification reads
