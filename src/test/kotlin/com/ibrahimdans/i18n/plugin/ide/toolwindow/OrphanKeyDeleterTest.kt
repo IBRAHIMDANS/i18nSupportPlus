@@ -8,6 +8,7 @@ import com.intellij.json.psi.JsonObject
 import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.openapi.application.ReadAction
 import com.intellij.psi.PsiManager
+import com.intellij.testFramework.PlatformTestUtil
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 
@@ -16,7 +17,8 @@ import org.junit.jupiter.api.Test
  * it used to delete the VALUE element instead of the property (leaving a
  * dangling `"key":`) and to run one WriteCommandAction per locale.
  * Deletion must now remove the whole property plus its separating comma,
- * across every locale, leaving valid JSON behind.
+ * across every locale, leaving valid JSON behind. The source lookup runs off
+ * the EDT, so each deletion waits on the returned promise before asserting.
  */
 class OrphanKeyDeleterTest : PlatformBaseTest() {
 
@@ -36,7 +38,7 @@ class OrphanKeyDeleterTest : PlatformBaseTest() {
         }
 
     private fun delete(key: String) {
-        OrphanKeyDeleter(project).delete(KeysSynchronizer().buildFullKey(key))
+        PlatformTestUtil.waitForPromise(OrphanKeyDeleter(project).delete(KeysSynchronizer().buildFullKey(key)))
     }
 
     /**
@@ -46,7 +48,7 @@ class OrphanKeyDeleterTest : PlatformBaseTest() {
      */
     private fun deleteInModule(key: String, module: String) {
         val config = ModuleConfig(name = module, rootDirectory = "src/$module")
-        OrphanKeyDeleter(project, config).delete(KeysSynchronizer().buildFullKey(key))
+        PlatformTestUtil.waitForPromise(OrphanKeyDeleter(project, config).delete(KeysSynchronizer().buildFullKey(key)))
     }
 
     @Test
@@ -63,6 +65,20 @@ class OrphanKeyDeleterTest : PlatformBaseTest() {
             "the other module's file must not be touched"
         )
         Assertions.assertEquals("oui", valueAt("mobile/locales/en/common.json", "alive"))
+    }
+
+    @Test
+    fun runsOnFinishedAfterTheDeletion() {
+        addFileToProject("locales/en/common.json", """{"dead":"gone","alive":"yes"}""")
+        var deletedWhenFinished: Boolean? = null
+
+        PlatformTestUtil.waitForPromise(
+            OrphanKeyDeleter(project).delete(KeysSynchronizer().buildFullKey("common:dead")) {
+                deletedWhenFinished = valueAt("locales/en/common.json", "dead") == null
+            }
+        )
+
+        Assertions.assertEquals(true, deletedWhenFinished, "the table refresh must see the key already deleted")
     }
 
     @Test
