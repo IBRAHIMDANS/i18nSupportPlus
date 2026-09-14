@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.tree.PluralGroup
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ellipsis
+import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.ibrahimdans.i18n.plugin.utils.renderIcu
 import com.ibrahimdans.i18n.plugin.utils.unQuote
@@ -80,7 +81,7 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
         val config = Settings.getInstance(project).config()
         val pluralSeparator = config.pluralSeparator
         // The preview locale leads the table: it is the one the user reads the code in.
-        val previewLocale = config.previewLocale.ifBlank { config.foldingPreferredLanguage }
+        val previewLocale = LocaleMatching.pick(config.previewLocale.ifBlank { config.foldingPreferredLanguage }, sources.map { it.localeLabel() })
 
         val rows = sources.sortedByDescending { it.localeLabel() == previewLocale }.mapNotNull { source ->
             val refs = resolve(fullKey.compositeKey, source, pluralSeparator)

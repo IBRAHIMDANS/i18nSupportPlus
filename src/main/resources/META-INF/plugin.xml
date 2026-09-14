@@ -214,6 +214,9 @@
         <toolWindow id="I18n" anchor="bottom" icon="AllIcons.Nodes.ResourceBundle"
                     factoryClass="com.ibrahimdans.i18n.plugin.ide.toolwindow.I18nToolWindowFactory"/>
         <renameHandler implementation="com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler"/>
+        <statusBarWidgetFactory id="com.ibrahimdans.i18n.previewLocale"
+                                implementation="com.ibrahimdans.i18n.plugin.ide.preview.PreviewLocaleWidgetFactory"
+                                order="after positionWidget"/>
         <localInspection
             groupName="i18n Support Plus"
             key="inspection.placeholder.display.name"
@@ -277,6 +280,11 @@
                 class="com.ibrahimdans.i18n.plugin.ide.actions.BatchExtractI18nAction">
             <add-to-group group-id="CodeMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift B"/>
+        </action>
+        <!-- No default shortcut: ctrl alt shift T/B/M are taken; the status bar widget is the click path. -->
+        <action id="com.ibrahimdans.i18n.SwitchPreviewLocale"
+                class="com.ibrahimdans.i18n.plugin.ide.actions.SwitchPreviewLocaleAction">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
         </action>
         <action id="com.ibrahimdans.i18n.SortI18nKeys"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.SortI18nKeysAction">

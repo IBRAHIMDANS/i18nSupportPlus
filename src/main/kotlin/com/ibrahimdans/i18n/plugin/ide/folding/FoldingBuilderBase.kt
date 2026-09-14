@@ -12,6 +12,7 @@ import com.ibrahimdans.i18n.plugin.tree.PropertyReference
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ellipsis
+import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.ibrahimdans.i18n.plugin.utils.renderIcu
 import com.ibrahimdans.i18n.plugin.utils.unQuote
@@ -80,11 +81,13 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
     }
 
     private fun resolve(container: PsiElement, element: PsiElement, config: Config, fullKey: FullKey): ElementToReferenceBinding? {
-        return element.project.service<LocalizationSourceService>()
-            .findSources(fullKey.allNamespaces(), element)
-            // Through localeLabel, not the parent directory: `locales/en.json` has `locales` as its
-            // parent, so the "one file per locale" layout never matched and got no folding at all.
-            .filter { it.localeLabel() == config.foldingPreferredLanguage }
+        val sources = element.project.service<LocalizationSourceService>().findSources(fullKey.allNamespaces(), element)
+        // Through localeLabel, not the parent directory: `locales/en.json` has `locales` as its
+        // parent, so the "one file per locale" layout never matched and got no folding at all.
+        // And through LocaleMatching, so `en` finds `en-GB` when there is no plain `en`.
+        val locale = LocaleMatching.pick(config.foldingPreferredLanguage, sources.map { it.localeLabel() })
+        return sources
+            .filter { it.localeLabel() == locale }
             .mapNotNull { resolveCompositeKey(fullKey.compositeKey, it) }
             // A nested plural group holds no value of its own but is displayed through its
             // representative branch, so `isLeaf` is not the test — PluralGroup is.
