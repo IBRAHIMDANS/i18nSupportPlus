@@ -173,6 +173,7 @@
              JsLang, whose markup extractors need XML PSI that plain JS/TS files never hold. A
              declaration per dialect annotated a .tsx key once per class. -->
         <annotator language="JavaScript" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsxCompositeKeyAnnotator"/>
+        <gotoDeclarationHandler implementation="com.ibrahimdans.i18n.plugin.ide.references.code.I18nGotoDeclarationHandler"/>
         <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.lang.js.JsReferenceContributor"/>
         <psi.referenceContributor language="JSX Harmony" implementation="com.ibrahimdans.i18n.extensions.lang.js.JsxReferenceContributor"/>
         <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.localization.js.TsLocalizationReferenceContributor"/>
