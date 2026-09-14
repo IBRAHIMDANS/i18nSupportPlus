@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.4.0 - 2026-09-14
+
 ### Features
 
 - [Tool window] The **default namespace's group comes first** in the tree and in the table, as it already did in the table's combo and in the Stats. The tree and the table sorted it with the others by name, so `common (default)` sat between `auth` and `dashboard` in one view and led the next
