@@ -1,14 +1,13 @@
 package com.ibrahimdans.i18n.extensions.lang.js.extractors
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.extensions.lang.js.isDirectOrConfiguredCall
 import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
 import com.ibrahimdans.i18n.plugin.utils.default
 import com.intellij.lang.javascript.patterns.JSPatterns
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSLiteralExpression
-import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.lang.javascript.psi.JSSpreadExpression
-import com.intellij.lang.javascript.psi.JSThisExpression
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
@@ -24,14 +23,8 @@ internal class JsFoldingProvider: FoldingProvider {
         return isDirectOrConfiguredCall(element)
     }
 
-    private fun isDirectOrConfiguredCall(element: PsiElement): Boolean {
-        val callExpr = PsiTreeUtil.getParentOfType(element, JSCallExpression::class.java) ?: return true
-        val refExpr = callExpr.methodExpression as? JSReferenceExpression ?: return true
-        val qualifier = refExpr.qualifier ?: return true
-        if (qualifier is JSThisExpression) return true
-        val fnNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
-        return refExpr.text in fnNames
-    }
+    private fun isDirectOrConfiguredCall(element: PsiElement): Boolean =
+        isDirectOrConfiguredCall(element, Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() })
 
     /**
      * Returns true if [element] is nested inside a JSSpreadExpression before reaching

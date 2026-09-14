@@ -62,17 +62,6 @@ open class JsLang : Lang {
           && extractRawKey(element) != null
     }
 
-    // Returns false when the call has a non-`this` qualifier that is not in translationFunctionNames.
-    // Guards against false positives like toast.t('key') when only "t" is configured.
-    // this.$t is always accepted; i18n._ is accepted only if "i18n._" is a configured name.
-    protected fun isDirectOrConfiguredCall(element: PsiElement, translationFunctionNames: List<String>): Boolean {
-        val callExpr = PsiTreeUtil.getParentOfType(element, JSCallExpression::class.java) ?: return true
-        val refExpr = callExpr.methodExpression as? JSReferenceExpression ?: return true
-        val qualifier = refExpr.qualifier ?: return true
-        if (qualifier is JSThisExpression) return true
-        return refExpr.text in translationFunctionNames
-    }
-
     private fun isNestedInsideTemplateExpression(element: PsiElement): Boolean {
         var current = element.parent
         while (current != null && current.type() != "JS:ARGUMENT_LIST") {
@@ -120,4 +109,20 @@ open class JsLang : Lang {
             else if (typeName == "JS:STRING_TEMPLATE_PART") entry.parent
             else null
     }
+}
+
+/**
+ * False when the call holding [element] is qualified by something other than `this` and its whole
+ * method text is not one of [translationFunctionNames]: `toast.t('key')` stays out while `this.$t`,
+ * `i18n._` or `props.t` — once published — get through.
+ *
+ * The one copy the JS dialect's annotation, references and folding share. Each used to carry its
+ * own, which is how a name accepted in one place could be rejected in another.
+ */
+internal fun isDirectOrConfiguredCall(element: PsiElement, translationFunctionNames: Collection<String>): Boolean {
+    val callExpr = PsiTreeUtil.getParentOfType(element, JSCallExpression::class.java) ?: return true
+    val refExpr = callExpr.methodExpression as? JSReferenceExpression ?: return true
+    val qualifier = refExpr.qualifier ?: return true
+    if (qualifier is JSThisExpression) return true
+    return refExpr.text in translationFunctionNames
 }
