@@ -6,17 +6,25 @@ import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.parser.RawKey
+import com.ibrahimdans.i18n.plugin.rules.RuleCalls
+import com.ibrahimdans.i18n.plugin.rules.RuleDecision
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
+import com.intellij.psi.util.PsiTreeUtil
+import com.jetbrains.php.lang.psi.elements.FunctionReference
 import com.jetbrains.php.lang.psi.elements.ParameterList
 
 class PhpLang: Lang {
     override fun canExtractKey(element: PsiElement, translationFunctionNames: List<String>): Boolean {
         val config = Settings.getInstance(element.project).config()
-        val functionNames = if (config.gettext) {
+        val decision = phpRuleDecision(element)
+        if (decision == RuleDecision.EXCLUDE) return false
+        val publishedNames = if (config.gettext) {
             config.gettextAliases.split(",").map { it.trim() }.filter { it.isNotEmpty() }
         } else {
             translationFunctionNames.filter { PhpPatternsExt.isValidPhpFunctionName(it) }
         }
+        val functionNames = if (decision == RuleDecision.INCLUDE) publishedNames + listOfNotNull(phpCalleeOf(element)) else publishedNames
         // The annotator receives leaf tokens (e.g. "double quoted string"), but phpArgument()
         // operates on PhpExpression nodes. Walk up to find the ancestor that is a direct child
         // of the ParameterList (handles both t("key") and t(cond ? "key" : "other")).
@@ -43,3 +51,21 @@ class PhpLang: Lang {
     }
 }
 
+/** The name of the function or method called with [element] among its arguments, or null. */
+internal fun phpCalleeOf(element: PsiElement): String? =
+    PsiTreeUtil.getParentOfType(element, FunctionReference::class.java)?.name
+
+/**
+ * What the *Key assistance rules* decide about the call holding [element]: an including rule makes
+ * `__('key')` a translation call, an excluding one takes a published call out.
+ */
+internal fun phpRuleDecision(element: PsiElement): RuleDecision {
+    val callee = phpCalleeOf(element) ?: return RuleDecision.NONE
+    return RuleCalls.decide(element, "php", callee, ::useStatementsOf)
+}
+
+private val USE_STATEMENT = Regex("""(?m)^\s*use\s+\\?([\w\\]+)""")
+
+/** The namespaces and classes [file] imports with `use`. */
+private fun useStatementsOf(file: PsiFile): Set<String> =
+    USE_STATEMENT.findAll(file.text).mapTo(mutableSetOf()) { it.groupValues[1] }
