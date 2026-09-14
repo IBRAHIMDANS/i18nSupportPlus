@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
 import com.ibrahimdans.i18n.plugin.parser.RawKey
+import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.rules.RuleDecision
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.unQuote
@@ -48,15 +49,12 @@ internal class PhpReferenceAssistant: ReferenceAssistant {
     }
 
     private fun parse(element: PsiElement, config: Config): FullKey? {
-        val parser = (
-            if (config.usesFlatKeys()) {
-                KeyParserBuilder.withoutTokenizer()
-            } else
-                KeyParserBuilder.withSeparators(config.nsSeparator, config.keySeparator)
-        ).build()
         val text = element.text.unQuote()
         if (text.isBlank()) return null
-        return parser.parse(RawKey(listOf(KeyElement.literal(text))))
+        val rawKey = RawKey(listOf(KeyElement.literal(text)))
+        if (config.usesFlatKeys()) return KeyParserBuilder.withoutTokenizer().build().parse(rawKey)
+        // Like the annotator, so a module's key template reads the key the same way on both sides.
+        return RawKeyParser(element.project).parse(rawKey, element)
     }
 
     private fun gettextPattern(config: Config) =
