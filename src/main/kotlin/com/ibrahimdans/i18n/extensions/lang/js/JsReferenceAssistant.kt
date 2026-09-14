@@ -8,9 +8,11 @@ import com.ibrahimdans.i18n.plugin.factory.ReferenceAssistant
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
+import com.ibrahimdans.i18n.plugin.rules.RuleDecision
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.lang.javascript.patterns.JSPatterns
 import com.intellij.lang.javascript.psi.ecma6.JSComputedPropertyNameOwner
+import com.intellij.lang.javascript.psi.JSArgumentList
 import com.intellij.lang.javascript.psi.JSConditionalExpression
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.lang.javascript.psi.JSProperty
@@ -74,19 +76,26 @@ internal class JsReferenceAssistant: ReferenceAssistant {
             private fun isLiteralInTernaryArg(element: PsiElement): Boolean {
                 if (element !is JSLiteralExpression) return false
                 val parent = element.parent as? JSConditionalExpression ?: return false
-                return ternaryArg.accepts(parent)
+                return ternaryArg.accepts(parent) && jsRuleDecision(element) != RuleDecision.EXCLUDE
+            }
+
+            // A first argument of a call whose name no framework publishes but a rule includes.
+            private fun isRuleIncludedArgument(element: PsiElement): Boolean {
+                if (element !is JSLiteralExpression) return false
+                val arguments = element.parent as? JSArgumentList ?: return false
+                return arguments.arguments.firstOrNull() === element && jsRuleDecision(element) == RuleDecision.INCLUDE
             }
 
             override fun accepts(o: Any?): Boolean {
                 return JSPatterns.jsLiteralExpression().accepts(o) && isAlias(o as JSLiteralExpression)
                     || (v.accepts(o) && (o !is PsiElement || isDirectOrConfiguredCall(o)))
-                    || (o is PsiElement && isLiteralInTernaryArg(o))
+                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o)))
             }
 
             override fun accepts(o: Any?, context: ProcessingContext?): Boolean {
                 return JSPatterns.jsLiteralExpression().accepts(o) && isAlias(o as JSLiteralExpression)
                     || (v.accepts(o, context) && (o !is PsiElement || isDirectOrConfiguredCall(o)))
-                    || (o is PsiElement && isLiteralInTernaryArg(o))
+                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o)))
             }
 
             override fun getCondition(): ElementPatternCondition<PsiElement>? {
