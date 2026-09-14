@@ -315,4 +315,20 @@ class CreateKeyTest: PlatformBaseTest() {
             return content
         }
     }
+
+    /**
+     * A key with a runtime segment names no property to create. The gutter click on
+     * `` t(`deposit-box:status.${'$'}{status}`) `` wrote a property literally called `${'$'}{status}`
+     * into a translation file; the fix must not be offered on such a key, nor on one whose
+     * static part is unresolved either — `foo.${'$'}{x}` is not creatable any more than `${'$'}{x}`.
+     */
+    @Test
+    fun testNoCreateKeyOnADynamicKey() {
+        myFixture.addFileToProject("test.json", """{"status": {"pending": "Pending"}}""")
+        val cg = JsCodeGenerator()
+        myFixture.configureByText("dynamic.${cg.ext()}", cg.generate("`test:missing.${'$'}{kind}<caret>`"))
+
+        val fixes = myFixture.availableIntentions.map { it.text }.filter { it.startsWith("Create i18n key") }
+        assertTrue(fixes.isEmpty(), "no creation offered on a runtime key, got $fixes")
+    }
 }
