@@ -153,6 +153,24 @@ class I18nGutterIconProviderTest : PlatformBaseTest() {
      * TypeScript → JavaScript. One declaration per dialect made the daemon collect it three times
      * for the same element, which is what the removed cache was papering over.
      */
+    /**
+     * A runtime segment cannot be verified statically. The provider showed such a key as
+     * missing in every locale, and its click created a property literally named `${'$'}{status}`.
+     * The annotator reports nothing on it; the gutter now agrees.
+     */
+    @Test
+    fun dynamicKeyGetsNoIcon() = myFixture.runWithConfig(Config()) {
+        addDashboardAndCommon()
+        fun templateComponent(key: String) = twoNamespaceComponent(key).replace("t('", "t(`").replace("')", "`)")
+        // The same template literal with a static key is marked: what follows tests the
+        // dynamic segment, not the backticks.
+        val static = myFixture.configureByText("Static.tsx", templateComponent("dashboard:stats.title"))
+        Assertions.assertEquals(1, gutterCount(static), "a template literal holding a plain key is a key")
+
+        val dynamic = myFixture.configureByText("Dynamic.tsx", templateComponent("dashboard:stats.${'$'}{kind}"))
+        Assertions.assertEquals(0, gutterCount(dynamic), "nothing to verify, nothing to create")
+    }
+
     @Test
     fun providerIsRegisteredOncePerDialect() {
         for (ext in listOf("js", "jsx", "ts", "tsx")) {

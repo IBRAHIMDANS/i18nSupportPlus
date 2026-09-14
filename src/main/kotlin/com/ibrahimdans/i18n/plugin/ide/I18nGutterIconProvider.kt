@@ -63,6 +63,10 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
         val rawKey = lang.extractRawKey(element) ?: return null
         val fullKey = RawKeyParser(project).parse(rawKey, element) ?: return null
         if (fullKey.compositeKey.isEmpty()) return null
+        // A runtime segment cannot be verified statically: the annotator reports nothing on
+        // such a key, and this provider used to show it as missing in every locale — with a
+        // click that created a property literally named `${status}`.
+        if (fullKey.isDynamic) return null
 
         val config = Settings.getInstance(project).config()
         val sourceService = project.service<LocalizationSourceService>()

@@ -74,8 +74,12 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
         val builder = holder
             .newAnnotation(errorSeverity, PluginBundle.getMessage("annotator.unresolved.key"))
             .range(rangesCalculator.unresolvedKey(fullKey, mostResolvedReference.path))
-        builder.withFix(CreateKeyQuickFix(fullKey, UserChoice(), PluginBundle.getMessage("quickfix.create.key")))
-        builder.withFix(CreateKeyQuickFix(fullKey, AllSourcesSelector(), PluginBundle.getMessage("quickfix.create.key.in.files")))
+        // A key with a runtime segment names no property to create: the fix would write the
+        // `${…}` text as a property name.
+        if (!fullKey.isDynamic) {
+            builder.withFix(CreateKeyQuickFix(fullKey, UserChoice(), PluginBundle.getMessage("quickfix.create.key")))
+            builder.withFix(CreateKeyQuickFix(fullKey, AllSourcesSelector(), PluginBundle.getMessage("quickfix.create.key.in.files")))
+        }
         builder.create()
     }
 

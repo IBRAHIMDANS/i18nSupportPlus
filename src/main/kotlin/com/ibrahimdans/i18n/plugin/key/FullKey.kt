@@ -23,4 +23,13 @@ data class FullKey(
      * the typo got a green gutter icon and translated hints while i18next finds nothing at runtime.
      */
     fun allNamespaces(): List<String> = ns?.text.nullableToList().ifEmpty { namespaces.orEmpty() }
+
+    /**
+     * True when a segment of the key is only known at runtime: a template expression
+     * (`` t(`status.${kind}`) ``, normalized to a `${…}` literal) or a wildcard. Such a key
+     * names no property that could be created — the gutter click on one wrote a property
+     * literally called `${status}` into a translation file.
+     */
+    val isDynamic: Boolean
+        get() = compositeKey.any { it.text == "*" || (it.text.startsWith("\${") && it.text.endsWith("}")) }
 }
