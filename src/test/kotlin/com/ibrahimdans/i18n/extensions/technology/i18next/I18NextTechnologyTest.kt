@@ -1,6 +1,9 @@
 package com.ibrahimdans.i18n.extensions.technology.i18next
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.ide.runWithConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.intellij.openapi.application.ReadAction
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
@@ -57,5 +60,28 @@ class I18NextTechnologyTest : PlatformBaseTest() {
         val init = ReadAction.compute<Any?, RuntimeException> { technology.findInitObject(file) }
 
         Assertions.assertNotNull(init, "the init object holding `resources` must be found")
+    }
+
+    /** A configured path is read even though no word search ever ran, and a JS config counts too. */
+    @Test
+    fun configuredConfigurationFileProvidesItsResources() = myFixture.runWithConfig(Config(jsConfiguration = "src/i18n.js")) {
+        addFileToProject(
+            "src/i18n.js",
+            """
+            i18n.init({
+              resources: { en: { translation: { hello: 'Hi' } } },
+            });
+            """.trimIndent()
+        )
+
+        val files = ReadAction.compute<List<String>, RuntimeException> { technology.configFiles(project, Settings.getInstance(project).config()).map { it.name } }
+
+        Assertions.assertEquals(listOf("i18n.js"), files)
+    }
+
+    @Test
+    fun aMissingConfiguredPathYieldsNothingAndNeverThrows() = myFixture.runWithConfig(Config(jsConfiguration = "nope/i18n.ts, ")) {
+        val sources = ReadAction.compute<Int, RuntimeException> { technology.findSourcesByConfiguration(project).size }
+        Assertions.assertEquals(0, sources)
     }
 }

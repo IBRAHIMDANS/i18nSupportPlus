@@ -89,6 +89,10 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                     cell(textField(PluginBundle.message("settings.translations.root"), settings::translationsRoot, columns = 25))
                         .comment(PluginBundle.message("settings.translations.root.comment"))
                 }
+                row(PluginBundle.message("settings.js.configuration")) {
+                    cell(textField(PluginBundle.message("settings.js.configuration"), settings::jsConfiguration, maxLength = 500, columns = 25))
+                        .comment(PluginBundle.message("settings.js.configuration.comment"))
+                }
                 row(PluginBundle.message("settings.excluded.directories")) {
                     cell(textField(PluginBundle.message("settings.excluded.directories"), settings::excludedDirectories, columns = 25))
                         .comment(PluginBundle.message("settings.excluded.directories.comment"))

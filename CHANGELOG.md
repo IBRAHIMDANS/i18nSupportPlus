@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Settings] **i18next configuration files**: name the files that declare i18next `resources` inline (relative to the project, comma-separated, JS or TS). The setting had been stored since the first release with no field and no reader; the plugin could only find such a config by searching the word `translation` and then looking the file up by name among TypeScript files, which missed a `.js` config and could pick a namesake in another folder. Left empty, the search still applies
+
 ### Bug Fixes
 
 - [Keys] Recognise `props.t`, `this.props.t` and `i18next.t` as translation calls. A qualified call is only accepted when its whole text is a published name — that is what keeps `toast.t('…')` out — and i18next published `t` and `i18n.t` alone, so keys passed through the `withTranslation` HOC or the i18next instance got no annotation, completion, navigation nor folding: a missing key went unreported. The qualified-call rule is now one function shared by annotation, references and folding, which each carried their own copy
