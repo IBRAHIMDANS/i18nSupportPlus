@@ -16,11 +16,8 @@ import com.intellij.openapi.editor.markup.GutterIconRenderer
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.TextEditor
 import com.intellij.openapi.util.IconLoader
-import com.intellij.openapi.util.Key
-import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import java.awt.event.MouseEvent
-import java.util.Collections
 import javax.swing.Icon
 
 /**
@@ -40,11 +37,6 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
         private val ICON_RESOLVED: Icon = IconLoader.getIcon("/icons/gutter_resolved.svg", I18nGutterIconProvider::class.java)
         private val ICON_PARTIAL: Icon  = IconLoader.getIcon("/icons/gutter_partial.svg",  I18nGutterIconProvider::class.java)
         private val ICON_MISSING: Icon  = IconLoader.getIcon("/icons/gutter_missing.svg",  I18nGutterIconProvider::class.java)
-
-        // Prevents duplicate markers when multiple language providers (JS, JSX, TS, TSX) are
-        // each invoked by IntelliJ for the same underlying file content.
-        // The Long is the document modificationStamp so the set is invalidated on each edit.
-        private val MARKER_CACHE_KEY = Key.create<Pair<Long, MutableSet<TextRange>>>("i18n.gutter.cache")
     }
 
     override fun getLineMarkerInfo(element: PsiElement): LineMarkerInfo<*>? {
@@ -58,6 +50,15 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
         val lang = Extensions.LANG.extensionList.firstOrNull {
             it.canExtractKey(element, translationFunctionNames)
         } ?: return null
+
+        // A literal expression and its leaf token are both claimed, and both anchor on the leaf.
+        // The parent owns the marker; the leaf would stack a second badge on the same range.
+        if (element.firstChild == null) {
+            val parent = element.parent
+            if (parent != null && parent.firstChild === element &&
+                Extensions.LANG.extensionList.any { it.canExtractKey(parent, translationFunctionNames) }
+            ) return null
+        }
 
         val rawKey = lang.extractRawKey(element) ?: return null
         val fullKey = RawKeyParser(project).parse(rawKey) ?: return null
@@ -78,12 +79,17 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
 
         val pluralSeparator = config.pluralSeparator
 
-        // Resolve the key in each source and build per-locale status
+        // A source is a (locale × namespace) pair: a file declaring several namespaces gets one
+        // source per namespace per locale. Counting sources would report `dashboard:title` as
+        // 2/4 next to `common.json`, so sources are grouped by locale, and a locale is resolved
+        // when any of its namespaces holds the key — the same rule the annotator applies.
         data class LocaleStatus(val label: String, val resolved: Boolean)
-        val statuses = sources.map { source ->
-            val refs = resolve(fullKey.compositeKey, source, pluralSeparator)
-            val isResolved = refs.any { it.unresolved.isEmpty() && it.element != null }
-            LocaleStatus(source.localeLabel(), isResolved)
+        val statuses = sources.groupBy { it.localeLabel() }.map { (label, localeSources) ->
+            val isResolved = localeSources.any { source ->
+                resolve(fullKey.compositeKey, source, pluralSeparator)
+                    .any { it.unresolved.isEmpty() && it.element != null }
+            }
+            LocaleStatus(label, isResolved)
         }
 
         val resolvedCount = statuses.count { it.resolved }
@@ -99,24 +105,6 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
 
         // Anchor on the leaf token to position the badge correctly
         val anchor = element.firstChild ?: element
-
-        // Deduplicate: skip if another language provider already produced a marker for this range.
-        // This happens when IntelliJ invokes all registered providers (JS, JSX, TS, TSX) for the same file.
-        val document = element.containingFile?.viewProvider?.document
-        if (document != null) {
-            val modStamp = document.modificationStamp
-            val processedRanges = synchronized(document) {
-                val cached = document.getUserData(MARKER_CACHE_KEY)
-                if (cached != null && cached.first == modStamp) {
-                    cached.second
-                } else {
-                    val newSet = Collections.synchronizedSet(mutableSetOf<TextRange>())
-                    document.putUserData(MARKER_CACHE_KEY, Pair(modStamp, newSet))
-                    newSet
-                }
-            }
-            if (!processedRanges.add(anchor.textRange)) return null
-        }
 
         // Navigation handler: trigger CreateKeyQuickFix when icon is clicked and key is missing/partial
         val navHandler: GutterIconNavigationHandler<PsiElement>? = if (resolvedCount < total) {
