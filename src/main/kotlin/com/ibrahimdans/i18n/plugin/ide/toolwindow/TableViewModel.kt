@@ -182,6 +182,15 @@ class TableViewModel {
     fun namespaceLabel(key: String, config: Config = Config()): String =
         namespaceOf(key)?.let { NamespaceFilter.Named(it).label } ?: NamespaceFilter.Default.label(config)
 
+    /**
+     * How the Namespace column sorts: the default group's label first — the tree, the combo
+     * and the Stats lead with it too — then the names alphabetically.
+     */
+    fun namespaceOrder(config: Config): Comparator<String> {
+        val default = NamespaceFilter.Default.label(config)
+        return compareBy<String>({ it != default }, { it })
+    }
+
     /** The key as the Key column shows it next to a Namespace column: without its prefix. */
     fun keyLabel(key: String): String = KeySpelling.pathOf(key)
 

@@ -483,6 +483,16 @@ class TableViewModelTest {
         assertEquals(NamespaceFilter.All.label, NamespaceFilter.All.label(one))
     }
 
+    @Test
+    fun `the namespace column leads with the default group, then names alphabetically`() {
+        val order = viewModel.namespaceOrder(Config(defaultNs = "common"))
+
+        assertEquals(
+            listOf("common (default)", "auth", "dashboard", "navigation"),
+            listOf("navigation", "common (default)", "dashboard", "auth").sortedWith(order),
+        )
+    }
+
     // ---- source routing ----
 
     private fun source(displayPath: String, name: String, parent: String) =

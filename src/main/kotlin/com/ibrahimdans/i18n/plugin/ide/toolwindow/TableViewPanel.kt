@@ -358,6 +358,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         if (tableModel.columnCount > 0) {
             // Namespace first, then the full key: the rows of one namespace stay together, and
             // that is what lets the column read as group boundaries rather than as a label.
+            if (withNamespace) sorter.setComparator(0, viewModel.namespaceOrder(config))
             sorter.sortKeys = (0 until leadingColumns).map { RowSorter.SortKey(it, SortOrder.ASCENDING) }
         }
     }
