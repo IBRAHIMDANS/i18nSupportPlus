@@ -35,6 +35,8 @@ class I18NextTechnology : Technology {
      * `props.t` / `this.props.t` are what the `withTranslation` HOC injects, and `i18next.t` is the
      * instance API used outside React.
      */
+    override fun frameworkId(): String = "i18next"
+
     override fun translationFunctionNames(): List<String> {
         return listOf("t", "i18n.t", "i18next.t", "props.t", "this.props.t")
     }

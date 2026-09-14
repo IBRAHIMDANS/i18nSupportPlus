@@ -31,5 +31,7 @@ class I18nJsTechnology : SimpleTechnology() {
      * `toast.t('…')`. Listing `t` again alongside i18next is harmless — the aggregated list
      * is only ever used through `any { }` and `in`, where a duplicate changes nothing.
      */
+    override fun frameworkId(): String = "i18n-js"
+
     override fun translationFunctionNames(): List<String> = listOf("t", "i18n.t")
 }

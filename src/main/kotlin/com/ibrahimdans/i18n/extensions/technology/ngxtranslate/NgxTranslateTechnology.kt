@@ -12,5 +12,7 @@ import com.ibrahimdans.i18n.extensions.technology.SimpleTechnology
  * was annotated as an unresolved key.
  */
 class NgxTranslateTechnology : SimpleTechnology() {
+    override fun frameworkId(): String = "ngx-translate"
+
     override fun translationFunctionNames(): List<String> = emptyList()
 }
