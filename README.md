@@ -234,7 +234,9 @@ Keys grouped by **namespace**, then by segment. Every key carries its status thr
 - **Enter** or double-click edits the key, **F4** opens the translation file at the key, typing jumps to a key
 - Right-click: edit, open file, copy key
 - A permanent legend sits at the bottom
+- The keys of the default namespace sit in a group named after it — `common (default)` — when the configuration names a single one
 
+![Tool Window Tree — namespaces](docs/img/toolwindow-tree-namespaces.png)
 ![Tool Window Tree](docs/img/toolwindow-tree.png)
 
 ### Table View

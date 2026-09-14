@@ -19,10 +19,11 @@ Sources : `~/Pictures/Screenshots/Screenshot from 2026-09-14 14-4*.png`, rognée
 
 | Fichier | Contenu | Statut |
 |---|---|---|
+| `toolwindow-tree-namespaces.png` | les cinq groupes repliés avec leur complétude, dont `common (default)` (#273) — capture 15-41-00 | DONE (nouvelle) |
 | `toolwindow-tree.png` | groupes de namespace dépliés (`auth`, `common`, `dashboard`), badges `EN✓ FR✓`, légende | DONE |
-| `toolwindow-table.png` | colonne Namespace, clés sans préfixe, deux cellules *Missing* | DONE |
-| `toolwindow-table-namespace-filter.png` | combo *All namespaces* déroulée | DONE |
-| `toolwindow-stats.png` | matrice Namespace × locale, ligne Total, barres vertes/orange | DONE |
+| `toolwindow-table.png` | colonne Namespace avec `common (default)`, clés sans préfixe, une cellule *Missing* — capture 15-41-24 | DONE (refaite après #273) |
+| `toolwindow-table-namespace-filter.png` | combo *All namespaces* déroulée, `common (default)` en tête — capture 15-41-35 | DONE (refaite après #273) |
+| `toolwindow-stats.png` | matrice Namespace × locale, ligne Total, `common (default)`, barres vertes/orange — capture 15-41-44 | DONE (refaite après #273) |
 | `toolwindow-stats-popup.png` | popup `common — 'fr': 2 missing, 0 empty — reference: en` sous la cellule | DONE |
 | `gutter-icons.png` | `DepositBox.tsx` avec badges vert / orange / rouge | DONE (refaite) |
 | `gutter-icons-tooltip.png` | tooltip *Partial translation (1/2 locales)* | DONE (refaite) |
@@ -70,7 +71,7 @@ Sources : `~/Pictures/Screenshots/Screenshot from 2026-09-14 14-4*.png`, rognée
 
 | Statut | Nombre |
 |--------|--------|
-| Refaites le 2026-09-14 | 14 |
+| Refaites le 2026-09-14 | 15 |
 | À refaire | 1 (`toolwindow-table-orphans`) |
 | À vérifier | 2 (`sync-missing-keys`, `navigation`) |
 | Inchangées | 15 |
