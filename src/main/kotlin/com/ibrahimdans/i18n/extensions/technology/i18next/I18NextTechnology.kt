@@ -10,6 +10,9 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.roots.ProjectRootManager
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
@@ -37,11 +40,9 @@ class I18NextTechnology : Technology {
     }
 
     override fun findSourcesByConfiguration(project: Project): List<LocalizationSource> {
-        val searchScope = Settings.getInstance(project).config().searchScope(project)
+        val config = Settings.getInstance(project).config()
         val localizations = Extensions.LOCALIZATION.extensionList
-        val tsFileType = FileTypeManager.getInstance().findFileTypeByName("TypeScript") ?: return listOf()
-        return cfgNamespaces
-            .mapNotNull { cfgFile -> FileTypeIndex.getFiles(tsFileType, searchScope).find {it.name == cfgFile} }
+        return configFiles(project, config)
             .flatMap {
                 val init = PsiManager.getInstance(project).findFile(it)?.let { findInitObject(it) }
                 val translations = getTranslations(
@@ -96,6 +97,29 @@ class I18NextTechnology : Technology {
     }
 
     override fun cfgNamespaces(): List<String> = cfgNamespaces
+
+    /**
+     * The i18next configuration files to read `resources` from.
+     *
+     * [Config.jsConfiguration], when set, names them: comma-separated paths relative to the project
+     * (a content root or the project directory), JS or TS alike. It had been stored since the first
+     * release without anything reading it. Left empty, the files are the ones [initialize] found by
+     * searching the word `translation`, looked up by name among TypeScript files — the previous and
+     * only behaviour, which misses a JS config and can pick a namesake in another folder.
+     */
+    internal fun configFiles(project: Project, config: com.ibrahimdans.i18n.plugin.ide.settings.Config): List<VirtualFile> {
+        val configured = config.jsConfiguration.split(',').map { it.trim().trim('/') }.filter { it.isNotEmpty() }
+        if (configured.isNotEmpty()) {
+            val roots = ProjectRootManager.getInstance(project).contentRoots.toList() +
+                listOfNotNull(project.basePath?.let { LocalFileSystem.getInstance().findFileByPath(it) })
+            return configured.mapNotNull { path -> roots.firstNotNullOfOrNull { it.findFileByRelativePath(path) } }
+                .filter { !it.isDirectory }
+                .distinct()
+        }
+        val tsFileType = FileTypeManager.getInstance().findFileTypeByName("TypeScript") ?: return listOf()
+        val searchScope = config.searchScope(project)
+        return cfgNamespaces.mapNotNull { cfgFile -> FileTypeIndex.getFiles(tsFileType, searchScope).find { it.name == cfgFile } }
+    }
 
     /**
      * Finds the i18next `resources` object in a config file, or null when the config
