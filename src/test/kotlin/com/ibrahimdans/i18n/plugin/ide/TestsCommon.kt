@@ -30,13 +30,22 @@ internal fun CodeInsightTestFixture.runWithConfig (config: Config, block: () -> 
  * Key creation looks its translation files up in a non-blocking read action, off the EDT, then
  * writes from `finishOnUiThread`. `launchAction` alone returns before that write, so a
  * `checkResult` right after it would compare the file as it was.
+ *
+ * Each hop is an EDT event followed by a background lookup, and extraction chains them:
+ * `KeyCreator` looks up whether a file exists, then `CreateKeyQuickFix` looks up where to write.
+ * Every round flushes the EDT queue and waits for the lookups it started; a round with nothing
+ * pending costs nothing, so [ASYNC_ROUNDS] leaves headroom above the longest chain.
  */
 internal fun CodeInsightTestFixture.launchActionAndWait(action: IntentionAction) {
     launchAction(action)
-    PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
-    NonBlockingReadActionImpl.waitForAsyncTaskCompletion()
+    repeat(ASYNC_ROUNDS) {
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        NonBlockingReadActionImpl.waitForAsyncTaskCompletion()
+    }
     PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 }
+
+private const val ASYNC_ROUNDS = 4
 
 /** The Vue plugin, which the plugin depends on optionally (`vueConfig.xml`). */
 private val VUE_PLUGIN = PluginId.getId("org.jetbrains.plugins.vue")

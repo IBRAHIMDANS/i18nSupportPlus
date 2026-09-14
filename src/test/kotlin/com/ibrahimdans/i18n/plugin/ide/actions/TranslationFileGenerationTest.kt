@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.plugin.ide.JsonYamlCodeGenerators
+import com.ibrahimdans.i18n.plugin.ide.launchActionAndWait
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.utils.generator.code.CodeGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.TranslationGenerator
@@ -21,7 +22,7 @@ class TranslationFileGenerationTest: ExtractionTestBase() {
         val action = myFixture.findSingleIntention(hint)
         assertNotNull(action)
         setTestInputDialog(predefinedTextInputDialog("main:component.header.title"))
-        myFixture.launchAction(action)
+        myFixture.launchActionAndWait(action)
         val res = cg.generate("'main:component.header.title'")
         val txt = tg.generateContent("component", "header", "title", "I want to move it to translation")
         myFixture.checkResult(res)
