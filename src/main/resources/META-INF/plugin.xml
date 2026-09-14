@@ -196,26 +196,10 @@
         <!-- codeInsight.declarativeInlayProvider, not declarativeInlayHintsProvider: the latter names no
              extension point, and the platform ignores an unknown one without a word — the provider was
              never registered, so no hint ever showed and the settings page never listed it. `group` is
-             required: the settings model calls requiredGroup(), which refuses a missing one. -->
+             required: the settings model calls requiredGroup(), which refuses a missing one. Declared on
+             JavaScript only, like the line marker below: a .tsx collects the providers of its base
+             languages too, and one declaration per dialect rendered the same hint three times. -->
         <codeInsight.declarativeInlayProvider language="JavaScript"
-            implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"
-            providerId="i18n.translations.inlay"
-            group="OTHER_GROUP"
-            bundle="messages.I18nBundle"
-            nameKey="inlay.hints.name"/>
-        <codeInsight.declarativeInlayProvider language="JSX Harmony"
-            implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"
-            providerId="i18n.translations.inlay"
-            group="OTHER_GROUP"
-            bundle="messages.I18nBundle"
-            nameKey="inlay.hints.name"/>
-        <codeInsight.declarativeInlayProvider language="TypeScript"
-            implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"
-            providerId="i18n.translations.inlay"
-            group="OTHER_GROUP"
-            bundle="messages.I18nBundle"
-            nameKey="inlay.hints.name"/>
-        <codeInsight.declarativeInlayProvider language="TypeScript JSX"
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"
             providerId="i18n.translations.inlay"
             group="OTHER_GROUP"

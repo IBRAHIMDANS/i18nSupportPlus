@@ -61,7 +61,9 @@ class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiEleme
                     .findSources(fullKey.allNamespaces(), element)
                     // The preview locale is what hints and hover show; left empty, it follows folding.
                     .filter { it.localeLabel() == config.previewLocale.ifBlank { config.foldingPreferredLanguage } }
-                    .mapNotNull { resolveCompositeKey(fullKey.compositeKey, it) }
+                    // With the plural separator, as the annotator and the gutter resolve: a key held as
+                    // `item_one` / `item_other` got no hint, its first form is shown.
+                    .flatMap { resolve(fullKey.compositeKey, it, config.pluralSeparator) }
                     .filter { it.unresolved.isEmpty() }
                     .firstNotNullOfOrNull { PluralGroup.displayableValue(it.element) }
                     ?.value()?.text?.unQuote()
