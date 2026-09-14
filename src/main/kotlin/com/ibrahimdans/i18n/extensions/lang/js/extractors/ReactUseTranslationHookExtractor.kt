@@ -9,14 +9,28 @@ import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSDestructuringElement
 import com.intellij.lang.javascript.psi.JSFunction
 import com.intellij.lang.javascript.psi.JSLiteralExpression
+import com.intellij.lang.javascript.psi.JSObjectLiteralExpression
 import com.intellij.lang.javascript.psi.JSReferenceExpression
+import com.intellij.lang.javascript.psi.JSVariable
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 
 /**
- * Extracts i18n key from js string literal
+ * Extracts an i18n key from a string literal passed to a `t` obtained from a translation hook.
+ *
+ * Two hooks are recognised, and they give the hook's first argument different meanings:
+ *  - react-i18next `useTranslation('ns' | ['ns1', 'ns2'], { keyPrefix })`: the argument names the
+ *    namespaces, and the `keyPrefix` option is prepended to every key;
+ *  - next-intl `useTranslations('Home')`: messages live in one file per locale, and the argument
+ *    is the path of the object holding the keys — a key prefix, not a namespace.
  */
 class ReactUseTranslationHookExtractor: KeyExtractor {
+
+    private companion object {
+        const val USE_TRANSLATION = "useTranslation"
+        const val USE_TRANSLATIONS = "useTranslations"
+        val HOOKS = setOf(USE_TRANSLATION, USE_TRANSLATIONS)
+    }
 
     override fun canExtract(element: PsiElement): Boolean {
         // Accept both JSLiteralExpression and its direct leaf token (returned by findElementAt).
@@ -24,29 +38,43 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
             ?: element.parent as? JSLiteralExpression
             ?: return false
         if (!literal.isQuotedLiteral) return false
-        return resolveHook(element)?.methodExpression?.text == "useTranslation"
+        return resolveHook(element)?.methodExpression?.text in HOOKS
     }
 
     override fun extract(element: PsiElement): RawKey {
-        val hookNamespaces = resolveHook(element)?.arguments
-            ?.flatMap { arg ->
-                when (arg) {
-                    is JSLiteralExpression ->
-                        if (arg.isQuotedLiteral) listOfNotNull(arg.stringValue) else emptyList()
-                    is JSArrayLiteralExpression ->
-                        arg.expressions
-                            .filterIsInstance<JSLiteralExpression>()
-                            .filter { it.isQuotedLiteral }
-                            .mapNotNull { it.stringValue }
-                    else -> emptyList()
-                }
-            } ?: listOf()
+        val hook = resolveHook(element)
+        val isNextIntl = hook?.methodExpression?.text == USE_TRANSLATIONS
+        val hookArguments = hook?.arguments.orEmpty()
+        val firstArgumentStrings = hookArguments.firstOrNull()?.let(::stringsOf).orEmpty()
+
+        val hookNamespaces = if (isNextIntl) emptyList() else firstArgumentStrings
+        val prefix = if (isNextIntl) firstArgumentStrings.firstOrNull() else keyPrefixOption(hookArguments.getOrNull(1))
+
         // i18next: an explicit `t(key, { ns })` option overrides the hook default namespace.
         val optionsNamespaces = OptionsExtractor.extractNamespaces(element)
         return RawKey(
             listOf(KeyElement.literal(element.text.unQuote())),
-            optionsNamespaces.ifEmpty { hookNamespaces }
+            optionsNamespaces.ifEmpty { hookNamespaces },
+            prefix?.takeIf { it.isNotBlank() }?.let { listOf(KeyElement.literal(it)) }.orEmpty()
         )
+    }
+
+    /** The quoted strings a hook argument carries: a single literal, or an array of them. */
+    private fun stringsOf(argument: PsiElement): List<String> = when (argument) {
+        is JSLiteralExpression ->
+            if (argument.isQuotedLiteral) listOfNotNull(argument.stringValue) else emptyList()
+        is JSArrayLiteralExpression ->
+            argument.expressions
+                .filterIsInstance<JSLiteralExpression>()
+                .filter { it.isQuotedLiteral }
+                .mapNotNull { it.stringValue }
+        else -> emptyList()
+    }
+
+    /** The `keyPrefix` of react-i18next's options object, when it is a plain string. */
+    private fun keyPrefixOption(options: PsiElement?): String? {
+        val literal = (options as? JSObjectLiteralExpression)?.findProperty("keyPrefix")?.value as? JSLiteralExpression
+        return literal?.takeIf { it.isQuotedLiteral }?.stringValue
     }
 
     private fun resolveTranslationFunctionDefinition(element: PsiElement): PsiElement? {
@@ -64,11 +92,15 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
     }
 
     private fun resolveHook(literal: PsiElement): JSCallExpression? {
-        // Primary: follow reference to local definition
-        val viaRef = resolveTranslationFunctionDefinition(literal)
+        // Primary: follow reference to local definition. react-i18next destructures the hook's
+        // result (`const { t } = useTranslation()`); next-intl returns `t` itself
+        // (`const t = useTranslations('Home')`), a plain variable initializer.
+        val definition = resolveTranslationFunctionDefinition(literal)
+        val viaRef = definition
             ?.let { resolveDestructuringElement(it) }
             ?.let { it.initializer as? JSCallExpression }
-        if (viaRef != null) return viaRef
+            ?: (definition as? JSVariable)?.initializer as? JSCallExpression
+        if (viaRef != null && viaRef.methodExpression?.text in HOOKS) return viaRef
 
         // Fallback: scope walk when reference resolution goes to type declarations
         return resolveHookViaScopeWalk(literal)
@@ -79,11 +111,17 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
         val fnName = PsiTreeUtil.getChildOfType(tCall, JSReferenceExpression::class.java)?.text ?: return null
         val scope = PsiTreeUtil.getParentOfType(tCall, JSFunction::class.java) ?: return null
         val namePattern = Regex("\\b${Regex.escape(fnName)}\\b")
-        return PsiTreeUtil.findChildrenOfType(scope, JSDestructuringElement::class.java)
+        PsiTreeUtil.findChildrenOfType(scope, JSDestructuringElement::class.java)
             .firstOrNull { elem ->
-                (elem.initializer as? JSCallExpression)?.methodExpression?.text == "useTranslation"
+                (elem.initializer as? JSCallExpression)?.methodExpression?.text == USE_TRANSLATION
                     && namePattern.containsMatchIn(elem.text)
             }
-            ?.let { it.initializer as? JSCallExpression }
+            ?.let { return it.initializer as? JSCallExpression }
+        return PsiTreeUtil.findChildrenOfType(scope, JSVariable::class.java)
+            .firstOrNull { variable ->
+                variable.name == fnName &&
+                    (variable.initializer as? JSCallExpression)?.methodExpression?.text == USE_TRANSLATIONS
+            }
+            ?.initializer as? JSCallExpression
     }
 }

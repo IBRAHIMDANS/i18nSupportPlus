@@ -40,11 +40,17 @@ class KeyRangesCalculator(private val textRange: TextRange, isQuoted: Boolean = 
             textRange.startOffset + quoteOffset + (fullKey.ns?.length ?: 0)
         )
 
-    override fun unresolvedKey(fullKey: FullKey, resolvedPath: List<Literal>): TextRange =
-        safeRange(
-            fullKey.compositeKeyStartOffset() + tokensLength(resolvedPath) + (if (resolvedPath.isNotEmpty()) keySeparatorOffset else 0),
+    override fun unresolvedKey(fullKey: FullKey, resolvedPath: List<Literal>): TextRange {
+        // A hook's key prefix leads the resolved path but is not written in the literal: only
+        // the segments after it have a position in the text. When resolution stopped inside the
+        // prefix itself, nothing written resolved, so the whole key is what is unresolved.
+        if (resolvedPath.size < fullKey.keyPrefix.size) return compositeKeyFullBounds(fullKey)
+        val writtenPath = resolvedPath.drop(fullKey.keyPrefix.size)
+        return safeRange(
+            fullKey.compositeKeyStartOffset() + tokensLength(writtenPath) + (if (writtenPath.isNotEmpty()) keySeparatorOffset else 0),
             fullKey.compositeKeyEndOffset()
         )
+    }
 
     override fun compositeKeyFullBounds(fullKey: FullKey) =
         safeRange(

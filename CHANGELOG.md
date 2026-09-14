@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+- [Keys] Resolve keys under a **hook key prefix**: react-i18next's `useTranslation('ns', { keyPrefix: 'a.b' })` and next-intl's `useTranslations('Home')`. Neither prefix was read, so `t('title')` was looked up as `title` instead of `a.b.title` / `Home.title`, and every key of such a component was reported as unresolved — the whole of a next-intl project, whose main API this is. The prefix now leads the key for resolution, completion, references, folding, hints and gutter icons, while an unresolved key still underlines only the part the literal writes
+
 ## 1.3.3 - 2026-09-14
 
 ### Features

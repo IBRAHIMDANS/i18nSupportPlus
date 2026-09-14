@@ -17,8 +17,7 @@ class KeyParser(private val tokenizer: Tokenizer) {
     fun parse(
         rawKey: RawKey,
         emptyNamespace: Boolean = false,
-        firstComponentNamespace: Boolean = false,
-        keyPrefix: RawKey? = null
+        firstComponentNamespace: Boolean = false
     ): FullKey? {
         val startState = if (emptyNamespace) {
             if (firstComponentNamespace) {
@@ -31,11 +30,26 @@ class KeyParser(private val tokenizer: Tokenizer) {
             Start(null)
         }
         val (source, tokenized) = tokenizer.tokenize(rawKey.keyElements)
+        val (prefixSource, prefix) = prefixOf(rawKey)
         return tokenized
             .fold(startState) { state, token -> state.next(token) }
             .fullKey()?.let {
-                (ns, key) -> FullKey(source, ns, key, rawKey.arguments, listOf(), null)
+                // The prefix leads the composite key, which is what resolution walks, while
+                // `source` stays the text the literal writes: ranges and references are computed
+                // against that text, where the prefix does not appear.
+                (ns, key) -> FullKey(source, ns, prefix + key, rawKey.arguments, prefix, prefixSource)
             }
+    }
+
+    /**
+     * The literals of [RawKey.keyPrefix], split by the same tokenizer as the key so they follow the
+     * configured key separator. A namespace separator written in a prefix has no meaning there —
+     * the hook's namespace is given apart — so separators of either kind only delimit segments.
+     */
+    private fun prefixOf(rawKey: RawKey): Pair<String?, List<Literal>> {
+        if (rawKey.keyPrefix.isEmpty()) return null to emptyList()
+        val (text, tokens) = tokenizer.tokenize(rawKey.keyPrefix)
+        return text to tokens.filterIsInstance<Literal>().filter { it.text.isNotEmpty() }
     }
 }
 
