@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.intellij.json.psi.JsonFile
 import com.intellij.json.psi.JsonObject
 import com.intellij.json.psi.JsonStringLiteral
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.psi.PsiElement
@@ -321,5 +322,11 @@ class MoveI18nKeyHandlerTest : PlatformBaseTest() {
             }
         })
         return result
+    }
+
+    /** `update` reads PSI_FILE, which the platform refuses on the EDT; the flag must stay BGT. */
+    @Test
+    fun updateRunsInBackground() {
+        Assertions.assertEquals(ActionUpdateThread.BGT, handler.actionUpdateThread)
     }
 }
