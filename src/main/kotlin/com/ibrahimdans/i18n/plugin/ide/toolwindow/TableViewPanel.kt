@@ -634,18 +634,20 @@ internal class OrphanKeyDeleter(
             .ifEmpty { if (namespaces.isEmpty()) sourceService.findAllSources(project) else emptyList() }
             .let { found -> scopeToModule(found) }
 
-        // Collect first, then delete everything in one WriteCommandAction:
-        // a single undo restores the key in every locale. The deletion targets
-        // the whole property (not just its value, which used to leave a
-        // dangling `"key":`) and removes the separating comma with it.
-        val properties = sources.mapNotNull { source ->
-            val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@mapNotNull null
-            if (ref.unresolved.isNotEmpty() || ref.element == null) return@mapNotNull null
-            PsiTreeUtil.getParentOfType(ref.element.value(), JsonProperty::class.java, YAMLKeyValue::class.java)
-        }
-        if (properties.isEmpty()) return
+        if (sources.isEmpty()) return
 
+        // Collect first, then delete — both in one WriteCommandAction: a single undo restores
+        // the key in every locale. Collecting inside it is what grants the PSI walk its read
+        // access (the EDT no longer carries one) and keeps the lookup atomic with the deletion,
+        // so a PSI change in between cannot make it delete the wrong property. The deletion
+        // targets the whole property (not just its value, which used to leave a dangling
+        // `"key":`) and removes the separating comma with it.
         WriteCommandAction.runWriteCommandAction(project, PluginBundle.message("toolwindow.table.delete.command"), null, {
+            val properties = sources.mapNotNull { source ->
+                val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@mapNotNull null
+                if (ref.unresolved.isNotEmpty() || ref.element == null) return@mapNotNull null
+                PsiTreeUtil.getParentOfType(ref.element.value(), JsonProperty::class.java, YAMLKeyValue::class.java)
+            }
             properties.forEach { if (it.isValid) deletePropertyAndSeparator(it) }
         })
     }

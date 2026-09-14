@@ -162,14 +162,19 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
      * Saves a translation value for the given source.
      * If the key already exists, the value is updated in place.
      * If the key is missing (unresolved), the key chain is created.
+     *
+     * The key is resolved inside the write action: [resolveCompositeKey] walks the translation
+     * file's PSI, every caller runs on the EDT, and the EDT no longer carries an implicit read
+     * action. The write action grants read access and makes lookup and write atomic, so the
+     * tree cannot change between the two.
      */
     fun saveTranslation(source: LocalizationSource, fullKey: FullKey, value: String) {
-        val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return
         val generator = source.localization.contentGenerator()
         CommandProcessor.getInstance().executeCommand(
             project,
             {
                 ApplicationManager.getApplication().runWriteAction {
+                    val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@runWriteAction
                     if (ref.unresolved.isEmpty() && ref.element != null) {
                         // Key exists — update value in place
                         val element = ref.element.value()
