@@ -50,6 +50,9 @@ class PluralGroupingTest {
         val source = { locale: String -> mockk<LocalizationSource>(relaxed = true).also {
             every { it.name } returns "$locale.json"
             every { it.parent } returns "locales"
+            // A relaxed mock answers "" for these, which reads as a locale a template stated.
+            every { it.locale } returns null
+            every { it.namespace } returns null
         } }
         val sources = listOf("en", "ru", "ja", "de").map(source)
 
