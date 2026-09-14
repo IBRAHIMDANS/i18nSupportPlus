@@ -217,6 +217,7 @@
         <codeInsight.lineMarkerProvider language="JavaScript" implementationClass="com.ibrahimdans.i18n.plugin.ide.I18nGutterIconProvider"/>
         <postStartupActivity implementation="com.ibrahimdans.i18n.plugin.ide.settings.StartupAction"/>
         <postStartupActivity implementation="com.ibrahimdans.i18n.plugin.ide.settings.SetupWizardStartupActivity"/>
+        <postStartupActivity implementation="com.ibrahimdans.i18n.plugin.ide.whatsnew.WhatsNewStartupActivity"/>
         <toolWindow id="I18n" anchor="bottom" icon="AllIcons.Nodes.ResourceBundle"
                     factoryClass="com.ibrahimdans.i18n.plugin.ide.toolwindow.I18nToolWindowFactory"/>
         <renameHandler implementation="com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler"/>
