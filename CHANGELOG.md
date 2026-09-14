@@ -5,6 +5,7 @@
 ### Bug Fixes
 
 - [Keys] Recognise `props.t`, `this.props.t` and `i18next.t` as translation calls. A qualified call is only accepted when its whole text is a published name — that is what keeps `toast.t('…')` out — and i18next published `t` and `i18n.t` alone, so keys passed through the `withTranslation` HOC or the i18next instance got no annotation, completion, navigation nor folding: a missing key went unreported. The qualified-call rule is now one function shared by annotation, references and folding, which each carried their own copy
+- [Rename] Make **Rename (Shift+F6)** rename a key everywhere it lives. It rewrote the literal under the caret and the matching JSON properties only: every other call site kept the old name and broke, YAML translation files were skipped, plural forms (`item_one`, `item_other`) were left under the old name, and `.` was assumed as the key separator. It now finds every code literal whose reference lands on the same translations — whether written with its namespace, under a hook namespace or under a key prefix, while a different key sharing the word is left alone — and renames the property in every JSON and YAML file, plural suffixes kept, in one undoable command
 
 ### Bug Fixes
 
