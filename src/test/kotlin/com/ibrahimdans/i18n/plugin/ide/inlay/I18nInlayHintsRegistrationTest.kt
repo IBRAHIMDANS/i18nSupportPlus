@@ -26,8 +26,9 @@ class I18nInlayHintsRegistrationTest : PlatformBaseTest() {
         get() = InlayHintsProviderExtensionBean.EP.extensionList.filter { it.providerId == "i18n.translations.inlay" }
 
     @Test
-    fun `declared on every JavaScript dialect, each with a settings group`() {
-        assertEquals(setOf("JavaScript", "JSX Harmony", "TypeScript", "TypeScript JSX"), ours.map { it.language }.toSet())
+    fun `declared on JavaScript alone, with a settings group`() {
+        // The dialects inherit it: one declaration per dialect rendered a .tsx hint three times.
+        assertEquals(listOf("JavaScript"), ours.map { it.language })
         ours.forEach { bean ->
             assertTrue(bean.isEnabledByDefault, "${bean.language}: on by default")
             // No message: with a String expected value the inherited junit.framework overload wins.
@@ -36,22 +37,33 @@ class I18nInlayHintsRegistrationTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `the settings page lists the provider for TypeScript JSX`() {
-        val tsx = Language.findLanguageByID("TypeScript JSX")!!
-        val models = InlaySettingsProvider.EP.EXTENSION_POINT_NAME.extensionList.flatMap { provider: InlaySettingsProvider -> provider.createModels(project, tsx) }
+    fun `the settings page lists the provider for JavaScript`() {
+        val js = Language.findLanguageByID("JavaScript")!!
+        val models = InlaySettingsProvider.EP.EXTENSION_POINT_NAME.extensionList.flatMap { provider: InlaySettingsProvider -> provider.createModels(project, js) }
         assertTrue(models.any { it.id == "i18n.translations.inlay" }, "listed among: ${models.map { it.id }}")
     }
 
-    @Test
-    fun `the highlighting pass renders the hint in a tsx file`() = myFixture.runWithConfig(Config(foldingPreferredLanguage = "en")) {
-        addFileToProject("locales/en/common.json", """{"title": "Deposit box"}""")
-        myFixture.configureByText("Page.tsx", "const x = t('common:title');")
+    private fun renderedHints(file: String, code: String): List<String> {
+        myFixture.configureByText(file, code)
         myFixture.doHighlighting()
-        val hints = ReadAction.compute<List<String>, RuntimeException> {
+        return ReadAction.compute<List<String>, RuntimeException> {
             myFixture.editor.inlayModel.getInlineElementsInRange(0, myFixture.file.textLength)
                 .mapNotNull { it.renderer as? DeclarativeInlayRenderer }
                 .map { it.toString() }
         }
-        assertTrue(hints.isNotEmpty(), "a resolved key gets its value rendered")
+    }
+
+    @Test
+    fun `the highlighting pass renders the hint once in a tsx file`() = myFixture.runWithConfig(Config(foldingPreferredLanguage = "en")) {
+        addFileToProject("locales/en/common.json", """{"title": "Deposit box"}""")
+        val hints = renderedHints("Page.tsx", "const x = t('common:title');")
+        assertEquals(1, hints.size, "one hint, not one per dialect the file inherits: $hints")
+    }
+
+    @Test
+    fun `a plural key gets the hint of its first form`() = myFixture.runWithConfig(Config(foldingPreferredLanguage = "en")) {
+        addFileToProject("locales/en/common.json", """{"item_one": "{{count}} item", "item_other": "{{count}} items"}""")
+        val hints = renderedHints("Plural.tsx", "const x = t('common:item', { count: 2 });")
+        assertEquals(1, hints.size, "a key held as item_one / item_other is resolved: $hints")
     }
 }
