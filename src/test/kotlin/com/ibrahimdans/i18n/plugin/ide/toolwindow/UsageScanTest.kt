@@ -140,4 +140,44 @@ class UsageScanTest : PlatformBaseTest() {
 
         assertEquals(0, usagesOf("common:menu.missing"))
     }
+
+    /**
+     * Under a hook key prefix the call site writes only the tail (`t('title')`): the text scan
+     * found nothing, so a live key was an orphan and *Cleanup unused keys* offered to delete it.
+     */
+    @Test
+    fun `a key used under a keyPrefix is counted`() {
+        myFixture.addFileToProject("locales/en/dashboard.json", """{"header": {"title": "Hi"}, "unused": "x"}""")
+        myFixture.configureByText(
+            "Header.tsx",
+            """
+            import { useTranslation } from 'react-i18next';
+            export default function Header() {
+                const { t } = useTranslation('dashboard', { keyPrefix: 'header' });
+                return t('title');
+            }
+            """.trimIndent()
+        )
+
+        assertEquals(1, usagesOf("dashboard:header.title"))
+        assertEquals(0, usagesOf("dashboard:unused"), "a genuinely unused key must stay an orphan")
+    }
+
+    @Test
+    fun `a key used under a next-intl namespace is counted`() {
+        myFixture.addFileToProject("messages/en.json", """{"Home": {"title": "Welcome"}}""")
+        myFixture.configureByText(
+            "Home.tsx",
+            """
+            import { useTranslations } from 'next-intl';
+            export default function Home() {
+                const t = useTranslations('Home');
+                return t('title');
+            }
+            """.trimIndent()
+        )
+
+        assertEquals(1, usagesOf("Home.title"))
+        assertEquals(0, usagesOf("Other.title"), "the same tail under another prefix is not a usage")
+    }
 }
