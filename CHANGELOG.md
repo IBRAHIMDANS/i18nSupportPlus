@@ -5,6 +5,7 @@
 ### Features
 
 - [Settings] **i18next configuration files**: name the files that declare i18next `resources` inline (relative to the project, comma-separated, JS or TS). The setting had been stored since the first release with no field and no reader; the plugin could only find such a config by searching the word `translation` and then looking the file up by name among TypeScript files, which missed a `.js` config and could pick a namesake in another folder. Left empty, the search still applies
+- [Settings] **Preview locale** now does what its field says: it picks the locale inlay hints display and the locale listed first in the hover table, so code can be read in one language while folding shows another. It was saved but read nowhere. Left empty, it follows the folding language as before
 
 ### Bug Fixes
 

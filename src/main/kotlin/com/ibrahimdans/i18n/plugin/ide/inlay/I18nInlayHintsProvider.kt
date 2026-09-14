@@ -59,7 +59,8 @@ class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiEleme
 
                 val translation = project.service<LocalizationSourceService>()
                     .findSources(fullKey.allNamespaces(), project)
-                    .filter { it.localeLabel() == config.foldingPreferredLanguage }
+                    // The preview locale is what hints and hover show; left empty, it follows folding.
+                    .filter { it.localeLabel() == config.previewLocale.ifBlank { config.foldingPreferredLanguage } }
                     .mapNotNull { resolveCompositeKey(fullKey.compositeKey, it) }
                     .filter { it.unresolved.isEmpty() }
                     .firstNotNullOfOrNull { PluralGroup.displayableValue(it.element) }
