@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.3.3 - 2026-09-14
+
 ### Features
 
 - [Diagnostics] Report plugin exceptions and freezes to the **JetBrains Marketplace**. The plugin now registers the platform's `JetBrainsMarketplaceErrorReportSubmitter` as its error handler, so an internal error raised by the plugin can be sent from the IDE's error dialog, and reports appear in the plugin's *Exceptions* / *Freezes* tabs on Marketplace
