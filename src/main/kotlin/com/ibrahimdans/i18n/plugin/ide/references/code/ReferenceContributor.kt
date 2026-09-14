@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.tree.PropertyReference
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.ibrahimdans.i18n.plugin.utils.whenMatches
@@ -37,11 +38,15 @@ class I18nReference(element: PsiElement, textRange: TextRange, val references: L
      * The targets in the translation files of [locale], in no particular order; empty when that locale
      * lacks the key. What Ctrl+click opens, so it does not ask which locale to go to.
      */
-    fun targetsIn(locale: String): List<PsiElement> =
-        filterMostResolved()
-            .filter { it.reference.localizationSource.localeLabel() == locale }
+    fun targetsIn(locale: String): List<PsiElement> {
+        val resolved = filterMostResolved()
+        // `en` designates `en-GB` when the project has no plain `en` — see LocaleMatching.
+        val label = LocaleMatching.pick(locale, resolved.map { it.reference.localizationSource.localeLabel() })
+        return resolved
+            .filter { it.reference.localizationSource.localeLabel() == label }
             .mapNotNull(::targetOf)
             .distinct()
+    }
 
     private fun targetOf(item: ReferenceDescriptor): PsiElement? = item.reference.element?.let {
         val res = if (it.isTree()) {

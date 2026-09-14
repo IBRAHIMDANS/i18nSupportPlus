@@ -94,6 +94,18 @@ class I18nInlayHintsProviderTest : PlatformBaseTest() {
         assertTrue(hints.single().contains("Hello"), "The hint must carry the translation: ${hints.single()}")
     }
 
+    /** A project laid out as `en-GB` / `fr-FR` under the default `en` showed no hint at all. */
+    @Test
+    fun testALanguageSettingFindsItsRegionalVariant() = myFixture.runWithConfig(Config(foldingPreferredLanguage = "en")) {
+        val tg = JsonTranslationGenerator()
+        addFileToProject("en-GB/regional.${tg.ext()}", tg.generateContent("root", "first", "second", "Colour"))
+        addFileToProject("fr-FR/regional.${tg.ext()}", tg.generateContent("root", "first", "second", "Couleur"))
+        myFixture.configureByText("regional.js", JsCodeGenerator().generate("\"regional:root.first.second\"", 0))
+        val hints = collectHints()
+        assertEquals(1, hints.size, hints.toString())
+        assertTrue(hints.single().contains("Colour"), hints.single())
+    }
+
     @Test
     fun testUnresolvedKeyProducesNoHint() = myFixture.runWithConfig(Config()) {
         configure("missing", "Hello", key = "root.first.absent")

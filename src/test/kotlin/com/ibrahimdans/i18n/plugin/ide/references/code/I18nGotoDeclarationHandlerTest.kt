@@ -59,6 +59,13 @@ class I18nGotoDeclarationHandlerTest : PlatformBaseTest() {
     }
 
     @Test
+    fun aLanguageSettingOpensItsRegionalVariant() = myFixture.runWithConfig(Config(previewLocale = "fr")) {
+        addFileToProject("locales/en-GB/test.json", """{"title": "Deposit box"}""")
+        addFileToProject("locales/fr-FR/test.json", """{"title": "Coffre-fort"}""")
+        assertEquals(listOf("Coffre-fort"), gotoTargets("title", "f.js"))
+    }
+
+    @Test
     fun theReferenceStillResolvesToEveryLocale() = myFixture.runWithConfig(Config(previewLocale = "fr")) {
         addTranslations()
         myFixture.configureByText("e.js", "t('test:title<caret>')")

@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.tree.PluralGroup
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ellipsis
+import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.ibrahimdans.i18n.plugin.utils.renderIcu
 import com.ibrahimdans.i18n.plugin.utils.unQuote
@@ -57,10 +58,13 @@ class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiEleme
                 val rawKey = lang.extractRawKey(element) ?: return
                 val fullKey = RawKeyParser(project).parse(rawKey, element) ?: return
 
-                val translation = project.service<LocalizationSourceService>()
-                    .findSources(fullKey.allNamespaces(), element)
-                    // The preview locale is what hints and hover show; left empty, it follows folding.
-                    .filter { it.localeLabel() == config.previewLocale.ifBlank { config.foldingPreferredLanguage } }
+                val sources = project.service<LocalizationSourceService>().findSources(fullKey.allNamespaces(), element)
+                // The preview locale is what hints and hover show; left empty, it follows folding.
+                // Matched through LocaleMatching, so `en` finds `en-GB` when there is no plain `en`.
+                val wanted = config.previewLocale.ifBlank { config.foldingPreferredLanguage }
+                val locale = LocaleMatching.pick(wanted, sources.map { it.localeLabel() })
+                val translation = sources
+                    .filter { it.localeLabel() == locale }
                     // With the plural separator, as the annotator and the gutter resolve: a key held as
                     // `item_one` / `item_other` got no hint, its first form is shown.
                     .flatMap { resolve(fullKey.compositeKey, it, config.pluralSeparator) }
