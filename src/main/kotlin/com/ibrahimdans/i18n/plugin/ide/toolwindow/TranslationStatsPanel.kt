@@ -26,7 +26,10 @@ import java.awt.Color
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.Dimension
+import java.awt.Font
 import java.awt.Graphics
+import java.awt.event.KeyAdapter
+import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.text.DecimalFormat
@@ -64,65 +67,58 @@ internal fun parseTranslationKey(fullKey: String, config: Config = Config()): Pa
 internal fun selectReferenceLocale(stats: List<LocaleStats>): String? =
     stats.maxByOrNull { it.translated }?.locale
 
+/** Columns before the locales: the row's namespace, then how many keys it holds. */
+private const val LEADING_COLUMNS = 2
+
 /**
- * Panel displaying translation coverage statistics per locale.
- * Columns: Locale | Total | Translated | Missing | %
- * The % column carries a coverage bar tinted per tier (see [COMPLETE_THRESHOLD] /
+ * Panel displaying translation coverage statistics, one row per namespace under a total row
+ * and one column per locale — see [CoverageReport].
+ * Columns: Namespace | Keys | one % per locale
+ * Every locale cell carries a coverage bar tinted per tier (see [COMPLETE_THRESHOLD] /
  * [PARTIAL_THRESHOLD]); the legend spells the tiers out and the percentage stays
  * printed as text, so nothing depends on telling the hues apart.
  *
- * Clicking any cell on a row with missing keys opens a popup listing
- * those keys. Each key navigates to its position in the reference locale file.
+ * Clicking a locale cell with missing keys opens a popup listing those keys — the ones of
+ * that namespace in that locale, so the list stays short. Each key navigates to its
+ * position in the reference locale file.
  *
  * When [moduleConfig] is non-null, only translations from that module are analyzed.
  */
 class TranslationStatsPanel(private val project: Project, private val moduleConfig: ModuleConfig? = null) : JPanel(BorderLayout()) {
 
-    private val tableModel = object : DefaultTableModel(
-        arrayOf(
-            PluginBundle.message("toolwindow.stats.column.locale"),
-            PluginBundle.message("toolwindow.stats.column.total"),
-            PluginBundle.message("toolwindow.stats.column.translated"),
-            PluginBundle.message("toolwindow.stats.column.missing"),
-            PluginBundle.message("toolwindow.stats.column.percent"),
-        ),
-        0
-    ) {
+    private val tableModel = object : DefaultTableModel() {
         override fun isCellEditable(row: Int, column: Int): Boolean = false
-        override fun getColumnClass(columnIndex: Int): Class<*> = when (columnIndex) {
-            1, 2, 3 -> Integer::class.java
-            else -> String::class.java
-        }
+        override fun getColumnClass(columnIndex: Int): Class<*> =
+            if (columnIndex == 1) Integer::class.java else String::class.java
     }
     private val table = object : JBTable(tableModel) {
         override fun getToolTipText(e: MouseEvent): String? {
-            val row = rowAtPoint(e.point)
-            val rowStats = stats.getOrNull(row) ?: return null
-            return if (rowStats.missing > 0) PluginBundle.message("toolwindow.stats.missing.tooltip", rowStats.missing) else null
+            val cell = cellAt(rowAtPoint(e.point), columnAtPoint(e.point)) ?: return null
+            return if (cell.missing > 0) PluginBundle.message("toolwindow.stats.cell.tooltip.missing", cell.translated, cell.total, cell.missing)
+            else PluginBundle.message("toolwindow.stats.cell.tooltip.complete", cell.total)
         }
     }
     private val statusLabel = JBLabel(PluginBundle.message("toolwindow.stats.loading"))
-    private var stats: List<LocaleStats> = emptyList()
+    private var report: CoverageReport? = null
     private var loadRequested = false
 
     init {
         table.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
-        table.setDefaultRenderer(String::class.java, PercentCellRenderer())
+        installRenderer()
 
         table.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 val row = table.rowAtPoint(e.point)
-                if (row < 0) return
-                val rowStats = stats.getOrNull(row) ?: return
-                if (rowStats.missing == 0) return
-                showMissingKeysPopup(rowStats)
+                val cell = cellAt(row, table.columnAtPoint(e.point)) ?: return
+                if (cell.missing == 0) return
+                showMissingKeysPopup(rowLabel(row), cell)
             }
         })
-        // Hand cursor over drillable rows, so the click affordance is visible.
+        // Hand cursor over drillable cells, so the click affordance is visible.
         table.addMouseMotionListener(object : MouseAdapter() {
             override fun mouseMoved(e: MouseEvent) {
-                val rowStats = stats.getOrNull(table.rowAtPoint(e.point))
-                table.cursor = if (rowStats != null && rowStats.missing > 0)
+                val cell = cellAt(table.rowAtPoint(e.point), table.columnAtPoint(e.point))
+                table.cursor = if (cell != null && cell.missing > 0)
                     Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
                 else
                     Cursor.getDefaultCursor()
@@ -151,51 +147,76 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
         loadRequested = true
         statusLabel.text = PluginBundle.message("toolwindow.stats.loading")
         ApplicationManager.getApplication().executeOnPooledThread {
-            val stats = TranslationStatsAnalyzer.analyze(project, moduleConfig)
+            val report = TranslationStatsAnalyzer.report(project, moduleConfig)
             ApplicationManager.getApplication().invokeLater {
-                rebuildTable(stats)
+                rebuildTable(report)
             }
         }
     }
 
-    private fun rebuildTable(newStats: List<LocaleStats>) {
-        stats = newStats
-        tableModel.rowCount = 0
-        for (s in stats) {
-            tableModel.addRow(
-                arrayOf<Any?>(
-                    s.locale,
-                    s.total,
-                    s.translated,
-                    s.missing,
-                    PERCENT_FORMAT.format(s.percent) + "%"
-                )
-            )
-        }
-        if (stats.isEmpty()) {
+    private fun rebuildTable(newReport: CoverageReport) {
+        report = newReport
+        val columns: Array<Any?> = (listOf(
+            PluginBundle.message("toolwindow.stats.column.namespace"),
+            PluginBundle.message("toolwindow.stats.column.keys"),
+        ) + newReport.locales).toTypedArray()
+        val rows: Array<Array<Any?>> = newReport.rows.map { row ->
+            val cells: List<Any?> = listOf(rowLabel(row), row.total) + newReport.locales.map { locale ->
+                row.of(locale)?.let { PERCENT_FORMAT.format(it.percent) + "%" }
+            }
+            cells.toTypedArray()
+        }.toTypedArray()
+        tableModel.setDataVector(rows, columns)
+
+        if (newReport.locales.isEmpty()) {
             statusLabel.text = PluginBundle.message("toolwindow.stats.empty")
         } else {
-            statusLabel.text = "${stats.size} locale(s) analyzed. Click a row to see missing keys."
+            statusLabel.text = PluginBundle.message("toolwindow.stats.status", newReport.locales.size)
         }
     }
 
+    /** One renderer for every cell: the key count is a number, and must read in bold on the total row too. */
+    private fun installRenderer() {
+        val renderer = PercentCellRenderer()
+        table.setDefaultRenderer(String::class.java, renderer)
+        table.setDefaultRenderer(Integer::class.java, renderer)
+    }
+
+    /** The stats behind the cell at ([row], [column]), or null off a locale cell. */
+    private fun cellAt(row: Int, column: Int): LocaleStats? {
+        val report = report ?: return null
+        val locale = report.locales.getOrNull(column - LEADING_COLUMNS) ?: return null
+        return report.rows.getOrNull(row)?.of(locale)
+    }
+
+    private fun rowLabel(row: Int): String = report?.rows?.getOrNull(row)?.let { rowLabel(it) }.orEmpty()
+
+    private fun rowLabel(row: NamespaceStats): String =
+        row.group?.label ?: PluginBundle.message("toolwindow.stats.row.total")
+
     /**
-     * Shows a popup listing all missing keys for [rowStats]'s locale.
-     * Clicking a key navigates to it in the reference locale file (the locale
-     * with the highest translation coverage).
+     * Shows a popup listing the missing keys of [cell] — one namespace in one locale, or the
+     * whole locale from the total row. Clicking a key, or pressing Enter on it, navigates to
+     * it in the reference locale file (the locale with the highest translation coverage).
      */
-    private fun showMissingKeysPopup(rowStats: LocaleStats) {
-        val referenceLocale = selectReferenceLocale(stats) ?: return
+    private fun showMissingKeysPopup(rowLabel: String, cell: LocaleStats) {
+        val referenceLocale = selectReferenceLocale(report?.total?.byLocale.orEmpty()) ?: return
 
         val listModel = DefaultListModel<String>()
-        rowStats.missingKeys.forEach { listModel.addElement(it) }
+        cell.missingKeys.forEach { listModel.addElement(it) }
         val list = JBList(listModel)
         list.selectionMode = ListSelectionModel.SINGLE_SELECTION
 
+        val navigate = { list.selectedValue?.let { navigateToKeyInReferenceFile(it, referenceLocale) } }
         list.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
-                val key = list.selectedValue ?: return
-                navigateToKeyInReferenceFile(key, referenceLocale)
+                navigate()
+            }
+        })
+        // The popup takes the focus, so the keyboard must lead somewhere too.
+        list.addKeyListener(object : KeyAdapter() {
+            override fun keyPressed(e: KeyEvent) {
+                if (e.keyCode == KeyEvent.VK_ENTER) navigate()
             }
         })
 
@@ -207,7 +228,7 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
             .setTitle(
                 PluginBundle.message(
                     "toolwindow.stats.missing.popup.title",
-                    rowStats.locale, rowStats.missing, referenceLocale
+                    rowLabel, cell.locale, cell.missing, referenceLocale
                 )
             )
             .setResizable(true)
@@ -260,10 +281,11 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
     }
 
     /**
-     * Cell renderer for the % column: draws a thin coverage bar under the percentage,
+     * Cell renderer for the locale columns: draws a thin coverage bar under the percentage,
      * its width the coverage ratio and its tint the tier. The text is painted on the
      * plain cell background, never over the bar, so the figure stays readable whatever
-     * the theme does with the tint. Other columns use default rendering.
+     * the theme does with the tint. The namespace column uses default rendering, the total
+     * row in bold.
      */
     private inner class PercentCellRenderer : DefaultTableCellRenderer() {
         private var barFraction = -1.0
@@ -280,7 +302,8 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
         ): Component {
             val component = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
             barFraction = -1.0
-            if (column == 4) {
+            font = table.font
+            if (column >= LEADING_COLUMNS) {
                 val pct = value?.toString()?.removeSuffix("%")?.toDoubleOrNull() ?: 0.0
                 barFraction = (pct / 100.0).coerceIn(0.0, 1.0)
                 barColor = when {
@@ -293,6 +316,8 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
             } else {
                 isOpaque = true
                 if (!isSelected) background = table.background
+                horizontalAlignment = if (column == 1) RIGHT else LEFT
+                if (report?.rows?.getOrNull(row)?.let { it.group == null } == true) font = table.font.deriveFont(Font.BOLD)
             }
             return component
         }

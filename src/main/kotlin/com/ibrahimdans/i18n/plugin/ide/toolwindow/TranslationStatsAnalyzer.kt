@@ -20,6 +20,37 @@ data class LocaleStats(
 )
 
 /**
+ * Coverage of one row of the statistics table: the keys of one namespace group, or of the
+ * whole set when [group] is null, across every locale of the project.
+ *
+ * [byLocale] carries one [LocaleStats] per locale of the report — a locale holding none of
+ * this group's keys is present at 0%, so a namespace never translated in a language reads as
+ * such rather than vanishing from its row.
+ */
+data class NamespaceStats(
+    val group: NamespaceFilter?,
+    val total: Int,
+    val byLocale: List<LocaleStats>,
+) {
+    /** The stats of [locale], or null when the report does not know that locale. */
+    fun of(locale: String): LocaleStats? = byLocale.firstOrNull { it.locale == locale }
+}
+
+/**
+ * What the statistics tab lays out: the locales as columns, and one row per namespace group
+ * under a total row.
+ *
+ * [rows] holds the total first, then the namespaces — except when the keys all belong to a
+ * single group, where the total would repeat that group's row and is left out. Coverage
+ * used to be reported per locale alone, which said `fr 96%` and nothing about *where* the
+ * missing 4% sat: with five namespaces, finding the one dragging a language down meant
+ * opening the list of missing keys and reading its prefixes.
+ */
+data class CoverageReport(val locales: List<String>, val total: NamespaceStats, val namespaces: List<NamespaceStats>) {
+    val rows: List<NamespaceStats> get() = if (namespaces.size > 1) listOf(total) + namespaces else namespaces
+}
+
+/**
  * Analyzes translation coverage per locale.
  * Uses [TranslationDataLoader] to get the flat key -> (locale -> value) map,
  * then computes per-locale statistics.
@@ -33,24 +64,29 @@ object TranslationStatsAnalyzer {
     fun analyze(project: Project, moduleConfig: ModuleConfig? = null): List<LocaleStats> =
         analyze(TranslationDataLoader.loadAllTranslations(project, moduleConfig))
 
+    /** The coverage report of the project (or of a specific module), see [CoverageReport]. */
+    fun report(project: Project, moduleConfig: ModuleConfig? = null): CoverageReport =
+        report(TranslationDataLoader.loadAllTranslations(project, moduleConfig))
+
     /**
-     * Coverage of [allTranslations] (key -> locale -> value).
+     * Coverage of [allTranslations] (key -> locale -> value), for the locales found in it.
      *
      * A plural group counts once ([PluralKey.groupForms]) and is translated in a locale holding any
      * non-blank form of it: the categories differ per language, so counting forms reported
      * `item_few` missing in English and `item_one` missing in Japanese. A missing group is listed
      * under a form that exists elsewhere, so the popup can still navigate to it.
      */
-    internal fun analyze(allTranslations: Map<String, Map<String, String>>): List<LocaleStats> {
+    internal fun analyze(allTranslations: Map<String, Map<String, String>>): List<LocaleStats> =
+        analyze(allTranslations, localesOf(allTranslations))
+
+    /**
+     * Coverage of [allTranslations] for exactly [locales], in that order — including a locale
+     * none of these keys is translated in, which then reads as 0%.
+     */
+    internal fun analyze(allTranslations: Map<String, Map<String, String>>, locales: List<String>): List<LocaleStats> {
         val groups = PluralKey.groupForms(allTranslations.keys)
         val totalKeys = groups.size
         if (totalKeys == 0) return emptyList()
-
-        // Collect all locales
-        val locales = allTranslations.values
-            .flatMap { it.keys }
-            .distinct()
-            .sorted()
 
         return locales.map { locale ->
             val missingKeys = groups.values
@@ -58,7 +94,7 @@ object TranslationStatsAnalyzer {
                 .map { forms -> forms.sorted().first() }
                 .sorted()
             val translated = totalKeys - missingKeys.size
-            val percent = if (totalKeys > 0) translated.toDouble() / totalKeys * 100.0 else 0.0
+            val percent = translated.toDouble() / totalKeys * 100.0
             LocaleStats(
                 locale = locale,
                 total = totalKeys,
@@ -69,4 +105,25 @@ object TranslationStatsAnalyzer {
             )
         }
     }
+
+    /**
+     * The report of [allTranslations]: the total row, then one row per namespace group — the
+     * default group (keys spelled without a prefix) first, then the named ones sorted.
+     */
+    internal fun report(allTranslations: Map<String, Map<String, String>>): CoverageReport {
+        val locales = localesOf(allTranslations)
+        val total = NamespaceStats(null, PluralKey.groupForms(allTranslations.keys).size, analyze(allTranslations, locales))
+        val namespaces = allTranslations.entries
+            .groupBy({ KeySpelling.namespaceOf(it.key) }, { it.key to it.value })
+            .map { (namespace, entries) ->
+                val keys = entries.toMap()
+                val group = if (namespace == null) NamespaceFilter.Default else NamespaceFilter.Named(namespace)
+                NamespaceStats(group, PluralKey.groupForms(keys.keys).size, analyze(keys, locales))
+            }
+            .sortedWith(compareBy<NamespaceStats> { it.group !is NamespaceFilter.Default }.thenBy { it.group?.label })
+        return CoverageReport(locales, total, namespaces)
+    }
+
+    private fun localesOf(allTranslations: Map<String, Map<String, String>>): List<String> =
+        allTranslations.values.flatMap { it.keys }.distinct().sorted()
 }
