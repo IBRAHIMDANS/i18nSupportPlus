@@ -38,6 +38,11 @@ internal fun CodeInsightTestFixture.runWithConfig (config: Config, block: () -> 
  */
 internal fun CodeInsightTestFixture.launchActionAndWait(action: IntentionAction) {
     launchAction(action)
+    waitForAsyncWork()
+}
+
+/** Flushes the EDT queue and the non-blocking read actions it starts; see [launchActionAndWait]. */
+internal fun waitForAsyncWork() {
     repeat(ASYNC_ROUNDS) {
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
         NonBlockingReadActionImpl.waitForAsyncTaskCompletion()

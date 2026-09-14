@@ -12,8 +12,12 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBScrollPane
@@ -44,9 +48,29 @@ class BatchExtractI18nAction : AnAction() {
         val psiFile = e.getData(CommonDataKeys.PSI_FILE) ?: return
         val editor = e.getData(CommonDataKeys.EDITOR) ?: return
 
-        val extractors = Extensions.LANG.extensionList.map { it.translationExtractor() }
+        val candidates = collectCandidates(psiFile)
+        if (candidates.isEmpty()) return
 
-        val candidates = PsiTreeUtil.findChildrenOfType(psiFile, JSLiteralExpression::class.java)
+        ApplicationManager.getApplication().invokeLater {
+            val dialog = BatchExtractDialog(project, candidates)
+            if (!dialog.showAndGet()) return@invokeLater
+            extract(project, editor, dialog.getSelectedCandidates())
+        }
+    }
+
+    /**
+     * Every string literal of [psiFile] an extractor accepts and has not extracted yet.
+     *
+     * The candidate is the literal's string *token*, not the [JSLiteralExpression] around it:
+     * that is the element extractors are written for — `JsTranslationExtractor.canExtract` only
+     * accepts `JS:STRING_LITERAL`, and its `textRange` is the token's parent. Handing them the
+     * expression made the action find nothing in a JS or TS file, and would have replaced the
+     * whole enclosing statement had it found something.
+     */
+    internal fun collectCandidates(psiFile: PsiFile): List<Candidate> {
+        val extractors = Extensions.LANG.extensionList.map { it.translationExtractor() }
+        return PsiTreeUtil.findChildrenOfType(psiFile, JSLiteralExpression::class.java)
+            .mapNotNull { it.firstChild }
             .filter { literal ->
                 extractors.any { it.canExtract(literal) && !it.isExtracted(literal) }
             }
@@ -56,38 +80,40 @@ class BatchExtractI18nAction : AnAction() {
                 Candidate(literal = literal, originalText = text, proposedKey = toProposedKey(text))
             }
             .filter { it.originalText.isNotEmpty() }
+    }
 
-        if (candidates.isEmpty()) return
+    /**
+     * Creates a key for each of [selected] and replaces its literal once the key exists.
+     *
+     * Each replacement happens later, when its key creation completes, and every earlier one
+     * shifts the text after it. The ranges are therefore tracked by [RangeMarker]s taken now,
+     * before any write, rather than as offsets: an offset computed up front pointed at the wrong
+     * text as soon as a preceding literal was replaced by a key of a different length.
+     */
+    internal fun extract(project: Project, editor: Editor, selected: List<Pair<Candidate, String>>) {
+        val extractors = Extensions.LANG.extensionList.map { it.translationExtractor() }
+        val config = Settings.getInstance(project).config()
+        val parser = if (config.usesFlatKeys()) KeyParserBuilder.withoutTokenizer()
+                     else KeyParserBuilder.withSeparators(config.nsSeparator, config.keySeparator)
+        for ((candidate, keyStr) in selected) {
+            val extractor = extractors.first { it.canExtract(candidate.literal) }
+            val fullKey = parser.build().parse(
+                RawKey(listOf(KeyElement.literal(keyStr))),
+                emptyNamespace = config.usesFlatKeys(),
+                firstComponentNamespace = config.firstComponentNs
+            ) ?: continue
 
-        ApplicationManager.getApplication().invokeLater {
-            val dialog = BatchExtractDialog(project, candidates)
-            if (!dialog.showAndGet()) return@invokeLater
-
-            val selected = dialog.getSelectedCandidates()
-            for ((candidate, keyStr) in selected) {
-                val extractor = extractors.first { it.canExtract(candidate.literal) }
-                val config = Settings.getInstance(project).config()
-                val parser = if (config.usesFlatKeys()) KeyParserBuilder.withoutTokenizer()
-                             else KeyParserBuilder.withSeparators(config.nsSeparator, config.keySeparator)
-                val fullKey = parser.build().parse(
-                    RawKey(listOf(KeyElement.literal(keyStr))),
-                    emptyNamespace = config.usesFlatKeys(),
-                    firstComponentNamespace = config.firstComponentNs
-                ) ?: continue
-
-                val template = extractor.template(candidate.literal)
-                val range = extractor.textRange(candidate.literal)
-                keyCreator.createKey(project, fullKey, candidate.originalText, editor) {
-                    editor.document.replaceString(
-                        range.startOffset,
-                        range.endOffset,
-                        template("'${fullKey.source}'")
-                    )
-                    extractor.postProcess(editor, range.startOffset)
+            val template = extractor.template(candidate.literal)
+            val marker = editor.document.createRangeMarker(extractor.textRange(candidate.literal))
+            keyCreator.createKey(project, fullKey, candidate.originalText, editor) {
+                if (marker.isValid) {
+                    editor.document.replaceString(marker.startOffset, marker.endOffset, template("'${fullKey.source}'"))
+                    extractor.postProcess(editor, marker.startOffset)
                 }
+                marker.dispose()
             }
-            editor.caretModel.primaryCaret.removeSelection()
         }
+        editor.caretModel.primaryCaret.removeSelection()
     }
 
     private fun toProposedKey(text: String): String =
@@ -97,8 +123,8 @@ class BatchExtractI18nAction : AnAction() {
             .trim('_')
 }
 
-private data class Candidate(
-    val literal: JSLiteralExpression,
+internal data class Candidate(
+    val literal: PsiElement,
     val originalText: String,
     val proposedKey: String
 )
