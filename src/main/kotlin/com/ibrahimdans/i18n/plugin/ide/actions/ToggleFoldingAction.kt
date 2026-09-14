@@ -1,11 +1,10 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
+import com.ibrahimdans.i18n.plugin.ide.preview.EditorRefresh
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.ToggleAction
-import com.intellij.openapi.application.ApplicationManager
 
 /**
  * Text, description and icon all come from `plugin.xml`, which resolves the first two against
@@ -24,9 +23,8 @@ class ToggleFoldingAction : ToggleAction() {
     override fun setSelected(e: AnActionEvent, state: Boolean) {
         val project = e.project ?: return
         Settings.getInstance(project).foldingEnabled = state
-        ApplicationManager.getApplication().invokeLater {
-            if (project.isDisposed) return@invokeLater
-            DaemonCodeAnalyzer.getInstance(project).restart()
-        }
+        // Not a bare daemon restart: the folding pass caches on the PSI stamp, which a
+        // settings change does not move — see EditorRefresh.
+        EditorRefresh.afterSettingsChange(project)
     }
 }

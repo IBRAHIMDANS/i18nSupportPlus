@@ -2,7 +2,6 @@ package com.ibrahimdans.i18n.plugin.ide.preview
 
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.WindowManager
@@ -38,9 +37,9 @@ object PreviewLocaleSwitcher {
         val settings = Settings.getInstance(project)
         settings.previewLocale = locale
         settings.foldingPreferredLanguage = locale
+        EditorRefresh.afterSettingsChange(project)
         ApplicationManager.getApplication().invokeLater {
             if (project.isDisposed) return@invokeLater
-            DaemonCodeAnalyzer.getInstance(project).restart()
             WindowManager.getInstance().getStatusBar(project)?.updateWidget(WIDGET_ID)
         }
     }
