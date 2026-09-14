@@ -33,6 +33,8 @@ class JsonLocalization : Localization<JsonStringLiteral> {
             fileName -> localizationFileType.extensions().any { ext -> "$fileName.$ext"==file?.name}
         }
     override fun icon(): Icon = AllIcons.FileTypes.Json
+    // No indentation setting: generated JSON is reformatted by the IDE's JSON code style, which
+    // already owns it (Settings | Code Style | JSON). A plugin setting would be silently overridden.
     override fun config(): LocalizationConfig = LocalizationConfigImpl("json")
 }
 

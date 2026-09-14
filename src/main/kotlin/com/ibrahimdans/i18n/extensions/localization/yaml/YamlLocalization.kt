@@ -1,6 +1,9 @@
 package com.ibrahimdans.i18n.extensions.localization.yaml
 
 import com.ibrahimdans.i18n.*
+import com.ibrahimdans.i18n.plugin.ConfigurationProperty
+import com.ibrahimdans.i18n.plugin.PrimitiveType
+import com.ibrahimdans.i18n.plugin.ide.settings.LocalizationSettingsPanel
 import com.ibrahimdans.i18n.plugin.ide.references.translation.TranslationToCodeReferenceProvider
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
@@ -37,14 +40,27 @@ class YamlLocalization : Localization<YAMLKeyValue> {
             fileName -> localizationFileType.extensions().any { ext -> "$fileName.$ext"==file?.name}
         }
     override fun icon(): Icon = AllIcons.FileTypes.Yaml
-    override fun config(): LocalizationConfig = LocalizationConfigImpl("yaml")
+    override fun config(): LocalizationConfig = LocalizationConfigImpl("yaml", listOf(indentProperty()))
 }
+
+/** Indentation of the keys generated in YAML files, which no code style reformats afterwards. */
+private fun indentProperty(): ConfigurationProperty = ConfigurationProperty(
+    PluginBundle.message("settings.localization.indent"),
+    PrimitiveType.NUMBER,
+    "2",
+    false,
+    LocalizationSettingsPanel.INDENT
+)
 
 private class YamlContentGenerator: ContentGenerator {
 
-    private val tabChar = "  "
+    /** Default indentation, for content generated with no project at hand (a new file's body). */
+    private val defaultIndent = "  "
 
     override fun generateContent(compositeKey: List<Literal>, value: String): String =
+        generateContent(compositeKey, value, defaultIndent)
+
+    private fun generateContent(compositeKey: List<Literal>, value: String, tabChar: String): String =
         compositeKey.foldRightIndexed(value, { i, key, acc ->
             val caret = if (i == 0) "" else "\n"
             val tab = tabChar.repeat(i)
@@ -83,7 +99,7 @@ private class YamlContentGenerator: ContentGenerator {
         generateTranslationEntry(
             element,
             first.text,
-            generateContent(unresolved.drop(1), translationValue ?: fullKey.source)
+            generateContent(unresolved.drop(1), translationValue ?: fullKey.source, LocalizationSettingsPanel.indent(element.project, "yaml"))
         )
     }
 }

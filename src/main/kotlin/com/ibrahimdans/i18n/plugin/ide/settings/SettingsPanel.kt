@@ -152,6 +152,12 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                 }
             }
 
+            LocalizationSettingsPanel(settings).build()?.let { formats ->
+                group(PluginBundle.message("settings.group.localization")) {
+                    row { cell(formats) }
+                }
+            }
+
             group(PluginBundle.message("settings.modules.label")) {
                 row {
                     cell(ModulesEditorPanel(settings, project)).align(Align.FILL)
