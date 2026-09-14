@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.utils.type
+import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.lang.javascript.patterns.JSPatterns
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSReferenceExpression
@@ -122,7 +123,28 @@ open class JsLang : Lang {
 internal fun isDirectOrConfiguredCall(element: PsiElement, translationFunctionNames: Collection<String>): Boolean {
     val callExpr = PsiTreeUtil.getParentOfType(element, JSCallExpression::class.java) ?: return true
     val refExpr = callExpr.methodExpression as? JSReferenceExpression ?: return true
-    val qualifier = refExpr.qualifier ?: return true
+    val qualifier = refExpr.qualifier ?: return importsTheFrameworkOf(refExpr.text, element)
     if (qualifier is JSThisExpression) return true
     return refExpr.text in translationFunctionNames
+}
+
+/**
+ * Bare function names common enough outside i18n to be claimed only when the file imports the
+ * framework publishing them. Every technology's names apply to every project, so lodash's
+ * `_('…')` or a local `msg('…')` used to be annotated as unresolved keys.
+ */
+private val IMPORT_GATED_NAMES: Map<String, List<String>> = mapOf(
+    "_" to listOf("svelte-i18n"),
+    "msg" to listOf("@lingui/"),
+)
+
+/**
+ * True unless [name] is import-gated and the file holding [element] — the host file, for a
+ * fragment injected into a Svelte or Vue component — imports none of its packages.
+ */
+internal fun importsTheFrameworkOf(name: String, element: PsiElement): Boolean {
+    val packages = IMPORT_GATED_NAMES[name] ?: return true
+    val file = InjectedLanguageManager.getInstance(element.project).getTopLevelFile(element) ?: element.containingFile ?: return false
+    val text = file.text
+    return packages.any { pkg -> Regex("""(from|require\(|import)\s*['"]${Regex.escape(pkg)}""").containsMatchIn(text) }
 }

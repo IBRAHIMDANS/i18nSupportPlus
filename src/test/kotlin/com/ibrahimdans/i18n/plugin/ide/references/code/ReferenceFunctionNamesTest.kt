@@ -35,9 +35,9 @@ class ReferenceFunctionNamesTest : PlatformBaseTest() {
     @ParameterizedTest
     @ValueSource(strings = [
         "t('test:ref.section.key')",          // i18next — worked before, guards the regression
-        "msg('test:ref.section.key')",        // lingui
+        "(() => { /* import { msg } from '@lingui/macro' */ return msg('test:ref.section.key'); })()", // lingui
         "i18n._('test:ref.section.key')",     // lingui, qualified: the qualifier is a declared name
-        "_('test:ref.section.key')",          // svelte-i18n
+        "(() => { /* import { _ } from 'svelte-i18n' */ return _('test:ref.section.key'); })()", // svelte-i18n
         "\$_('test:ref.section.key')",        // svelte-i18n
         "i18next.t('test:ref.section.key')",  // i18next instance API
         "props.t('test:ref.section.key')",    // react-i18next withTranslation HOC
