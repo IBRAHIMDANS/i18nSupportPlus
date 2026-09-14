@@ -14,7 +14,7 @@ val effectivePlatformVersion: String
         ?: properties("platformVersion").get()
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "2.4.10"
+    id("org.jetbrains.kotlin.jvm") version "2.4.20"
     id("org.jetbrains.intellij.platform") version "2.18.1"
     id("org.jetbrains.changelog") version "2.5.0"
     id("org.gradle.test-retry") version "1.6.5"
@@ -79,13 +79,13 @@ dependencies {
 // into the plugin's sandbox lib/. Force kotlin-stdlib to 2.3.20 so the sandbox gets 2.3.20
 // instead of 2.0.0. Coroutines are excluded so IntelliJ's bundled 1.9.x in util-8.jar wins.
 configurations.named("testRuntimeClasspath") {
-    resolutionStrategy.force("org.jetbrains.kotlin:kotlin-stdlib:2.4.10")
+    resolutionStrategy.force("org.jetbrains.kotlin:kotlin-stdlib:2.4.20")
     exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core")
     exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core-jvm")
     exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-debug")
 }
 configurations.named("intellijPlatformTestRuntimeClasspath") {
-    resolutionStrategy.force("org.jetbrains.kotlin:kotlin-stdlib:2.4.10")
+    resolutionStrategy.force("org.jetbrains.kotlin:kotlin-stdlib:2.4.20")
     exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core")
     exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core-jvm")
     exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-debug")
