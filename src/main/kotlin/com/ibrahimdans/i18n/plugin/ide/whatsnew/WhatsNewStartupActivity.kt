@@ -18,7 +18,8 @@ import com.intellij.openapi.startup.ProjectActivity
  * described — the change notes were only visible on the Marketplace page.
  *
  * The last announced version is stored at application level: the notification is due once per
- * update, not once per project opened. *Don't Show Again* mutes it for good, at the same level.
+ * update, not once per project opened. *Don't Show Again* mutes it, at the same level, until
+ * *Announce plugin updates* is ticked again in the settings.
  * Rule in [WhatsNewDecider].
  *
  * Registered in plugin.xml as a <postStartupActivity>.
@@ -28,7 +29,6 @@ class WhatsNewStartupActivity : ProjectActivity {
     private companion object {
         const val PLUGIN_ID = "com.ibrahimdans.i18n"
         const val LAST_SEEN_VERSION = "com.ibrahimdans.i18n.whatsNew.lastSeenVersion"
-        const val MUTED = "com.ibrahimdans.i18n.whatsNew.muted"
         const val CHANGELOG_URL = "https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/CHANGELOG.md"
         val LOCK = Any()
     }
@@ -40,7 +40,7 @@ class WhatsNewStartupActivity : ProjectActivity {
 
         // Recorded before notifying: several projects opening together must not each announce it.
         val decision = synchronized(LOCK) {
-            WhatsNewDecider.decide(properties.getValue(LAST_SEEN_VERSION), currentVersion, properties.getBoolean(MUTED)).also {
+            WhatsNewDecider.decide(properties.getValue(LAST_SEEN_VERSION), currentVersion, !WhatsNewPreferences.announceUpdates).also {
                 if (it != Decision.NONE) properties.setValue(LAST_SEEN_VERSION, currentVersion)
             }
         }
@@ -58,7 +58,7 @@ class WhatsNewStartupActivity : ProjectActivity {
             })
             // Mutes every later announcement, application-wide, like the version it compares with.
             .addAction(NotificationAction.createSimpleExpiring(PluginBundle.message("whatsNew.notification.action.mute")) {
-                properties.setValue(MUTED, true)
+                WhatsNewPreferences.announceUpdates = false
             })
             .notify(project)
     }

@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.ibrahimdans.i18n.plugin.ide.whatsnew.WhatsNewPreferences
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
 import com.intellij.ui.dsl.builder.Align
@@ -149,6 +150,10 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                 }
                 row {
                     cell(checkbox(PluginBundle.message("settings.setup.wizard.enabled"), settings::setupWizardEnabled))
+                }
+                row {
+                    cell(checkbox(PluginBundle.message("settings.announce.updates"), WhatsNewPreferences::announceUpdates))
+                        .comment(PluginBundle.message("settings.announce.updates.comment"))
                 }
             }
 
