@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.5.2 - 2026-09-22
+
 ### Bug Fixes
 
 - [Modules] Read a key written in a Vue template interpolation with the module's key template. The module was looked up through the injected fragment's own file instead of the host `.vue` file, so none was found and the key fell back to the project's separators — a dotted key then matched no file at all, and was reported unresolved with no Ctrl+click and no hover table, while the same key written in `<script>` resolved
