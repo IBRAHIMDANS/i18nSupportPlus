@@ -9,8 +9,8 @@ import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.rules.RuleCalls
 import com.ibrahimdans.i18n.plugin.rules.RuleDecision
 import com.ibrahimdans.i18n.plugin.utils.ModulePresets
+import com.ibrahimdans.i18n.plugin.utils.hostFile
 import com.ibrahimdans.i18n.plugin.utils.type
-import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.lang.javascript.patterns.JSPatterns
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSReferenceExpression
@@ -178,7 +178,7 @@ private val IMPORT_GATED_NAMES: Map<String, List<String>> = mapOf(
  */
 internal fun importsTheFrameworkOf(name: String, element: PsiElement): Boolean {
     val packages = IMPORT_GATED_NAMES[name] ?: return true
-    val file = InjectedLanguageManager.getInstance(element.project).getTopLevelFile(element) ?: element.containingFile ?: return false
+    val file = element.hostFile() ?: return false
     val text = file.text
     return packages.any { pkg -> Regex("""(from|require\(|import)\s*['"]${Regex.escape(pkg)}""").containsMatchIn(text) }
 }

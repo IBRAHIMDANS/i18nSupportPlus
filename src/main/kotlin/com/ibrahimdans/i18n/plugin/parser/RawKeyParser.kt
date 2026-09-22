@@ -5,7 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
-import com.intellij.lang.injection.InjectedLanguageManager
+import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 
@@ -45,13 +45,10 @@ class RawKeyParser(private val project: Project) {
     /** The key syntax of the module holding [caller]'s file, or null to use the project settings. */
     private fun keySyntaxOf(config: Config, caller: PsiElement): KeySyntax? {
         if (config.modules.isEmpty()) return null
-        // The host file: for a key written in a fragment injected into a Vue SFC (a `{{ … }}`
-        // interpolation), `containingFile` is the injected file and its `originalFile` is not
-        // the .vue one, so no module was found and the key was read with the project's
-        // separators instead of the module's template — every dotted key written in a template
-        // was reported unresolved. `ModulePresets` and `RuleCalls` already resolve it this way.
-        val host = InjectedLanguageManager.getInstance(project).getTopLevelFile(caller) ?: caller.containingFile
-        val file = host?.originalFile?.virtualFile ?: return null
+        // The host file: a key written in a `{{ … }}` interpolation sits in an injected fragment
+        // owned by no module root, and used to be read with the project's separators instead of
+        // the module's template — every dotted key written in a template was reported unresolved.
+        val file = caller.hostVirtualFile() ?: return null
         val module = ModuleSources.owner(config.modules, ModuleSources.FilePath.of(file, project.basePath ?: "")) ?: return null
         return KeyTemplate.parse(module.keyTemplate)
     }

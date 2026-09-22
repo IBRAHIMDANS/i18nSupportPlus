@@ -1,8 +1,8 @@
 package com.ibrahimdans.i18n.plugin.rules
 
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.utils.hostFile
 import com.ibrahimdans.i18n.plugin.utils.unQuote
-import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 
@@ -21,8 +21,7 @@ object RuleCalls {
     fun decide(element: PsiElement, language: String, callee: String, imports: (PsiFile) -> Set<String>): RuleDecision {
         val rules = Settings.getInstance(element.project).config().rules
         if (rules.isEmpty() || rules.none { it.trigger.trim() == callee }) return RuleDecision.NONE
-        // The host file, for a fragment injected into a Vue or Svelte component.
-        val file = InjectedLanguageManager.getInstance(element.project).getTopLevelFile(element) ?: element.containingFile
+        val file = element.hostFile()
         val context = RuleContext(
             language = language,
             callee = callee,

@@ -2,7 +2,6 @@ package com.ibrahimdans.i18n.plugin.utils
 
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.psi.PsiElement
 
 /**
@@ -19,9 +18,7 @@ object ModulePresets {
         val project = element.project
         val modules = Settings.getInstance(project).config().modules
         if (modules.none { it.preset.isNotBlank() }) return null
-        // The host file, for a fragment injected into a Vue or Svelte component.
-        val file = (InjectedLanguageManager.getInstance(project).getTopLevelFile(element) ?: element.containingFile)
-            ?.originalFile?.virtualFile ?: return null
+        val file = element.hostVirtualFile() ?: return null
         return ModuleSources.owner(modules, ModuleSources.FilePath.of(file, project.basePath ?: ""))
             ?.preset?.trim()?.ifEmpty { null }
     }
