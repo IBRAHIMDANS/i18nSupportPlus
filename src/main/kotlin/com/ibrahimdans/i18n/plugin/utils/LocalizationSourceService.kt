@@ -5,7 +5,6 @@ import com.ibrahimdans.i18n.Localization
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
@@ -160,9 +159,7 @@ class LocalizationSourceService {
         val sources = findSources(fileNames, project)
         val config = Settings.getInstance(project).config()
         if (config.modules.isEmpty()) return sources
-        // The host file, for a fragment injected into a Vue component — see RawKeyParser.keySyntaxOf.
-        val callerFile = (InjectedLanguageManager.getInstance(project).getTopLevelFile(caller) ?: caller.containingFile)
-            ?.originalFile?.virtualFile ?: return sources
+        val callerFile = caller.hostVirtualFile() ?: return sources
         val basePath = project.basePath ?: ""
         val module = ModuleSources.owner(config.modules, projectPath(callerFile, basePath)) ?: return sources
 

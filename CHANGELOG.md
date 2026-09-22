@@ -6,6 +6,10 @@
 
 - [Modules] Read a key written in a Vue template interpolation with the module's key template. The module was looked up through the injected fragment's own file instead of the host `.vue` file, so none was found and the key fell back to the project's separators — a dotted key then matched no file at all, and was reported unresolved with no Ctrl+click and no hover table, while the same key written in `<script>` resolved
 
+### Refactoring
+
+- [Internal] Cross from an injected fragment back to its host file through a single `PsiElement.hostFile()` / `hostVirtualFile()`. The module lookup, the key template, the module preset, the key assistance rules and the import gate each spelled that crossing out, and the two that read `containingFile` directly carried the bug above — no behaviour change
+
 ## 1.5.1 - 2026-09-14
 
 ### Bug Fixes
