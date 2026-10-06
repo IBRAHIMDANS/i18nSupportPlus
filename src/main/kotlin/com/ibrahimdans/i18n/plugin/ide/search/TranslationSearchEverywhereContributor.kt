@@ -4,7 +4,6 @@ import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
-import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.displayValue
@@ -18,7 +17,6 @@ import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.psi.PsiElement
 import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.util.Processor
@@ -108,7 +106,7 @@ class TranslationSearchEverywhereContributor(
 
     /**
      * Opens the translation file at the key, the way *Open translation file* (F4) does in the table:
-     * the file is looked up through [TableViewModel.findSourceFor] with the same module scope the
+     * the key is located through [TableViewModel.locate] with the same module scope the
      * hit was found in, off the EDT, and the editor is opened back on it.
      */
     override fun processSelectedItem(selected: TranslationSearchHit, modifiers: Int, searchText: String): Boolean {
@@ -158,22 +156,12 @@ class TranslationSearchEverywhereContributor(
     }
 
     /**
-     * The file and offset where [hit]'s key is declared for its locale, falling back to the deepest
-     * segment that resolves. The same walk as the table's private `locate`, which this cannot call;
-     * the file lookup itself is shared through [TableViewModel.findSourceFor].
+     * The file and offset where [hit]'s key is declared for its locale — [TableViewModel.locate],
+     * the walk *Open translation file* (F4) takes in the table.
      * Internal for tests: [processSelectedItem] only schedules it. Must be called inside a read action.
      */
-    internal fun locate(hit: TranslationSearchHit, module: ModuleConfig? = scope.module): Pair<VirtualFile, Int>? {
-        val viewModel = TableViewModel()
-        val source = viewModel.findSourceFor(project, hit.key, hit.locale, module) ?: return null
-        var node: Tree<PsiElement> = source.tree ?: return null
-        for (segment in viewModel.keySegments(hit.key, Settings.getInstance(project).config())) {
-            node = node.findChild(segment) ?: break
-        }
-        val psi = node.value()
-        val file = psi.containingFile?.virtualFile ?: return null
-        return file to psi.textOffset
-    }
+    internal fun locate(hit: TranslationSearchHit, module: ModuleConfig? = scope.module): Pair<VirtualFile, Int>? =
+        TableViewModel().locate(project, hit.key, hit.locale, module)
 
     /** Registered in `plugin.xml` under `com.intellij.searchEverywhereContributor`. */
     class Factory : SearchEverywhereContributorFactory<TranslationSearchHit> {
