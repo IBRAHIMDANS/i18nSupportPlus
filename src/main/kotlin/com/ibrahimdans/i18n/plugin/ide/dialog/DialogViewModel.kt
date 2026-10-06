@@ -332,13 +332,15 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
             if (fileName.endsWith(".json") || fileName.endsWith(".json5")) "{}\n" else ""
 
         /**
-         * Message variables, in the three shapes the plugin already recognises elsewhere:
-         * i18next's `{{count}}`, ICU / react-intl's `{name}`, and printf's `%s` / `%1$s`.
+         * Message variables, in the four shapes the plugin recognises:
+         * i18next's `{{count}}`, i18n-js' `%{count}`, ICU / react-intl's `{name}`, and printf's
+         * `%s` / `%1$s`.
          *
-         * The `{{…}}` alternative comes first on purpose: on `{{count}}` the single-brace one
-         * would match `{count}` and report a variable no translator ever typed.
+         * The `{{…}}` and `%{…}` alternatives come before the single-brace one on purpose: on
+         * `{{count}}` or `%{count}` it would match `{count}` and report a variable no translator
+         * ever typed.
          */
-        private val VARIABLE_REGEX = Regex("""\{\{[^{}]+}}|\{[^{}]+}|%[0-9]*\$?[sd]""")
+        private val VARIABLE_REGEX = Regex("""\{\{[^{}]+}}|%\{[^{}]+}|\{[^{}]+}|%[0-9]*\$?[sd]""")
 
         /**
          * Where each message variable sits inside [text], so the dialog can highlight them in

@@ -43,7 +43,8 @@ import com.intellij.psi.PsiElementVisitor
  *
  * Which variables are *named options* of the call:
  *  - `{{name}}` (i18next, ngx-translate) always is: it is filled from the object passed to the
- *    call. `{{- name}}` and `{{value, number}}` name `name` and `value`; `{{user.name}}` is filled
+ *    call. So is `%{name}` (i18n-js): no other technology writes it, so it needs no technology
+ *    check — which matters, since `t` is published by i18next as well as by i18n-js. `{{- name}}` and `{{value, number}}` name `name` and `value`; `{{user.name}}` is filled
  *    from `user`, so `user` is what the object must hold.
  *  - `{name}` is only where the call's technology interpolates single braces — vue-i18n, lingui,
  *    react-intl / ICU MessageFormat, svelte-i18n ([SINGLE_BRACE_FRAMEWORKS]). For i18next it is
@@ -235,11 +236,12 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
                 .mapNotNull { range -> variableName(text.substring(range), singleBraces) }
                 .toSet()
 
-        /** `{{- user.name, uppercase}}` → `user`; `{amount, number}` → `amount`; `%s` → null. */
+        /** `{{- user.name, uppercase}}` → `user`; `%{count}` → `count`; `{amount, number}` → `amount`; `%s` → null. */
         private fun variableName(token: String, singleBraces: Boolean): String? {
             val compact = token.filterNot { it.isWhitespace() }
             val inner = when {
                 compact.startsWith("{{") -> compact.removePrefix("{{").removeSuffix("}}").removePrefix("-")
+                compact.startsWith("%{") -> compact.removePrefix("%{").removeSuffix("}")
                 compact.startsWith("{") && singleBraces -> compact.removePrefix("{").removeSuffix("}")
                 else -> return null
             }

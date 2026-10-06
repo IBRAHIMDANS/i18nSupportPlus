@@ -99,6 +99,16 @@ class DialogViewModelRulesTest {
     }
 
     @Test
+    fun `an i18n-js variable is read whole, not as a single-brace one`() {
+        assertEquals(setOf("%{count}"), DialogViewModel.messageVariables("%{count} boxes"))
+        assertEquals(setOf("%{count}", "%s"), DialogViewModel.messageVariables("%{count} of %s"))
+        assertEquals(setOf("{{count}}"), DialogViewModel.messageVariables("{{count}}"))
+        val text = "%{count} boxes for {{name}}"
+        val ranges = DialogViewModel.variableRanges(text)
+        assertEquals(listOf("%{count}", "{{name}}"), ranges.map { text.substring(it.first, it.last + 1) })
+    }
+
+    @Test
     fun `spacing inside a variable is not a difference`() {
         assertEquals(
             DialogViewModel.messageVariables("{{count}}"),
