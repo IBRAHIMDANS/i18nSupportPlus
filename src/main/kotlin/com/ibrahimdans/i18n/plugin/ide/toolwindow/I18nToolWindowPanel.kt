@@ -215,7 +215,8 @@ internal class ShellContent(
     val diagnostics: ShellDiagnostics,
     private val onRunWizard: () -> Unit,
     private val onOpenSettings: () -> Unit,
-    private val viewState: ToolWindowViewState? = null
+    private val viewState: ToolWindowViewState? = null,
+    private val onClearSearch: () -> Unit = {}
 ) {
 
     /**
@@ -229,7 +230,7 @@ internal class ShellContent(
         ShellLayout.EMPTY -> emptyList()
         ShellLayout.SINGLE -> listOf(newPanelSet(project, null))
         ShellLayout.MULTI -> diagnostics.modules.map { newPanelSet(project, it) }
-    }
+    }.onEach { it.table.onClearSearch = onClearSearch }
 
     /**
      * The one and only level of tabs.
@@ -458,7 +459,8 @@ class I18nToolWindowPanel internal constructor(
             diagnostics = diagnostics,
             onRunWizard = { SetupWizardDialog(project).show() },
             onOpenSettings = { openSettings() },
-            viewState = ToolWindowViewState.getInstance(project)
+            viewState = ToolWindowViewState.getInstance(project),
+            onClearSearch = { searchField.text = "" }
         )
         shellContent = built
         setContent(built.component)
