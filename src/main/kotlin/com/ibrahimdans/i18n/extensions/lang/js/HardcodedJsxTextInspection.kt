@@ -32,7 +32,7 @@ import com.intellij.psi.xml.XmlText
  *  - each JSX expression of its tag can become a variable of the message — `{name}`, `{user.name}`
  *    ([JsxTranslationExtractor.variables]): `<p>Hello {name}</p>` is reported and extracts to
  *    `Hello {{name}}`, while a call, a condition or a comment keeps the tag silent;
- *  - an attribute is one a user reads ([VISIBLE_ATTRIBUTES]) — `className`, `style`, `key`, `id`,
+ *  - an attribute is one a user reads ([HardcodedTextRules.VISIBLE_ATTRIBUTES]) — `className`, `style`, `key`, `id`,
  *    `data-*` and every other attribute are never reported — and holds a plain string, not `{…}`;
  *  - the tag is neither a translation component whose text is already the message or its fallback
  *    (`<Trans>`) nor one whose text is code ([UNTRANSLATED_TAGS]).
@@ -62,7 +62,7 @@ class HardcodedJsxTextInspection : LocalInspectionTool() {
 
     private fun checkAttribute(value: XmlAttributeValue, holder: ProblemsHolder) {
         val attribute = value.parent as? XmlAttribute ?: return
-        if (attribute.name !in VISIBLE_ATTRIBUTES) return
+        if (attribute.name !in HardcodedTextRules.VISIBLE_ATTRIBUTES) return
         // The string between the quotes; `title={…}` holds an expression instead, and `title=""` nothing.
         val token = generateSequence(value.firstChild) { it.nextSibling }
             .firstOrNull { it.firstChild == null && it.textRange == value.valueTextRange && !it.textRange.isEmpty }
@@ -74,7 +74,7 @@ class HardcodedJsxTextInspection : LocalInspectionTool() {
     private fun check(leaf: PsiElement, tag: XmlTag, holder: ProblemsHolder) {
         if (tag.name in UNTRANSLATED_TAGS) return
         if (!EXTRACTOR.canExtract(leaf) || EXTRACTOR.isExtracted(leaf)) return
-        if (!isTranslatable(EXTRACTOR.text(leaf))) return
+        if (!HardcodedTextRules.isTranslatable(EXTRACTOR.text(leaf))) return
         val range = EXTRACTOR.textRange(leaf).shiftLeft(tag.textRange.startOffset)
         holder.registerProblem(tag, range, PluginBundle.message("inspection.hardcoded.jsx.text.message"), ExtractFix(leaf))
     }
@@ -92,23 +92,11 @@ class HardcodedJsxTextInspection : LocalInspectionTool() {
         }
     }
 
-    internal companion object {
+    private companion object {
 
         private val EXTRACTOR = JsxTranslationExtractor()
 
-        /** The attributes whose value is shown to the user; any other one is code. */
-        private val VISIBLE_ATTRIBUTES = setOf("title", "placeholder", "alt", "aria-label")
-
         /** `Trans` (react-i18next, lingui) holds a message or its fallback; the others hold code. */
-        private val UNTRANSLATED_TAGS = setOf("Trans", "code", "kbd", "pre", "script", "style")
-
-        private val ENTITY = Regex("&#?\\w+;")
-
-        /** `{{name}}`: a variable's placeholder, whose letters are not text. */
-        private val PLACEHOLDER = Regex("\\{\\{\\w+}}")
-
-        /** True when [text] holds a letter once its HTML entities and placeholders are removed. */
-        fun isTranslatable(text: String): Boolean =
-            text.replace(ENTITY, "").replace(PLACEHOLDER, "").any { it.isLetter() }
+        private val UNTRANSLATED_TAGS = HardcodedTextRules.CODE_TAGS + "Trans"
     }
 }
