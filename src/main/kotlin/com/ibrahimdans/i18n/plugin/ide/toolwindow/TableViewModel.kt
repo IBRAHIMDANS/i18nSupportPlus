@@ -271,6 +271,22 @@ class TableViewModel {
             locales.map { row.values[it] ?: "" } + row.usageCount
 
     /**
+     * [fresh] rows, each carrying the [TranslationRow.usageCount] [previous] already knew for
+     * the same key.
+     *
+     * A reload follows every change to a translation file — the table's own in-place edits
+     * included — and reloaded rows start back at "not scanned": one corrected value used to
+     * throw away a scan that is expensive on a large project. The count depends on the source
+     * code, not on the value, so a key whose value changed keeps it. A key [previous] did not
+     * have stays not scanned, and a key gone from [fresh] simply disappears. Values and order
+     * are those of [fresh].
+     */
+    fun mergeUsages(fresh: List<TranslationRow>, previous: List<TranslationRow>): List<TranslationRow> {
+        val known = previous.associate { it.key to it.usageCount }
+        return fresh.map { row -> known[row.key]?.let { row.copy(usageCount = it) } ?: row }
+    }
+
+    /**
      * Writes [value] for [key] in [locale], routing to the right translation file
      * by namespace and locale. Creates the entry when the locale does not have it yet.
      *
