@@ -61,29 +61,42 @@ class KeyRequest {
     }
 
     /**
-     * Offers the [existingKeys] holding [text] first, and creating a new key last.
+     * Offers the [existingKeys] holding [text], then creating a new key, then cancelling — one
+     * button each, in that order.
      *
-     * [Messages.showChooseDialog] rather than a popup: it is modal like the input dialog that
-     * follows it, and in tests it answers through `TestDialogManager.setTestDialog`, the returned
-     * code being the index of the chosen option — the harness the rest of the extraction already
-     * runs under, where a `JBPopup` would need a UI to click. No dialog at all when no key holds
-     * the text: that path stays exactly what it was.
+     * [Messages.showDialog] rather than a popup or `showChooseDialog`: it is modal like the input
+     * dialog that follows it, and in tests it answers through `TestDialogManager.setTestDialog`,
+     * the returned code being the index of the button — the harness the rest of the extraction
+     * already runs under. `showChooseDialog` did the same with a combo box, but is deprecated.
+     *
+     * Buttons do not scale like a list: at most [MAX_OFFERED_KEYS] keys are offered, and the
+     * message says how many more hold the text. The default button — the one Enter presses — is
+     * the key when exactly one matches, where reusing it is the obvious intent; with several,
+     * picking one is a decision Enter should not make, so it is *Create a new key…*, the action
+     * the user started. Escape, closing the dialog, and *Cancel* abandon the extraction.
+     *
+     * No dialog at all when no key holds the text: that path stays exactly what it was.
      */
     fun choose(project: Project, text: String, existingKeys: List<String>): KeyChoice {
         if (existingKeys.isEmpty()) return KeyChoice.New
-        val options = existingKeys.map { PluginBundle.message("action.intention.extract.key.reuse.option", it) } +
-            PluginBundle.message("action.intention.extract.key.reuse.create")
-        val index = Messages.showChooseDialog(
+        val offered = existingKeys.take(MAX_OFFERED_KEYS)
+        val buttons = offered.map { PluginBundle.message("action.intention.extract.key.reuse.option", it) } +
+            PluginBundle.message("action.intention.extract.key.reuse.create") +
+            Messages.getCancelButton()
+        val hidden = existingKeys.size - offered.size
+        val message = PluginBundle.message("action.intention.extract.key.reuse.message", text) +
+            (if (hidden > 0) "\n" + PluginBundle.message("action.intention.extract.key.reuse.more", hidden) else "")
+        val index = Messages.showDialog(
             project,
-            PluginBundle.message("action.intention.extract.key.reuse.message", text),
+            message,
             PluginBundle.message("action.intention.extract.key.reuse.title"),
-            Messages.getQuestionIcon(),
-            options.toTypedArray(),
-            options.first()
+            buttons.toTypedArray(),
+            if (offered.size == 1) 0 else offered.size,
+            Messages.getQuestionIcon()
         )
         return when (index) {
-            in existingKeys.indices -> KeyChoice.Existing(existingKeys[index])
-            existingKeys.size -> KeyChoice.New
+            in offered.indices -> KeyChoice.Existing(offered[index])
+            offered.size -> KeyChoice.New
             else -> KeyChoice.Cancelled
         }
     }
@@ -93,5 +106,10 @@ class KeyRequest {
             return (inputString ?: "").isNotEmpty()
         }
         override fun canClose(inputString: String?): Boolean = true
+    }
+
+    private companion object {
+        /** Existing keys offered as buttons; past it, the dialog would outgrow the screen. */
+        const val MAX_OFFERED_KEYS = 3
     }
 }
