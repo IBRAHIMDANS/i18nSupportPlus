@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Search] **Find a key from its text in Search Everywhere.** A *Translations* tab in Shift Shift searches the values and the keys of every locale, case-insensitively, and lists `value — namespace:key (locale)`, the texts seen on screen first. Picking a result opens the translation file at the key, as F4 does in the table. Opened from a file of a configured module, it searches that module's translations. "Where does this *Welcome back* come from?" used to mean a trip through the tool window or a *Find in Files* over `locales/`
+
 ## 1.5.2 - 2026-09-22
 
 ### Bug Fixes
