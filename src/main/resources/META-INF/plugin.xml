@@ -254,6 +254,13 @@
             enabledByDefault="false"
             level="WEAK WARNING"
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.DuplicateTranslationValueInspection"/>
+        <localInspection
+            groupName="i18n Support Plus"
+            key="inspection.missing.key.display.name"
+            shortName="I18nMissingKey"
+            enabledByDefault="true"
+            level="WARNING"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.MissingTranslationKeyInspection"/>
     </extensions>
     <actions>
         <group id="com.ibrahimdans.i18n.ToolsMenu"
