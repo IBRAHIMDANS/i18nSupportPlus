@@ -8,11 +8,7 @@ import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.openapi.project.DumbService
-import com.intellij.psi.PsiFile
-import com.intellij.psi.util.PsiTreeUtil
-import org.jetbrains.yaml.psi.YAMLFile
 import org.jetbrains.yaml.psi.YAMLKeyValue
-import org.jetbrains.yaml.psi.YAMLMapping
 import org.jetbrains.yaml.psi.YAMLScalar
 
 private val PLACEHOLDER_REGEX = Regex("""\{[\w\d_]+\}|%[0-9]*\$?[sd]""")
@@ -25,85 +21,6 @@ private fun extractPlaceholders(text: String): Set<String> =
 private fun isSyntacticallyValid(text: String): Boolean =
     !UNCLOSED_BRACE_REGEX.containsMatchIn(text) && !UNOPENED_BRACE_REGEX.containsMatchIn(text)
 
-/**
- * The translations of the same namespace in the reference locale.
- *
- * Found through the source scan rather than as a sibling `en.json`: on `locales/fr/common.json` the
- * reference is `locales/en/common.json`, which no sibling lookup could reach, so the inspection
- * compared nothing on the most common i18next layout.
- */
-private fun referenceTranslations(file: PsiFile): Map<String, String> {
-    val source = TranslationFileScope.sourceOf(file) ?: return emptyMap()
-    val referenceLocale = TranslationFileScope.referenceLocaleFor(file, source)
-    val reference = TranslationFileScope.counterpartOf(file, source, referenceLocale) ?: return emptyMap()
-    val referenceFile = reference.tree?.value()?.containingFile ?: return emptyMap()
-    return flattenTranslations(referenceFile)
-}
-
-private fun flattenTranslations(file: PsiFile): Map<String, String> {
-    val result = mutableMapOf<String, String>()
-    when (file) {
-        is com.intellij.json.psi.JsonFile -> {
-            val root = PsiTreeUtil.getChildOfType(file, com.intellij.json.psi.JsonObject::class.java)
-            root?.let { collectJsonProperties(it, "", result) }
-        }
-        is YAMLFile -> {
-            for (doc in file.documents) {
-                val mapping = PsiTreeUtil.getChildOfType(doc, YAMLMapping::class.java)
-                mapping?.let { collectYamlKeyValues(it, "", result) }
-            }
-        }
-    }
-    return result
-}
-
-private fun collectJsonProperties(
-    obj: com.intellij.json.psi.JsonObject,
-    prefix: String,
-    result: MutableMap<String, String>
-) {
-    for (prop in obj.propertyList) {
-        val key = if (prefix.isEmpty()) prop.name else "$prefix.${prop.name}"
-        when (val value = prop.value) {
-            is JsonStringLiteral -> result[key] = value.value
-            is com.intellij.json.psi.JsonObject -> collectJsonProperties(value, key, result)
-            else -> {}
-        }
-    }
-}
-
-private fun collectYamlKeyValues(mapping: YAMLMapping, prefix: String, result: MutableMap<String, String>) {
-    for (kv in mapping.keyValues) {
-        val keyText = kv.keyText
-        val key = if (prefix.isEmpty()) keyText else "$prefix.$keyText"
-        when (val value = kv.value) {
-            is YAMLScalar -> result[key] = value.textValue
-            is YAMLMapping -> collectYamlKeyValues(value, key, result)
-            else -> {}
-        }
-    }
-}
-
-private fun buildJsonKey(element: PsiElement): String {
-    val parts = mutableListOf<String>()
-    var current: PsiElement? = element
-    while (current != null) {
-        if (current is JsonProperty) parts.add(0, current.name)
-        current = current.parent
-    }
-    return parts.joinToString(".")
-}
-
-private fun buildYamlKey(element: PsiElement): String {
-    val parts = mutableListOf<String>()
-    var current: PsiElement? = element.parent
-    while (current != null) {
-        if (current is YAMLKeyValue) parts.add(0, current.keyText)
-        current = current.parent
-    }
-    return parts.joinToString(".")
-}
-
 class PlaceholderConsistencyInspection : LocalInspectionTool() {
 
     override fun getGroupDisplayName(): String = "i18n Support Plus"
@@ -113,7 +30,7 @@ class PlaceholderConsistencyInspection : LocalInspectionTool() {
         if (DumbService.isDumb(holder.project)) return PsiElementVisitor.EMPTY_VISITOR
         val file = holder.file
         if (TranslationFileScope.sourceOf(file) == null) return PsiElementVisitor.EMPTY_VISITOR
-        val refTranslations: Map<String, String> by lazy { referenceTranslations(file) }
+        val refTranslations: Map<String, String> by lazy { TranslationFileKeys.referenceTranslations(file) }
 
         return object : PsiElementVisitor() {
             override fun visitElement(element: PsiElement) {
@@ -138,7 +55,7 @@ class PlaceholderConsistencyInspection : LocalInspectionTool() {
         }
         val currentPlaceholders = extractPlaceholders(value)
         if (currentPlaceholders.isEmpty()) return
-        val key = buildJsonKey(property)
+        val key = TranslationFileKeys.keyOf(property)
         val refValue = refTranslations[key] ?: return
         val refPlaceholders = extractPlaceholders(refValue)
         for (missing in refPlaceholders - currentPlaceholders) {
@@ -159,7 +76,7 @@ class PlaceholderConsistencyInspection : LocalInspectionTool() {
         }
         val currentPlaceholders = extractPlaceholders(value)
         if (currentPlaceholders.isEmpty()) return
-        val key = buildYamlKey(scalar)
+        val key = TranslationFileKeys.keyOf(scalar)
         val refValue = refTranslations[key] ?: return
         val refPlaceholders = extractPlaceholders(refValue)
         for (missing in refPlaceholders - currentPlaceholders) {

@@ -5,6 +5,15 @@
 ### Features
 
 - [Completion] **Key completion shows each key's translation and finds a key by its text.** Each entry carries its value in the preview locale — the one inlay hints, hover and the status-bar widget show, `en` finding `en-GB` the same way — on one line and cut as the table cuts it; a key the preview locale lacks shows nothing rather than another locale's text. Typing `acc` now brings up `menu.home` when it reads "Accueil", case aside, at the root as below a path (`menu.acc`). The list used to show bare keys, so one picked a key blind or went to open the file. Plurals are still offered once, with the value of their first form; the values come from the same tree walk as the keys, without reading any file again
+- [Search] **Find a key from its text in Search Everywhere.** A *Translations* tab in Shift Shift searches the values and the keys of every locale, case-insensitively, and lists `value — namespace:key (locale)`, the texts seen on screen first. Picking a result opens the translation file at the key, as F4 does in the table. Opened from a file of a configured module, it searches that module's translations. "Where does this *Welcome back* come from?" used to mean a trip through the tool window or a *Find in Files* over `locales/`
+- [Inspections] **Flag a key missing from a locale, in the editor.** A new *Translation key missing from a locale* inspection (`I18nMissingKey`, on by default) reports, in `fr/common.json`, every key of `en/common.json` it lacks — the reference locale of the module, `en` otherwise — on the closest parent object that does exist. Only the Stats tab showed it before. The reference file itself is never reported, another namespace is never compared against, and plural forms are compared as a group as *Sync Keys* does (`ja` holding `item_other` alone is complete). The *Add missing key* quick fix writes the key with an **empty** value through the same path as *Sync Keys*, so a copied English sentence never passes for a translation and *Empty translation value* keeps pointing at it. JSON and YAML
+### Bug Fixes
+
+- [Table View] Keep the **Usage** counts when the table reloads. Every change to a translation file reloads the table — the table's own in-place edits included — and the reloaded rows started back at *not scanned*, so the first corrected value threw away a scan that is expensive on a large project. A key still present keeps its count, even when its value changed (the count depends on the source code, not on the value); a new key stays *not scanned*. The toolbar *Refresh* keeps the counts too: it reloads the translation files, and recounting is the *Scan* action's job
+
+### Refactoring
+
+- [Table View] Split `TableViewPanel`, the largest file of the plugin (725 lines), into what it carried side by side: `OrphanKeyDeleter` and the two cell renderers move to files of their own, and the table header and row cells are composed by `TableViewModel`, where they are unit-tested. The panel keeps the Swing wiring and the row actions (469 lines) — no behaviour change
 
 ## 1.5.2 - 2026-09-22
 

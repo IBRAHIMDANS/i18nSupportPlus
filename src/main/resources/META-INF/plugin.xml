@@ -213,6 +213,8 @@
         <postStartupActivity implementation="com.ibrahimdans.i18n.plugin.ide.whatsnew.WhatsNewStartupActivity"/>
         <toolWindow id="I18n" anchor="bottom" icon="AllIcons.Nodes.ResourceBundle"
                     factoryClass="com.ibrahimdans.i18n.plugin.ide.toolwindow.I18nToolWindowFactory"/>
+        <searchEverywhereContributor
+                implementation="com.ibrahimdans.i18n.plugin.ide.search.TranslationSearchEverywhereContributor$Factory"/>
         <renameHandler implementation="com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler"/>
         <statusBarWidgetFactory id="com.ibrahimdans.i18n.previewLocale"
                                 implementation="com.ibrahimdans.i18n.plugin.ide.preview.PreviewLocaleWidgetFactory"
@@ -252,6 +254,13 @@
             enabledByDefault="false"
             level="WEAK WARNING"
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.DuplicateTranslationValueInspection"/>
+        <localInspection
+            groupName="i18n Support Plus"
+            key="inspection.missing.key.display.name"
+            shortName="I18nMissingKey"
+            enabledByDefault="true"
+            level="WARNING"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.MissingTranslationKeyInspection"/>
     </extensions>
     <actions>
         <group id="com.ibrahimdans.i18n.ToolsMenu"

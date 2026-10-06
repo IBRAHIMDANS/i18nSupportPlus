@@ -1,6 +1,5 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
-import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
 import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
@@ -8,20 +7,10 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
-import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.tree.Tree
-import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
-import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
-import com.intellij.icons.AllIcons
-import com.intellij.json.psi.JsonProperty
-import com.intellij.psi.util.PsiTreeUtil
-import org.jetbrains.yaml.psi.YAMLKeyValue
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
-import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
@@ -30,17 +19,13 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
-import com.intellij.ui.JBColor
 import com.intellij.ui.table.JBTable
-import com.intellij.util.concurrency.AppExecutorUtil
 import java.awt.BorderLayout
 import java.awt.Component
-import java.awt.Font
 import java.awt.event.ActionEvent
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
-import org.jetbrains.concurrency.CancellablePromise
 import javax.swing.AbstractAction
 import javax.swing.DefaultComboBoxModel
 import javax.swing.DefaultListCellRenderer
@@ -56,49 +41,12 @@ import javax.swing.JTable
 import javax.swing.KeyStroke
 import javax.swing.RowSorter
 import javax.swing.SortOrder
-import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.DefaultTableModel
 import javax.swing.table.TableRowSorter
-
-// Not `const`: these come from the bundle now.
-private val USAGE_COLUMN_NAME = PluginBundle.message("toolwindow.table.column.usage")
-private val NOT_SCANNED_TOOLTIP = PluginBundle.message("toolwindow.table.usage.not.scanned")
-private val NOT_SCANNED_LABEL = PluginBundle.message("toolwindow.table.usage.pending")
-private val ORPHAN_LABEL = PluginBundle.message("toolwindow.table.usage.orphan")
-private val ORPHAN_TOOLTIP = PluginBundle.message("toolwindow.table.usage.orphan.tooltip")
-private val DYNAMIC_LABEL = PluginBundle.message("toolwindow.table.usage.dynamic")
-private val DYNAMIC_TOOLTIP = PluginBundle.message("toolwindow.table.usage.dynamic.tooltip")
-private val MISSING_LABEL = PluginBundle.message("toolwindow.table.value.missing")
-private val MISSING_TOOLTIP = PluginBundle.message("toolwindow.table.value.missing.tooltip")
-private val BLANK_LABEL = PluginBundle.message("toolwindow.table.value.blank")
-private val BLANK_TOOLTIP = PluginBundle.message("toolwindow.table.value.blank.tooltip")
-internal const val DISPLAY_VALUE_MAX_LENGTH = 200
-
-// The IDE's own file-colour tints rather than six invented RGB values: they are the palette
-// themes already redefine, so the table follows a dark or high-contrast theme instead of
-// fighting it. They only ever *reinforce* a state the cell also spells out in words.
-private val MISSING_BACKGROUND = JBColor.namedColor("FileColor.Rose", JBColor.PINK)
-private val BLANK_BACKGROUND = JBColor.namedColor("FileColor.Yellow", JBColor.YELLOW)
-private val ORPHAN_FOREGROUND = JBColor.namedColor("Label.errorForeground", JBColor.RED)
-private val NOT_SCANNED_FOREGROUND = JBColor.namedColor("Label.infoForeground", JBColor.GRAY)
-
-// Not the orphan red: the key is reachable, only not by a name written anywhere.
-private val DYNAMIC_FOREGROUND = JBColor.namedColor("Label.infoForeground", JBColor.GRAY)
 
 /** Input map keys for the two shortcuts the table binds on itself. */
 private const val ACTION_EDIT = "i18n.table.edit"
 private const val ACTION_OPEN_FILE = "i18n.table.openFile"
-
-/**
- * Normalizes a raw translation value for single-line table display:
- * collapses all whitespace runs (including newlines) to one space, trims,
- * and truncates to [maxLength] with an ellipsis. The raw value is meant
- * to stay available in the cell tooltip.
- */
-internal fun displayValue(raw: String, maxLength: Int = DISPLAY_VALUE_MAX_LENGTH): String {
-    val collapsed = raw.replace(Regex("\\s+"), " ").trim()
-    return if (collapsed.length <= maxLength) collapsed else collapsed.take(maxLength) + "…"
-}
 
 /**
  * Panel displaying translations in a flat table format.
@@ -278,7 +226,16 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     }
 
     /**
-     * Reloads translation data and rebuilds the table.
+     * Reloads translation data and rebuilds the table, keeping the usage counts already found
+     * for the keys that are still there (see [TableViewModel.mergeUsages]).
+     *
+     * This is what [TranslationChangeWatcher] runs after every translation file change, the
+     * table's own edits included, so dropping the counts here threw away the scan at the first
+     * corrected value. The toolbar Refresh button lands here too and keeps them as well, on
+     * purpose: it reloads the *translation files*, while a count reflects the *source code*,
+     * which only a scan reads. Starting the counts over is the Scan action's job — it recounts
+     * every key — so Refresh does not need a second meaning, and the watcher and the button
+     * cannot disagree about what the Usage column shows.
      */
     fun refresh() {
         ApplicationManager.getApplication().executeOnPooledThread {
@@ -286,10 +243,12 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             config = Settings.getInstance(project).config()
             val discovered = viewModel.getLocales(project, moduleConfig)
             locales = discovered
-            allRows = rows
             val namespaces = viewModel.namespaceFilters(rows)
 
             ApplicationManager.getApplication().invokeLater {
+                // Merged on the EDT, where the in-place edit and the scan also write allRows:
+                // reading it from the pooled thread could merge against a stale list.
+                allRows = viewModel.mergeUsages(rows, allRows)
                 // A locale that disappeared from the project must not stay hidden forever.
                 hiddenLocales = hiddenLocales.filter { it in discovered }.toSet()
                 updateNamespaceCombo(namespaces)
@@ -324,26 +283,13 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     private fun rebuildTable(rows: List<TranslationRow>, locales: List<String>, withNamespace: Boolean = false) {
         shownLocales = locales
         leadingColumns = if (withNamespace) 2 else 1
-        val leadingNames = listOfNotNull(
-            PluginBundle.message("toolwindow.table.column.namespace").takeIf { withNamespace },
-            PluginBundle.message("toolwindow.table.column.key"),
-        )
-        val columnNames = leadingNames.toTypedArray() + locales.toTypedArray() + USAGE_COLUMN_NAME
-        // The usage cell holds the count itself, not a rendered string: the renderer decides
-        // how it reads, and the context menu no longer has to sniff a label for a leading "0".
-        val data = rows.map { row ->
-            val cells = ArrayList<Any>(locales.size + leadingColumns + 1)
-            if (withNamespace) cells.add(viewModel.namespaceLabel(row.key, config))
-            cells.add(row.key)
-            locales.mapTo(cells) { locale -> row.values[locale] ?: "" }
-            cells.add(row.usageCount)
-            cells.toArray()
-        }.toTypedArray()
+        val columnNames = viewModel.columnNames(locales, withNamespace).toTypedArray()
+        val data = rows.map { viewModel.rowCells(it, locales, withNamespace, config).toTypedArray() }.toTypedArray()
 
         tableModel.setDataVector(data, columnNames)
 
-        val translationRenderer = TranslationCellRenderer(leadingColumns, locales.size)
-        val usageRenderer = UsageCellRenderer()
+        val translationRenderer = TranslationCellRenderer(leadingColumns, locales.size, viewModel)
+        val usageRenderer = UsageCellRenderer(viewModel)
         val usageColIdx = leadingColumns + locales.size
         val widths = viewModel.columnWidths(locales.size, withNamespace)
 
@@ -531,195 +477,4 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      */
     private fun buildFullKey(keyString: String): FullKey =
         KeysSynchronizer().buildFullKey(keyString, Settings.getInstance(project).config())
-
-    // ── Cell Renderers ────────────────────────────────────────────────────────
-
-    /**
-     * Cell renderer for the key and locale columns.
-     *
-     * A locale cell says what it is — an icon and a word for a missing or an empty value,
-     * the value itself otherwise — and the background tint only repeats it. Before, the tint
-     * was the whole message: a cell with no entry and a cell holding `"   "` differed by two
-     * shades of nothing, and neither was distinguishable from a translated cell in greyscale.
-     *
-     * The leading columns are the key's: with a Namespace column in front, the namespace cell
-     * is set in bold — the tree does the same on its group rows — and the key cell drops the
-     * prefix the namespace cell already shows, keeping the full key in its tooltip.
-     *
-     * [leading] is the number of columns before the locales (Key alone, or Namespace + Key);
-     * [localeCount] the number of locale columns that follow.
-     */
-    private inner class TranslationCellRenderer(
-        private val leading: Int,
-        private val localeCount: Int,
-    ) : DefaultTableCellRenderer() {
-        override fun getTableCellRendererComponent(
-            table: JTable,
-            value: Any?,
-            isSelected: Boolean,
-            hasFocus: Boolean,
-            row: Int,
-            column: Int
-        ): Component {
-            val component = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
-            val raw = value?.toString() ?: ""
-            // DefaultTableCellRenderer reuses one component for every cell: whatever the
-            // previous cell set has to be cleared, not merely overwritten on some branches.
-            icon = null
-            toolTipText = null
-            font = table.font
-            if (!isSelected) background = table.background
-
-            if (column < leading) {
-                if (leading > 1 && column == 0) font = table.font.deriveFont(Font.BOLD)
-                if (leading > 1 && column == leading - 1) {
-                    text = viewModel.keyLabel(raw)
-                    toolTipText = raw
-                }
-                return component
-            }
-            if (column >= leading + localeCount) return component
-
-            when (viewModel.valueStatus(raw)) {
-                ValueStatus.MISSING -> {
-                    text = MISSING_LABEL
-                    icon = AllIcons.General.Error
-                    toolTipText = MISSING_TOOLTIP
-                    if (!isSelected) background = MISSING_BACKGROUND
-                }
-
-                ValueStatus.BLANK -> {
-                    text = BLANK_LABEL
-                    icon = AllIcons.General.Warning
-                    toolTipText = BLANK_TOOLTIP
-                    if (!isSelected) background = BLANK_BACKGROUND
-                }
-
-                // Values arrive verbatim from the translation files (newlines, indentation):
-                // render a collapsed single line, keep the full raw value in the tooltip.
-                ValueStatus.TRANSLATED -> {
-                    text = displayValue(raw)
-                    toolTipText = raw
-                }
-            }
-            return component
-        }
-    }
-
-    /**
-     * Cell renderer for the "Usage" column, whose model value is the raw count.
-     *
-     * Never scanned, unused and used are three states, and the column used to separate them
-     * by foreground colour alone — with `—` standing in for the first. Each now carries its
-     * own icon and wording; the colour follows.
-     */
-    private inner class UsageCellRenderer : DefaultTableCellRenderer() {
-        override fun getTableCellRendererComponent(
-            table: JTable,
-            value: Any?,
-            isSelected: Boolean,
-            hasFocus: Boolean,
-            row: Int,
-            column: Int
-        ): Component {
-            val component = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
-            val count = (value as? Int) ?: -1
-            icon = null
-            toolTipText = null
-            if (!isSelected) {
-                background = table.background
-                foreground = table.foreground
-            }
-
-            when (viewModel.usageStatus(count)) {
-                UsageStatus.NOT_SCANNED -> {
-                    text = NOT_SCANNED_LABEL
-                    icon = AllIcons.General.Information
-                    toolTipText = NOT_SCANNED_TOOLTIP
-                    if (!isSelected) foreground = NOT_SCANNED_FOREGROUND
-                }
-
-                UsageStatus.ORPHAN -> {
-                    text = ORPHAN_LABEL
-                    icon = AllIcons.General.Warning
-                    toolTipText = ORPHAN_TOOLTIP
-                    if (!isSelected) foreground = ORPHAN_FOREGROUND
-                }
-
-                UsageStatus.DYNAMIC -> {
-                    text = DYNAMIC_LABEL
-                    icon = AllIcons.General.Information
-                    toolTipText = DYNAMIC_TOOLTIP
-                    if (!isSelected) foreground = DYNAMIC_FOREGROUND
-                }
-
-                UsageStatus.USED -> text = count.toString()
-            }
-            return component
-        }
-    }
-}
-
-// ── OrphanKeyDeleter ──────────────────────────────────────────────────────────
-
-/**
- * Resolves and deletes a translation key from the matching localization sources.
- * Implements [CompositeKeyResolver] to reuse the existing key resolution logic.
- *
- * [moduleConfig] must be the module the rows were loaded with: the namespace-based
- * lookup alone is not enough, since two modules commonly own a file with the same
- * namespace. Without the scope, deleting an orphan key from one module's table also
- * removed it from the other module's file.
- */
-internal class OrphanKeyDeleter(
-    private val project: Project,
-    private val moduleConfig: ModuleConfig? = null,
-) : CompositeKeyResolver<PsiElement> {
-
-    /**
-     * Looks the sources up in a non-blocking read action, then deletes the key on the EDT and
-     * runs [onFinished] there. The lookup reaches `FileTypeIndex`, which the platform refuses
-     * on the EDT ("Slow operations are prohibited on EDT") — the context-menu action used to
-     * run it there. The returned promise completes once the deletion and [onFinished] have run.
-     */
-    fun delete(fullKey: FullKey, onFinished: () -> Unit = {}): CancellablePromise<List<LocalizationSource>> =
-        ReadAction.nonBlocking<List<LocalizationSource>> {
-            val sourceService = project.service<LocalizationSourceService>()
-            val namespaces = fullKey.allNamespaces()
-            sourceService.findSources(namespaces, project)
-                .ifEmpty { if (namespaces.isEmpty()) sourceService.findAllSources(project) else emptyList() }
-                .let { found -> scopeToModule(found) }
-        }
-            .inSmartMode(project)
-            .expireWith(project)
-            .finishOnUiThread(ModalityState.defaultModalityState()) { sources ->
-                if (sources.isNotEmpty()) deleteFromSources(fullKey, sources)
-                onFinished()
-            }
-            .submit(AppExecutorUtil.getAppExecutorService())
-
-    private fun deleteFromSources(fullKey: FullKey, sources: List<LocalizationSource>) {
-        // Collect first, then delete — both in one WriteCommandAction: a single undo restores
-        // the key in every locale. Collecting inside it is what grants the PSI walk its read
-        // access (the EDT no longer carries one) and keeps the lookup atomic with the deletion,
-        // so a PSI change in between cannot make it delete the wrong property. The sources
-        // themselves come from the background lookup, hence the validity check before deleting.
-        // The deletion targets the whole property (not just its value, which used to leave a
-        // dangling `"key":`) and removes the separating comma with it.
-        WriteCommandAction.runWriteCommandAction(project, PluginBundle.message("toolwindow.table.delete.command"), null, {
-            val properties = sources.mapNotNull { source ->
-                val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@mapNotNull null
-                if (ref.unresolved.isNotEmpty() || ref.element == null) return@mapNotNull null
-                PsiTreeUtil.getParentOfType(ref.element.value(), JsonProperty::class.java, YAMLKeyValue::class.java)
-            }
-            properties.forEach { if (it.isValid) deletePropertyAndSeparator(it) }
-        })
-    }
-
-    /** Keeps only the sources belonging to [moduleConfig], like TranslationDataLoader does for reads. */
-    private fun scopeToModule(sources: List<LocalizationSource>): List<LocalizationSource> {
-        val root = moduleConfig?.rootDirectory?.trimEnd('/')
-        if (root.isNullOrBlank()) return sources
-        return sources.filter { it.displayPath.startsWith(root) }
-    }
 }
