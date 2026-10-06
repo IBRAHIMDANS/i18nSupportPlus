@@ -44,9 +44,6 @@ import javax.swing.SortOrder
 import javax.swing.table.DefaultTableModel
 import javax.swing.table.TableRowSorter
 
-// Not `const`: these come from the bundle now.
-private val USAGE_COLUMN_NAME = PluginBundle.message("toolwindow.table.column.usage")
-
 /** Input map keys for the two shortcuts the table binds on itself. */
 private const val ACTION_EDIT = "i18n.table.edit"
 private const val ACTION_OPEN_FILE = "i18n.table.openFile"
@@ -275,21 +272,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     private fun rebuildTable(rows: List<TranslationRow>, locales: List<String>, withNamespace: Boolean = false) {
         shownLocales = locales
         leadingColumns = if (withNamespace) 2 else 1
-        val leadingNames = listOfNotNull(
-            PluginBundle.message("toolwindow.table.column.namespace").takeIf { withNamespace },
-            PluginBundle.message("toolwindow.table.column.key"),
-        )
-        val columnNames = leadingNames.toTypedArray() + locales.toTypedArray() + USAGE_COLUMN_NAME
-        // The usage cell holds the count itself, not a rendered string: the renderer decides
-        // how it reads, and the context menu no longer has to sniff a label for a leading "0".
-        val data = rows.map { row ->
-            val cells = ArrayList<Any>(locales.size + leadingColumns + 1)
-            if (withNamespace) cells.add(viewModel.namespaceLabel(row.key, config))
-            cells.add(row.key)
-            locales.mapTo(cells) { locale -> row.values[locale] ?: "" }
-            cells.add(row.usageCount)
-            cells.toArray()
-        }.toTypedArray()
+        val columnNames = viewModel.columnNames(locales, withNamespace).toTypedArray()
+        val data = rows.map { viewModel.rowCells(it, locales, withNamespace, config).toTypedArray() }.toTypedArray()
 
         tableModel.setDataVector(data, columnNames)
 

@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumulator
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.PsiSearchHelper
@@ -443,6 +444,42 @@ class TableViewModelTest {
         assertEquals(5, widths.size, "Namespace + Key + two locales + Usage")
         assertTrue(widths[0] < widths[1], "the namespace is a short word, the key is not")
         assertEquals(viewModel.columnWidths(2), widths.drop(1), "the other columns keep their width")
+    }
+
+    @Test
+    fun `columnNames lays out Key, the locales, then Usage, in the order of columnWidths`() {
+        val names = viewModel.columnNames(listOf("en", "fr"))
+
+        assertEquals(viewModel.columnWidths(2).size, names.size)
+        assertEquals(listOf("en", "fr"), names.subList(1, 3), "locales keep their order")
+        assertEquals(PluginBundle.message("toolwindow.table.column.key"), names.first())
+        assertEquals(PluginBundle.message("toolwindow.table.column.usage"), names.last())
+    }
+
+    @Test
+    fun `columnNames puts the Namespace column in front of the key when asked`() {
+        val names = viewModel.columnNames(listOf("en"), withNamespace = true)
+
+        assertEquals(viewModel.columnWidths(1, withNamespace = true).size, names.size)
+        assertEquals(PluginBundle.message("toolwindow.table.column.namespace"), names[0])
+        assertEquals(viewModel.columnNames(listOf("en")), names.drop(1), "the other columns do not move")
+    }
+
+    @Test
+    fun `rowCells holds the full key, one value per locale and the raw usage count`() {
+        val row = TranslationRow("common:menu.home", mapOf("en" to "Home"), usageCount = 0)
+
+        assertEquals(listOf("common:menu.home", "Home", "", 0), viewModel.rowCells(row, listOf("en", "fr")))
+    }
+
+    @Test
+    fun `rowCells leads with the namespace label and still keeps the full key when asked`() {
+        val row = TranslationRow("common:menu.home", mapOf("en" to "Home"))
+
+        assertEquals(
+            listOf("common", "common:menu.home", "Home", -1),
+            viewModel.rowCells(row, listOf("en"), withNamespace = true),
+        )
     }
 
     // ---- namespace column ----
