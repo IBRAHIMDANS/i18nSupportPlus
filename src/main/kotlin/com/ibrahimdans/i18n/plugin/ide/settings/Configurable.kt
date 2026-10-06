@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.ToolWindowViewState
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.options.BaseConfigurable
 import com.intellij.openapi.options.SearchableConfigurable
@@ -35,7 +36,18 @@ class Configurable(val project: Project) : BaseConfigurable(), SearchableConfigu
         snapshot = Settings.getInstance(project).config()
     }
 
+    /**
+     * Edits are written to [Settings] as they are typed, so the modules are compared with the
+     * [snapshot] once the dialog closes, when a renamed module has its final name: following each
+     * keystroke would move a module's view state through the names typed on the way, one of
+     * which may be another module's.
+     */
     override fun disposeUIResources() {
+        snapshot?.let { before ->
+            val viewState = ToolWindowViewState.getInstance(project)
+            ToolWindowViewState.renamedModules(before.modules, Settings.getInstance(project).config().modules)
+                .forEach { (from, to) -> viewState.moveModuleState(from, to) }
+        }
         gui = null
         snapshot = null
     }
