@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.extensions.lang.js
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.intellij.lang.annotation.HighlightSeverity
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -21,7 +22,26 @@ class InterpolationArgumentsInspectionTest : PlatformBaseTest() {
      * translation files are created on the first call of a test only, so a test passes the same
      * [translations] to each of its calls.
      */
-    private fun warningsFor(translations: String, call: String, vararg extraFiles: Pair<String, String>): List<String> {
+    private fun warningsFor(translations: String, call: String, vararg extraFiles: Pair<String, String>): List<String> =
+        warningsIn(
+            translations, "tsx",
+            """
+            import { useTranslation } from 'react-i18next';
+            export default function App({ user, opts, n }: any) {
+                const { t } = useTranslation();
+                return $call;
+            }
+            """.trimIndent(),
+            *extraFiles
+        )
+
+    /** The warnings this inspection reports on a source file of [extension] holding [code]. */
+    private fun warningsIn(
+        translations: String,
+        extension: String,
+        code: String,
+        vararg extraFiles: Pair<String, String>
+    ): List<String> {
         var warnings = emptyList<String>()
         myFixture.runWithConfig(Config(defaultNs = "translation")) {
             if (fileIndex == 0) {
@@ -29,16 +49,7 @@ class InterpolationArgumentsInspectionTest : PlatformBaseTest() {
                 myFixture.addFileToProject("en/translation.json", translations)
                 extraFiles.forEach { (path, content) -> myFixture.addFileToProject(path, content) }
             }
-            myFixture.configureByText(
-                "App${fileIndex++}.tsx",
-                """
-                import { useTranslation } from 'react-i18next';
-                export default function App({ user, opts, n }: any) {
-                    const { t } = useTranslation();
-                    return $call;
-                }
-                """.trimIndent()
-            )
+            myFixture.configureByText("App${fileIndex++}.$extension", code)
             warnings = myFixture.doHighlighting()
                 .filter { it.severity == HighlightSeverity.WARNING }
                 .mapNotNull { it.description }
@@ -122,17 +133,74 @@ class InterpolationArgumentsInspectionTest : PlatformBaseTest() {
         assertTrue(warningsFor("""{"greeting": "Hello %s"}""", "t('greeting')").isEmpty())
     }
 
+    /** A vue-i18n call: `$t` is published by vue-i18n alone, so `{name}` is a variable there. */
+    private fun vueWarnings(translations: String, call: String): List<String> =
+        warningsIn(translations, "js", "export default { methods: { label(n) { return this.$call; } } };")
+
     @Test
     fun icuBranchesAreNotVariables() {
         val icu = """{"gender": "{g, select, male {He} female {She} other {They}} left"}"""
-        assertTrue(warningsFor(icu, "t('gender', { g: n })").isEmpty())
+        assertTrue(vueWarnings(icu, "\$t('gender', { g: n })").isEmpty())
+        // The selector `g` itself is not asked for either: the dialog's rule does not match a
+        // `{…}` holding braces, so a complex ICU argument goes unchecked rather than misread.
+        assertTrue(vueWarnings(icu, "\$t('gender')").isEmpty())
+    }
+
+    /** i18next interpolates `{{name}}` only: a single-brace `{name}` is text it prints as is. */
+    @Test
+    fun singleBracesAreTextForI18next() {
+        val translations = """{"greeting": "Hello {name}, {{count}} new"}"""
+        assertTrue(warningsFor(translations, "t('greeting', { count: n })").isEmpty())
+        assertTrue(warningsFor(translations, "t('greeting')").single().endsWith(": count"))
+    }
+
+    @Test
+    fun singleBracesAreVariablesForVueI18n() {
+        val translations = """{"greeting": "Hello {name}"}"""
+        assertTrue(vueWarnings(translations, "\$t('greeting')").single().endsWith(": name"))
+        assertTrue(vueWarnings(translations, "\$t('greeting', { name: n })").isEmpty())
+    }
+
+    /** Under a module preset, the preset names the technology. */
+    @Test
+    fun aModulePresetNamesTheTechnology() {
+        var warnings = emptyList<String>()
+        val config = Config(
+            defaultNs = "translation",
+            modules = listOf(ModuleConfig(name = "app", rootDirectory = "src", preset = "vue-i18n"))
+        )
+        myFixture.runWithConfig(config) {
+            myFixture.enableInspections(InterpolationArgumentsInspection::class.java)
+            myFixture.addFileToProject("en/translation.json", """{"greeting": "Hello {name}"}""")
+            val file = myFixture.addFileToProject(
+                "src/App.js",
+                "export default { methods: { label() { return this.\$t('greeting'); } } };"
+            )
+            myFixture.configureFromExistingVirtualFile(file.virtualFile)
+            warnings = myFixture.doHighlighting().mapNotNull { it.description }.filter { it.contains("not passed to the call") }
+        }
+        assertTrue(warnings.single().endsWith(": name"), "$warnings")
+    }
+
+    /** svelte-i18n reads its variables from `values`, and interpolates ICU `{name}`. */
+    @Test
+    fun svelteI18nReadsTheValuesObject() {
+        val translations = """{"greeting": "Hello {name}"}"""
+        fun svelte(call: String) = warningsIn(translations, "js", "import { _ } from 'svelte-i18n';\nexport const label = (n) => $call;")
+        assertTrue(svelte("\$_('greeting', { values: { name: n } })").isEmpty())
+        assertTrue(svelte("\$_('greeting', { name: n })").single().endsWith(": name"))
+        assertTrue(svelte("\$_('greeting')").single().endsWith(": name"))
     }
 
     @Test
     fun namedVariablesFollowTheDialogRules() {
         Assertions.assertEquals(
             setOf("name", "amount", "user", "raw"),
-            InterpolationArgumentsInspection.namedVariables("{{name}} {amount, number} {{user.name}} {{- raw}} %s %1\$s {0}")
+            InterpolationArgumentsInspection.namedVariables("{{name}} {amount, number} {{user.name}} {{- raw}} %s %1\$s {0}", singleBraces = true)
+        )
+        Assertions.assertEquals(
+            setOf("name", "user", "raw"),
+            InterpolationArgumentsInspection.namedVariables("{{name}} {amount, number} {{user.name}} {{- raw}} %s %1\$s {0}", singleBraces = false)
         )
     }
 }

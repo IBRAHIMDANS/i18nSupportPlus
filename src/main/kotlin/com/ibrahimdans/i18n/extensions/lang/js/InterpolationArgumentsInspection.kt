@@ -11,6 +11,7 @@ import com.ibrahimdans.i18n.plugin.tree.PluralGroup
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.ModulePresets
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.ibrahimdans.i18n.plugin.utils.unQuote
@@ -21,6 +22,7 @@ import com.intellij.lang.javascript.psi.JSElementVisitor
 import com.intellij.lang.javascript.psi.JSExpression
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.lang.javascript.psi.JSObjectLiteralExpression
+import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.lang.javascript.psi.JSSpreadExpression
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.DumbService
@@ -40,9 +42,20 @@ import com.intellij.psi.PsiElementVisitor
  * rule the translation dialog already applies, rather than from a regex of its own.
  *
  * Which variables are *named options* of the call:
- *  - `{{name}}` (i18next, ngx-translate) and `{name}` (vue-i18n, lingui, ICU) are: both are filled
- *    from the object passed to the call. `{{- name}}` and `{{value, number}}` name `name` and
- *    `value`; `{{user.name}}` is filled from `user`, so `user` is what the object must hold.
+ *  - `{{name}}` (i18next, ngx-translate) always is: it is filled from the object passed to the
+ *    call. `{{- name}}` and `{{value, number}}` name `name` and `value`; `{{user.name}}` is filled
+ *    from `user`, so `user` is what the object must hold.
+ *  - `{name}` is only where the call's technology interpolates single braces — vue-i18n, lingui,
+ *    react-intl / ICU MessageFormat, svelte-i18n ([SINGLE_BRACE_FRAMEWORKS]). For i18next it is
+ *    literal text: asking `t('k')` for a `name` there would be a false positive.
+ *    The technology is the one the plugin already knows, never a new detection: the preset of the
+ *    module holding the file ([ModulePresets.presetOf]) when one is set, otherwise the technologies
+ *    publishing the called function's name ([com.ibrahimdans.i18n.Technology.translationFunctionNames]
+ *    — `$t` is vue-i18n's, `i18n._` lingui's, `t` i18next's and i18n-js'), svelte-i18n's `$_`
+ *    being recognised by [SvelteI18nExtractor] as the key extraction does. Every candidate must
+ *    interpolate single braces; when none is known (a name a key assistance rule includes, say),
+ *    `{name}` is not counted — silence rather than a guess. A vue-i18n project calling `t` from
+ *    `useI18n()` without a module preset therefore falls under i18next's rule.
  *  - `%s` / `%1$s` (sprintf) are not: they are positional, filled from an array, never by name.
  *  - A `{…}` inside another pair of braces is not either: it is an ICU branch (`one {# item}`,
  *    `male {He}`), text rather than a variable.
@@ -83,7 +96,7 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
         val keyLiteral = call.arguments.firstOrNull() as? JSLiteralExpression ?: return
         if (!keyLiteral.isQuotedLiteral) return
         val supplied = suppliedVariables(call, keyLiteral) ?: return
-        val expected = expectedVariables(keyLiteral) ?: return
+        val expected = expectedVariables(keyLiteral, interpolatesSingleBraces(call, keyLiteral)) ?: return
         val missing = expected - supplied
         if (missing.isEmpty()) return
         holder.registerProblem(
@@ -96,7 +109,7 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
      * The variables the value of the key written in [keyLiteral] uses in the reference locale, or
      * null when that value cannot be read with certainty.
      */
-    private fun expectedVariables(keyLiteral: JSLiteralExpression): Set<String>? {
+    private fun expectedVariables(keyLiteral: JSLiteralExpression, singleBraces: Boolean): Set<String>? {
         val project = keyLiteral.project
         val translationFunctionNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
         val lang = Extensions.LANG.extensionList.firstOrNull { it.canExtractKey(keyLiteral, translationFunctionNames) }
@@ -120,9 +133,29 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
         val variables = mutableSetOf<String>()
         for (reference in resolved) {
             val values = valuesOf(reference.element) ?: return null
-            values.forEach { variables += namedVariables(it) }
+            values.forEach { variables += namedVariables(it, singleBraces) }
         }
         return variables
+    }
+
+    /**
+     * True when every technology [call] may belong to reads `{name}` as a variable, false when one
+     * does not or none is known. See the class documentation.
+     */
+    private fun interpolatesSingleBraces(call: JSCallExpression, keyLiteral: JSLiteralExpression): Boolean {
+        val frameworks = ModulePresets.presetOf(keyLiteral)?.let(::setOf) ?: frameworksPublishing(call, keyLiteral)
+        return frameworks.isNotEmpty() && frameworks.all { it in SINGLE_BRACE_FRAMEWORKS }
+    }
+
+    /** The ids of the technologies that publish the function [call] invokes. */
+    private fun frameworksPublishing(call: JSCallExpression, keyLiteral: JSLiteralExpression): Set<String> {
+        if (SvelteI18nExtractor().canExtract(keyLiteral)) return setOf(SVELTE_I18N)
+        val callee = (call.methodExpression as? JSReferenceExpression)?.text ?: return emptySet()
+        // Published either qualified (`i18n._`) or by method name (`$t`, matched on `this.$t`).
+        val names = setOf(callee, callee.substringAfterLast('.'))
+        return Extensions.TECHNOLOGY.extensionList
+            .filter { technology -> technology.translationFunctionNames().any { it in names } }
+            .mapNotNullTo(mutableSetOf()) { it.frameworkId() }
     }
 
     /** The texts of a leaf, or of every form of a nested plural group; null for any other object. */
@@ -185,23 +218,29 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
 
     internal companion object {
 
+        private const val SVELTE_I18N = "svelte-i18n"
+
+        /** The technologies for which `{name}` is a variable rather than text. */
+        private val SINGLE_BRACE_FRAMEWORKS = setOf("vue-i18n", "lingui", "react-intl", SVELTE_I18N)
+
         /**
          * The names of the variables [text] fills from the call's options, in the order they
          * appear. Positional (`%s`) and ICU-branch (`{…}` nested in braces) matches are left out,
          * and so is anything that is not a JavaScript identifier once its decorations are removed.
+         * Single-brace `{name}` counts only when [singleBraces] says the technology interpolates it.
          */
-        fun namedVariables(text: String): Set<String> =
+        fun namedVariables(text: String, singleBraces: Boolean): Set<String> =
             DialogViewModel.variableRanges(text)
                 .filter { range -> braceDepthBefore(text, range.first) == 0 }
-                .mapNotNull { range -> variableName(text.substring(range)) }
+                .mapNotNull { range -> variableName(text.substring(range), singleBraces) }
                 .toSet()
 
         /** `{{- user.name, uppercase}}` → `user`; `{amount, number}` → `amount`; `%s` → null. */
-        private fun variableName(token: String): String? {
+        private fun variableName(token: String, singleBraces: Boolean): String? {
             val compact = token.filterNot { it.isWhitespace() }
             val inner = when {
                 compact.startsWith("{{") -> compact.removePrefix("{{").removeSuffix("}}").removePrefix("-")
-                compact.startsWith("{") -> compact.removePrefix("{").removeSuffix("}")
+                compact.startsWith("{") && singleBraces -> compact.removePrefix("{").removeSuffix("}")
                 else -> return null
             }
             val name = inner.substringBefore(',').substringBefore('.')
