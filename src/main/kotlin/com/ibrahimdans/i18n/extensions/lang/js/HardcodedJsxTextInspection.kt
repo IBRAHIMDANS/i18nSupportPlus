@@ -6,7 +6,6 @@ import com.intellij.codeInsight.intention.preview.IntentionPreviewInfo
 import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.LocalQuickFixAndIntentionActionOnPsiElement
 import com.intellij.codeInspection.ProblemsHolder
-import com.intellij.lang.javascript.psi.JSEmbeddedContent
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
@@ -30,8 +29,9 @@ import com.intellij.psi.xml.XmlText
  *    reported) and any file that is not `.jsx` / `.tsx`;
  *  - it holds a letter once HTML entities are removed: punctuation, numbers, whitespace and
  *    `&nbsp;` alone are not text to translate;
- *  - its tag holds no JSX expression (`<p>Hello {name}</p>`): the extraction would take `Hello`
- *    alone, or the expression along with the text;
+ *  - each JSX expression of its tag can become a variable of the message — `{name}`, `{user.name}`
+ *    ([JsxTranslationExtractor.variables]): `<p>Hello {name}</p>` is reported and extracts to
+ *    `Hello {{name}}`, while a call, a condition or a comment keeps the tag silent;
  *  - an attribute is one a user reads ([VISIBLE_ATTRIBUTES]) — `className`, `style`, `key`, `id`,
  *    `data-*` and every other attribute are never reported — and holds a plain string, not `{…}`;
  *  - the tag is neither a translation component whose text is already the message or its fallback
@@ -56,7 +56,7 @@ class HardcodedJsxTextInspection : LocalInspectionTool() {
         val tag = PsiTreeUtil.getParentOfType(text, XmlTag::class.java) ?: return
         // The extractor takes every text of the tag at once: report it once, on the first.
         if (tag.value.textElements.firstOrNull() != text) return
-        if (PsiTreeUtil.getChildOfType(tag, JSEmbeddedContent::class.java) != null) return
+        if (EXTRACTOR.variables(tag) == null) return
         check(text.firstChild ?: return, tag, holder)
     }
 
@@ -104,7 +104,11 @@ class HardcodedJsxTextInspection : LocalInspectionTool() {
 
         private val ENTITY = Regex("&#?\\w+;")
 
-        /** True when [text] holds a letter once its HTML entities are removed. */
-        fun isTranslatable(text: String): Boolean = text.replace(ENTITY, "").any { it.isLetter() }
+        /** `{{name}}`: a variable's placeholder, whose letters are not text. */
+        private val PLACEHOLDER = Regex("\\{\\{\\w+}}")
+
+        /** True when [text] holds a letter once its HTML entities and placeholders are removed. */
+        fun isTranslatable(text: String): Boolean =
+            text.replace(ENTITY, "").replace(PLACEHOLDER, "").any { it.isLetter() }
     }
 }

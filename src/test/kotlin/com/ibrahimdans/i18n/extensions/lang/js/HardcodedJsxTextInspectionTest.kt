@@ -75,9 +75,26 @@ class HardcodedJsxTextInspectionTest : ExtractionTestBase() {
             "<a title={'Home'}/>",
             "<Trans i18nKey=\"welcome\">Welcome back</Trans>",
             "<code>npm install</code>",
-            // The extraction would take `Hello` alone, or the expression along with the text.
-            "<p>Hello {name}</p>",
-            "<p>{name}, welcome</p>",
+        ).forEach { assertTrue(reportedIn(it).isEmpty(), it) }
+    }
+
+    @Test
+    fun textAroundAVariableIsReportedOnceOverTheWholeMessage() {
+        assertEquals(listOf("Hello {name}"), reportedIn("<p>Hello {name}</p>"))
+        assertEquals(listOf("{name}, welcome"), reportedIn("<p>{name}, welcome</p>"))
+        assertEquals(listOf("Hello {user.name}, you have {count} items"), reportedIn("<p>Hello {user.name}, you have {count} items</p>"))
+    }
+
+    /** A call, a condition or a comment cannot become a variable: the extraction would break it. */
+    @Test
+    fun textAroundAnExpressionThatIsNotAVariableIsIgnored() {
+        listOf(
+            "<p>Hello {user.getName()}</p>",
+            "<p>Hello {name ? name : 'you'}</p>",
+            "<p>Hello {/* who */}</p>",
+            // Both would be `{{name}}`.
+            "<p>{user.name} meets {name}</p>",
+            "<p>{name}</p>",
         ).forEach { assertTrue(reportedIn(it).isEmpty(), it) }
     }
 
@@ -106,6 +123,24 @@ class HardcodedJsxTextInspectionTest : ExtractionTestBase() {
             val written = FileDocumentManager.getInstance().getDocument(translations)!!.text
             assertTrue(written.contains("\"save\"") && written.contains("Save changes"), written)
             assertFalse(myFixture.doHighlighting().any { it.description == message })
+        }
+    }
+
+    @Test
+    fun theQuickFixPassesTheVariablesOfTheText() {
+        myFixture.runWithConfig(config("json")) {
+            myFixture.enableInspections(HardcodedJsxTextInspection::class.java)
+            myFixture.configureByText("App.jsx", "export const App = (i18n, user, count) => (<p>Hel<caret>lo {user.name}, {count} new</p>);")
+            myFixture.addFileToProject("assets/test.json", """{"ref": {}}""")
+            val fix = myFixture.getAllQuickFixes().single { it.text == hint }
+            setTestInputDialog(predefinedTextInputDialog("test:ref.greeting"))
+            myFixture.launchActionAndWait(fix)
+            myFixture.checkResult(
+                "export const App = (i18n, user, count) => (<p>{i18n.t('test:ref.greeting', { name: user.name, count })}</p>);"
+            )
+            val translations = myFixture.findFileInTempDir("assets/test.json")
+            val written = FileDocumentManager.getInstance().getDocument(translations)!!.text
+            assertTrue(written.contains("\"Hello {{name}}, {{count}} new\""), written)
         }
     }
 }
