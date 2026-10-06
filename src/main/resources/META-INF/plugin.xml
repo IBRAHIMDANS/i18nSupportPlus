@@ -269,6 +269,14 @@
             enabledByDefault="true"
             level="WARNING"
             implementationClass="com.ibrahimdans.i18n.extensions.lang.js.InterpolationArgumentsInspection"/>
+        <localInspection
+            language="JavaScript"
+            groupName="i18n Support Plus"
+            key="inspection.hardcoded.jsx.text.display.name"
+            shortName="I18nHardcodedJsxText"
+            enabledByDefault="false"
+            level="WEAK WARNING"
+            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedJsxTextInspection"/>
     </extensions>
     <actions>
         <group id="com.ibrahimdans.i18n.ToolsMenu"
