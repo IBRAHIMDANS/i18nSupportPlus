@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.extensions.localization.yaml
 
 import com.ibrahimdans.i18n.plugin.tree.Tree
+import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.yaml.psi.YAMLDocument
@@ -29,6 +30,17 @@ class YamlElementTree(val element: PsiElement): Tree<PsiElement> {
             ?.mapNotNull { kv -> kv.key?.takeIf { it.text.startsWith(prefix) }?.let(::YamlElementTree) }
             ?: emptyList()
     }
+
+    // Names spelled as findChildren's callers read them (the key's text, unquoted).
+    override fun entries(): List<Pair<String, Tree<PsiElement>>> =
+        mapping()
+            ?.keyValues
+            ?.mapNotNull { kv ->
+                val key = kv.key ?: return@mapNotNull null
+                kv.value?.let { key.text.unQuote() to YamlElementTree(it) }
+            }
+            ?: emptyList()
+
     companion object {
         /**
          * Creates YamlElementTree instance

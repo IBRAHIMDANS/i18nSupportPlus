@@ -25,6 +25,15 @@ class JsonElementTree(val element: PsiElement): Tree<PsiElement> {
             .filter {it.text.unQuote().startsWith(prefix)}
             .map {JsonElementTree(it)}
 
+    // Names spelled as findChildren spells them (the key's text, unquoted), so both line up.
+    override fun entries(): List<Pair<String, Tree<PsiElement>>> =
+        (element as? JsonObject)
+            ?.propertyList
+            ?.mapNotNull { property ->
+                property.value?.let { property.nameElement.text.unQuote() to JsonElementTree(it) }
+            }
+            ?: emptyList()
+
     companion object {
         /**
          * Creates instance of JsonElementTree
