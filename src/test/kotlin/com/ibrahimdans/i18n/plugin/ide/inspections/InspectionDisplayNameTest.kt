@@ -25,7 +25,8 @@ class InspectionDisplayNameTest : PlatformBaseTest() {
             "I18nUnusedKey" to "inspection.unused.display.name",
             "I18nEmptyValue" to "inspection.empty.display.name",
             "I18nDuplicateValue" to "inspection.duplicate.display.name",
-            "I18nMissingKey" to "inspection.missing.key.display.name"
+            "I18nMissingKey" to "inspection.missing.key.display.name",
+            "I18nInterpolationArguments" to "inspection.interpolation.arguments.display.name"
         )
     }
 
