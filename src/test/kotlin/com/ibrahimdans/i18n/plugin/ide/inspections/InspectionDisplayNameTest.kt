@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
 
 /**
- * Checks that the five inspections really are named by the bundle.
+ * Checks that the inspections really are named by the bundle.
  *
  * Their `<localInspection>` entries declare `key=` instead of `displayName=`, which leaves the
  * platform to resolve the name from `<resource-bundle>`. Nothing in Kotlin names those keys, so
@@ -24,7 +24,8 @@ class InspectionDisplayNameTest : PlatformBaseTest() {
             "I18nIcuFormat" to "inspection.icu.display.name",
             "I18nUnusedKey" to "inspection.unused.display.name",
             "I18nEmptyValue" to "inspection.empty.display.name",
-            "I18nDuplicateValue" to "inspection.duplicate.display.name"
+            "I18nDuplicateValue" to "inspection.duplicate.display.name",
+            "I18nMissingKey" to "inspection.missing.key.display.name"
         )
     }
 
