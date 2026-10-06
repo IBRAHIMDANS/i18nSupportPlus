@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Completion] **Key completion shows each key's translation and finds a key by its text.** Each entry carries its value in the preview locale — the one inlay hints, hover and the status-bar widget show, `en` finding `en-GB` the same way — on one line and cut as the table cuts it; a key the preview locale lacks shows nothing rather than another locale's text. Typing `acc` now brings up `menu.home` when it reads "Accueil", case aside, at the root as below a path (`menu.acc`). The list used to show bare keys, so one picked a key blind or went to open the file. Plurals are still offered once, with the value of their first form; the values come from the same tree walk as the keys, without reading any file again
+
 ## 1.5.2 - 2026-09-22
 
 ### Bug Fixes
