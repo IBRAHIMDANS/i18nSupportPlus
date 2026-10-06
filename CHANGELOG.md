@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Tool window] **Reopen on the tab used last.** The tool window always opened on the tree, whatever view was in use when the project was closed. The selected tab — tree, table or statistics — is now kept in the project's workspace and restored at the next opening; it stays shared between modules, as the module selector already kept it across a switch. The same per-project, per-module store is ready to keep the table's hidden locales
+
 ## 1.5.2 - 2026-09-22
 
 ### Bug Fixes
