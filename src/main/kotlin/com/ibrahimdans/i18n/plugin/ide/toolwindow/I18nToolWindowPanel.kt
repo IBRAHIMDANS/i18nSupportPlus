@@ -206,12 +206,16 @@ internal data class ModulePanelSet(
  * in its constructor, which the headless test container does not provide, so anything built
  * inside it is out of reach of a test. Built here, the layout is a plain Swing tree a test
  * can walk.
+ *
+ * [viewState], when given, restores the tab selected last time and records every change of it.
+ * It is optional so the layout can still be built — and tested — with no workspace behind it.
  */
 internal class ShellContent(
     project: Project,
     val diagnostics: ShellDiagnostics,
     private val onRunWizard: () -> Unit,
-    private val onOpenSettings: () -> Unit
+    private val onOpenSettings: () -> Unit,
+    private val viewState: ToolWindowViewState? = null
 ) {
 
     /**
@@ -240,6 +244,7 @@ internal class ShellContent(
             addTab(PluginBundle.message("toolwindow.tab.tree"), first.tree)
             addTab(PluginBundle.message("toolwindow.tab.table"), first.table)
             addTab(PluginBundle.message("toolwindow.tab.stats"), first.stats)
+            restoreSelectedTab(this)
         }
     }
 
@@ -263,6 +268,22 @@ internal class ShellContent(
         pane.setComponentAt(2, set.stats)
         pane.selectedIndex = selected
         visibleModule = index
+    }
+
+    /**
+     * Selects the saved tab, then starts recording changes.
+     *
+     * The tab is saved in the project scope, not per module: the view is shared on purpose
+     * between modules — [showModule] keeps it across a switch — so a per-module value would
+     * either fight that or never be read. The listener is added after the restore, and after
+     * `addTab`, which selects the first tab by itself, so building the pane writes nothing.
+     */
+    private fun restoreSelectedTab(pane: JBTabbedPane) {
+        val state = viewState ?: return
+        pane.selectedIndex = state.activeTab(null).ordinal.coerceIn(0, pane.tabCount - 1)
+        pane.addChangeListener {
+            ToolWindowTab.entries.getOrNull(pane.selectedIndex)?.let { state.setActiveTab(null, it) }
+        }
     }
 
     /** Filters every module, not only the visible one, so the query survives a module switch. */
@@ -436,7 +457,8 @@ class I18nToolWindowPanel internal constructor(
             project = project,
             diagnostics = diagnostics,
             onRunWizard = { SetupWizardDialog(project).show() },
-            onOpenSettings = { openSettings() }
+            onOpenSettings = { openSettings() },
+            viewState = ToolWindowViewState.getInstance(project)
         )
         shellContent = built
         setContent(built.component)
