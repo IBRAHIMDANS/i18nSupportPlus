@@ -1,0 +1,206 @@
+package com.ibrahimdans.i18n.extensions.lang.js
+
+import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.ide.runWithConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
+import com.intellij.lang.annotation.HighlightSeverity
+import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+
+/**
+ * A translation call must pass the variables its value uses in the reference locale — and the
+ * inspection must keep quiet whenever it cannot tell what the call passes.
+ */
+class InterpolationArgumentsInspectionTest : PlatformBaseTest() {
+
+    private var fileIndex = 0
+
+    /**
+     * The warnings this inspection reports on [call], written in a component of its own. The
+     * translation files are created on the first call of a test only, so a test passes the same
+     * [translations] to each of its calls.
+     */
+    private fun warningsFor(translations: String, call: String, vararg extraFiles: Pair<String, String>): List<String> =
+        warningsIn(
+            translations, "tsx",
+            """
+            import { useTranslation } from 'react-i18next';
+            export default function App({ user, opts, n }: any) {
+                const { t } = useTranslation();
+                return $call;
+            }
+            """.trimIndent(),
+            *extraFiles
+        )
+
+    /** The warnings this inspection reports on a source file of [extension] holding [code]. */
+    private fun warningsIn(
+        translations: String,
+        extension: String,
+        code: String,
+        vararg extraFiles: Pair<String, String>
+    ): List<String> {
+        var warnings = emptyList<String>()
+        myFixture.runWithConfig(Config(defaultNs = "translation")) {
+            if (fileIndex == 0) {
+                myFixture.enableInspections(InterpolationArgumentsInspection::class.java)
+                myFixture.addFileToProject("en/translation.json", translations)
+                extraFiles.forEach { (path, content) -> myFixture.addFileToProject(path, content) }
+            }
+            myFixture.configureByText("App${fileIndex++}.$extension", code)
+            warnings = myFixture.doHighlighting()
+                .filter { it.severity == HighlightSeverity.WARNING }
+                .mapNotNull { it.description }
+                .filter { it.contains("not passed to the call") }
+        }
+        return warnings
+    }
+
+    @Test
+    fun aMissingVariableIsReported() {
+        val warnings = warningsFor("""{"greeting": "Hello {{name}}"}""", "t('greeting')")
+        Assertions.assertEquals(1, warnings.size, "$warnings")
+        assertTrue(warnings.single().endsWith(": name"), "$warnings")
+    }
+
+    @Test
+    fun aVariablePassedIsNotReported() {
+        assertTrue(warningsFor("""{"greeting": "Hello {{name}}"}""", "t('greeting', { name: user.name })").isEmpty())
+        assertTrue(warningsFor("""{"greeting": "Hello {{ name }}"}""", "t('greeting', { name })").isEmpty())
+    }
+
+    @Test
+    fun onlyTheVariablesNotPassedAreReported() {
+        val warnings = warningsFor("""{"greeting": "Hello {{name}}, {{count}} new"}""", "t('greeting', { count: n })")
+        assertTrue(warnings.single().endsWith(": name"), "$warnings")
+    }
+
+    @Test
+    fun optionsThatAreNotAnObjectLiteralAreIgnored() {
+        val translations = """{"greeting": "Hello {{name}}"}"""
+        assertTrue(warningsFor(translations, "t('greeting', opts)").isEmpty(), "variable")
+        assertTrue(warningsFor(translations, "t('greeting', { ...opts })").isEmpty(), "spread")
+        assertTrue(warningsFor(translations, "t('greeting', { [n]: user })").isEmpty(), "computed name")
+        assertTrue(warningsFor(translations, "t('greeting', 'Hi ' + n)").isEmpty(), "concatenated default")
+    }
+
+    @Test
+    fun aPluralNeedsCount() {
+        val translations = """{"item_one": "One item", "item_other": "{{count}} items"}"""
+        assertTrue(warningsFor(translations, "t('item', { count: n })").isEmpty())
+        assertTrue(warningsFor(translations, "t('item')").single().endsWith(": count"))
+    }
+
+    @Test
+    fun anUnresolvedKeyIsIgnored() {
+        assertTrue(warningsFor("""{"greeting": "Hello {{name}}"}""", "t('farewell')").isEmpty())
+    }
+
+    @Test
+    fun theReferenceLocaleValueIsRead() {
+        // Only the French value names a variable: `en` is the reference, and it needs none.
+        val warnings = warningsFor(
+            """{"greeting": "Hello"}""", "t('greeting')",
+            "fr/translation.json" to """{"greeting": "Bonjour {{name}}"}"""
+        )
+        assertTrue(warnings.isEmpty(), "$warnings")
+    }
+
+    @Test
+    fun defaultValuesAreUnderstood() {
+        val translations = """{"greeting": "Hello {{name}}"}"""
+        assertTrue(warningsFor(translations, "t('greeting', 'Hello {{name}}', { name: n })").isEmpty())
+        assertTrue(warningsFor(translations, "t('greeting', { defaultValue: 'Hi', name: n })").isEmpty())
+        assertTrue(warningsFor(translations, "t('greeting', 'Hello')").single().endsWith(": name"))
+    }
+
+    @Test
+    fun theReplaceObjectCounts() {
+        assertTrue(warningsFor("""{"greeting": "Hello {{name}}"}""", "t('greeting', { replace: { name: n } })").isEmpty())
+    }
+
+    @Test
+    fun aNestedVariableNeedsItsRootObject() {
+        val translations = """{"greeting": "Hello {{user.name}}"}"""
+        assertTrue(warningsFor(translations, "t('greeting', { user })").isEmpty())
+        assertTrue(warningsFor(translations, "t('greeting')").single().endsWith(": user"))
+    }
+
+    @Test
+    fun positionalPlaceholdersAreNotNamedOptions() {
+        assertTrue(warningsFor("""{"greeting": "Hello %s"}""", "t('greeting')").isEmpty())
+    }
+
+    /** A vue-i18n call: `$t` is published by vue-i18n alone, so `{name}` is a variable there. */
+    private fun vueWarnings(translations: String, call: String): List<String> =
+        warningsIn(translations, "js", "export default { methods: { label(n) { return this.$call; } } };")
+
+    @Test
+    fun icuBranchesAreNotVariables() {
+        val icu = """{"gender": "{g, select, male {He} female {She} other {They}} left"}"""
+        assertTrue(vueWarnings(icu, "\$t('gender', { g: n })").isEmpty())
+        // The selector `g` itself is not asked for either: the dialog's rule does not match a
+        // `{…}` holding braces, so a complex ICU argument goes unchecked rather than misread.
+        assertTrue(vueWarnings(icu, "\$t('gender')").isEmpty())
+    }
+
+    /** i18next interpolates `{{name}}` only: a single-brace `{name}` is text it prints as is. */
+    @Test
+    fun singleBracesAreTextForI18next() {
+        val translations = """{"greeting": "Hello {name}, {{count}} new"}"""
+        assertTrue(warningsFor(translations, "t('greeting', { count: n })").isEmpty())
+        assertTrue(warningsFor(translations, "t('greeting')").single().endsWith(": count"))
+    }
+
+    @Test
+    fun singleBracesAreVariablesForVueI18n() {
+        val translations = """{"greeting": "Hello {name}"}"""
+        assertTrue(vueWarnings(translations, "\$t('greeting')").single().endsWith(": name"))
+        assertTrue(vueWarnings(translations, "\$t('greeting', { name: n })").isEmpty())
+    }
+
+    /** Under a module preset, the preset names the technology. */
+    @Test
+    fun aModulePresetNamesTheTechnology() {
+        var warnings = emptyList<String>()
+        val config = Config(
+            defaultNs = "translation",
+            modules = listOf(ModuleConfig(name = "app", rootDirectory = "src", preset = "vue-i18n"))
+        )
+        myFixture.runWithConfig(config) {
+            myFixture.enableInspections(InterpolationArgumentsInspection::class.java)
+            myFixture.addFileToProject("en/translation.json", """{"greeting": "Hello {name}"}""")
+            val file = myFixture.addFileToProject(
+                "src/App.js",
+                "export default { methods: { label() { return this.\$t('greeting'); } } };"
+            )
+            myFixture.configureFromExistingVirtualFile(file.virtualFile)
+            warnings = myFixture.doHighlighting().mapNotNull { it.description }.filter { it.contains("not passed to the call") }
+        }
+        assertTrue(warnings.single().endsWith(": name"), "$warnings")
+    }
+
+    /** svelte-i18n reads its variables from `values`, and interpolates ICU `{name}`. */
+    @Test
+    fun svelteI18nReadsTheValuesObject() {
+        val translations = """{"greeting": "Hello {name}"}"""
+        fun svelte(call: String) = warningsIn(translations, "js", "import { _ } from 'svelte-i18n';\nexport const label = (n) => $call;")
+        assertTrue(svelte("\$_('greeting', { values: { name: n } })").isEmpty())
+        assertTrue(svelte("\$_('greeting', { name: n })").single().endsWith(": name"))
+        assertTrue(svelte("\$_('greeting')").single().endsWith(": name"))
+    }
+
+    @Test
+    fun namedVariablesFollowTheDialogRules() {
+        Assertions.assertEquals(
+            setOf("name", "amount", "user", "raw"),
+            InterpolationArgumentsInspection.namedVariables("{{name}} {amount, number} {{user.name}} {{- raw}} %s %1\$s {0}", singleBraces = true)
+        )
+        Assertions.assertEquals(
+            setOf("name", "user", "raw"),
+            InterpolationArgumentsInspection.namedVariables("{{name}} {amount, number} {{user.name}} {{- raw}} %s %1\$s {0}", singleBraces = false)
+        )
+    }
+}
