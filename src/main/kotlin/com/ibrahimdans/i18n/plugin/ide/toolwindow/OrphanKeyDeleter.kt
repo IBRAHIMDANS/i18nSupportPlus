@@ -107,5 +107,20 @@ internal class OrphanKeyDeleter(
             rows.filter { (_, usageCount) -> viewModel.usageStatus(usageCount) == UsageStatus.ORPHAN }
                 .map { it.first }
                 .distinct()
+
+        /** How many keys the confirmation names before counting the rest. */
+        const val CONFIRMATION_PREVIEW = 5
+
+        /**
+         * The question asked before deleting [keys] at once: how many, and which — the first
+         * [CONFIRMATION_PREVIEW], the others counted. A single key is deleted without asking,
+         * as it always was: the row it was picked from shows it.
+         */
+        fun confirmationMessage(keys: List<String>): String {
+            val shown = keys.take(CONFIRMATION_PREVIEW).joinToString("\n") { "  $it" }
+            val more = keys.size - CONFIRMATION_PREVIEW
+            val list = if (more > 0) shown + "\n" + PluginBundle.message("toolwindow.table.delete.orphans.more", more) else shown
+            return PluginBundle.message("toolwindow.table.delete.orphans.confirm", keys.size, list)
+        }
     }
 }

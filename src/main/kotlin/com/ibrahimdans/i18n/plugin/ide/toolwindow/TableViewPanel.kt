@@ -584,6 +584,13 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      * in one undoable command, then refreshes the table once the deletion has run.
      */
     private fun deleteOrphanKeys(keyStrings: List<String>) {
+        if (keyStrings.size > 1 && Messages.showYesNoDialog(
+                project,
+                OrphanKeyDeleter.confirmationMessage(keyStrings),
+                PluginBundle.message("toolwindow.table.delete.orphans.command"),
+                Messages.getWarningIcon()
+            ) != Messages.YES
+        ) return
         val fullKeys = keyStrings.map(::buildFullKey)
         // Scoped to this panel's module: without it the key is also deleted from
         // another module's file sharing the same namespace.
