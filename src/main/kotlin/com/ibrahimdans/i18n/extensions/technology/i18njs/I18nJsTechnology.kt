@@ -16,8 +16,10 @@ import com.ibrahimdans.i18n.extensions.technology.SimpleTechnology
  * names belongs here.
  *
  * Two conventions differ from i18next and are worth knowing:
- *  - placeholders are written `%{count}`, not `{{count}}`. The plugin interprets no
- *    interpolation syntax at all, so both are displayed verbatim and nothing is needed here.
+ *  - placeholders are written `%{count}`, not `{{count}}`. Values are displayed verbatim, and
+ *    `%{count}` is read as a variable by the translation dialog and by
+ *    [com.ibrahimdans.i18n.extensions.lang.js.InterpolationArgumentsInspection], so nothing is
+ *    needed here.
  *  - plurals are a nested object (`{ one: …, other: … }`) rather than the flat `key_one`
  *    suffixes the resolver expands. A key pointing at such an object is recognised by
  *    [com.ibrahimdans.i18n.plugin.tree.PluralGroup] instead of being reported as a

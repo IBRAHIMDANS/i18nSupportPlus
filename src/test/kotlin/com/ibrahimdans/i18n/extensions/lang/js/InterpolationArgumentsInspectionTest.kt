@@ -154,6 +154,18 @@ class InterpolationArgumentsInspectionTest : PlatformBaseTest() {
         assertTrue(warningsFor(translations, "t('greeting')").single().endsWith(": count"))
     }
 
+    /**
+     * i18n-js writes `%{count}`. `t` is published by i18next too, so the single-brace rule stays
+     * off — `%{count}` must count regardless.
+     */
+    @Test
+    fun i18nJsPercentBracesAreVariables() {
+        val translations = """{"box": "%{count} boxes", "greeting": "Hello {name}"}"""
+        assertTrue(warningsFor(translations, "t('box')").single().endsWith(": count"))
+        assertTrue(warningsFor(translations, "t('box', { count: n })").isEmpty())
+        assertTrue(warningsFor(translations, "t('greeting')").isEmpty())
+    }
+
     @Test
     fun singleBracesAreVariablesForVueI18n() {
         val translations = """{"greeting": "Hello {name}"}"""
@@ -201,6 +213,10 @@ class InterpolationArgumentsInspectionTest : PlatformBaseTest() {
         Assertions.assertEquals(
             setOf("name", "user", "raw"),
             InterpolationArgumentsInspection.namedVariables("{{name}} {amount, number} {{user.name}} {{- raw}} %s %1\$s {0}", singleBraces = false)
+        )
+        Assertions.assertEquals(
+            setOf("count"),
+            InterpolationArgumentsInspection.namedVariables("%{count} %{ count } %s", singleBraces = false)
         )
     }
 }
