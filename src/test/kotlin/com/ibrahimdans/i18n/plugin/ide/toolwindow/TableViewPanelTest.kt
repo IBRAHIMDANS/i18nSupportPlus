@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.ui.TestDialog
 import com.intellij.openapi.ui.TestDialogManager
 import com.intellij.testFramework.PlatformTestUtil
+import com.intellij.ui.table.JBTable
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
@@ -389,5 +390,119 @@ class TableViewPanelTest : PlatformBaseTest() {
         assertEquals(PluginBundle.message("toolwindow.table.usage.orphan"), orphanText)
         assertTrue(used.text == "3", "a used key shows its count")
         assertNull(used.icon, "the shared renderer must not leak the previous cell's icon")
+    }
+
+    // ── Empty state ───────────────────────────────────────────────────────────
+
+    /** The panel's combos in bar order: the namespace one first, then the status one. */
+    private fun combos(root: Container): List<JComboBox<*>> {
+        val found = mutableListOf<JComboBox<*>>()
+        val queue = ArrayDeque<Container>().apply { add(root) }
+        while (queue.isNotEmpty()) {
+            val next = queue.removeFirst()
+            for (child in next.components) {
+                if (child is JComboBox<*>) found.add(child)
+                if (child is Container) queue.add(child)
+            }
+        }
+        return found
+    }
+
+    private fun emptyText(table: JTable): String = (table as JBTable).emptyText.text
+
+    /**
+     * Whether the empty table offers the *Clear filters* link. StatusText keeps the link's
+     * listener private, so the tests read the link's text and run [TableViewPanel.clearFilters]
+     * themselves.
+     */
+    private fun offersClearLink(table: JTable): Boolean =
+        (table as JBTable).emptyText.secondaryComponent.getCharSequence(false).toString()
+            .contains(PluginBundle.message("toolwindow.table.empty.clear"))
+
+    private fun stubNamespacedTranslations() {
+        mockkObject(TranslationDataLoader)
+        every { TranslationDataLoader.loadAllTranslations(project, null) } returns mapOf(
+            "common:menu.home" to mapOf("en" to "Home"),
+            "auth:login.title" to mapOf("en" to "Sign in"),
+        )
+        every { TranslationDataLoader.discoverLocales(project, null) } returns listOf("en")
+    }
+
+    @Test
+    fun `a table with no key at all says so, and offers no filter to clear`() {
+        mockkObject(TranslationDataLoader)
+        every { TranslationDataLoader.loadAllTranslations(project, null) } returns emptyMap()
+        every { TranslationDataLoader.discoverLocales(project, null) } returns listOf("en")
+        val panel = TableViewPanel(project)
+        val table = loadedTable(panel)
+        // The busy state ends in the event posted after the rows: until then it reads "Loading".
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+
+        assertEquals(0, table.rowCount)
+        assertTrue(emptyText(table) == PluginBundle.message("toolwindow.table.empty.none"), emptyText(table))
+        assertFalse(offersClearLink(table), "nothing is filtered, there is nothing to clear")
+    }
+
+    @Test
+    fun `a search matching nothing names the query`() {
+        stubTranslations()
+        val panel = TableViewPanel(project)
+        val table = loadedTable(panel)
+
+        panel.applyFilter("zzz")
+
+        assertEquals(0, table.rowCount)
+        assertTrue(emptyText(table) == PluginBundle.message("toolwindow.table.empty.query", "zzz"), emptyText(table))
+        // The query lives in the tool window's search field: clearing it here would leave the
+        // field showing a filter the table no longer applies.
+        assertFalse(offersClearLink(table), "the search alone is cleared from the search field")
+    }
+
+    @Test
+    fun `a search matching nothing in a namespace names both, and the link clears the namespace`() {
+        stubNamespacedTranslations()
+        val panel = TableViewPanel(project)
+        val table = loadedTable(panel)
+        val namespaceCombo = combos(panel)[0]
+
+        namespaceCombo.selectedItem = NamespaceFilter.Named("auth")
+        panel.applyFilter("Home")
+
+        assertEquals(0, table.rowCount, "Home lives in common, not in auth")
+        assertTrue(
+            emptyText(table) == PluginBundle.message("toolwindow.table.empty.query.namespace", "Home", "auth"),
+            emptyText(table)
+        )
+
+        assertTrue(offersClearLink(table), "a namespace filter can be cleared from the empty table")
+        panel.clearFilters()
+
+        assertEquals(NamespaceFilter.All, namespaceCombo.selectedItem)
+        assertEquals(1, table.rowCount, "the search still applies once the namespace is cleared")
+    }
+
+    @Test
+    fun `a status filter matching nothing is named, and the link resets it`() {
+        stubTranslations()
+        val panel = TableViewPanel(project)
+        val table = loadedTable(panel)
+        val statusCombo = combos(panel)[1]
+
+        // Both keys are translated in both locales: nothing is missing.
+        statusCombo.selectedItem = StatusFilter.MISSING
+
+        assertEquals(0, table.rowCount)
+        val expected = PluginBundle.message(
+            "toolwindow.table.empty.status",
+            PluginBundle.message("toolwindow.table.empty.filters"),
+            StatusFilter.MISSING.label
+        )
+        assertTrue(emptyText(table) == expected, emptyText(table))
+
+        assertTrue(offersClearLink(table), "a status filter can be cleared from the empty table")
+        panel.clearFilters()
+
+        assertEquals(StatusFilter.ALL, statusCombo.selectedItem)
+        assertEquals(2, table.rowCount)
     }
 }
