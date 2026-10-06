@@ -261,6 +261,14 @@
             enabledByDefault="true"
             level="WARNING"
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.MissingTranslationKeyInspection"/>
+        <localInspection
+            language="JavaScript"
+            groupName="i18n Support Plus"
+            key="inspection.interpolation.arguments.display.name"
+            shortName="I18nInterpolationArguments"
+            enabledByDefault="true"
+            level="WARNING"
+            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.InterpolationArgumentsInspection"/>
     </extensions>
     <actions>
         <group id="com.ibrahimdans.i18n.ToolsMenu"
@@ -303,6 +311,11 @@
                 class="com.ibrahimdans.i18n.plugin.ide.actions.MoveI18nKeyHandler">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift M"/>
+        </action>
+        <action id="com.ibrahimdans.i18n.CopyI18nKey"
+                class="com.ibrahimdans.i18n.plugin.ide.actions.CopyI18nKeyAction"
+                icon="AllIcons.Actions.Copy">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
         </action>
         <!-- Consumed by the tool window toolbar, which resolves it by id; it belongs to no
              group so that the table's own scan button could disappear without the feature
