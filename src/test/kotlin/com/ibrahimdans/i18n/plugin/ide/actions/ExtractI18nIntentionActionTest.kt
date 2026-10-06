@@ -7,6 +7,10 @@ import com.ibrahimdans.i18n.plugin.utils.generator.code.CodeGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.code.ReactTransJsxAttrGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.JsonTranslationGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.TranslationGenerator
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.intellij.openapi.ui.TestDialog
+import com.intellij.openapi.ui.TestDialogManager
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ArgumentsSource
@@ -99,6 +103,115 @@ class ExtractI18nIntentionActionTest: ExtractionTestBase() {
                 predefinedTextInputDialog("test:ref.value3")
             )
         }
+    }
+
+    /**
+     * `common:actions.save` already holds "Save": choosing it (the first option) points the code at
+     * it and leaves the translation file untouched. The input dialog answers a key of its own, so a
+     * creation reached by mistake would show in the file.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(JsonYamlCodeGenerators::class)
+    fun testReusesExistingKey(cg: CodeGenerator, tg: TranslationGenerator) = withChoice(0, tg.ext()) {
+        val translations = tg.generate("actions", arrayOf("save", "Save"))
+        runTestCase(
+            "simple.${cg.ext()}",
+            cg.generateBlock("<caret>Save"),
+            cg.generate("'common:actions.save'"),
+            "locales/en/common.${tg.ext()}",
+            translations,
+            translations,
+            predefinedTextInputDialog("common:actions.created")
+        )
+    }
+
+    /** The last option still creates a new key, through the same dialogs as when nothing matched. */
+    @ParameterizedTest
+    @ArgumentsSource(JsonYamlCodeGenerators::class)
+    fun testCreatesNewKeyDespiteExistingOne(cg: CodeGenerator, tg: TranslationGenerator) = withChoice(1, tg.ext()) {
+        runTestCase(
+            "simple.${cg.ext()}",
+            cg.generateBlock("<caret>Save"),
+            cg.generate("'common:actions.store'"),
+            "locales/en/common.${tg.ext()}",
+            tg.generate("actions", arrayOf("save", "Save")),
+            tg.generate("actions", arrayOf("save", "Save"), arrayOf("store", "Save")),
+            predefinedTextInputDialog("common:actions.store")
+        )
+    }
+
+    /**
+     * The *Cancel* button (after the key and *Create a new key…*) and Escape (-1) both abandon the
+     * extraction: neither the code nor the translation file changes, and no key is asked for.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(JsonYamlCodeGenerators::class)
+    fun testCancelButtonInExistingKeyChooser(cg: CodeGenerator, tg: TranslationGenerator) = runCancelledChoice(cg, tg, 2)
+
+    @ParameterizedTest
+    @ArgumentsSource(JsonYamlCodeGenerators::class)
+    fun testEscapeInExistingKeyChooser(cg: CodeGenerator, tg: TranslationGenerator) = runCancelledChoice(cg, tg, -1)
+
+    private fun runCancelledChoice(cg: CodeGenerator, tg: TranslationGenerator, answer: Int) {
+        val translations = tg.generate("actions", arrayOf("save", "Save"))
+        val src = cg.generateBlock("<caret>Save")
+        withChoice(answer, tg.ext()) {
+            runTestCase(
+                "simple.${cg.ext()}",
+                src,
+                src.replace("<caret>", ""),
+                "locales/en/common.${tg.ext()}",
+                translations,
+                translations,
+                predefinedTextInputDialog("common:actions.created")
+            )
+        }
+    }
+
+    /**
+     * Four keys hold "Save": three are offered as buttons and the message counts the fourth, so
+     * the fourth button is *Create a new key…* rather than a key.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(JsonYamlCodeGenerators::class)
+    fun testCapsOfferedKeys(cg: CodeGenerator, tg: TranslationGenerator) {
+        val keys = arrayOf(arrayOf("save", "Save"), arrayOf("store", "Save"), arrayOf("submit", "Save"), arrayOf("keep", "Save"))
+        val expectedMessage = PluginBundle.message("action.intention.extract.key.reuse.message", "Save") +
+            "\n" + PluginBundle.message("action.intention.extract.key.reuse.more", 1)
+        withChoice(3, tg.ext(), expectedMessage) {
+            runTestCase(
+                "simple.${cg.ext()}",
+                cg.generateBlock("<caret>Save"),
+                cg.generate("'common:actions.write'"),
+                "locales/en/common.${tg.ext()}",
+                tg.generate("actions", *keys),
+                tg.generate("actions", *keys, arrayOf("write", "Save")),
+                predefinedTextInputDialog("common:actions.write")
+            )
+        }
+    }
+
+    /**
+     * Answers the "already translated" chooser with button [index], for [block] only: the dialog
+     * set through [TestDialogManager] outlives the test otherwise. The translation files live in
+     * `locales/en/`, the layout the source scan reads a locale from; the fixture cannot create two
+     * directory levels at once, so they are created first.
+     */
+    private fun withChoice(
+        index: Int,
+        ext: String,
+        expectedMessage: String = PluginBundle.message("action.intention.extract.key.reuse.message", "Save"),
+        block: () -> Unit
+    ) {
+        val messages = mutableListOf<String>()
+        val previous = TestDialogManager.setTestDialog(TestDialog { message -> messages += message; index })
+        try {
+            myFixture.tempDirFixture.findOrCreateDir("locales/en")
+            myFixture.runWithConfig(config(ext), block)
+        } finally {
+            TestDialogManager.setTestDialog(previous)
+        }
+        Assertions.assertEquals(expectedMessage, messages.firstOrNull(), "the existing key was not offered")
     }
 
     @Test
