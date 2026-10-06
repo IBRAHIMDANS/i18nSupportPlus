@@ -56,7 +56,8 @@ private const val ACTION_OPEN_FILE = "i18n.table.openFile"
  * included — every action reads it from there — and only *displays* it without the prefix
  * when the Namespace column carries it: under *All namespaces* the rows used to run as one
  * flow of `auth:…`, `common:…` with nothing marking where one namespace ended.
- * Includes a namespace combo box to filter rows by namespace prefix.
+ * Includes a namespace combo box to filter rows by namespace prefix, and a status combo keeping
+ * only the keys missing or empty in a shown locale, or found unused by the last scan.
  *
  * Every cell state is written out — an icon and a word — and only *then* tinted: a background
  * shade was the sole carrier of "missing" and "empty", which a greyscale screen, a colour
@@ -71,7 +72,8 @@ private const val ACTION_OPEN_FILE = "i18n.table.openFile"
  * Keyboard: Enter edits the selected row, F4 opens the translation file it comes from.
  * Right-clicking a row offers both, plus deleting the key when the scan found it unused.
  * Right-clicking the header picks which locale columns are shown, which is what keeps the
- * table readable past four locales in a docked panel.
+ * table readable past four locales in a docked panel. The hidden locales are kept in the
+ * workspace, per module, by [ToolWindowViewState].
  *
  * Scanning for orphan keys is [com.ibrahimdans.i18n.plugin.ide.actions.ScanOrphanKeysAction],
  * reachable from the tool window toolbar: the panel used to carry its own button in a
@@ -82,6 +84,9 @@ private const val ACTION_OPEN_FILE = "i18n.table.openFile"
 class TableViewPanel(private val project: Project, private val moduleConfig: ModuleConfig? = null) : JPanel(BorderLayout()) {
 
     private val viewModel = TableViewModel()
+
+    /** Where the hidden locales outlive the panel; `moduleConfig == null` is the project scope. */
+    private val viewState = ToolWindowViewState.getInstance(project)
     private val tableModel = object : DefaultTableModel() {
         // Editable: locale columns only — not "Namespace"/"Key" (leading) nor "Usage" (last).
         override fun isCellEditable(row: Int, column: Int): Boolean =
@@ -120,8 +125,11 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     /** Every locale the module owns, whether shown or not. */
     private var locales: List<String> = emptyList()
 
-    /** The locales the user hid from the header menu. */
-    private var hiddenLocales: Set<String> = emptySet()
+    /**
+     * The locales the user hid from the header menu, restricted to [locales] once loaded.
+     * The saved set is the reference: see [refresh] for why this one is never written back as is.
+     */
+    private var hiddenLocales: Set<String> = viewState.hiddenLocales(moduleConfig)
 
     /** The locales currently laid out as columns, i.e. [locales] minus [hiddenLocales]. */
     private var shownLocales: List<String> = emptyList()
@@ -140,6 +148,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     private var config: Config = Config()
     private var currentFilter: String = ""
     private var currentNamespace: NamespaceFilter = NamespaceFilter.All
+    private var currentStatus: StatusFilter = StatusFilter.ALL
     private var scanning: Boolean = false
 
     /** True while a usage scan is running, so the action does not queue a second one. */
@@ -154,6 +163,24 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             ): Component = super.getListCellRendererComponent(
                 list, (value as? NamespaceFilter)?.label(config) ?: value, index, selected, focused
             )
+        }
+    }
+
+    // Same split as the namespace combo: the entries are StatusFilter values, the renderer alone
+    // reads their label. A JComboBox cannot disable one entry, so *Unused* before a scan is drawn
+    // disabled with a tooltip saying what to run, and picking it is undone by the listener.
+    private val statusCombo = JComboBox(StatusFilter.entries.toTypedArray()).apply {
+        renderer = object : DefaultListCellRenderer() {
+            override fun getListCellRendererComponent(
+                list: JList<*>?, value: Any?, index: Int, selected: Boolean, focused: Boolean
+            ): Component {
+                val filter = value as? StatusFilter
+                val component = super.getListCellRendererComponent(list, filter?.label ?: value, index, selected, focused)
+                val available = filter == null || viewModel.isStatusFilterAvailable(filter, allRows)
+                isEnabled = available
+                toolTipText = if (available) null else PluginBundle.message("toolwindow.table.status.orphan.unavailable")
+                return component
+            }
         }
     }
 
@@ -199,10 +226,26 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             currentNamespace = namespaceCombo.selectedItem as? NamespaceFilter ?: NamespaceFilter.All
             applyFilters()
         }
+        statusCombo.addActionListener {
+            val picked = statusCombo.selectedItem as? StatusFilter ?: StatusFilter.ALL
+            if (!viewModel.isStatusFilterAvailable(picked, allRows)) {
+                // Drawn disabled, but a JComboBox still lets it be selected: put the previous back.
+                statusCombo.selectedItem = currentStatus
+                return@addActionListener
+            }
+            currentStatus = picked
+            applyFilters()
+        }
 
+        // The namespace label and combo come first: they stay the bar's first JLabel and JComboBox.
+        val statusBar = JPanel(BorderLayout()).apply {
+            add(JLabel(" " + PluginBundle.message("toolwindow.table.status.label") + " "), BorderLayout.WEST)
+            add(statusCombo, BorderLayout.CENTER)
+        }
         val filterBar = JPanel(BorderLayout()).apply {
             add(JLabel(PluginBundle.message("toolwindow.table.namespace.label") + " "), BorderLayout.WEST)
             add(namespaceCombo, BorderLayout.CENTER)
+            add(statusBar, BorderLayout.EAST)
         }
 
         add(filterBar, BorderLayout.NORTH)
@@ -249,8 +292,14 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
                 // Merged on the EDT, where the in-place edit and the scan also write allRows:
                 // reading it from the pooled thread could merge against a stale list.
                 allRows = viewModel.mergeUsages(rows, allRows)
-                // A locale that disappeared from the project must not stay hidden forever.
-                hiddenLocales = hiddenLocales.filter { it in discovered }.toSet()
+                // Restricted to the locales loaded now, for this load only — never written back:
+                // a locale missing for one reload (a file being renamed, a branch switch) would
+                // lose its hidden state for good. Read from the saved set each time, so it is
+                // hidden again the moment it comes back.
+                hiddenLocales = viewModel.hiddenAmong(discovered, viewState.hiddenLocales(moduleConfig))
+                // Unused cannot outlive the counts it reads (the panel never drops them today,
+                // but nothing else guarantees it).
+                if (!viewModel.isStatusFilterAvailable(currentStatus, allRows)) statusCombo.selectedItem = StatusFilter.ALL
                 updateNamespaceCombo(namespaces)
                 applyFilters()
             }
@@ -267,9 +316,10 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     }
 
     private fun applyFilters() {
-        val filtered = viewModel.filter(currentFilter, viewModel.filterByNamespace(currentNamespace, allRows))
+        val shown = viewModel.visibleLocales(locales, hiddenLocales)
+        val filtered = viewModel.visibleRows(allRows, currentFilter, currentNamespace, currentStatus, shown)
         val withNamespace = viewModel.showsNamespaceColumn(currentNamespace, viewModel.namespaceFilters(allRows))
-        rebuildTable(filtered, viewModel.visibleLocales(locales, hiddenLocales), withNamespace)
+        rebuildTable(filtered, shown, withNamespace)
     }
 
     private fun updateNamespaceCombo(items: List<NamespaceFilter>) {
@@ -416,6 +466,9 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             menu.add(JCheckBoxMenuItem(locale, locale !in hiddenLocales).apply {
                 addActionListener {
                     hiddenLocales = viewModel.toggleLocale(locales, hiddenLocales, locale)
+                    // Saved locales not loaded right now are kept: the user toggled this one only.
+                    val absent = viewState.hiddenLocales(moduleConfig).filterNot { it in locales }
+                    viewState.setHiddenLocales(moduleConfig, hiddenLocales + absent)
                     applyFilters()
                 }
             })
