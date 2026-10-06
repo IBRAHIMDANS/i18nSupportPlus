@@ -294,6 +294,9 @@
             <action id="com.ibrahimdans.i18n.SyncKeys"
                     class="com.ibrahimdans.i18n.plugin.ide.actions.SyncKeysAction"
                     icon="AllIcons.General.Modified"/>
+            <!-- Manual only, and hidden outside i18next modules: the generated file is committed. -->
+            <action id="com.ibrahimdans.i18n.GenerateI18nTypes"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.GenerateI18nTypesAction"/>
         </group>
         <action id="com.ibrahimdans.i18n.ToggleFolding"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.ToggleFoldingAction"
