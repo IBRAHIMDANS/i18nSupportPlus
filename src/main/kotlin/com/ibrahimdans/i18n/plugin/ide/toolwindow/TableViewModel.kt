@@ -249,6 +249,27 @@ class TableViewModel {
         listOfNotNull(NAMESPACE_COLUMN_WIDTH.takeIf { withNamespace }, KEY_COLUMN_WIDTH) +
             List(localeCount) { LOCALE_COLUMN_WIDTH } + USAGE_COLUMN_WIDTH
 
+    /** The table header, in the same order as [columnWidths]: Namespace when [withNamespace], Key, the locales, Usage. */
+    fun columnNames(locales: List<String>, withNamespace: Boolean = false): List<String> =
+        listOfNotNull(
+            PluginBundle.message("toolwindow.table.column.namespace").takeIf { withNamespace },
+            PluginBundle.message("toolwindow.table.column.key"),
+        ) + locales + PluginBundle.message("toolwindow.table.column.usage")
+
+    /**
+     * The cells of [row], column for column with [columnNames]. The key cell holds the full key —
+     * every row action reads it from there. The usage cell holds the count itself, not a rendered
+     * string: the renderer decides how it reads, and the context menu does not sniff a label.
+     */
+    fun rowCells(
+        row: TranslationRow,
+        locales: List<String>,
+        withNamespace: Boolean = false,
+        config: Config = Config(),
+    ): List<Any> =
+        listOfNotNull<Any>(namespaceLabel(row.key, config).takeIf { withNamespace }, row.key) +
+            locales.map { row.values[it] ?: "" } + row.usageCount
+
     /**
      * Writes [value] for [key] in [locale], routing to the right translation file
      * by namespace and locale. Creates the entry when the locale does not have it yet.

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Refactoring
+
+- [Table View] Split `TableViewPanel`, the largest file of the plugin (725 lines), into what it carried side by side: `OrphanKeyDeleter` and the two cell renderers move to files of their own, and the table header and row cells are composed by `TableViewModel`, where they are unit-tested. The panel keeps the Swing wiring and the row actions (469 lines) — no behaviour change
+
 ## 1.5.2 - 2026-09-22
 
 ### Bug Fixes
