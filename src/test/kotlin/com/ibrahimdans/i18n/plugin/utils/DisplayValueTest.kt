@@ -1,4 +1,4 @@
-package com.ibrahimdans.i18n.plugin.ide.toolwindow
+package com.ibrahimdans.i18n.plugin.utils
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test

@@ -5,7 +5,6 @@ import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.preview.PreviewLocaleSwitcher
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.ibrahimdans.i18n.plugin.ide.toolwindow.displayValue
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
@@ -17,6 +16,7 @@ import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.ibrahimdans.i18n.plugin.utils.nullableToList
 import com.ibrahimdans.i18n.plugin.utils.unQuote
+import com.ibrahimdans.i18n.plugin.utils.displayValue
 import com.intellij.codeInsight.completion.CompletionContributor
 import com.intellij.codeInsight.completion.CompletionInitializationContext
 import com.intellij.codeInsight.completion.CompletionParameters

@@ -18,6 +18,7 @@
 
 ### Refactoring
 
+- [Internal] Move `displayValue`, the one-line form of a translation value, from the Table View's renderers to `utils`. The completion and Search Everywhere had to import it from the tool window package to show values the same way — no behaviour change
 - [Table View] Split `TableViewPanel`, the largest file of the plugin (725 lines), into what it carried side by side: `OrphanKeyDeleter` and the two cell renderers move to files of their own, and the table header and row cells are composed by `TableViewModel`, where they are unit-tested. The panel keeps the Swing wiring and the row actions (469 lines) — no behaviour change
 
 ## 1.5.2 - 2026-09-22

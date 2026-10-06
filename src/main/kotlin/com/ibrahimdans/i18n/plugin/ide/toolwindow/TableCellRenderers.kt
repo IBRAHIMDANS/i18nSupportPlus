@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.displayValue
 import com.intellij.icons.AllIcons
 import com.intellij.ui.JBColor
 import java.awt.Component
@@ -19,7 +20,6 @@ private val MISSING_LABEL = PluginBundle.message("toolwindow.table.value.missing
 private val MISSING_TOOLTIP = PluginBundle.message("toolwindow.table.value.missing.tooltip")
 private val BLANK_LABEL = PluginBundle.message("toolwindow.table.value.blank")
 private val BLANK_TOOLTIP = PluginBundle.message("toolwindow.table.value.blank.tooltip")
-internal const val DISPLAY_VALUE_MAX_LENGTH = 200
 
 // The IDE's own file-colour tints rather than six invented RGB values: they are the palette
 // themes already redefine, so the table follows a dark or high-contrast theme instead of
@@ -31,17 +31,6 @@ private val NOT_SCANNED_FOREGROUND = JBColor.namedColor("Label.infoForeground", 
 
 // Not the orphan red: the key is reachable, only not by a name written anywhere.
 private val DYNAMIC_FOREGROUND = JBColor.namedColor("Label.infoForeground", JBColor.GRAY)
-
-/**
- * Normalizes a raw translation value for single-line table display:
- * collapses all whitespace runs (including newlines) to one space, trims,
- * and truncates to [maxLength] with an ellipsis. The raw value is meant
- * to stay available in the cell tooltip.
- */
-internal fun displayValue(raw: String, maxLength: Int = DISPLAY_VALUE_MAX_LENGTH): String {
-    val collapsed = raw.replace(Regex("\\s+"), " ").trim()
-    return if (collapsed.length <= maxLength) collapsed else collapsed.take(maxLength) + "…"
-}
 
 /**
  * Cell renderer for the key and locale columns.
