@@ -29,14 +29,30 @@ object I18nextTypesGenerator {
 
     private const val INDENT = "  "
 
+    /** i18next's own separators: left out of the declaration when the project keeps them. */
+    private const val DEFAULT_KEY_SEPARATOR = "."
+    private const val DEFAULT_NS_SEPARATOR = ":"
+
+    /** `declare module 'i18next'` augmenting `CustomTypeOptions`, as a hand-written declaration does. */
+    private val AUGMENTATION = Regex("""declare\s+module\s+['"]i18next['"]""")
+
     /**
      * The declaration file for [namespaces] — each namespace mapped to the paths of property names
      * of its keys, as read from the reference locale.
      *
      * [defaultNamespace] becomes `defaultNS` when it is one of [namespaces]; otherwise it is left
      * out, since naming a namespace that `resources` lacks would make every unprefixed key an error.
+     *
+     * [keySeparator] and [nsSeparator] are declared when they are not i18next's `.` and `:`, so
+     * that the types split `t('ns|a-b')` as the project does; a null [keySeparator] declares flat
+     * keys (`keySeparator: false`), where `app.title` is one key.
      */
-    fun generate(namespaces: Map<String, Collection<List<String>>>, defaultNamespace: String?): String {
+    fun generate(
+        namespaces: Map<String, Collection<List<String>>>,
+        defaultNamespace: String?,
+        keySeparator: String? = DEFAULT_KEY_SEPARATOR,
+        nsSeparator: String = DEFAULT_NS_SEPARATOR
+    ): String {
         val out = StringBuilder()
         out.append("$GENERATED_BY — do not edit; regenerate with $ACTION_NAME.\n")
         out.append("import 'i18next';\n\n")
@@ -44,6 +60,12 @@ object I18nextTypesGenerator {
         out.append(INDENT).append("interface CustomTypeOptions {\n")
         if (defaultNamespace != null && defaultNamespace in namespaces) {
             out.append(INDENT.repeat(2)).append("defaultNS: ").append(quote(defaultNamespace)).append(";\n")
+        }
+        if (keySeparator != DEFAULT_KEY_SEPARATOR) {
+            out.append(INDENT.repeat(2)).append("keySeparator: ").append(keySeparator?.let { quote(it) } ?: "false").append(";\n")
+        }
+        if (nsSeparator != DEFAULT_NS_SEPARATOR) {
+            out.append(INDENT.repeat(2)).append("nsSeparator: ").append(quote(nsSeparator)).append(";\n")
         }
         val resources = Node()
         for ((namespace, paths) in namespaces) {
@@ -103,6 +125,14 @@ object I18nextTypesGenerator {
         }
         return members
     }
+
+    /**
+     * True when [text] is another declaration typing i18next — a hand-written `declare module
+     * 'i18next'` with its own `CustomTypeOptions` — which the generated one would contradict.
+     * A file this generator wrote is not one.
+     */
+    fun declaresCustomTypes(text: String): Boolean =
+        !text.startsWith(GENERATED_BY) && AUGMENTATION.containsMatchIn(text) && "CustomTypeOptions" in text
 
     /** [name] as a TypeScript property name: bare when it is an identifier, quoted otherwise. */
     internal fun propertyName(name: String): String = if (IDENTIFIER.matches(name)) name else quote(name)
