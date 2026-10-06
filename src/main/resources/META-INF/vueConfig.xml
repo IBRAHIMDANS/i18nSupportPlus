@@ -5,5 +5,14 @@
         <completion.contributor language="Vue" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompletionContributor"/>
         <lang.foldingBuilder language="Vue" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder"/>
         <lang.documentationProvider language="Vue" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
+        <localInspection
+            language="Vue"
+            groupName="i18n Support Plus"
+            bundle="messages.I18nBundle"
+            key="inspection.hardcoded.vue.text.display.name"
+            shortName="I18nHardcodedVueText"
+            enabledByDefault="false"
+            level="WEAK WARNING"
+            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedVueTextInspection"/>
     </extensions>
 </idea-plugin>
