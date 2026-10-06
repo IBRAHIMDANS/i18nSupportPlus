@@ -30,25 +30,34 @@ internal object ExistingKeyFinder {
      * once both are trimmed. The comparison is case-sensitive: `"save"` and `"Save"` are two
      * different labels on screen.
      */
-    fun find(text: String, caller: PsiElement): List<String> {
-        val wanted = text.trim()
-        if (wanted.isEmpty()) return emptyList()
+    fun find(text: String, caller: PsiElement): List<String> =
+        findAll(listOf(text), caller)[text.trim()].orEmpty()
+
+    /**
+     * [find] for several texts in a single pass over the reference-locale files, keyed by the
+     * trimmed text; a text no key holds is absent. *Batch extract* asks for every literal of a
+     * file at once, and one walk per literal would read every translation file each time.
+     */
+    fun findAll(texts: Collection<String>, caller: PsiElement): Map<String, List<String>> {
+        val wanted = texts.map { it.trim() }.filterTo(mutableSetOf()) { it.isNotEmpty() }
+        if (wanted.isEmpty()) return emptyMap()
         val project = caller.project
         val config = Settings.getInstance(project).config()
         val module = ownerOf(caller, config)
         val locale = referenceLocale(module, config)
         val defaultNamespace = config.defaultNamespaces().first()
-        return ModuleSources.sourcesOf(caller.project, module)
+        val found = linkedMapOf<String, LinkedHashSet<String>>()
+        ModuleSources.sourcesOf(project, module)
             .filter { it.hasRecognizedLocale() && it.localeLabel() == locale }
-            .flatMap { source ->
-                val file = ModuleSources.readableFile(source) ?: return@flatMap emptyList()
+            .forEach { source ->
+                val file = ModuleSources.readableFile(source) ?: return@forEach
                 val namespace = TranslationDataLoader.extractNamespace(source, defaultNamespace)
-                TranslationFileKeys.translationLeaves(file)
-                    .filterValues { it.trim() == wanted }
-                    .keys
-                    .map { path -> spell(namespace, path, config) }
+                TranslationFileKeys.translationLeaves(file).forEach { (path, value) ->
+                    val text = value.trim()
+                    if (text in wanted) found.getOrPut(text) { linkedSetOf() } += spell(namespace, path, config)
+                }
             }
-            .distinct()
+        return found.mapValues { (_, keys) -> keys.toList() }
     }
 
     /**

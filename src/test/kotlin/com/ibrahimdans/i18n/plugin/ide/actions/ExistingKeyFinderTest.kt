@@ -73,4 +73,18 @@ class ExistingKeyFinderTest : PlatformBaseTest() {
         )
         assertEquals(listOf("common:actions.save"), find("Save", caller("apps/web/src/App.js"), config))
     }
+
+    @Test
+    fun `several texts are looked up at once, keyed by the trimmed text`() {
+        addFileToProject("locales/en/common.json", """{"actions": {"save": "Save", "cancel": "Cancel"}}""")
+        addFileToProject("locales/en/translation.json", """{"form": {"submit": "Save"}}""")
+        val caller = caller()
+        var found = emptyMap<String, List<String>>()
+        myFixture.runWithConfig(Config()) {
+            read { found = ExistingKeyFinder.findAll(listOf(" Save ", "Cancel", "Missing", ""), caller) }
+        }
+        assertEquals(setOf("Save", "Cancel"), found.keys, "A text no key holds is absent")
+        assertEquals(setOf("common:actions.save", "form.submit"), found.getValue("Save").toSet())
+        assertEquals(listOf("common:actions.cancel"), found.getValue("Cancel"))
+    }
 }
