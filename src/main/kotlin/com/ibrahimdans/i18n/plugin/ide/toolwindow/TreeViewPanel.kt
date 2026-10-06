@@ -103,6 +103,9 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
     private var lastTranslationRoot: TranslationNode = TranslationNode(key = "root", fullPath = "", values = emptyMap())
     private var currentFilter: String = ""
 
+    /** Loads started by [refresh] and not finished yet; the tree paints busy while any is. */
+    private var loading: Int = 0
+
     init {
         tree.cellRenderer = TranslationTreeCellRenderer()
         tree.addMouseListener(object : MouseAdapter() {
@@ -135,16 +138,28 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
      * Reloads translation data and rebuilds the tree.
      */
     fun refresh() {
+        setLoading(+1)
         ApplicationManager.getApplication().executeOnPooledThread {
-            val translationRoot = viewModel.loadTranslations(project, moduleConfig)
-            allLocales = TranslationDataLoader.discoverLocales(project, moduleConfig)
-            nodeStatuses = viewModel.describeTree(translationRoot, allLocales)
-            lastTranslationRoot = translationRoot
+            // A failed or cancelled load must not leave the tree painting busy for good.
+            try {
+                val translationRoot = viewModel.loadTranslations(project, moduleConfig)
+                allLocales = TranslationDataLoader.discoverLocales(project, moduleConfig)
+                nodeStatuses = viewModel.describeTree(translationRoot, allLocales)
+                lastTranslationRoot = translationRoot
 
-            ApplicationManager.getApplication().invokeLater {
-                rebuildTree(viewModel.filter(currentFilter, translationRoot))
+                ApplicationManager.getApplication().invokeLater {
+                    rebuildTree(viewModel.filter(currentFilter, translationRoot))
+                }
+            } finally {
+                ApplicationManager.getApplication().invokeLater { setLoading(-1) }
             }
         }
+    }
+
+    /** Counted, as in [TableViewPanel]: a second load may start before the first ends. Runs on the EDT. */
+    private fun setLoading(delta: Int) {
+        loading += delta
+        tree.setPaintBusy(loading > 0)
     }
 
     /**

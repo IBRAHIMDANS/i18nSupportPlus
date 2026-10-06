@@ -17,6 +17,7 @@ import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.table.JBTable
 import java.awt.BorderLayout
 import java.awt.Component
@@ -149,6 +150,9 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     private var currentStatus: StatusFilter = StatusFilter.ALL
     private var scanning: Boolean = false
 
+    /** Loads started by [refresh] and not finished yet; the table paints busy while any is. */
+    private var loading: Int = 0
+
     /** True while a usage scan is running, so the action does not queue a second one. */
     val isScanning: Boolean get() = scanning
 
@@ -248,6 +252,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
         add(filterBar, BorderLayout.NORTH)
         add(JScrollPane(table), BorderLayout.CENTER)
+        updateEmptyText()
     }
 
     /**
@@ -279,28 +284,49 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      * cannot disagree about what the Usage column shows.
      */
     fun refresh() {
+        setLoading(+1)
         ApplicationManager.getApplication().executeOnPooledThread {
-            val rows = viewModel.loadRows(project, moduleConfig)
-            config = Settings.getInstance(project).config()
-            val discovered = viewModel.getLocales(project, moduleConfig)
-            locales = discovered
-            val namespaces = viewModel.namespaceFilters(rows)
-
-            ApplicationManager.getApplication().invokeLater {
-                // Merged on the EDT, where the in-place edit and the scan also write allRows:
-                // reading it from the pooled thread could merge against a stale list.
-                allRows = viewModel.mergeUsages(rows, allRows)
-                // Restricted to the locales loaded now, for this load only — never written back:
-                // a locale missing for one reload (a file being renamed, a branch switch) would
-                // lose its hidden state for good. Read from the saved set each time, so it is
-                // hidden again the moment it comes back.
-                hiddenLocales = viewModel.hiddenAmong(discovered, viewState.hiddenLocales(moduleConfig))
-                // Unused cannot outlive the counts it reads (the panel never drops them today,
-                // but nothing else guarantees it).
-                if (!viewModel.isStatusFilterAvailable(currentStatus, allRows)) statusCombo.selectedItem = StatusFilter.ALL
-                updateNamespaceCombo(namespaces)
-                applyFilters()
+            // A failed or cancelled load must not leave the table painting busy for good.
+            try {
+                load()
+            } finally {
+                ApplicationManager.getApplication().invokeLater { setLoading(-1) }
             }
+        }
+    }
+
+    /**
+     * Counted rather than flagged: the watcher and the toolbar can start a second load before
+     * the first ends, and the first to finish must not clear the busy state of the other.
+     * Runs on the EDT, where [refresh] is called.
+     */
+    private fun setLoading(delta: Int) {
+        loading += delta
+        table.setPaintBusy(loading > 0)
+        updateEmptyText()
+    }
+
+    private fun load() {
+        val rows = viewModel.loadRows(project, moduleConfig)
+        config = Settings.getInstance(project).config()
+        val discovered = viewModel.getLocales(project, moduleConfig)
+        locales = discovered
+        val namespaces = viewModel.namespaceFilters(rows)
+
+        ApplicationManager.getApplication().invokeLater {
+            // Merged on the EDT, where the in-place edit and the scan also write allRows:
+            // reading it from the pooled thread could merge against a stale list.
+            allRows = viewModel.mergeUsages(rows, allRows)
+            // Restricted to the locales loaded now, for this load only — never written back:
+            // a locale missing for one reload (a file being renamed, a branch switch) would
+            // lose its hidden state for good. Read from the saved set each time, so it is
+            // hidden again the moment it comes back.
+            hiddenLocales = viewModel.hiddenAmong(discovered, viewState.hiddenLocales(moduleConfig))
+            // Unused cannot outlive the counts it reads (the panel never drops them today,
+            // but nothing else guarantees it).
+            if (!viewModel.isStatusFilterAvailable(currentStatus, allRows)) statusCombo.selectedItem = StatusFilter.ALL
+            updateNamespaceCombo(namespaces)
+            applyFilters()
         }
     }
 
@@ -318,6 +344,51 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         val filtered = viewModel.visibleRows(allRows, currentFilter, currentNamespace, currentStatus, shown)
         val withNamespace = viewModel.showsNamespaceColumn(currentNamespace, viewModel.namespaceFilters(allRows))
         rebuildTable(filtered, shown, withNamespace)
+        updateEmptyText()
+    }
+
+    /**
+     * What the table says when it shows no row: that it is loading, that the filters match
+     * nothing — naming them, with a link clearing the panel's own ones — or that there is no
+     * key at all. Swing's generic text told none of these apart.
+     *
+     * The link resets the namespace and the status, not the text: the query is typed in the
+     * tool window's search field, which would keep showing it over an unfiltered table.
+     */
+    private fun updateEmptyText() {
+        val emptyText = table.emptyText
+        val query = currentFilter.trim()
+        val namespace = if (currentNamespace == NamespaceFilter.All) null else currentNamespace.label(config)
+        when {
+            loading > 0 && allRows.isEmpty() -> emptyText.text = PluginBundle.message("toolwindow.table.empty.loading")
+            query.isEmpty() && namespace == null && currentStatus == StatusFilter.ALL ->
+                emptyText.text = PluginBundle.message("toolwindow.table.empty.none")
+            else -> {
+                val noMatch = when {
+                    namespace == null && query.isEmpty() -> PluginBundle.message("toolwindow.table.empty.filters")
+                    namespace == null -> PluginBundle.message("toolwindow.table.empty.query", query)
+                    query.isEmpty() -> PluginBundle.message("toolwindow.table.empty.namespace", namespace)
+                    else -> PluginBundle.message("toolwindow.table.empty.query.namespace", query, namespace)
+                }
+                emptyText.text = if (currentStatus == StatusFilter.ALL) noMatch
+                else PluginBundle.message("toolwindow.table.empty.status", noMatch, currentStatus.label)
+                if (namespace != null || currentStatus != StatusFilter.ALL) {
+                    emptyText.appendSecondaryText(
+                        PluginBundle.message("toolwindow.table.empty.clear"),
+                        SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES
+                    ) { clearFilters() }
+                }
+            }
+        }
+    }
+
+    /**
+     * Back to every namespace and every status; each combo's listener re-applies the filters.
+     * Internal for the tests: the empty text keeps the link's listener out of reach.
+     */
+    internal fun clearFilters() {
+        namespaceCombo.selectedItem = NamespaceFilter.All
+        statusCombo.selectedItem = StatusFilter.ALL
     }
 
     private fun updateNamespaceCombo(items: List<NamespaceFilter>) {

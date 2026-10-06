@@ -132,6 +132,9 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
     private var config: Config = Config()
     private var loadRequested = false
 
+    /** Loads started by [refresh] and not finished yet; the table paints busy while any is. */
+    private var loading: Int = 0
+
     init {
         table.autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
         // Nothing is selected in a read-only table whose click opens a popup: a selection
@@ -183,14 +186,26 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
     fun refresh() {
         loadRequested = true
         statusLabel.text = PluginBundle.message("toolwindow.stats.loading")
+        setLoading(+1)
         ApplicationManager.getApplication().executeOnPooledThread {
-            val report = TranslationStatsAnalyzer.report(project, moduleConfig)
-            val config = Settings.getInstance(project).config()
-            ApplicationManager.getApplication().invokeLater {
-                this.config = config
-                rebuildTable(report)
+            // A failed or cancelled load must not leave the table painting busy for good.
+            try {
+                val report = TranslationStatsAnalyzer.report(project, moduleConfig)
+                val config = Settings.getInstance(project).config()
+                ApplicationManager.getApplication().invokeLater {
+                    this.config = config
+                    rebuildTable(report)
+                }
+            } finally {
+                ApplicationManager.getApplication().invokeLater { setLoading(-1) }
             }
         }
+    }
+
+    /** Counted, as in [TableViewPanel]: a second load may start before the first ends. Runs on the EDT. */
+    private fun setLoading(delta: Int) {
+        loading += delta
+        table.setPaintBusy(loading > 0)
     }
 
     private fun rebuildTable(newReport: CoverageReport) {
