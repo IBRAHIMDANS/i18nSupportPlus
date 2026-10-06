@@ -634,4 +634,125 @@ class TableViewModelTest {
 
         assertEquals(listOf("b" to 2, "a" to 1), viewModel.mergeUsages(fresh, previous).map { it.key to it.usageCount })
     }
+
+    // --- status filter tests ---
+
+    private val statusRows = listOf(
+        TranslationRow("common:done", mapOf("en" to "Done", "fr" to "Fini", "de" to "Fertig"), usageCount = 3),
+        TranslationRow("common:noFr", mapOf("en" to "Home", "de" to "Start"), usageCount = 0),
+        TranslationRow("common:blankFr", mapOf("en" to "Save", "fr" to "  ", "de" to "Speichern")),
+        TranslationRow("auth:noDe", mapOf("en" to "Login", "fr" to "Connexion"), usageCount = 0),
+        TranslationRow("auth:noFr", mapOf("en" to "Logout", "de" to "Abmelden"), usageCount = 1),
+    )
+    private val allLocales = listOf("en", "fr", "de")
+
+    @Test
+    fun `filterByStatus ALL keeps every row`() {
+        assertEquals(statusRows, viewModel.filterByStatus(StatusFilter.ALL, statusRows, allLocales))
+    }
+
+    @Test
+    fun `filterByStatus MISSING keeps rows lacking an entry in a shown locale`() {
+        val kept = viewModel.filterByStatus(StatusFilter.MISSING, statusRows, allLocales).map { it.key }
+
+        assertEquals(listOf("common:noFr", "auth:noDe", "auth:noFr"), kept)
+    }
+
+    @Test
+    fun `filterByStatus BLANK keeps rows whose entry is blank, not the missing ones`() {
+        val kept = viewModel.filterByStatus(StatusFilter.BLANK, statusRows, allLocales).map { it.key }
+
+        assertEquals(listOf("common:blankFr"), kept)
+    }
+
+    @Test
+    fun `a hidden locale does not hold a row back`() {
+        // `de` hidden: auth:noDe has nothing missing in the locales on screen.
+        val shown = viewModel.visibleLocales(allLocales, setOf("de"))
+
+        val kept = viewModel.filterByStatus(StatusFilter.MISSING, statusRows, shown).map { it.key }
+
+        assertEquals(listOf("common:noFr", "auth:noFr"), kept)
+    }
+
+    @Test
+    fun `a hidden locale holding the only blank value leaves BLANK empty`() {
+        val shown = viewModel.visibleLocales(allLocales, setOf("fr"))
+
+        assertTrue(viewModel.filterByStatus(StatusFilter.BLANK, statusRows, shown).isEmpty())
+    }
+
+    @Test
+    fun `filterByStatus ORPHAN keeps the rows the scan found unused only`() {
+        val kept = viewModel.filterByStatus(StatusFilter.ORPHAN, statusRows, allLocales).map { it.key }
+
+        // common:blankFr is not scanned (-1): not known to be unused.
+        assertEquals(listOf("common:noFr", "auth:noDe"), kept)
+    }
+
+    @Test
+    fun `filterByStatus ORPHAN does not count a dynamically reached key`() {
+        val rows = listOf(TranslationRow("status.ok", emptyMap(), usageCount = TableViewModel.DYNAMIC_USAGE))
+
+        assertTrue(viewModel.filterByStatus(StatusFilter.ORPHAN, rows, allLocales).isEmpty())
+    }
+
+    @Test
+    fun `ORPHAN is unavailable until some key was scanned`() {
+        val unscanned = listOf(TranslationRow("a", emptyMap()), TranslationRow("b", emptyMap()))
+
+        assertFalse(viewModel.isStatusFilterAvailable(StatusFilter.ORPHAN, unscanned))
+        assertTrue(viewModel.isStatusFilterAvailable(StatusFilter.ORPHAN, unscanned + TranslationRow("c", emptyMap(), 2)))
+        for (filter in listOf(StatusFilter.ALL, StatusFilter.MISSING, StatusFilter.BLANK)) {
+            assertTrue(viewModel.isStatusFilterAvailable(filter, unscanned), "$filter needs no scan")
+        }
+    }
+
+    @Test
+    fun `visibleRows combines status with namespace and text`() {
+        val missingInAuth = viewModel.visibleRows(
+            statusRows, "", NamespaceFilter.Named("auth"), StatusFilter.MISSING, allLocales,
+        )
+        assertEquals(listOf("auth:noDe", "auth:noFr"), missingInAuth.map { it.key })
+
+        // The text filter narrows further, on values as well as keys.
+        val loginMissing = viewModel.visibleRows(
+            statusRows, "connexion", NamespaceFilter.Named("auth"), StatusFilter.MISSING, allLocales,
+        )
+        assertEquals(listOf("auth:noDe"), loginMissing.map { it.key })
+
+        val unusedInCommon = viewModel.visibleRows(
+            statusRows, "", NamespaceFilter.Named("common"), StatusFilter.ORPHAN, allLocales,
+        )
+        assertEquals(listOf("common:noFr"), unusedInCommon.map { it.key })
+    }
+
+    @Test
+    fun `visibleRows with every filter neutral returns the rows unchanged`() {
+        assertEquals(statusRows, viewModel.visibleRows(statusRows, "", NamespaceFilter.All, StatusFilter.ALL, allLocales))
+    }
+
+    @Test
+    fun `a status filter shows its translated label, not its name`() {
+        for (filter in StatusFilter.entries) {
+            assertEquals(PluginBundle.message("toolwindow.table.status.${filter.name.lowercase()}"), filter.label)
+        }
+    }
+
+    // --- hiddenAmong tests ---
+
+    @Test
+    fun `hiddenAmong drops a saved locale the project no longer has`() {
+        assertEquals(setOf("de"), viewModel.hiddenAmong(listOf("en", "de"), setOf("de", "it")))
+    }
+
+    @Test
+    fun `hiddenAmong ignores a saved set that would hide every loaded locale`() {
+        assertEquals(emptySet<String>(), viewModel.hiddenAmong(listOf("de"), setOf("de", "fr")))
+    }
+
+    @Test
+    fun `hiddenAmong with nothing loaded yet hides nothing`() {
+        assertEquals(emptySet<String>(), viewModel.hiddenAmong(emptyList(), setOf("de")))
+    }
 }
