@@ -31,6 +31,8 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.psi.PsiFile
+import com.intellij.psi.search.FilenameIndex
+import com.intellij.psi.search.GlobalSearchScope
 
 /**
  * Writes an `i18next.d.ts` per i18next module, typing `t('key')` from the reference locale's keys
@@ -52,6 +54,9 @@ class GenerateI18nTypesAction : AnAction() {
     /** A module to write a declaration for, rooted at [rootPath] (absolute). */
     internal data class Target(val module: ModuleConfig?, val rootPath: String)
 
+    /** The [text] to write for a target, and the hand-written declarations of its module it would contradict. */
+    private data class Declaration(val text: String, val competing: List<String>)
+
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
 
     override fun update(e: AnActionEvent) {
@@ -66,8 +71,8 @@ class GenerateI18nTypesAction : AnAction() {
 
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.generate.types.progress"), false) {
             override fun run(indicator: ProgressIndicator) {
-                val contents = DumbService.getInstance(project).runReadActionInSmartMode<Map<Target, String>> {
-                    targets.associateWith { declarationOf(project, it) }
+                val contents = DumbService.getInstance(project).runReadActionInSmartMode<Map<Target, Declaration>> {
+                    targets.associateWith { Declaration(declarationOf(project, it), competingDeclarations(project, it)) }
                 }
                 ApplicationManager.getApplication().invokeLater {
                     if (!project.isDisposed) write(project, contents)
@@ -76,11 +81,28 @@ class GenerateI18nTypesAction : AnAction() {
         })
     }
 
-    /** Writes each declaration, asking before replacing a file the plugin did not generate. */
-    private fun write(project: Project, contents: Map<Target, String>) {
+    /**
+     * Writes each declaration, asking before replacing a file the plugin did not generate, and
+     * before writing next to a hand-written declaration: two `CustomTypeOptions` contradict
+     * each other, and only the user knows which one to keep — nothing is deleted for them.
+     */
+    private fun write(project: Project, contents: Map<Target, Declaration>) {
         val written = mutableListOf<String>()
-        for ((target, text) in contents) {
+        for ((target, declaration) in contents) {
+            val text = declaration.text
             val path = targetFileOf(target)
+            if (declaration.competing.isNotEmpty()) {
+                val answer = Messages.showYesNoDialog(
+                    project,
+                    PluginBundle.message(
+                        "action.generate.types.competing",
+                        declaration.competing.joinToString("\n") { it.removePrefix("${project.basePath}/") }
+                    ),
+                    PluginBundle.message("action.generate.types.title"),
+                    Messages.getWarningIcon()
+                )
+                if (answer != Messages.YES) continue
+            }
             val existing = LocalFileSystem.getInstance().refreshAndFindFileByPath(path)
             if (existing != null && !VfsUtilCore.loadText(existing).startsWith(I18nextTypesGenerator.GENERATED_BY)) {
                 val answer = Messages.showYesNoDialog(
@@ -157,7 +179,22 @@ class GenerateI18nTypesAction : AnAction() {
                 val namespace = TranslationDataLoader.extractNamespace(source, defaultNamespace)
                 namespaces.getOrPut(namespace) { mutableListOf() } += TranslationFileKeys.translationLeaves(file).keys
             }
-            return I18nextTypesGenerator.generate(namespaces, defaultNamespace)
+            val keySeparator = if (config.usesFlatKeys()) null else config.keySeparator
+            return I18nextTypesGenerator.generate(namespaces, defaultNamespace, keySeparator, config.nsSeparator)
+        }
+
+        /**
+         * The `.d.ts` files under [target]'s root, other than the generated one, that already type
+         * i18next. Needs a read action and indexes.
+         */
+        private fun competingDeclarations(project: Project, target: Target): List<String> {
+            val ownPath = targetFileOf(target)
+            return FilenameIndex.getAllFilesByExt(project, "ts", GlobalSearchScope.projectScope(project))
+                .filter { it.name.endsWith(".d.ts") && it.path != ownPath && it.path.startsWith("${target.rootPath}/") }
+                .filter { "/node_modules/" !in it.path }
+                .filter { I18nextTypesGenerator.declaresCustomTypes(VfsUtilCore.loadText(it)) }
+                .map { it.path }
+                .sorted()
         }
 
         /**

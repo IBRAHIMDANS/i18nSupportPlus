@@ -216,6 +216,25 @@ class I18nToolWindowPanelTest : PlatformBaseTest() {
     // -----------------------------------------------------------------------
 
     @Test
+    fun `every module's table empties the tool window's search field`() {
+        var cleared = 0
+        val built = ShellContent(
+            project,
+            diagnostics(sourceCount = 2, modules = listOf(ModuleConfig(name = "web"), ModuleConfig(name = "admin"))),
+            onRunWizard = {},
+            onOpenSettings = {},
+            onClearSearch = { cleared++ }
+        )
+
+        val tables = findAll(built.component, TableViewPanel::class.java)
+        tables.forEach { it.onClearSearch() }
+
+        // Only the active module's panels are laid out; switching modules swaps them in.
+        assertTrue(tables.isNotEmpty(), "the active module shows its table")
+        assertEquals(tables.size, cleared, "the table's Clear filters link reaches the search field")
+    }
+
+    @Test
     fun `no root at all gives an empty state instead of tabs`() {
         val built = content(diagnostics(searchedPaths = listOf("public/locales"), sourceCount = 0))
 

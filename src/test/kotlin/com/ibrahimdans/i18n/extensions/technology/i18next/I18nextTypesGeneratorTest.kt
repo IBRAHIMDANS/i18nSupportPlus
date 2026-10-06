@@ -159,4 +159,50 @@ class I18nextTypesGeneratorTest {
         assertTrue(text.contains("home: string;"))
         assertTrue(text.contains("empty: {};"))
     }
+
+    @Test
+    fun `i18next's own separators are left out of the declaration`() {
+        val text = I18nextTypesGenerator.generate(mapOf("common" to keys("title")), "common")
+
+        assertFalse("keySeparator" in text, text)
+        assertFalse("nsSeparator" in text, text)
+    }
+
+    @Test
+    fun `the project's separators are declared when they are not i18next's`() {
+        val text = I18nextTypesGenerator.generate(mapOf("common" to keys("title")), "common", keySeparator = "-", nsSeparator = "|")
+
+        assertTrue("    keySeparator: '-';\n" in text, text)
+        assertTrue("    nsSeparator: '|';\n" in text, text)
+    }
+
+    @Test
+    fun `flat keys declare no key separator at all`() {
+        val text = I18nextTypesGenerator.generate(mapOf("common" to listOf(listOf("app.title"))), "common", keySeparator = null)
+
+        assertTrue("    keySeparator: false;\n" in text, text)
+        assertTrue("'app.title': string;" in text, text)
+    }
+
+    @Test
+    fun `a hand-written declaration typing i18next competes with the generated one`() {
+        val handWritten = """
+            import 'i18next';
+            import common from '../public/locales/en/common.json';
+
+            declare module "i18next" {
+              interface CustomTypeOptions {
+                resources: { common: typeof common };
+              }
+            }
+        """.trimIndent()
+
+        assertTrue(I18nextTypesGenerator.declaresCustomTypes(handWritten))
+        assertFalse(
+            I18nextTypesGenerator.declaresCustomTypes(I18nextTypesGenerator.generate(mapOf("common" to keys("title")), "common")),
+            "the generated file is the one being rewritten, not a competitor"
+        )
+        assertFalse(I18nextTypesGenerator.declaresCustomTypes("declare module 'react' { interface CustomTypeOptions {} }"))
+        assertFalse(I18nextTypesGenerator.declaresCustomTypes("declare module 'i18next' { interface TFunction {} }"))
+    }
 }

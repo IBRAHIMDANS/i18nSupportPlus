@@ -148,6 +148,12 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     private var currentFilter: String = ""
     private var currentNamespace: NamespaceFilter = NamespaceFilter.All
     private var currentStatus: StatusFilter = StatusFilter.ALL
+
+    /**
+     * Empties the tool window's search field, which owns the query: the field then filters the
+     * table back through its usual path. Set by the tool window; a lone panel has no field.
+     */
+    var onClearSearch: () -> Unit = {}
     private var scanning: Boolean = false
 
     /** Loads started by [refresh] and not finished yet; the table paints busy while any is. */
@@ -349,11 +355,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
     /**
      * What the table says when it shows no row: that it is loading, that the filters match
-     * nothing — naming them, with a link clearing the panel's own ones — or that there is no
-     * key at all. Swing's generic text told none of these apart.
-     *
-     * The link resets the namespace and the status, not the text: the query is typed in the
-     * tool window's search field, which would keep showing it over an unfiltered table.
+     * nothing — naming them, with a link clearing them all — or that there is no key at all.
+     * Swing's generic text told none of these apart.
      */
     private fun updateEmptyText() {
         val emptyText = table.emptyText
@@ -372,23 +375,23 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
                 }
                 emptyText.text = if (currentStatus == StatusFilter.ALL) noMatch
                 else PluginBundle.message("toolwindow.table.empty.status", noMatch, currentStatus.label)
-                if (namespace != null || currentStatus != StatusFilter.ALL) {
-                    emptyText.appendSecondaryText(
-                        PluginBundle.message("toolwindow.table.empty.clear"),
-                        SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES
-                    ) { clearFilters() }
-                }
+                emptyText.appendSecondaryText(
+                    PluginBundle.message("toolwindow.table.empty.clear"),
+                    SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES
+                ) { clearFilters() }
             }
         }
     }
 
     /**
-     * Back to every namespace and every status; each combo's listener re-applies the filters.
-     * Internal for the tests: the empty text keeps the link's listener out of reach.
+     * Back to every namespace, every status and no query; each combo's listener re-applies the
+     * filters, and the search field re-applies the query. Internal for the tests: the empty text
+     * keeps the link's listener out of reach.
      */
     internal fun clearFilters() {
         namespaceCombo.selectedItem = NamespaceFilter.All
         statusCombo.selectedItem = StatusFilter.ALL
+        if (currentFilter.isNotEmpty()) onClearSearch()
     }
 
     private fun updateNamespaceCombo(items: List<NamespaceFilter>) {
@@ -581,6 +584,13 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      * in one undoable command, then refreshes the table once the deletion has run.
      */
     private fun deleteOrphanKeys(keyStrings: List<String>) {
+        if (keyStrings.size > 1 && Messages.showYesNoDialog(
+                project,
+                OrphanKeyDeleter.confirmationMessage(keyStrings),
+                PluginBundle.message("toolwindow.table.delete.orphans.command"),
+                Messages.getWarningIcon()
+            ) != Messages.YES
+        ) return
         val fullKeys = keyStrings.map(::buildFullKey)
         // Scoped to this panel's module: without it the key is also deleted from
         // another module's file sharing the same namespace.

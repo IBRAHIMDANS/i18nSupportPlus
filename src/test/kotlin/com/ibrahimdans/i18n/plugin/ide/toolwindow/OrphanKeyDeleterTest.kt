@@ -12,6 +12,7 @@ import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiManager
 import com.intellij.testFramework.PlatformTestUtil
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 
@@ -164,5 +165,24 @@ class OrphanKeyDeleterTest : PlatformBaseTest() {
         val selection = listOf("used" to 3, "dead" to 0, "unscanned" to -1, "gone" to 0, "dead" to 0)
 
         Assertions.assertEquals(listOf("dead", "gone"), OrphanKeyDeleter.orphanKeys(selection))
+    }
+
+    @Test
+    fun confirmationMessage_namesEveryKeyUpToThePreview() {
+        val message = OrphanKeyDeleter.confirmationMessage(listOf("common:a", "b.c"))
+
+        Assertions.assertTrue(message.contains("2"), message)
+        Assertions.assertTrue(message.contains("  common:a\n  b.c"), message)
+        Assertions.assertFalse(message.contains("more"), message)
+    }
+
+    @Test
+    fun confirmationMessage_countsTheKeysBeyondThePreview() {
+        val keys = (1..8).map { "key$it" }
+        val message = OrphanKeyDeleter.confirmationMessage(keys)
+
+        Assertions.assertTrue(message.contains("8"), message)
+        Assertions.assertTrue(message.contains("key5") && !message.contains("key6"), message)
+        Assertions.assertTrue(message.contains(PluginBundle.message("toolwindow.table.delete.orphans.more", 3)), message)
     }
 }

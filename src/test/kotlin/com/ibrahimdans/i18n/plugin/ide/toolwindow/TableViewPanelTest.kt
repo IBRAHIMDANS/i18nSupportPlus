@@ -444,26 +444,31 @@ class TableViewPanelTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `a search matching nothing names the query`() {
+    fun `a search matching nothing names the query, and the link empties the search field`() {
         stubTranslations()
         val panel = TableViewPanel(project)
         val table = loadedTable(panel)
+        // Stands for the tool window's search field, which owns the query.
+        panel.onClearSearch = { panel.applyFilter("") }
 
         panel.applyFilter("zzz")
 
         assertEquals(0, table.rowCount)
         assertTrue(emptyText(table) == PluginBundle.message("toolwindow.table.empty.query", "zzz"), emptyText(table))
-        // The query lives in the tool window's search field: clearing it here would leave the
-        // field showing a filter the table no longer applies.
-        assertFalse(offersClearLink(table), "the search alone is cleared from the search field")
+        assertTrue(offersClearLink(table), "a search alone can be cleared from the empty table")
+        panel.clearFilters()
+
+        assertEquals(2, table.rowCount)
     }
 
     @Test
-    fun `a search matching nothing in a namespace names both, and the link clears the namespace`() {
+    fun `a search matching nothing in a namespace names both, and the link clears both`() {
         stubNamespacedTranslations()
         val panel = TableViewPanel(project)
         val table = loadedTable(panel)
         val namespaceCombo = combos(panel)[0]
+        var searchCleared = false
+        panel.onClearSearch = { searchCleared = true; panel.applyFilter("") }
 
         namespaceCombo.selectedItem = NamespaceFilter.Named("auth")
         panel.applyFilter("Home")
@@ -478,7 +483,8 @@ class TableViewPanelTest : PlatformBaseTest() {
         panel.clearFilters()
 
         assertEquals(NamespaceFilter.All, namespaceCombo.selectedItem)
-        assertEquals(1, table.rowCount, "the search still applies once the namespace is cleared")
+        assertTrue(searchCleared, "the link empties the search field too")
+        assertEquals(2, table.rowCount)
     }
 
     @Test
@@ -500,9 +506,12 @@ class TableViewPanelTest : PlatformBaseTest() {
         assertTrue(emptyText(table) == expected, emptyText(table))
 
         assertTrue(offersClearLink(table), "a status filter can be cleared from the empty table")
+        var searchCleared = false
+        panel.onClearSearch = { searchCleared = true }
         panel.clearFilters()
 
         assertEquals(StatusFilter.ALL, statusCombo.selectedItem)
+        assertFalse(searchCleared, "no query, so the search field is left alone")
         assertEquals(2, table.rowCount)
     }
 }
