@@ -71,6 +71,30 @@ sealed interface NamespaceFilter {
 }
 
 /**
+ * What the status combo filters on: "what is left to translate" without a trip through the
+ * Stats tab's popup.
+ *
+ * Built like [NamespaceFilter]: the entry is the identity the filter compares, and [label] is
+ * read by the combo's renderer only — translating a label can never change what a filter keeps.
+ */
+enum class StatusFilter(private val labelKey: String) {
+    /** No filtering. */
+    ALL("toolwindow.table.status.all"),
+
+    /** Keys with no entry in at least one *shown* locale. */
+    MISSING("toolwindow.table.status.missing"),
+
+    /** Keys whose entry is blank in at least one *shown* locale. */
+    BLANK("toolwindow.table.status.blank"),
+
+    /** Keys the last scan found used nowhere; meaningless before a scan, see [TableViewModel.isStatusFilterAvailable]. */
+    ORPHAN("toolwindow.table.status.orphan");
+
+    /** The text shown in the combo. Never compared against anything. */
+    val label: String get() = PluginBundle.message(labelKey)
+}
+
+/**
  * What a locale cell says about its value.
  *
  * The distinction used to live only in the renderer, as two background tints: a reader who
@@ -162,6 +186,48 @@ class TableViewModel {
             is NamespaceFilter.Named -> rows.filter { it.key.startsWith("${filter.name}:") }
         }
 
+    /**
+     * Returns the rows [filter] selects, judging values in [shownLocales] only.
+     *
+     * A hidden locale does not hold a row back: hiding `de` is how a user says "not my concern
+     * right now", and *Missing* answering with rows whose every shown cell is filled would point
+     * at nothing visible. [StatusFilter.ORPHAN] keeps the rows the scan found unused — none
+     * before a scan, since "not scanned" is not "unused".
+     */
+    fun filterByStatus(filter: StatusFilter, rows: List<TranslationRow>, shownLocales: List<String>): List<TranslationRow> {
+        fun anyShown(status: ValueStatus) = { row: TranslationRow ->
+            shownLocales.any { valueStatus(row.values[it] ?: "") == status }
+        }
+        return when (filter) {
+            StatusFilter.ALL -> rows
+            StatusFilter.MISSING -> rows.filter(anyShown(ValueStatus.MISSING))
+            StatusFilter.BLANK -> rows.filter(anyShown(ValueStatus.BLANK))
+            StatusFilter.ORPHAN -> rows.filter { usageStatus(it.usageCount) == UsageStatus.ORPHAN }
+        }
+    }
+
+    /**
+     * Whether [filter] can be picked for [rows]. Only [StatusFilter.ORPHAN] can be refused:
+     * before any key was scanned it would show an empty table that reads as "nothing unused",
+     * which is exactly what nobody knows yet.
+     */
+    fun isStatusFilterAvailable(filter: StatusFilter, rows: List<TranslationRow>): Boolean =
+        filter != StatusFilter.ORPHAN || rows.any { usageStatus(it.usageCount) != UsageStatus.NOT_SCANNED }
+
+    /**
+     * The rows the table shows: [rows] narrowed by namespace, then by status over [shownLocales],
+     * then by the text [query]. One entry point, so the panel cannot apply the three in an order
+     * the tests never saw.
+     */
+    fun visibleRows(
+        rows: List<TranslationRow>,
+        query: String,
+        namespace: NamespaceFilter,
+        status: StatusFilter,
+        shownLocales: List<String>,
+    ): List<TranslationRow> =
+        filter(query, filterByStatus(status, filterByNamespace(namespace, rows), shownLocales))
+
     // ── Key shape ─────────────────────────────────────────────────────────────
 
     /** The namespace [key] carries, i.e. the part before its `:`, or null when it carries none. */
@@ -234,6 +300,20 @@ class TableViewModel {
         if (locale in hidden) return hidden - locale
         if (visibleLocales(locales, hidden).size <= 1) return hidden
         return hidden + locale
+    }
+
+    /**
+     * The part of the saved [hidden] set that applies to [locales], the locales loaded now.
+     *
+     * A locale absent from the project is dropped here, for this load only — the caller must not
+     * write the result back, or a locale missing for one reload would lose its hidden state for
+     * good. A saved set covering every loaded locale is ignored altogether: [toggleLocale] never
+     * lets the user build one, but locales can disappear from under a saved set, and a table
+     * left with no locale column would not say why.
+     */
+    fun hiddenAmong(locales: List<String>, hidden: Set<String>): Set<String> {
+        val applicable = hidden.filter { it in locales }.toSet()
+        return if (locales.isNotEmpty() && visibleLocales(locales, applicable).isEmpty()) emptySet() else applicable
     }
 
     /**
