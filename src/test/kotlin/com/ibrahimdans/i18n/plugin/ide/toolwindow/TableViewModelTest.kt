@@ -569,4 +569,69 @@ class TableViewModelTest {
 
         assertNull(viewModel.findSourceFor(project, "menu.home", "de"))
     }
+
+    // ── mergeUsages ───────────────────────────────────────────────────────────
+
+    @Test
+    fun `mergeUsages keeps the count already known for a key still present`() {
+        // A reload follows every translation file change, the table's own edits included:
+        // without the merge one corrected value threw away a whole project scan.
+        val fresh = listOf(TranslationRow("menu.home", mapOf("en" to "Home")))
+        val previous = listOf(TranslationRow("menu.home", mapOf("en" to "Home"), usageCount = 3))
+
+        assertEquals(3, viewModel.mergeUsages(fresh, previous).single().usageCount)
+    }
+
+    @Test
+    fun `mergeUsages keeps orphan and dynamic verdicts too`() {
+        val fresh = listOf(TranslationRow("a", emptyMap()), TranslationRow("b", emptyMap()))
+        val previous = listOf(
+            TranslationRow("a", emptyMap(), usageCount = 0),
+            TranslationRow("b", emptyMap(), usageCount = TableViewModel.DYNAMIC_USAGE),
+        )
+
+        assertEquals(listOf(0, TableViewModel.DYNAMIC_USAGE), viewModel.mergeUsages(fresh, previous).map { it.usageCount })
+    }
+
+    @Test
+    fun `mergeUsages leaves a new key not scanned`() {
+        val fresh = listOf(TranslationRow("menu.home", emptyMap()), TranslationRow("menu.new", emptyMap()))
+        val previous = listOf(TranslationRow("menu.home", emptyMap(), usageCount = 2))
+
+        val merged = viewModel.mergeUsages(fresh, previous)
+
+        assertEquals(listOf(2, -1), merged.map { it.usageCount })
+    }
+
+    @Test
+    fun `mergeUsages drops a deleted key`() {
+        val fresh = listOf(TranslationRow("menu.home", emptyMap()))
+        val previous = listOf(
+            TranslationRow("menu.home", emptyMap(), usageCount = 2),
+            TranslationRow("menu.gone", emptyMap(), usageCount = 0),
+        )
+
+        assertEquals(listOf("menu.home"), viewModel.mergeUsages(fresh, previous).map { it.key })
+    }
+
+    @Test
+    fun `mergeUsages keeps the count of a key whose value changed and takes the new value`() {
+        // The count comes from the source code, not from the value: editing a translation
+        // does not change how often the key is called.
+        val fresh = listOf(TranslationRow("menu.home", mapOf("en" to "Start")))
+        val previous = listOf(TranslationRow("menu.home", mapOf("en" to "Home"), usageCount = 4))
+
+        val merged = viewModel.mergeUsages(fresh, previous).single()
+
+        assertEquals(4, merged.usageCount)
+        assertEquals(mapOf("en" to "Start"), merged.values)
+    }
+
+    @Test
+    fun `mergeUsages keeps the order of the fresh rows`() {
+        val fresh = listOf(TranslationRow("b", emptyMap()), TranslationRow("a", emptyMap()))
+        val previous = listOf(TranslationRow("a", emptyMap(), usageCount = 1), TranslationRow("b", emptyMap(), usageCount = 2))
+
+        assertEquals(listOf("b" to 2, "a" to 1), viewModel.mergeUsages(fresh, previous).map { it.key to it.usageCount })
+    }
 }

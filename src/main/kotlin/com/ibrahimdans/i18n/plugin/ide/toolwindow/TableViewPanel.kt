@@ -226,7 +226,16 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     }
 
     /**
-     * Reloads translation data and rebuilds the table.
+     * Reloads translation data and rebuilds the table, keeping the usage counts already found
+     * for the keys that are still there (see [TableViewModel.mergeUsages]).
+     *
+     * This is what [TranslationChangeWatcher] runs after every translation file change, the
+     * table's own edits included, so dropping the counts here threw away the scan at the first
+     * corrected value. The toolbar Refresh button lands here too and keeps them as well, on
+     * purpose: it reloads the *translation files*, while a count reflects the *source code*,
+     * which only a scan reads. Starting the counts over is the Scan action's job — it recounts
+     * every key — so Refresh does not need a second meaning, and the watcher and the button
+     * cannot disagree about what the Usage column shows.
      */
     fun refresh() {
         ApplicationManager.getApplication().executeOnPooledThread {
@@ -234,10 +243,12 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             config = Settings.getInstance(project).config()
             val discovered = viewModel.getLocales(project, moduleConfig)
             locales = discovered
-            allRows = rows
             val namespaces = viewModel.namespaceFilters(rows)
 
             ApplicationManager.getApplication().invokeLater {
+                // Merged on the EDT, where the in-place edit and the scan also write allRows:
+                // reading it from the pooled thread could merge against a stale list.
+                allRows = viewModel.mergeUsages(rows, allRows)
                 // A locale that disappeared from the project must not stay hidden forever.
                 hiddenLocales = hiddenLocales.filter { it in discovered }.toSet()
                 updateNamespaceCombo(namespaces)
