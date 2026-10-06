@@ -19,6 +19,9 @@ import com.intellij.util.concurrency.AppExecutorUtil
 import org.jetbrains.concurrency.CancellablePromise
 import org.jetbrains.yaml.psi.YAMLKeyValue
 
+/** A key to delete, with the localization sources it was looked up in. */
+internal typealias KeySources = Pair<FullKey, List<LocalizationSource>>
+
 /**
  * Resolves and deletes a translation key from the matching localization sources.
  * Implements [CompositeKeyResolver] to reuse the existing key resolution logic.
@@ -39,35 +42,50 @@ internal class OrphanKeyDeleter(
      * on the EDT ("Slow operations are prohibited on EDT") — the context-menu action used to
      * run it there. The returned promise completes once the deletion and [onFinished] have run.
      */
-    fun delete(fullKey: FullKey, onFinished: () -> Unit = {}): CancellablePromise<List<LocalizationSource>> =
-        ReadAction.nonBlocking<List<LocalizationSource>> {
-            val sourceService = project.service<LocalizationSourceService>()
-            val namespaces = fullKey.allNamespaces()
-            sourceService.findSources(namespaces, project)
-                .ifEmpty { if (namespaces.isEmpty()) sourceService.findAllSources(project) else emptyList() }
-                .let { found -> scopeToModule(found) }
+    fun delete(fullKey: FullKey, onFinished: () -> Unit = {}): CancellablePromise<List<KeySources>> =
+        delete(listOf(fullKey), onFinished)
+
+    /**
+     * Deletes every key of [fullKeys] the same way, in a single command: one undo restores
+     * them all. The promise yields each key with the sources it was looked up in.
+     */
+    fun delete(fullKeys: List<FullKey>, onFinished: () -> Unit = {}): CancellablePromise<List<KeySources>> =
+        ReadAction.nonBlocking<List<KeySources>> {
+            fullKeys.map { fullKey -> fullKey to findSources(fullKey) }
         }
             .inSmartMode(project)
             .expireWith(project)
-            .finishOnUiThread(ModalityState.defaultModalityState()) { sources ->
-                if (sources.isNotEmpty()) deleteFromSources(fullKey, sources)
+            .finishOnUiThread(ModalityState.defaultModalityState()) { sourcesByKey ->
+                if (sourcesByKey.any { it.second.isNotEmpty() }) deleteFromSources(sourcesByKey)
                 onFinished()
             }
             .submit(AppExecutorUtil.getAppExecutorService())
 
-    private fun deleteFromSources(fullKey: FullKey, sources: List<LocalizationSource>) {
+    private fun findSources(fullKey: FullKey): List<LocalizationSource> {
+        val sourceService = project.service<LocalizationSourceService>()
+        val namespaces = fullKey.allNamespaces()
+        return sourceService.findSources(namespaces, project)
+            .ifEmpty { if (namespaces.isEmpty()) sourceService.findAllSources(project) else emptyList() }
+            .let { found -> scopeToModule(found) }
+    }
+
+    private fun deleteFromSources(sourcesByKey: List<KeySources>) {
         // Collect first, then delete — both in one WriteCommandAction: a single undo restores
-        // the key in every locale. Collecting inside it is what grants the PSI walk its read
+        // every key in every locale. Collecting inside it is what grants the PSI walk its read
         // access (the EDT no longer carries one) and keeps the lookup atomic with the deletion,
         // so a PSI change in between cannot make it delete the wrong property. The sources
-        // themselves come from the background lookup, hence the validity check before deleting.
+        // themselves come from the background lookup, hence the validity check before deleting
+        // (it also skips a key nested in another key deleted just before).
         // The deletion targets the whole property (not just its value, which used to leave a
         // dangling `"key":`) and removes the separating comma with it.
-        WriteCommandAction.runWriteCommandAction(project, PluginBundle.message("toolwindow.table.delete.command"), null, {
-            val properties = sources.mapNotNull { source ->
-                val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@mapNotNull null
-                if (ref.unresolved.isNotEmpty() || ref.element == null) return@mapNotNull null
-                PsiTreeUtil.getParentOfType(ref.element.value(), JsonProperty::class.java, YAMLKeyValue::class.java)
+        val command = if (sourcesByKey.size > 1) "toolwindow.table.delete.orphans.command" else "toolwindow.table.delete.command"
+        WriteCommandAction.runWriteCommandAction(project, PluginBundle.message(command), null, {
+            val properties = sourcesByKey.flatMap { (fullKey, sources) ->
+                sources.mapNotNull { source ->
+                    val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@mapNotNull null
+                    if (ref.unresolved.isNotEmpty() || ref.element == null) return@mapNotNull null
+                    PsiTreeUtil.getParentOfType(ref.element.value(), JsonProperty::class.java, YAMLKeyValue::class.java)
+                }
             }
             properties.forEach { if (it.isValid) deletePropertyAndSeparator(it) }
         })
@@ -78,5 +96,16 @@ internal class OrphanKeyDeleter(
         val root = moduleConfig?.rootDirectory?.trimEnd('/')
         if (root.isNullOrBlank()) return sources
         return sources.filter { it.displayPath.startsWith(root) }
+    }
+
+    companion object {
+        /**
+         * The keys the context menu deletes for a selection of rows, given as `key to usageCount`:
+         * the orphan ones only, so a selection spanning used or unscanned keys never deletes them.
+         */
+        fun orphanKeys(rows: List<Pair<String, Int>>, viewModel: TableViewModel = TableViewModel()): List<String> =
+            rows.filter { (_, usageCount) -> viewModel.usageStatus(usageCount) == UsageStatus.ORPHAN }
+                .map { it.first }
+                .distinct()
     }
 }

@@ -7,6 +7,9 @@ import com.intellij.json.psi.JsonFile
 import com.intellij.json.psi.JsonObject
 import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.command.undo.UndoManager
+import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiManager
 import com.intellij.testFramework.PlatformTestUtil
 import org.junit.jupiter.api.Assertions
@@ -39,6 +42,10 @@ class OrphanKeyDeleterTest : PlatformBaseTest() {
 
     private fun delete(key: String) {
         PlatformTestUtil.waitForPromise(OrphanKeyDeleter(project).delete(KeysSynchronizer().buildFullKey(key)))
+    }
+
+    private fun deleteAll(vararg keys: String) {
+        PlatformTestUtil.waitForPromise(OrphanKeyDeleter(project).delete(keys.map { KeysSynchronizer().buildFullKey(it) }))
     }
 
     /**
@@ -118,5 +125,44 @@ class OrphanKeyDeleterTest : PlatformBaseTest() {
         Assertions.assertNull(valueAt("locales/fr/common.json", "dead"))
         Assertions.assertEquals("yes", valueAt("locales/en/common.json", "alive"))
         Assertions.assertEquals("oui", valueAt("locales/fr/common.json", "alive"))
+    }
+
+    @Test
+    fun deletesSeveralKeysInOneCommand_oneUndoRestoresThemAll() {
+        addFileToProject("locales/en/common.json", """{"a":"1","b":"2","c":"3"}""")
+        myFixture.openFileInEditor(myFixture.findFileInTempDir("locales/en/common.json"))
+
+        deleteAll("common:a", "common:c")
+        Assertions.assertNull(valueAt("locales/en/common.json", "a"))
+        Assertions.assertNull(valueAt("locales/en/common.json", "c"))
+        Assertions.assertEquals("2", valueAt("locales/en/common.json", "b"))
+
+        val editor = FileEditorManagerEx.getInstanceEx(project).selectedEditor
+        Assertions.assertTrue(UndoManager.getInstance(project).isUndoAvailable(editor), "the deletion must be undoable")
+        UndoManager.getInstance(project).undo(editor)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+
+        Assertions.assertEquals("1", valueAt("locales/en/common.json", "a"), "one undo must restore every deleted key")
+        Assertions.assertEquals("3", valueAt("locales/en/common.json", "c"), "one undo must restore every deleted key")
+    }
+
+    @Test
+    fun deletesSeveralKeysAcrossNamespaces() {
+        addFileToProject("locales/en/common.json", """{"dead":"gone","alive":"yes"}""")
+        addFileToProject("locales/en/menu.json", """{"old":"x","home":"Home"}""")
+
+        deleteAll("common:dead", "menu:old")
+
+        Assertions.assertNull(valueAt("locales/en/common.json", "dead"))
+        Assertions.assertNull(valueAt("locales/en/menu.json", "old"))
+        Assertions.assertEquals("yes", valueAt("locales/en/common.json", "alive"))
+        Assertions.assertEquals("Home", valueAt("locales/en/menu.json", "home"))
+    }
+
+    @Test
+    fun orphanKeys_keepsOnlyTheUnusedRowsOfTheSelection() {
+        val selection = listOf("used" to 3, "dead" to 0, "unscanned" to -1, "gone" to 0, "dead" to 0)
+
+        Assertions.assertEquals(listOf("dead", "gone"), OrphanKeyDeleter.orphanKeys(selection))
     }
 }
