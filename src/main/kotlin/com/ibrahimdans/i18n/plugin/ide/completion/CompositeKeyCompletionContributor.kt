@@ -11,6 +11,7 @@ import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.tree.PluralGroup
+import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
@@ -125,8 +126,16 @@ abstract class CompositeKeyCompletionContributor(private val lang: Lang): Comple
     ): List<String> {
         val parent = resolveCompositeKeyProperty(compositeKey, localizationSource) ?: return emptyList()
         val names = parent.findChildren("").map { it.value().text.unQuote() }
-        if (inPreviewLocale) names.forEach { name ->
-            PluralGroup.displayableValue(parent.findChild(name))
+        if (!inPreviewLocale) return names
+        // One walk over the level where the format offers it: findChild per name rescans the
+        // children each time, which is quadratic on a flat file of a few thousand keys.
+        val nodeOf: (String) -> Tree<PsiElement>? = parent.entries()
+            // First occurrence wins on a duplicated key, as findChild would answer.
+            ?.let { entries -> buildMap { entries.forEach { (name, node) -> putIfAbsent(name, node) } } }
+            ?.let { it::get }
+            ?: parent::findChild
+        names.forEach { name ->
+            PluralGroup.displayableValue(nodeOf(name))
                 ?.value()?.text?.unQuote()
                 ?.let { values.putIfAbsent(name, it) }
         }
