@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
 import com.ibrahimdans.i18n.plugin.parser.RawKey
@@ -11,7 +12,9 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
-import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
@@ -21,6 +24,7 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.util.concurrency.AppExecutorUtil
 import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -51,10 +55,27 @@ class BatchExtractI18nAction : AnAction() {
         val candidates = collectCandidates(psiFile)
         if (candidates.isEmpty()) return
 
-        ApplicationManager.getApplication().invokeLater {
-            val dialog = BatchExtractDialog(project, candidates)
-            if (!dialog.showAndGet()) return@invokeLater
-            extract(project, editor, dialog.getSelectedCandidates())
+        // [ExistingKeyFinder] walks the file-type index, which the platform forbids on the EDT.
+        ReadAction.nonBlocking<List<Candidate>> { withExistingKeys(candidates, psiFile) }
+            .inSmartMode(project)
+            .expireWith(project)
+            .expireWhen { editor.isDisposed || !psiFile.isValid }
+            .finishOnUiThread(ModalityState.defaultModalityState()) { found ->
+                val dialog = BatchExtractDialog(project, found)
+                if (dialog.showAndGet()) extract(project, editor, dialog.getSelectedCandidates())
+            }
+            .submit(AppExecutorUtil.getAppExecutorService())
+    }
+
+    /**
+     * [candidates] with the keys already holding their text, the first one proposed instead of a
+     * key derived from the text. Looked up in a single pass; needs a read action, off the EDT.
+     */
+    internal fun withExistingKeys(candidates: List<Candidate>, caller: PsiElement): List<Candidate> {
+        val found = ExistingKeyFinder.findAll(candidates.map { it.originalText }, caller)
+        return candidates.map { candidate ->
+            val keys = found[candidate.originalText].orEmpty()
+            candidate.copy(existingKeys = keys, proposedKey = keys.firstOrNull() ?: candidate.proposedKey)
         }
     }
 
@@ -83,7 +104,12 @@ class BatchExtractI18nAction : AnAction() {
     }
 
     /**
-     * Creates a key for each of [selected] and replaces its literal once the key exists.
+     * Replaces each of [selected] with its key, creating only the keys that do not exist yet.
+     *
+     * - A key the candidate already holds ([Candidate.existingKeys]) is reused: the literal is
+     *   replaced and nothing is written to the translation files.
+     * - The literals sharing a key — the same text twice in a file gets the same proposed key —
+     *   create it once, with the first one's text, and are all replaced when it exists.
      *
      * Each replacement happens later, when its key creation completes, and every earlier one
      * shifts the text after it. The ranges are therefore tracked by [RangeMarker]s taken now,
@@ -95,25 +121,50 @@ class BatchExtractI18nAction : AnAction() {
         val config = Settings.getInstance(project).config()
         val parser = if (config.usesFlatKeys()) KeyParserBuilder.withoutTokenizer()
                      else KeyParserBuilder.withSeparators(config.nsSeparator, config.keySeparator)
-        for ((candidate, keyStr) in selected) {
+        val replacements = selected.map { (candidate, key) ->
             val extractor = extractors.first { it.canExtract(candidate.literal) }
+            Replacement(candidate, key, extractor, editor.document.createRangeMarker(extractor.textRange(candidate.literal)))
+        }
+        val (reused, created) = replacements.partition { it.key in it.candidate.existingKeys }
+
+        if (reused.isNotEmpty()) {
+            WriteCommandAction.runWriteCommandAction(project, PluginBundle.message("action.batch.extract.title"), null, {
+                reused.forEach { it.apply(editor, it.key) }
+            })
+        }
+        for ((key, group) in created.groupBy { it.key }) {
             val fullKey = parser.build().parse(
-                RawKey(listOf(KeyElement.literal(keyStr))),
+                RawKey(listOf(KeyElement.literal(key))),
                 emptyNamespace = config.usesFlatKeys(),
                 firstComponentNamespace = config.firstComponentNs
-            ) ?: continue
-
-            val template = extractor.template(candidate.literal)
-            val marker = editor.document.createRangeMarker(extractor.textRange(candidate.literal))
-            keyCreator.createKey(project, fullKey, candidate.originalText, editor) {
-                if (marker.isValid) {
-                    editor.document.replaceString(marker.startOffset, marker.endOffset, template("'${fullKey.source}'"))
-                    extractor.postProcess(editor, marker.startOffset)
-                }
-                marker.dispose()
+            )
+            if (fullKey == null) {
+                group.forEach { it.marker.dispose() }
+                continue
+            }
+            keyCreator.createKey(project, fullKey, group.first().candidate.originalText, editor) {
+                group.forEach { it.apply(editor, fullKey.source) }
             }
         }
         editor.caretModel.primaryCaret.removeSelection()
+    }
+
+    /** A literal to replace by [key], at [marker], through its [extractor]'s template. */
+    private class Replacement(
+        val candidate: Candidate,
+        val key: String,
+        val extractor: TranslationExtractor,
+        val marker: RangeMarker
+    ) {
+        private val template = extractor.template(candidate.literal)
+
+        fun apply(editor: Editor, source: String) {
+            if (marker.isValid) {
+                editor.document.replaceString(marker.startOffset, marker.endOffset, template("'$source'"))
+                extractor.postProcess(editor, marker.startOffset)
+            }
+            marker.dispose()
+        }
     }
 
     private fun toProposedKey(text: String): String =
@@ -126,7 +177,9 @@ class BatchExtractI18nAction : AnAction() {
 internal data class Candidate(
     val literal: PsiElement,
     val originalText: String,
-    val proposedKey: String
+    val proposedKey: String,
+    /** The keys already holding [originalText] in the reference locale; none when not looked up. */
+    val existingKeys: List<String> = emptyList()
 )
 
 private class BatchExtractDialog(
@@ -161,6 +214,10 @@ private class BatchExtractDialog(
             gc.gridx = 2
             gc.weightx = 0.7
             content.add(row.keyField, gc)
+
+            gc.gridx = 3
+            gc.weightx = 0.0
+            content.add(row.existingLabel, gc)
         }
 
         val scroll = JBScrollPane(content)
@@ -176,5 +233,13 @@ private class BatchExtractDialog(
     private inner class Row(val candidate: Candidate) {
         val checkBox = JBCheckBox("", true)
         val keyField = JTextField(candidate.proposedKey, 30)
+
+        /** Says the proposed key exists, and which others hold the same text. */
+        val existingLabel = JLabel(
+            if (candidate.existingKeys.isEmpty()) ""
+            else PluginBundle.message("action.batch.extract.existing")
+        ).apply {
+            if (candidate.existingKeys.size > 1) toolTipText = candidate.existingKeys.joinToString("<br>", "<html>", "</html>")
+        }
     }
 }
