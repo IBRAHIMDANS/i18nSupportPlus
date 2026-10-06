@@ -410,13 +410,18 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     private fun showContextMenu(e: MouseEvent) {
         val row = table.rowAtPoint(e.point)
         if (row < 0) return
-        table.setRowSelectionInterval(row, row)
-        val column = table.columnAtPoint(e.point)
-        if (column >= 0) table.setColumnSelectionInterval(column, column)
+        // A right-click inside the selection keeps it, so that several rows can be deleted at once.
+        if (!table.isRowSelected(row)) {
+            table.setRowSelectionInterval(row, row)
+            val column = table.columnAtPoint(e.point)
+            if (column >= 0) table.setColumnSelectionInterval(column, column)
+        }
 
-        val key = table.getValueAt(row, keyColumn) as? String ?: return
-        val usageCount = table.getValueAt(row, leadingColumns + shownLocales.size) as? Int ?: -1
-        val isOrphan = viewModel.usageStatus(usageCount) == UsageStatus.ORPHAN
+        val selected = table.selectedRows.toList().mapNotNull { selectedRow ->
+            val key = table.getValueAt(selectedRow, keyColumn) as? String ?: return@mapNotNull null
+            key to (table.getValueAt(selectedRow, leadingColumns + shownLocales.size) as? Int ?: -1)
+        }
+        val orphanKeys = OrphanKeyDeleter.orphanKeys(selected, viewModel)
 
         val menu = JPopupMenu()
         menu.add(JMenuItem(PluginBundle.message("toolwindow.table.edit.key")).apply {
@@ -426,12 +431,18 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             addActionListener { openSelectedRowFile() }
         })
         menu.addSeparator()
-        menu.add(JMenuItem(PluginBundle.message("toolwindow.table.delete.orphan")).apply {
+        // Non-orphan rows of the selection are left out, and the label counts only what is deleted.
+        val deleteLabel = if (orphanKeys.size > 1) {
+            PluginBundle.message("toolwindow.table.delete.orphans", orphanKeys.size)
+        } else {
+            PluginBundle.message("toolwindow.table.delete.orphan")
+        }
+        menu.add(JMenuItem(deleteLabel).apply {
             // Shown even when it does not apply, disabled: hiding it made the entry
             // impossible to discover from a row that had never been scanned.
-            isEnabled = isOrphan
-            if (!isOrphan) toolTipText = PluginBundle.message("toolwindow.table.no.action")
-            addActionListener { deleteOrphanKey(key) }
+            isEnabled = orphanKeys.isNotEmpty()
+            if (orphanKeys.isEmpty()) toolTipText = PluginBundle.message("toolwindow.table.no.action")
+            addActionListener { deleteOrphanKeys(orphanKeys) }
         })
         menu.show(e.component, e.x, e.y)
     }
@@ -495,16 +506,16 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     // ── Delete orphan key ─────────────────────────────────────────────────────
 
     /**
-     * Deletes a key from all matching localization sources using CompositeKeyResolver,
-     * then refreshes the table once the deletion has run.
+     * Deletes the keys from all matching localization sources using CompositeKeyResolver,
+     * in one undoable command, then refreshes the table once the deletion has run.
      */
-    private fun deleteOrphanKey(keyString: String) {
-        val fullKey = buildFullKey(keyString)
+    private fun deleteOrphanKeys(keyStrings: List<String>) {
+        val fullKeys = keyStrings.map(::buildFullKey)
         // Scoped to this panel's module: without it the key is also deleted from
         // another module's file sharing the same namespace.
         // The deletion completes asynchronously (the source lookup runs off the EDT):
         // refreshing right after the call would reload the rows before the key is gone.
-        OrphanKeyDeleter(project, moduleConfig).delete(fullKey, onFinished = ::refresh)
+        OrphanKeyDeleter(project, moduleConfig).delete(fullKeys, onFinished = ::refresh)
     }
 
     /**
