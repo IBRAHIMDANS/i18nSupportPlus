@@ -1,6 +1,5 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
-import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.extensions.technology.i18next.I18nextTypesGenerator
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileKeys
 import com.ibrahimdans.i18n.plugin.ide.settings.FrameworkDetector
@@ -8,7 +7,6 @@ import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
-import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
@@ -20,7 +18,6 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.openapi.components.service
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
@@ -30,7 +27,6 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VfsUtilCore
-import com.intellij.psi.PsiFile
 import com.intellij.psi.search.FilenameIndex
 import com.intellij.psi.search.GlobalSearchScope
 
@@ -170,12 +166,12 @@ class GenerateI18nTypesAction : AnAction() {
         private fun declarationOf(project: Project, target: Target): String {
             val config = Settings.getInstance(project).config()
             val defaultNamespace = config.defaultNamespaces().first()
-            val sources = sourcesOf(project, target.module).filter { it.hasRecognizedLocale() }
+            val sources = ModuleSources.sourcesOf(project, target.module).filter { it.hasRecognizedLocale() }
             val wanted = target.module?.referenceLocale?.takeIf { it.isNotBlank() } ?: DEFAULT_REFERENCE_LOCALE
             val locale = LocaleMatching.pick(wanted, sources.map { it.localeLabel() }.distinct())
             val namespaces = sortedMapOf<String, MutableList<List<String>>>()
             sources.filter { it.localeLabel() == locale }.forEach { source ->
-                val file = readableFile(source) ?: return@forEach
+                val file = ModuleSources.readableFile(source) ?: return@forEach
                 val namespace = TranslationDataLoader.extractNamespace(source, defaultNamespace)
                 namespaces.getOrPut(namespace) { mutableListOf() } += TranslationFileKeys.translationLeaves(file).keys
             }
@@ -195,27 +191,6 @@ class GenerateI18nTypesAction : AnAction() {
                 .filter { I18nextTypesGenerator.declaresCustomTypes(VfsUtilCore.loadText(it)) }
                 .map { it.path }
                 .sorted()
-        }
-
-        /**
-         * [module]'s sources, or every source of the project without a module — or when the
-         * module's translations all live outside its root (a shared package), as key resolution does.
-         */
-        private fun sourcesOf(project: Project, module: ModuleConfig?): List<LocalizationSource> {
-            val all = project.service<LocalizationSourceService>().findAllSources(project)
-            if (module == null) return all
-            val basePath = project.basePath ?: ""
-            val scoped = all.filter { source ->
-                val file = (source.tree?.value() ?: source.host)?.containingFile?.virtualFile ?: return@filter false
-                ModuleSources.contains(module, ModuleSources.FilePath.of(file, basePath))
-            }
-            return scoped.ifEmpty { all }
-        }
-
-        /** The JSON or YAML file behind [source]; other formats are not read by [TranslationFileKeys]. */
-        private fun readableFile(source: LocalizationSource): PsiFile? {
-            val file = source.tree?.value()?.containingFile ?: return null
-            return file.takeIf { it.language.isKindOf("JSON") || it.language.id == "yaml" }
         }
     }
 }

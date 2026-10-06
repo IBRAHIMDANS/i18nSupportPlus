@@ -96,4 +96,51 @@ class ModuleSourcesTest : PlatformBaseTest() {
         myFixture.configureFromExistingVirtualFile(myFixture.addFileToProject("apps/web/src/Page.js", "t('common:title')").virtualFile)
         assertFalse(myFixture.doHighlighting().mapNotNull { it.description }.contains(unresolved), "web defines common:title")
     }
+
+    /** The project-relative tail of each source's file, the part the fixture's temp root does not vary. */
+    private fun pathsOf(module: ModuleConfig?, config: Config): List<String> {
+        var paths = emptyList<String>()
+        myFixture.runWithConfig(config) {
+            read {
+                paths = ModuleSources.sourcesOf(project, module)
+                    .mapNotNull { (it.tree?.value() ?: it.host)?.containingFile?.virtualFile?.path }
+                    .map { it.substringAfter("/apps/", "?") }
+                    .sorted()
+            }
+        }
+        return paths
+    }
+
+    @Test
+    fun sourcesOfAModuleAreTheOnesUnderItsRoot() {
+        addFileToProject("apps/web/locales/en/common.json", """{"a": "A"}""")
+        addFileToProject("apps/admin/locales/en/common.json", """{"b": "B"}""")
+        val web = ModuleConfig(name = "web", rootDirectory = "apps/web")
+        val config = Config(modules = listOf(web, ModuleConfig(name = "admin", rootDirectory = "apps/admin")))
+
+        assertEquals(listOf("web/locales/en/common.json"), pathsOf(web, config))
+        assertEquals(
+            listOf("admin/locales/en/common.json", "web/locales/en/common.json"),
+            pathsOf(null, config),
+            "without a module, every source of the project"
+        )
+    }
+
+    @Test
+    fun aModuleWithNoSourceUnderItsRootKeepsTheProjectWideList() {
+        addFileToProject("apps/shared/locales/en/common.json", """{"a": "A"}""")
+        val web = ModuleConfig(name = "web", rootDirectory = "apps/web")
+
+        assertEquals(listOf("shared/locales/en/common.json"), pathsOf(web, Config(modules = listOf(web))))
+    }
+
+    @Test
+    fun readableFileIsTheJsonBehindASource() {
+        addFileToProject("apps/web/locales/en/common.json", """{"a": "A"}""")
+        var names = emptyList<String?>()
+        myFixture.runWithConfig(Config()) {
+            read { names = ModuleSources.sourcesOf(project, null).map { ModuleSources.readableFile(it)?.name } }
+        }
+        assertEquals(listOf("common.json"), names)
+    }
 }

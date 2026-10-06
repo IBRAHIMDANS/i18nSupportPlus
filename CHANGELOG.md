@@ -22,6 +22,7 @@
 
 ### Refactoring
 
+- [Internal] Read a module's translation sources and the JSON or YAML file behind each through `ModuleSources.sourcesOf` / `readableFile`, shared by the extraction's key reuse and *Generate i18next Types*, which carried a copy of both — no behaviour change
 - [Internal] Move `displayValue`, the one-line form of a translation value, from the Table View's renderers to `utils`. The completion and Search Everywhere had to import it from the tool window package to show values the same way — no behaviour change
 - [Internal] Locate a key in its translation file through a single `TableViewModel.locate`, shared by *Open translation file* (F4) in the Table View and by the *Translations* tab of Search Everywhere, which carried its own copy of the walk — no behaviour change
 - [Table View] Split `TableViewPanel`, the largest file of the plugin (725 lines), into what it carried side by side: `OrphanKeyDeleter` and the two cell renderers move to files of their own, and the table header and row cells are composed by `TableViewModel`, where they are unit-tested. The panel keeps the Swing wiring and the row actions (469 lines) — no behaviour change
