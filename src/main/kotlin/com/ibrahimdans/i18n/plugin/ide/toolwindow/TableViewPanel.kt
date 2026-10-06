@@ -7,7 +7,6 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
-import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
@@ -18,7 +17,6 @@ import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.psi.PsiElement
 import com.intellij.ui.table.JBTable
 import java.awt.BorderLayout
 import java.awt.Component
@@ -393,7 +391,9 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         val locale = localeAt(table.selectedColumn) ?: shownLocales.firstOrNull() ?: return
 
         ApplicationManager.getApplication().executeOnPooledThread {
-            val target = ReadAction.compute<Pair<VirtualFile, Int>?, RuntimeException> { locate(key, locale) }
+            val target = ReadAction.compute<Pair<VirtualFile, Int>?, RuntimeException> {
+                viewModel.locate(project, key, locale, moduleConfig)
+            }
                 ?: return@executeOnPooledThread
             ApplicationManager.getApplication().invokeLater {
                 OpenFileDescriptor(project, target.first, target.second).navigate(true)
@@ -401,22 +401,6 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         }
     }
 
-    /**
-     * The file and offset where [key] is declared for [locale]. Falls back to the deepest
-     * segment that does resolve — a key present in one locale and not in another still opens
-     * the right file, at its nearest parent, rather than nothing at all.
-     * Must be called inside a read action.
-     */
-    private fun locate(key: String, locale: String): Pair<VirtualFile, Int>? {
-        val source = viewModel.findSourceFor(project, key, locale, moduleConfig) ?: return null
-        var node: Tree<PsiElement> = source.tree ?: return null
-        for (segment in viewModel.keySegments(key, Settings.getInstance(project).config())) {
-            node = node.findChild(segment) ?: break
-        }
-        val psi = node.value()
-        val file = psi.containingFile?.virtualFile ?: return null
-        return file to psi.textOffset
-    }
 
     /** The locale [column] displays, or null when it is a leading or the usage column. */
     private fun localeAt(column: Int): String? = shownLocales.getOrNull(column - leadingColumns)

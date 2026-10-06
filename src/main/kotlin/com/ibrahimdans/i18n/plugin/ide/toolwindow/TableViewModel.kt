@@ -11,8 +11,10 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.tree.Separators
+import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.UsageSearchContext
@@ -417,6 +419,31 @@ class TableViewModel {
                 TranslationDataLoader.extractLocale(source) == locale &&
                     (namespace == null || TranslationDataLoader.extractNamespace(source) == namespace)
             }
+    }
+
+    /**
+     * The file and offset where [key] is declared for [locale]. Falls back to the deepest
+     * segment that does resolve — a key present in one locale and not in another still opens
+     * the right file, at its nearest parent, rather than nothing at all.
+     *
+     * Shared by *Open translation file* (F4) in the table and by the Translations tab of Search
+     * Everywhere: both open the very file their row or hit was read from, hence [moduleConfig].
+     * Must be called inside a read action.
+     */
+    internal fun locate(
+        project: Project,
+        key: String,
+        locale: String,
+        moduleConfig: ModuleConfig? = null,
+    ): Pair<VirtualFile, Int>? {
+        val source = findSourceFor(project, key, locale, moduleConfig) ?: return null
+        var node: Tree<PsiElement> = source.tree ?: return null
+        for (segment in keySegments(key, Settings.getInstance(project).config())) {
+            node = node.findChild(segment) ?: break
+        }
+        val psi = node.value()
+        val file = psi.containingFile?.virtualFile ?: return null
+        return file to psi.textOffset
     }
 
     /**
