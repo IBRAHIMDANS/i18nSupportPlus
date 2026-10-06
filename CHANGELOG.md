@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+- [Table View] Keep the **Usage** counts when the table reloads. Every change to a translation file reloads the table — the table's own in-place edits included — and the reloaded rows started back at *not scanned*, so the first corrected value threw away a scan that is expensive on a large project. A key still present keeps its count, even when its value changed (the count depends on the source code, not on the value); a new key stays *not scanned*. The toolbar *Refresh* keeps the counts too: it reloads the translation files, and recounting is the *Scan* action's job
+
 ### Refactoring
 
 - [Table View] Split `TableViewPanel`, the largest file of the plugin (725 lines), into what it carried side by side: `OrphanKeyDeleter` and the two cell renderers move to files of their own, and the table header and row cells are composed by `TableViewModel`, where they are unit-tested. The panel keeps the Swing wiring and the row actions (469 lines) — no behaviour change
