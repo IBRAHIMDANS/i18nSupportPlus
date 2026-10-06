@@ -55,6 +55,23 @@ internal class ToolWindowViewState(private val properties: PropertiesComponent) 
         properties.setList(key(HIDDEN_LOCALES, module), locales.sorted().ifEmpty { null })
     }
 
+    /**
+     * Carries [from]'s saved tab and hidden locales over to [to], the same module under a new
+     * name: the scope is keyed by the name, so a rename would otherwise lose them and leave the
+     * old entries behind in the workspace file.
+     *
+     * Nothing is done when both resolve to the same scope, nor when [to]'s scope already holds
+     * something — that state belongs to another module, which a move must not overwrite.
+     */
+    fun moveModuleState(from: ModuleConfig, to: ModuleConfig) {
+        if (key(TAB, from) == key(TAB, to)) return
+        if (properties.isValueSet(key(TAB, to)) || properties.getList(key(HIDDEN_LOCALES, to)) != null) return
+        properties.getValue(key(TAB, from))?.let { properties.setValue(key(TAB, to), it) }
+        properties.unsetValue(key(TAB, from))
+        properties.getList(key(HIDDEN_LOCALES, from))?.let { properties.setList(key(HIDDEN_LOCALES, to), it) }
+        properties.setList(key(HIDDEN_LOCALES, from), null)
+    }
+
     companion object {
 
         private const val PREFIX = "com.ibrahimdans.i18n.toolWindow"
@@ -63,6 +80,22 @@ internal class ToolWindowViewState(private val properties: PropertiesComponent) 
         private val DEFAULT_TAB = ToolWindowTab.TREE
 
         fun getInstance(project: Project) = ToolWindowViewState(PropertiesComponent.getInstance(project))
+
+        /**
+         * The modules of [before] that [after] holds under another scope, paired with their new
+         * version.
+         *
+         * The modules editor replaces a module at its index, appends a new one and shifts the
+         * others when one is removed; it keeps no identity across a rename. A module is taken
+         * for the same one when it sits at the same index and kept its name or its root
+         * directory — a rename keeps the root, a new root keeps the name. A removal shifts a
+         * different module to that index, which differs in both and is left alone.
+         */
+        fun renamedModules(before: List<ModuleConfig>, after: List<ModuleConfig>): List<Pair<ModuleConfig, ModuleConfig>> =
+            before.zip(after).filter { (old, new) ->
+                (old.name == new.name || old.rootDirectory == new.rootDirectory) &&
+                    key(TAB, old) != key(TAB, new)
+            }
 
         /**
          * A module is identified by its name, as in the selector; an unnamed one by its root, so

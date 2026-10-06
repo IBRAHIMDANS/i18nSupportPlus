@@ -181,4 +181,75 @@ class ToolWindowViewStateTest : PlatformBaseTest() {
         assertEquals(ToolWindowTab.STATS.ordinal, built.tabs!!.selectedIndex)
         assertEquals(ToolWindowTab.STATS, state.activeTab(null))
     }
+
+    // -----------------------------------------------------------------------
+    // Module rename
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun `a renamed module keeps its tab and hidden locales`() {
+        val before = ModuleConfig(name = "rename-before", rootDirectory = "apps/web")
+        val after = before.copy(name = "rename-after")
+        state.setActiveTab(before, ToolWindowTab.TABLE)
+        state.setHiddenLocales(before, setOf("de", "ja"))
+
+        state.moveModuleState(before, after)
+
+        assertEquals(ToolWindowTab.TABLE, state.activeTab(after))
+        assertEquals(setOf("de", "ja"), state.hiddenLocales(after))
+        assertEquals(ToolWindowTab.TREE, state.activeTab(before), "The old entry is removed")
+        assertTrue(state.hiddenLocales(before).isEmpty(), "The old entry is removed")
+        state.moveModuleState(after, before)
+    }
+
+    @Test
+    fun `an unnamed module that gets a name keeps its state`() {
+        val unnamed = ModuleConfig(rootDirectory = "rename-unnamed-root")
+        val named = unnamed.copy(name = "rename-now-named")
+        state.setHiddenLocales(unnamed, setOf("fr"))
+
+        state.moveModuleState(unnamed, named)
+
+        assertEquals(setOf("fr"), state.hiddenLocales(named))
+        assertTrue(state.hiddenLocales(unnamed).isEmpty())
+        state.setHiddenLocales(named, emptySet())
+    }
+
+    @Test
+    fun `a move never overwrites another module's state`() {
+        val moved = ModuleConfig(name = "rename-moved")
+        val taken = ModuleConfig(name = "rename-taken")
+        state.setHiddenLocales(moved, setOf("de"))
+        state.setHiddenLocales(taken, setOf("es"))
+
+        state.moveModuleState(moved, taken)
+
+        assertEquals(setOf("es"), state.hiddenLocales(taken))
+        assertEquals(setOf("de"), state.hiddenLocales(moved), "Left where it was rather than lost")
+        state.setHiddenLocales(moved, emptySet())
+        state.setHiddenLocales(taken, emptySet())
+    }
+
+    @Test
+    fun `a rename is told apart from a removal that shifts the list`() {
+        val web = ModuleConfig(name = "web", rootDirectory = "apps/web")
+        val api = ModuleConfig(name = "api", rootDirectory = "apps/api")
+        val docs = ModuleConfig(name = "docs", rootDirectory = "apps/docs")
+
+        assertEquals(
+            listOf(web to web.copy(name = "frontend")),
+            ToolWindowViewState.renamedModules(listOf(web, api), listOf(web.copy(name = "frontend"), api))
+        )
+        val unnamed = ModuleConfig(rootDirectory = "apps/admin")
+        assertEquals(
+            listOf(unnamed to unnamed.copy(name = "admin")),
+            ToolWindowViewState.renamedModules(listOf(unnamed), listOf(unnamed.copy(name = "admin")))
+        )
+        // `web` removed: `api` and `docs` shift up, a new module is appended. Nothing is renamed.
+        assertTrue(
+            ToolWindowViewState.renamedModules(listOf(web, api, docs), listOf(api, docs, ModuleConfig(name = "new"))).isEmpty()
+        )
+        // Unchanged modules, or a change that keeps the scope, move nothing.
+        assertTrue(ToolWindowViewState.renamedModules(listOf(web), listOf(web.copy(preset = "vue-i18n"))).isEmpty())
+    }
 }
