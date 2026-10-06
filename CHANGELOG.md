@@ -4,6 +4,7 @@
 
 ### Features
 
+- [Search] **Find a key from its text in Search Everywhere.** A *Translations* tab in Shift Shift searches the values and the keys of every locale, case-insensitively, and lists `value — namespace:key (locale)`, the texts seen on screen first. Picking a result opens the translation file at the key, as F4 does in the table. Opened from a file of a configured module, it searches that module's translations. "Where does this *Welcome back* come from?" used to mean a trip through the tool window or a *Find in Files* over `locales/`
 - [Inspections] **Flag a key missing from a locale, in the editor.** A new *Translation key missing from a locale* inspection (`I18nMissingKey`, on by default) reports, in `fr/common.json`, every key of `en/common.json` it lacks — the reference locale of the module, `en` otherwise — on the closest parent object that does exist. Only the Stats tab showed it before. The reference file itself is never reported, another namespace is never compared against, and plural forms are compared as a group as *Sync Keys* does (`ja` holding `item_other` alone is complete). The *Add missing key* quick fix writes the key with an **empty** value through the same path as *Sync Keys*, so a copied English sentence never passes for a translation and *Empty translation value* keeps pointing at it. JSON and YAML
 ### Bug Fixes
 

@@ -213,6 +213,8 @@
         <postStartupActivity implementation="com.ibrahimdans.i18n.plugin.ide.whatsnew.WhatsNewStartupActivity"/>
         <toolWindow id="I18n" anchor="bottom" icon="AllIcons.Nodes.ResourceBundle"
                     factoryClass="com.ibrahimdans.i18n.plugin.ide.toolwindow.I18nToolWindowFactory"/>
+        <searchEverywhereContributor
+                implementation="com.ibrahimdans.i18n.plugin.ide.search.TranslationSearchEverywhereContributor$Factory"/>
         <renameHandler implementation="com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler"/>
         <statusBarWidgetFactory id="com.ibrahimdans.i18n.previewLocale"
                                 implementation="com.ibrahimdans.i18n.plugin.ide.preview.PreviewLocaleWidgetFactory"
