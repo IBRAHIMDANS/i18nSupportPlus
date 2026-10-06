@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.inspections
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.inspection.IcuFormatInspection
+import com.ibrahimdans.i18n.plugin.ide.inspection.MissingTranslationKeyInspection
 import com.ibrahimdans.i18n.plugin.ide.inspection.PlaceholderConsistencyInspection
 import com.intellij.lang.annotation.HighlightSeverity
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -14,7 +15,11 @@ import org.junit.jupiter.api.Test
 class InspectionScopeTest : PlatformBaseTest() {
 
     private fun warningsIn(path: String, content: String): List<String> {
-        myFixture.enableInspections(IcuFormatInspection::class.java, PlaceholderConsistencyInspection::class.java)
+        myFixture.enableInspections(
+            IcuFormatInspection::class.java,
+            PlaceholderConsistencyInspection::class.java,
+            MissingTranslationKeyInspection::class.java
+        )
         val file = myFixture.addFileToProject(path, content)
         myFixture.configureFromExistingVirtualFile(file.virtualFile)
         // JSON's own highlighting reports property keys as infos; only warnings are ours.
@@ -48,5 +53,18 @@ class InspectionScopeTest : PlatformBaseTest() {
         myFixture.addFileToProject("locales/en/common.json", """{"hello": "Hello {name}, you have {count} messages"}""")
         val warnings = warningsIn("locales/fr/common.json", """{"hello": "Bonjour {name}"}""")
         assertTrue(warnings.any { it.contains("{count}") }, "$warnings")
+    }
+
+    /**
+     * `locales/fr/common.json` is checked for keys against `locales/en/common.json` only: a key of
+     * another namespace (`en/auth.json`) is not missing from `common`.
+     */
+    @Test
+    fun missingKeysAreComparedAcrossTheLocaleDirectoryLayout() {
+        myFixture.addFileToProject("locales/en/common.json", """{"hello": "Hello", "bye": "Bye"}""")
+        myFixture.addFileToProject("locales/en/auth.json", """{"login": "Log in"}""")
+        val warnings = warningsIn("locales/fr/common.json", """{"hello": "Bonjour"}""")
+        assertTrue(warnings.any { it.contains("'bye'") }, "$warnings")
+        assertTrue(warnings.none { it.contains("'login'") }, "$warnings")
     }
 }

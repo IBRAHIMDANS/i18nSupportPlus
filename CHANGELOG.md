@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Features
+
+- [Inspections] **Flag a key missing from a locale, in the editor.** A new *Translation key missing from a locale* inspection (`I18nMissingKey`, on by default) reports, in `fr/common.json`, every key of `en/common.json` it lacks — the reference locale of the module, `en` otherwise — on the closest parent object that does exist. Only the Stats tab showed it before. The reference file itself is never reported, another namespace is never compared against, and plural forms are compared as a group as *Sync Keys* does (`ja` holding `item_other` alone is complete). The *Add missing key* quick fix writes the key with an **empty** value through the same path as *Sync Keys*, so a copied English sentence never passes for a translation and *Empty translation value* keeps pointing at it. JSON and YAML
 ### Bug Fixes
 
 - [Table View] Keep the **Usage** counts when the table reloads. Every change to a translation file reloads the table — the table's own in-place edits included — and the reloaded rows started back at *not scanned*, so the first corrected value threw away a scan that is expensive on a large project. A key still present keeps its count, even when its value changed (the count depends on the source code, not on the value); a new key stays *not scanned*. The toolbar *Refresh* keeps the counts too: it reloads the translation files, and recounting is the *Scan* action's job
