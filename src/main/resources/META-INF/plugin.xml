@@ -167,6 +167,7 @@
     </extensionPoints>
     <extensions defaultExtensionNs="com.intellij">
         <errorHandler implementation="com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter"/>
+        <codeInsight.daemonBoundCodeVisionProvider implementation="com.ibrahimdans.i18n.plugin.ide.codevision.TranslationUsagesCodeVisionProvider"/>
         <notificationGroup id="i18n Support Plus" displayType="STICKY_BALLOON"/>
         <!-- One annotator for every JS dialect: annotators are inherited, so JSX, TypeScript and TSX
              get it through JavaScript. The JSX one is used because its language is a superset of
