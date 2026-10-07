@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.extensions.lang.js.HardcodedJsxTextInspection
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
@@ -22,6 +23,9 @@ import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.xml.XmlAttributeValue
+import com.intellij.psi.xml.XmlTag
+import com.intellij.psi.xml.XmlText
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.concurrency.AppExecutorUtil
@@ -80,21 +84,34 @@ class BatchExtractI18nAction : AnAction() {
     }
 
     /**
-     * Every string literal of [psiFile] an extractor accepts and has not extracted yet.
+     * Every string literal of [psiFile] an extractor accepts and has not extracted yet, and every
+     * JSX text *Hardcoded text in JSX* reports — `<p>Save</p>`, `title="Home"` — in file order.
      *
      * The candidate is the literal's string *token*, not the [JSLiteralExpression] around it:
      * that is the element extractors are written for — `JsTranslationExtractor.canExtract` only
      * accepts `JS:STRING_LITERAL`, and its `textRange` is the token's parent. Handing them the
      * expression made the action find nothing in a JS or TS file, and would have replaced the
      * whole enclosing statement had it found something.
+     *
+     * A JSX text is taken by the inspection's rules ([HardcodedJsxTextInspection.hardcodedText]):
+     * once per tag, with its variables (`Hello {name}` becomes `Hello {{name}}`), visible attributes
+     * only. A tag's text used to come up through the tag itself — a JSX tag is a literal expression
+     * — without those rules (`<code>`, `<Trans>`, punctuation alone) and without its attributes.
      */
     internal fun collectCandidates(psiFile: PsiFile): List<Candidate> {
         val extractors = Extensions.LANG.extensionList.map { it.translationExtractor() }
-        return PsiTreeUtil.findChildrenOfType(psiFile, JSLiteralExpression::class.java)
+        val literals = PsiTreeUtil.findChildrenOfType(psiFile, JSLiteralExpression::class.java)
+            // A JSX tag is a literal expression too: taken through its `<`, its text skipped the
+            // inspection's rules. JSX comes from the inspection below instead.
+            .filterNot { it is XmlTag }
             .mapNotNull { it.firstChild }
             .filter { literal ->
                 extractors.any { it.canExtract(literal) && !it.isExtracted(literal) }
             }
+        val jsxTexts = PsiTreeUtil.collectElements(psiFile) { it is XmlText || it is XmlAttributeValue }
+            .mapNotNull { HardcodedJsxTextInspection.hardcodedText(it)?.leaf }
+        return (literals + jsxTexts)
+            .sortedBy { it.textRange.startOffset }
             .map { literal ->
                 val extractor = extractors.first { it.canExtract(literal) }
                 val text = extractor.text(literal).trim()
