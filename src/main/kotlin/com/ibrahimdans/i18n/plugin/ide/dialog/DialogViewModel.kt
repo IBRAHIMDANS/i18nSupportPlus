@@ -179,6 +179,9 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
                 }
             },
             PluginBundle.message("dialog.translation.command.update"),
+            // No group: consecutive writes — two cells edited in a row — are undone one at a time.
+            // The policy used to be passed as the group id, which merged them into one undo.
+            null,
             UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION
         )
     }
