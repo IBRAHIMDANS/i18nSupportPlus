@@ -14,7 +14,7 @@ import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
-import com.intellij.json.psi.JsonStringLiteral
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.CommandProcessor
@@ -27,7 +27,6 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.psi.PsiElement
-import org.jetbrains.yaml.psi.YAMLKeyValue
 
 /**
  * What the translation dialog's key field holds, checked while the user types.
@@ -189,37 +188,14 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
     /**
      * Reads the text value from a PSI element, handling JSON and YAML types.
      */
-    private fun readPsiValue(element: PsiElement): String? =
-        when (element) {
-            is JsonStringLiteral -> element.value
-            is YAMLKeyValue -> element.valueText
-            else -> element.text
-        }
+    private fun readPsiValue(element: PsiElement): String? = TranslationPsi.readValue(element)
 
     /**
      * Updates the text value of a PSI element in place.
      * Falls back to no-op if the element type is not handled.
      */
     private fun updatePsiValue(element: PsiElement, newValue: String) {
-        when (element) {
-            is JsonStringLiteral -> {
-                val generator = com.intellij.json.psi.JsonElementGenerator(project)
-                val newLiteral = generator.createStringLiteral(newValue)
-                element.replace(newLiteral)
-            }
-            is YAMLKeyValue -> {
-                val key = element.keyText
-                val generator = org.jetbrains.yaml.YAMLElementGenerator.getInstance(project)
-                val newKeyValue = generator.createYamlKeyValue(key, newValue)
-                val newValue2 = newKeyValue.value
-                if (newValue2 != null) {
-                    element.value?.replace(newValue2)
-                }
-            }
-            else -> {
-                // Unsupported element type — no update
-            }
-        }
+        TranslationPsi.replaceValue(element, newValue, project)
     }
 
     // ------------------------------------------------------------------------

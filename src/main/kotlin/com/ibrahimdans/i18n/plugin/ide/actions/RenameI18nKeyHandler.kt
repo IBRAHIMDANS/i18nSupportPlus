@@ -7,7 +7,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.unQuote
-import com.intellij.json.psi.JsonProperty
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.application.ReadAction
@@ -23,9 +23,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.UsageSearchContext
-import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.refactoring.rename.RenameHandler
-import org.jetbrains.yaml.psi.YAMLKeyValue
 
 /**
  * Handles Shift+F6 rename refactoring for i18n keys.
@@ -160,12 +158,8 @@ class RenameI18nKeyHandler : RenameHandler {
      * null when that property is not named after [lastSegment].
      */
     private fun renamedProperty(translation: PsiElement, lastSegment: String, newSegment: String, config: Config): Edit? {
-        val nameElement = when (val property = PsiTreeUtil.getParentOfType(translation, false, JsonProperty::class.java, YAMLKeyValue::class.java)
-            ?: translation.parent) {
-            is JsonProperty -> property.nameElement
-            is YAMLKeyValue -> property.key
-            else -> null
-        } ?: return null
+        val property = TranslationPsi.propertyOf(translation, strict = false) ?: translation.parent ?: return null
+        val nameElement = TranslationPsi.entryOf(property)?.keyElement ?: return null
         val document = documentOf(nameElement) ?: return null
         val raw = nameElement.text
         val quote = raw.firstOrNull()?.takeIf { it in QUOTES && raw.length > 1 && raw.last() == it }

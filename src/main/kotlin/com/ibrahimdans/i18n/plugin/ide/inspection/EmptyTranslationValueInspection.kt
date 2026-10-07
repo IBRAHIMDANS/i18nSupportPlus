@@ -1,15 +1,12 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.ProblemsHolder
-import com.intellij.json.psi.JsonProperty
-import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.openapi.project.DumbService
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
-import org.jetbrains.yaml.psi.YAMLKeyValue
-import org.jetbrains.yaml.psi.YAMLScalar
 
 /**
  * Flags leaf translation entries whose value is empty or blank.
@@ -31,20 +28,9 @@ class EmptyTranslationValueInspection : LocalInspectionTool() {
         if (TranslationFileScope.sourceOf(holder.file) == null) return PsiElementVisitor.EMPTY_VISITOR
 
         return object : PsiElementVisitor() {
-        // YAML types stay inside this visitor: the platform reflects on the inspection class's
-        // own methods (`getDeclaredMethods`) to save the inspection profile, and one of them
-        // naming a YAML class fails with NoClassDefFoundError when the YAML plugin is disabled.
             override fun visitElement(element: PsiElement) {
-                when (element) {
-                    is JsonProperty -> {
-                        val value = element.value as? JsonStringLiteral ?: return
-                        check(value.value, element.nameElement, holder)
-                    }
-                    is YAMLKeyValue -> {
-                        val value = element.value as? YAMLScalar ?: return
-                        check(value.textValue, element.key ?: return, holder)
-                    }
-                }
+                val entry = TranslationPsi.entryOf(element) ?: return
+                check(entry.text ?: return, entry.keyElement, holder)
             }
         }
     }

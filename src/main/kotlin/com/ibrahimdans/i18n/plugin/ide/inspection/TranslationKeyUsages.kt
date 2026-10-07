@@ -5,7 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.DynamicKeyUsages
 import com.ibrahimdans.i18n.plugin.tree.KeyComposer
 import com.ibrahimdans.i18n.plugin.tree.Separators
-import com.intellij.json.psi.JsonProperty
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.openapi.application.ReadAction
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -14,7 +14,6 @@ import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.parents
 import com.intellij.util.Processor
-import org.jetbrains.yaml.psi.YAMLKeyValue
 
 /**
  * Where the code uses a key of a translation file: the references found on its declaration, and
@@ -80,11 +79,6 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
      */
     private fun pathOf(element: PsiElement): List<String> =
         element.parents(true).mapNotNull {
-            when (it) {
-                is JsonProperty -> it.name
-                is YAMLKeyValue -> it.keyText
-                is PsiFile -> it.name.substringBeforeLast(".")
-                else -> null
-            }
+            TranslationPsi.nameOf(it) ?: (it as? PsiFile)?.name?.substringBeforeLast(".")
         }.toList().reversed()
 }

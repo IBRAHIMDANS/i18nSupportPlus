@@ -8,17 +8,15 @@ import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
-import com.intellij.json.psi.JsonProperty
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
-import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.AppExecutorUtil
 import org.jetbrains.concurrency.CancellablePromise
-import org.jetbrains.yaml.psi.YAMLKeyValue
 
 /** A key to delete, with the localization sources it was looked up in. */
 internal typealias KeySources = Pair<FullKey, List<LocalizationSource>>
@@ -85,7 +83,7 @@ internal class OrphanKeyDeleter(
                 sources.mapNotNull { source ->
                     val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@mapNotNull null
                     if (ref.unresolved.isNotEmpty() || ref.element == null) return@mapNotNull null
-                    PsiTreeUtil.getParentOfType(ref.element.value(), JsonProperty::class.java, YAMLKeyValue::class.java)
+                    TranslationPsi.propertyOf(ref.element.value())
                 }
             }
             properties.forEach { if (it.isValid) deletePropertyAndSeparator(it) }

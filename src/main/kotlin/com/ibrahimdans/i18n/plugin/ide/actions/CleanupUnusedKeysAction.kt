@@ -9,6 +9,7 @@ import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.json.psi.JsonProperty
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
@@ -24,10 +25,8 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
 import com.intellij.psi.PsiElement
-import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.table.JBTable
-import org.jetbrains.yaml.psi.YAMLKeyValue
 import java.awt.BorderLayout
 import java.awt.Dimension
 import javax.swing.JComponent
@@ -120,7 +119,7 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
                 val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@mapNotNull null
                 if (ref.unresolved.isNotEmpty() || ref.element == null) return@mapNotNull null
                 val value = ref.element.value()
-                PsiTreeUtil.getParentOfType(value, JsonProperty::class.java, YAMLKeyValue::class.java)
+                TranslationPsi.propertyOf(value)
             }
     }
 
