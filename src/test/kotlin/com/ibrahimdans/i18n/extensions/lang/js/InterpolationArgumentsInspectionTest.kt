@@ -220,6 +220,42 @@ class InterpolationArgumentsInspectionTest : PlatformBaseTest() {
         assertTrue(svelte("\$_('greeting')").single().endsWith(": name"))
     }
 
+    /** A react-intl or react-i18next component, written in a TSX file of its own. */
+    private fun componentWarnings(translations: String, jsx: String, import: String): List<String> =
+        warningsIn(translations, "tsx", "$import\nexport const App = ({ n, opts }: any) => $jsx;")
+
+    @Test
+    fun formattedMessageValuesAreChecked() {
+        val translations = """{"greeting": "Hello {name}"}"""
+        val import = "import { FormattedMessage } from 'react-intl';"
+        assertTrue(componentWarnings(translations, """<FormattedMessage id="greeting" />""", import).single().endsWith(": name"))
+        assertTrue(componentWarnings(translations, """<FormattedMessage id="greeting" values={{ name: n }} />""", import).isEmpty())
+    }
+
+    /** Values held in a variable are only known at runtime: silence. */
+    @Test
+    fun componentValuesInAVariableAreIgnored() {
+        val translations = """{"greeting": "Hello {name}"}"""
+        val import = "import { FormattedMessage } from 'react-intl';"
+        assertTrue(componentWarnings(translations, """<FormattedMessage id="greeting" values={opts} />""", import).isEmpty())
+    }
+
+    @Test
+    fun transValuesAreChecked() {
+        val translations = """{"greeting": "Hello {{name}}"}"""
+        val import = "import { Trans } from 'react-i18next';"
+        assertTrue(componentWarnings(translations, """<Trans i18nKey="greeting" />""", import).single().endsWith(": name"))
+        assertTrue(componentWarnings(translations, """<Trans i18nKey="greeting" values={{ name: n }} />""", import).isEmpty())
+    }
+
+    /** A `<Trans>` with children takes its message from them: left alone rather than guessed. */
+    @Test
+    fun transWithChildrenIsIgnored() {
+        val translations = """{"greeting": "Hello {{name}}"}"""
+        val import = "import { Trans } from 'react-i18next';"
+        assertTrue(componentWarnings(translations, """<Trans i18nKey="greeting">Hello <b>you</b></Trans>""", import).isEmpty())
+    }
+
     @Test
     fun namedVariablesFollowTheDialogRules() {
         Assertions.assertEquals(
