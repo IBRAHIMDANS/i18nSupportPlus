@@ -1,0 +1,7 @@
+<idea-plugin>
+    <!-- Loaded from vueConfig.xml when the YAML plugin is there too: reading a YAML <i18n> block
+         needs both, and an optional dependency cannot require another one by itself. -->
+    <extensions defaultExtensionNs="com.ibrahimdans.i18n">
+        <componentSources implementation="com.ibrahimdans.i18n.extensions.localization.yaml.VueI18nYamlBlockSources"/>
+    </extensions>
+</idea-plugin>

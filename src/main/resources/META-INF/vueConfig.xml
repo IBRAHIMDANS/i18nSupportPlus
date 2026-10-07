@@ -1,4 +1,5 @@
 <idea-plugin>
+    <depends optional="true" config-file="vueYamlConfig.xml">org.jetbrains.plugins.yaml</depends>
     <extensions defaultExtensionNs="com.intellij">
         <annotator language="Vue" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompositeKeyAnnotator"/>
         <psi.referenceContributor language="Vue" implementation="com.ibrahimdans.i18n.extensions.lang.js.JsReferenceContributor"/>

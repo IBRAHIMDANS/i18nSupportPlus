@@ -57,6 +57,15 @@ class VueI18nBlockSourcesTest : PlatformBaseTest() {
     }
 
     @Test
+    fun aYamlBlockGivesOneSourcePerLocale() {
+        val content = "<i18n lang=\"yaml\">\nen:\n  hello: Hi\nfr:\n  hello: Salut\n</i18n>\n" +
+            "<template><p>{{ ${'$'}t('hello') }}</p></template>"
+        val sources = sourcesFor(keyIn("Greeting.vue", content, "hello")).filter { it.displayPath.contains("#i18n") }
+        assertEquals(listOf("en", "fr"), sources.map { it.locale })
+        assertNotNull(ReadAction.compute<Any?, RuntimeException> { sources.first().tree?.findChild("hello") })
+    }
+
+    @Test
     fun anotherComponentDoesNotSeeTheBlock() {
         myFixture.configureByText("Greeting.vue", component)
         val other = keyIn("Other.vue", "<template><p>{{ ${'$'}t('hello') }}</p></template>", "hello")
