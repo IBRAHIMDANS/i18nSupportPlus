@@ -51,16 +51,20 @@ internal object TranslationFileKeys {
      * The path is kept as a list for callers that walk the tree again: a flat key such as
      * `"app.title"` is one segment here, where the joined spelling could not tell it from
      * `app` → `title`. Non-string leaves (numbers, arrays, null) are skipped.
+     *
+     * A YAML file is read up to its first document only, as key resolution reads it
+     * (`YamlElementTree`): a key of a later `---` document resolves nowhere — and i18next's YAML
+     * loaders refuse such a file — so listing it would report, offer or type a key the code
+     * cannot reach.
      */
     fun translationLeaves(file: PsiFile): Map<List<String>, String> {
         val result = linkedMapOf<List<String>, String>()
         when (file) {
             is JsonFile -> PsiTreeUtil.getChildOfType(file, JsonObject::class.java)
                 ?.let { collectJsonProperties(it, emptyList(), result) }
-            is YAMLFile -> for (doc in file.documents) {
-                PsiTreeUtil.getChildOfType(doc, YAMLMapping::class.java)
-                    ?.let { collectYamlKeyValues(it, emptyList(), result) }
-            }
+            is YAMLFile -> file.documents.firstOrNull()
+                ?.let { PsiTreeUtil.getChildOfType(it, YAMLMapping::class.java) }
+                ?.let { collectYamlKeyValues(it, emptyList(), result) }
         }
         return result
     }

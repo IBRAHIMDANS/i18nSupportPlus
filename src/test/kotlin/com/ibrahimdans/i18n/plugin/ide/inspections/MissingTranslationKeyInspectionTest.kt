@@ -122,4 +122,23 @@ class MissingTranslationKeyInspectionTest : PlatformBaseTest() {
         val warnings = missingKeyWarnings("locales/fr/common.yaml", "user:\n  name: Nom\n")
         assertTrue(warnings.isEmpty(), "$warnings")
     }
+
+    // YAML with several documents: only the first is read, as key resolution reads it.
+
+    /** A key of the reference's second document resolves nowhere: no locale is asked for it. */
+    @Test
+    fun aKeyInALaterReferenceDocumentIsNotAskedFor() {
+        myFixture.addFileToProject("locales/en/common.yaml", "title: Title\n---\nextra: Extra\n")
+        val warnings = missingKeyWarnings("locales/fr/common.yaml", "title: Titre\n")
+        assertTrue(warnings.isEmpty(), "$warnings")
+    }
+
+    /** A key written in a later document of the locale is not found by the code: still missing. */
+    @Test
+    fun aKeyInALaterLocaleDocumentStillCountsAsMissing() {
+        myFixture.addFileToProject("locales/en/common.yaml", "title: Title\nbye: Bye\n")
+        val warnings = missingKeyWarnings("locales/fr/common.yaml", "title: Titre\n---\nbye: Au revoir\n")
+        Assertions.assertEquals(1, warnings.size, "$warnings")
+        assertTrue(warnings.single().contains("'bye'"), "$warnings")
+    }
 }
