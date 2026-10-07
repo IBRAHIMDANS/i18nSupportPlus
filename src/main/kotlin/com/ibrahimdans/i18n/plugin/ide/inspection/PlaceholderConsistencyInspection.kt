@@ -33,54 +33,42 @@ class PlaceholderConsistencyInspection : LocalInspectionTool() {
         val refTranslations: Map<String, String> by lazy { TranslationFileKeys.referenceTranslations(file) }
 
         return object : PsiElementVisitor() {
+        // YAML types stay inside this visitor: the platform reflects on the inspection class's
+        // own methods (`getDeclaredMethods`) to save the inspection profile, and one of them
+        // naming a YAML class fails with NoClassDefFoundError when the YAML plugin is disabled.
             override fun visitElement(element: PsiElement) {
                 when (element) {
-                    is JsonProperty -> checkJsonProperty(element, holder, refTranslations)
-                    is YAMLKeyValue -> checkYamlKeyValue(element, holder, refTranslations)
+                    is JsonProperty -> {
+                        val literal = element.value as? JsonStringLiteral ?: return
+                        check(literal, literal.value, holder, refTranslations)
+                    }
+                    is YAMLKeyValue -> {
+                        val scalar = element.value as? YAMLScalar ?: return
+                        check(scalar, scalar.textValue, holder, refTranslations)
+                    }
                 }
             }
         }
     }
 
-    private fun checkJsonProperty(
-        property: JsonProperty,
+    /** Checks the [value] written in [literal] against the same key's value in [refTranslations]. */
+    private fun check(
+        literal: PsiElement,
+        value: String,
         holder: ProblemsHolder,
         refTranslations: Map<String, String>
     ) {
-        val literal = property.value as? JsonStringLiteral ?: return
-        val value = literal.value
         if (!isSyntacticallyValid(value)) {
             holder.registerProblem(literal, PluginBundle.message("inspection.placeholder.unbalanced"))
             return
         }
         val currentPlaceholders = extractPlaceholders(value)
         if (currentPlaceholders.isEmpty()) return
-        val key = TranslationFileKeys.keyOf(property)
+        val key = TranslationFileKeys.keyOf(literal)
         val refValue = refTranslations[key] ?: return
         val refPlaceholders = extractPlaceholders(refValue)
         for (missing in refPlaceholders - currentPlaceholders) {
             holder.registerProblem(literal, PluginBundle.message("inspection.placeholder.missing", missing))
-        }
-    }
-
-    private fun checkYamlKeyValue(
-        keyValue: YAMLKeyValue,
-        holder: ProblemsHolder,
-        refTranslations: Map<String, String>
-    ) {
-        val scalar = keyValue.value as? YAMLScalar ?: return
-        val value = scalar.textValue
-        if (!isSyntacticallyValid(value)) {
-            holder.registerProblem(scalar, PluginBundle.message("inspection.placeholder.unbalanced"))
-            return
-        }
-        val currentPlaceholders = extractPlaceholders(value)
-        if (currentPlaceholders.isEmpty()) return
-        val key = TranslationFileKeys.keyOf(scalar)
-        val refValue = refTranslations[key] ?: return
-        val refPlaceholders = extractPlaceholders(refValue)
-        for (missing in refPlaceholders - currentPlaceholders) {
-            holder.registerProblem(scalar, PluginBundle.message("inspection.placeholder.missing", missing))
         }
     }
 }

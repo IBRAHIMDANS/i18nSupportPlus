@@ -33,40 +33,36 @@ class DuplicateTranslationValueInspection : LocalInspectionTool() {
         if (TranslationFileScope.sourceOf(holder.file) == null) return PsiElementVisitor.EMPTY_VISITOR
 
         return object : PsiElementVisitor() {
+        // YAML types stay inside this visitor: the platform reflects on the inspection class's
+        // own methods (`getDeclaredMethods`) to save the inspection profile, and one of them
+        // naming a YAML class fails with NoClassDefFoundError when the YAML plugin is disabled.
             override fun visitElement(element: PsiElement) {
                 when (element) {
-                    is JsonFile -> checkJsonFile(element, holder)
-                    is YAMLFile -> checkYamlFile(element, holder)
+                    is JsonFile -> reportDuplicates(
+                        PsiTreeUtil.findChildrenOfType(element, JsonProperty::class.java).mapNotNull { property ->
+                            val value = property.value as? JsonStringLiteral ?: return@mapNotNull null
+                            value.value to property.nameElement
+                        },
+                        holder
+                    )
+                    is YAMLFile -> reportDuplicates(
+                        PsiTreeUtil.findChildrenOfType(element, YAMLKeyValue::class.java).mapNotNull { keyValue ->
+                            val value = keyValue.value as? YAMLScalar ?: return@mapNotNull null
+                            value.textValue to (keyValue.key ?: return@mapNotNull null)
+                        },
+                        holder
+                    )
                 }
             }
         }
     }
 
-    private fun checkJsonFile(file: JsonFile, holder: ProblemsHolder) {
-        val byValue = PsiTreeUtil.findChildrenOfType(file, JsonProperty::class.java)
-            .mapNotNull { property ->
-                val value = property.value as? JsonStringLiteral ?: return@mapNotNull null
-                if (value.value.isBlank()) null else value.value to property.nameElement
-            }
+    /** Reports every key of [values] — (text, key element) — whose non-blank text another key holds too. */
+    private fun reportDuplicates(values: List<Pair<String, PsiElement>>, holder: ProblemsHolder) {
+        values.filter { it.first.isNotBlank() }
             .groupBy({ it.first }, { it.second })
-
-        byValue.values.filter { it.size > 1 }.forEach { duplicates ->
-            duplicates.forEach { nameElement -> holder.registerProblem(nameElement, MESSAGE) }
-        }
-    }
-
-    private fun checkYamlFile(file: YAMLFile, holder: ProblemsHolder) {
-        val byValue = PsiTreeUtil.findChildrenOfType(file, YAMLKeyValue::class.java)
-            .mapNotNull { keyValue ->
-                val value = keyValue.value as? YAMLScalar ?: return@mapNotNull null
-                val keyElement = keyValue.key ?: return@mapNotNull null
-                if (value.textValue.isBlank()) null else value.textValue to keyElement
-            }
-            .groupBy({ it.first }, { it.second })
-
-        byValue.values.filter { it.size > 1 }.forEach { duplicates ->
-            duplicates.forEach { keyElement -> holder.registerProblem(keyElement, MESSAGE) }
-        }
+            .values.filter { it.size > 1 }
+            .forEach { duplicates -> duplicates.forEach { keyElement -> holder.registerProblem(keyElement, MESSAGE) } }
     }
 
     private companion object {

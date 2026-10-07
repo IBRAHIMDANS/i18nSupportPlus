@@ -31,28 +31,27 @@ class EmptyTranslationValueInspection : LocalInspectionTool() {
         if (TranslationFileScope.sourceOf(holder.file) == null) return PsiElementVisitor.EMPTY_VISITOR
 
         return object : PsiElementVisitor() {
+        // YAML types stay inside this visitor: the platform reflects on the inspection class's
+        // own methods (`getDeclaredMethods`) to save the inspection profile, and one of them
+        // naming a YAML class fails with NoClassDefFoundError when the YAML plugin is disabled.
             override fun visitElement(element: PsiElement) {
                 when (element) {
-                    is JsonProperty -> checkJsonProperty(element, holder)
-                    is YAMLKeyValue -> checkYamlKeyValue(element, holder)
+                    is JsonProperty -> {
+                        val value = element.value as? JsonStringLiteral ?: return
+                        check(value.value, element.nameElement, holder)
+                    }
+                    is YAMLKeyValue -> {
+                        val value = element.value as? YAMLScalar ?: return
+                        check(value.textValue, element.key ?: return, holder)
+                    }
                 }
             }
         }
     }
 
-    private fun checkJsonProperty(property: JsonProperty, holder: ProblemsHolder) {
-        val value = property.value as? JsonStringLiteral ?: return
-        if (value.value.isBlank()) {
-            holder.registerProblem(property.nameElement, MESSAGE)
-        }
-    }
-
-    private fun checkYamlKeyValue(keyValue: YAMLKeyValue, holder: ProblemsHolder) {
-        val value = keyValue.value as? YAMLScalar ?: return
-        val keyElement = keyValue.key ?: return
-        if (value.textValue.isBlank()) {
-            holder.registerProblem(keyElement, MESSAGE)
-        }
+    /** Reports [keyElement] when its [value] is blank. */
+    private fun check(value: String, keyElement: PsiElement, holder: ProblemsHolder) {
+        if (value.isBlank()) holder.registerProblem(keyElement, MESSAGE)
     }
 
     private companion object {
