@@ -311,6 +311,8 @@
             <!-- Manual only, and hidden outside i18next modules: the generated file is committed. -->
             <action id="com.ibrahimdans.i18n.GenerateI18nTypes"
                     class="com.ibrahimdans.i18n.plugin.ide.actions.GenerateI18nTypesAction"/>
+            <action id="com.ibrahimdans.i18n.GeneratePseudoLocale"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.GeneratePseudoLocaleAction"/>
         </group>
         <action id="com.ibrahimdans.i18n.ToggleFolding"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.ToggleFoldingAction"
