@@ -140,6 +140,19 @@ class ToolWindowViewStateTest : PlatformBaseTest() {
         assertTrue(state.hiddenLocales(second).isEmpty())
     }
 
+    @Test
+    fun `two modules of the same name are told apart by their root`() {
+        val web = ModuleConfig(name = "homonym", rootDirectory = "apps/web")
+        val admin = ModuleConfig(name = "homonym", rootDirectory = "apps/admin")
+
+        state.setHiddenLocales(web, setOf("de"))
+        state.setActiveTab(web, ToolWindowTab.STATS)
+
+        assertEquals(setOf("de"), state.hiddenLocales(web))
+        assertTrue(state.hiddenLocales(admin).isEmpty(), "A homonym must not share the hidden locales")
+        assertEquals(ToolWindowTab.TREE, state.activeTab(admin))
+    }
+
     // -----------------------------------------------------------------------
     // Shell wiring
     // -----------------------------------------------------------------------
