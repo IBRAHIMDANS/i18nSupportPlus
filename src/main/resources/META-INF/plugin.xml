@@ -228,6 +228,13 @@
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.PlaceholderConsistencyInspection"/>
         <localInspection
             groupName="i18n Support Plus"
+            key="inspection.markup.display.name"
+            shortName="I18nMarkupConsistency"
+            enabledByDefault="true"
+            level="WARNING"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.MarkupConsistencyInspection"/>
+        <localInspection
+            groupName="i18n Support Plus"
             key="inspection.icu.display.name"
             shortName="I18nIcuFormat"
             enabledByDefault="true"
