@@ -57,8 +57,8 @@ internal class ToolWindowViewState(private val properties: PropertiesComponent) 
 
     /**
      * Carries [from]'s saved tab and hidden locales over to [to], the same module under a new
-     * name: the scope is keyed by the name, so a rename would otherwise lose them and leave the
-     * old entries behind in the workspace file.
+     * name or root: the scope is keyed by both, so a change would otherwise lose them and leave
+     * the old entries behind in the workspace file.
      *
      * Nothing is done when both resolve to the same scope, nor when [to]'s scope already holds
      * something — that state belongs to another module, which a move must not overwrite.
@@ -98,13 +98,20 @@ internal class ToolWindowViewState(private val properties: PropertiesComponent) 
             }
 
         /**
-         * A module is identified by its name, as in the selector; an unnamed one by its root, so
-         * two unnamed modules do not share a scope. The project scope cannot collide with a
-         * module: it carries no `module.` segment.
+         * A module is identified by its name and its root directory: the settings do not forbid
+         * two modules of the same name, which shared their tab and hidden locales when the name
+         * alone was the scope. An unnamed module is identified by its root, a module without a
+         * root by its name. The project scope cannot collide with a module: it carries no
+         * `module.` segment.
          */
         private fun key(property: String, module: ModuleConfig?): String {
             if (module == null) return "$PREFIX.$property"
-            val id = module.name.ifBlank { module.rootDirectory }
+            val root = module.rootDirectory.trim().trim('/')
+            val id = when {
+                module.name.isBlank() -> module.rootDirectory
+                root.isEmpty() -> module.name
+                else -> "${module.name}@$root"
+            }
             return "$PREFIX.module.$id.$property"
         }
     }
