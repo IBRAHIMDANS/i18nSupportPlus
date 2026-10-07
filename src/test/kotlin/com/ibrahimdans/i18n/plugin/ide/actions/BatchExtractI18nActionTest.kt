@@ -148,4 +148,40 @@ class BatchExtractI18nActionTest : ExtractionTestBase() {
         val translations = translationsText("assets/test.json")
         assertEquals(1, Regex("\"hello\"").findAll(translations).count(), translations)
     }
+
+    /**
+     * A key typed by hand that already exists with another text — not one of the keys the row
+     * was offered: the literal is replaced, and the existing translation is never overwritten.
+     */
+    @Test
+    fun anExistingKeyTypedByHandKeepsItsTranslation_json() =
+        existingKeyTypedByHand("json", "assets/test.json", """{"ref": {"save": "Save"}}""")
+
+    @Test
+    fun anExistingKeyTypedByHandKeepsItsTranslation_yaml() =
+        existingKeyTypedByHand("yml", "assets/test.yml", "ref:\n  save: Save\n")
+
+    private fun existingKeyTypedByHand(ext: String, path: String, content: String) = myFixture.runWithConfig(config(ext)) {
+        myFixture.addFileToProject(path, content)
+        val candidates = candidatesOf(
+            """
+                export const cancel = (i18n) => {
+                    return "Cancel";
+                };
+            """
+        )
+        assertEquals(emptyList<String>(), candidates.single().existingKeys)
+        acceptDefaultValues()
+        BatchExtractI18nAction().extract(project, myFixture.editor, candidates.zip(listOf("test:ref.save")))
+        waitForAsyncWork()
+
+        myFixture.checkResult(
+            """
+                export const cancel = (i18n) => {
+                    return i18n.t('test:ref.save');
+                };
+            """.trimIndent()
+        )
+        assertEquals(content, translationsText(path))
+    }
 }
