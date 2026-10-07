@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.openapi.components.service
@@ -40,15 +41,20 @@ internal object TranslationFileScope {
     }
 
     /**
-     * The locale placeholders are compared against: the reference locale of the module holding the
-     * file — the innermost one when roots nest — when it declares one, otherwise `en`.
+     * The locale label [source] is compared against: [ReferenceLocale] for the module holding it —
+     * the innermost one when roots nest — matched among the locales of [source]'s namespace, so
+     * `en` designates `en-US` files. The wanted locale as written when no file of it exists, which
+     * [counterpartOf] then finds nothing for.
      */
     fun referenceLocaleFor(file: PsiFile, source: LocalizationSource): String {
-        val modules = Settings.getInstance(file.project).config().modules
-        return ModuleSources.owner(modules, TranslationDataLoader.projectPathOf(source))
-            ?.referenceLocale
-            ?.takeIf { it.isNotBlank() }
-            ?: DEFAULT_REFERENCE_LOCALE
+        val config = Settings.getInstance(file.project).config()
+        val module = ModuleSources.owner(config.modules, TranslationDataLoader.projectPathOf(source))
+        val shape = shapeOf(source)
+        val labels = file.project.service<LocalizationSourceService>().findAllSources(file.project)
+            .filter { shapeOf(it) == shape }
+            .map { it.localeLabel() }
+            .distinct()
+        return ReferenceLocale.of(module, config, labels) ?: ReferenceLocale.wanted(module, config)
     }
 
     /** [source]'s path with its locale replaced by a placeholder. */
@@ -65,5 +71,4 @@ internal object TranslationFileScope {
     }
 
     private const val LOCALE_PLACEHOLDER = "{lang}"
-    private const val DEFAULT_REFERENCE_LOCALE = "en"
 }

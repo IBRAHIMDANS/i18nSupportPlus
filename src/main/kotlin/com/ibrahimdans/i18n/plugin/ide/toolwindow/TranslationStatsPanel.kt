@@ -11,6 +11,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader.extractN
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
@@ -91,8 +92,13 @@ private val SECONDARY_TEXT by lazy { JBColor.namedColor("Label.infoForeground", 
 internal fun parseTranslationKey(fullKey: String, config: Config = Config()): Pair<String?, List<String>> =
     KeySpelling.namespaceOf(fullKey) to KeySpelling.segmentsOf(fullKey, config)
 
-internal fun selectReferenceLocale(stats: List<LocaleStats>): String? =
-    stats.maxByOrNull { it.translated }?.locale
+/**
+ * The locale the missing keys are looked up in: the one [module] declares, when its files hold it,
+ * otherwise the most translated one — a better guess than the project-wide settings for a table
+ * of coverage.
+ */
+internal fun selectReferenceLocale(stats: List<LocaleStats>, module: ModuleConfig? = null): String? =
+    ReferenceLocale.declared(module, stats.map { it.locale }) ?: stats.maxByOrNull { it.translated }?.locale
 
 /** Columns before the locales: the row's namespace, then how many keys it holds. */
 private const val LEADING_COLUMNS = 2
@@ -282,7 +288,7 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
      * reference file — reading the gap rather than closing it.
      */
     private fun showMissingKeysPopup(rowLabel: String, cell: LocaleStats, at: RelativePoint) {
-        val referenceLocale = selectReferenceLocale(report?.total?.byLocale.orEmpty()) ?: return
+        val referenceLocale = selectReferenceLocale(report?.total?.byLocale.orEmpty(), moduleConfig) ?: return
         val translations = report?.translations.orEmpty()
 
         val listModel = DefaultListModel<UntranslatedKey>()

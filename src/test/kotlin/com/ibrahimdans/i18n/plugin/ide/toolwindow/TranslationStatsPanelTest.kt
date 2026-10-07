@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -52,6 +53,13 @@ class TranslationStatsPanelTest {
             LocaleStats("de", 10, 3, 7, 30.0)
         )
         assertEquals("en", selectReferenceLocale(stats))
+    }
+
+    @Test
+    fun `selectReferenceLocale prefers the locale the module declares`() {
+        val stats = listOf(LocaleStats("fr-FR", 10, 6, 4, 60.0), LocaleStats("en", 10, 10, 0, 100.0))
+        assertEquals("fr-FR", selectReferenceLocale(stats, ModuleConfig(name = "web", referenceLocale = "fr")))
+        assertEquals("en", selectReferenceLocale(stats, ModuleConfig(name = "web", referenceLocale = "ja")))
     }
 
     @Test
