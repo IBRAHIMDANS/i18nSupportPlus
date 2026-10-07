@@ -57,6 +57,28 @@ class CopyI18nKeyActionTest : PlatformBaseTest() {
         }
 
     @Test
+    fun flatKeysAreCopiedWithoutTheirNamespace() =
+        myFixture.runWithConfig(Config(defaultNs = "translation", flatKeys = true)) {
+            // The code parses `common:app.title` as one literal key: only the bare key resolves.
+            val key = copiedKey("locales/fr/common.json", """{"app.ti<caret>tle": "Titre"}""")
+            assertEquals("app.title", key)
+        }
+
+    @Test
+    fun aFirstComponentNamespaceIsJoinedWithTheKeySeparator() =
+        myFixture.runWithConfig(Config(defaultNs = "translation", firstComponentNs = true)) {
+            val key = copiedKey("locales/fr/common.json", """{"menu": {"ho<caret>me": "Accueil"}}""")
+            assertEquals("common.menu.home", key)
+        }
+
+    @Test
+    fun anEmptyNamespaceSeparatorCopiesTheBareKey() =
+        myFixture.runWithConfig(Config(defaultNs = "translation", nsSeparator = "")) {
+            val key = copiedKey("locales/fr/common.json", """{"menu": {"ho<caret>me": "Accueil"}}""")
+            assertEquals("menu.home", key)
+        }
+
+    @Test
     fun aYamlKeyIsCopied() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
         val key = copiedKey("locales/fr/common.yaml", "menu:\n  ho<caret>me: Accueil\n")
         assertEquals("common:menu.home", key)

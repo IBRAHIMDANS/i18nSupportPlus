@@ -3,7 +3,6 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileKeys
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
@@ -21,10 +20,10 @@ import java.awt.datatransfer.StringSelection
  * is reading. With the caret on `"home"` in `fr/common.json`, this puts `common:menu.home` in the
  * clipboard, ready to paste into a `t()` call.
  *
- * The spelling is the code's, not the tool window's: the namespace is joined with the configured
- * namespace separator (the tree always writes `:`, its own convention), and dropped for a default
- * namespace, since `t('menu.home')` is how such a key is written. Levels are joined as
- * [KeySpelling] joins them, so a flat key stays one segment and a custom key separator is honoured.
+ * The spelling is the code's, not the tool window's (the tree always writes `:`, its own
+ * convention): it is [ExistingKeyFinder.spell]'s, the one a key typed in a `t()` call is parsed
+ * back with. A default namespace is dropped, since `t('menu.home')` is how such a key is written,
+ * and so is any namespace when keys are flat — the code reads `common:menu.home` as one literal key.
  */
 class CopyI18nKeyAction : AnAction() {
 
@@ -61,11 +60,13 @@ class CopyI18nKeyAction : AnAction() {
             val source = TranslationFileScope.sourceOf(file) ?: return null
             val path = TranslationFileKeys.pathOf(element).takeIf { it.isNotEmpty() } ?: return null
             val config = Settings.getInstance(file.project).config()
-            val key = path.fold("") { spelled, segment -> KeySpelling.child(config, spelled, segment) }
-            val defaultNamespaces = config.defaultNamespaces()
-            val namespace = TranslationDataLoader.extractNamespace(source, defaultNamespaces.first())
-            return if (namespace in defaultNamespaces || config.nsSeparator.isEmpty()) key
-            else namespace + config.nsSeparator + key
+            val defaultNamespace = config.defaultNamespaces().first()
+            // An empty namespace separator means the code writes no namespace — unless the first
+            // key component is one, which spell joins with the key separator instead.
+            val namespace =
+                if (config.nsSeparator.isEmpty() && !config.firstComponentNs) defaultNamespace
+                else TranslationDataLoader.extractNamespace(source, defaultNamespace)
+            return ExistingKeyFinder.spell(namespace, path, config)
         }
     }
 }
