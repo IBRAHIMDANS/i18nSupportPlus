@@ -52,6 +52,14 @@ class HardcodedVueTextInspectionTest : PlatformBaseTest() {
     }
 
     @Test
+    fun textualAriaAttributesAndLabelAreReported() {
+        val reported = reportedIn(
+            """<div><i aria-description="Opens the menu" aria-roledescription="slide"></i><div aria-placeholder="Search"></div><select><option value="fr" label="French"></option></select><input aria-labelledby="name-label" aria-describedby="name-help"></div>"""
+        )
+        assertEquals(listOf("Opens the menu", "slide", "Search", "French"), reported)
+    }
+
+    @Test
     fun boundAndTechnicalAttributesAreIgnored() {
         val reported = reportedIn(
             """<div><a :title="label" v-bind:alt="alt" class="title text" style="color: red" id="main" data-testid="save button" type="submit" href="/home"></a></div>"""

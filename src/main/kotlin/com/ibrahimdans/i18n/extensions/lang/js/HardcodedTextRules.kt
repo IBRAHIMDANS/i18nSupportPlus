@@ -6,8 +6,16 @@ package com.ibrahimdans.i18n.extensions.lang.js
  */
 internal object HardcodedTextRules {
 
-    /** The attributes whose value is shown to the user; any other one is code. */
-    val VISIBLE_ATTRIBUTES = setOf("title", "placeholder", "alt", "aria-label")
+    /**
+     * The attributes whose value is shown to the user — or read out by a screen reader — any other
+     * one being code. `label` is native on `<option>`, `<optgroup>` and `<track>`, and the prop
+     * most component libraries take for a field's caption. The ARIA attributes naming an element
+     * by id (`aria-labelledby`, `aria-describedby`) hold no text and are left out.
+     */
+    val VISIBLE_ATTRIBUTES = setOf(
+        "title", "placeholder", "alt", "label",
+        "aria-label", "aria-description", "aria-placeholder", "aria-roledescription",
+    )
 
     /** Tags whose text is code rather than a message. */
     val CODE_TAGS = setOf("code", "kbd", "pre", "script", "style")
