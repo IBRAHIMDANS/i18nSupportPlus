@@ -38,44 +38,42 @@ class UnusedTranslationKeyInspection : LocalInspectionTool(), KeyComposer<PsiEle
         val heads = mutableMapOf<String, Set<String>>()
 
         return object : PsiElementVisitor() {
+        // YAML types stay inside this visitor: the platform reflects on the inspection class's
+        // own methods (`getDeclaredMethods`) to save the inspection profile, and one of them
+        // naming a YAML class fails with NoClassDefFoundError when the YAML plugin is disabled.
             override fun visitElement(element: PsiElement) {
                 when (element) {
-                    is JsonProperty -> checkJsonProperty(element, holder, heads)
-                    is YAMLKeyValue -> checkYamlKeyValue(element, holder, heads)
+                    is JsonProperty -> {
+                        if (element.value !is JsonStringLiteral) return
+                        check(element, element.nameElement, element.nameElement, holder, heads)
+                    }
+                    is YAMLKeyValue -> {
+                        if (element.value !is YAMLScalar) return
+                        check(element, element, element.key ?: return, holder, heads)
+                    }
                 }
             }
         }
     }
 
-    private fun checkJsonProperty(
-        property: JsonProperty,
+    /**
+     * Reports the leaf key [declaration] when nothing refers to it: no reference search hit on
+     * [declaration], no resolving reference held by [named] — the element carrying the key's
+     * name — and no dynamic key reaching it. The problem sits on [anchor].
+     */
+    private fun check(
+        declaration: PsiElement,
+        named: PsiElement,
+        anchor: PsiElement,
         holder: ProblemsHolder,
         heads: MutableMap<String, Set<String>>,
     ) {
-        if (property.value !is JsonStringLiteral) return
-        val nameElement = property.nameElement
         val hasRefs = ReadAction.compute<Boolean, RuntimeException> {
-            ReferencesSearch.search(property).findFirst() != null
-                || nameElement.references.any { it.resolve() != null }
+            ReferencesSearch.search(declaration).findFirst() != null
+                || named.references.any { it.resolve() != null }
         }
-        if (!hasRefs && !reachedDynamically(nameElement, heads)) {
-            holder.registerProblem(nameElement, MESSAGE, DeleteUnusedKeyFix())
-        }
-    }
-
-    private fun checkYamlKeyValue(
-        keyValue: YAMLKeyValue,
-        holder: ProblemsHolder,
-        heads: MutableMap<String, Set<String>>,
-    ) {
-        if (keyValue.value !is YAMLScalar) return
-        val keyElement = keyValue.key ?: return
-        val hasRefs = ReadAction.compute<Boolean, RuntimeException> {
-            ReferencesSearch.search(keyValue).findFirst() != null
-                || keyValue.references.any { it.resolve() != null }
-        }
-        if (!hasRefs && !reachedDynamically(keyValue, heads)) {
-            holder.registerProblem(keyElement, MESSAGE, DeleteUnusedKeyFix())
+        if (!hasRefs && !reachedDynamically(named, heads)) {
+            holder.registerProblem(anchor, MESSAGE, DeleteUnusedKeyFix())
         }
     }
 
