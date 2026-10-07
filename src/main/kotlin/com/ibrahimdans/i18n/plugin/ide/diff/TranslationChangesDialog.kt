@@ -39,20 +39,35 @@ class TranslationChangesDialog(project: Project, private val found: TranslationC
     private fun fill() {
         model.setRowCount(0)
         if (laggingOnly.isSelected) {
-            model.setColumnIdentifiers(arrayOf(column("key"), column("locale"), column("change")))
+            model.setColumnIdentifiers(arrayOf(keyColumn(), localeColumn(), changeColumn()))
             val behind = PluginBundle.message("diff.translation.kind.lagging", found.referenceLocale ?: "")
             found.lagging.forEach { model.addRow(arrayOf(keyOf(it.namespace, it.path), it.locale, behind)) }
         } else {
-            model.setColumnIdentifiers(arrayOf(column("key"), column("locale"), column("change"), column("before"), column("after")))
+            model.setColumnIdentifiers(
+                arrayOf(
+                    keyColumn(), localeColumn(), changeColumn(),
+                    PluginBundle.message("diff.translation.column.before"),
+                    PluginBundle.message("diff.translation.column.after")
+                )
+            )
             found.changes.forEach {
                 model.addRow(arrayOf(keyOf(it.namespace, it.path), it.locale, kindOf(it.kind), it.before.orEmpty(), it.after.orEmpty()))
             }
         }
     }
 
-    private fun column(name: String) = PluginBundle.message("diff.translation.column.$name")
+    // Keys stay literal so PluginBundleTest and the IDE can check them against the bundle.
+    private fun keyColumn() = PluginBundle.message("diff.translation.column.key")
 
-    private fun kindOf(kind: TranslationChange.Kind) = PluginBundle.message("diff.translation.kind.${kind.name.lowercase()}")
+    private fun localeColumn() = PluginBundle.message("diff.translation.column.locale")
+
+    private fun changeColumn() = PluginBundle.message("diff.translation.column.change")
+
+    private fun kindOf(kind: TranslationChange.Kind) = when (kind) {
+        TranslationChange.Kind.ADDED -> PluginBundle.message("diff.translation.kind.added")
+        TranslationChange.Kind.REMOVED -> PluginBundle.message("diff.translation.kind.removed")
+        TranslationChange.Kind.MODIFIED -> PluginBundle.message("diff.translation.kind.modified")
+    }
 
     private fun keyOf(namespace: String, path: List<String>) = "$namespace:${path.joinToString(".")}"
 }
