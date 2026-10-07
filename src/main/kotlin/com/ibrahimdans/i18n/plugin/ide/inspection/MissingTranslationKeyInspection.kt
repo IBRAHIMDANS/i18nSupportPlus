@@ -110,7 +110,8 @@ class MissingTranslationKeyInspection : LocalInspectionTool() {
     /** The top-level object of [file]: what a key missing from the root is reported on. */
     private fun rootOf(file: PsiFile): PsiElement? = when (file) {
         is JsonFile -> file.topLevelValue as? JsonObject
-        is YAMLFile -> file.documents.firstNotNullOfOrNull { it.topLevelValue as? YAMLMapping }
+        // The first document only, as TranslationFileKeys reads the keys and resolution finds them.
+        is YAMLFile -> file.documents.firstOrNull()?.topLevelValue as? YAMLMapping
         else -> null
     }
 
