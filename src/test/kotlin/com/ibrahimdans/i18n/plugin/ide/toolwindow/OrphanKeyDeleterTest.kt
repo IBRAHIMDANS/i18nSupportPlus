@@ -75,6 +75,22 @@ class OrphanKeyDeleterTest : PlatformBaseTest() {
         Assertions.assertEquals("oui", valueAt("mobile/locales/en/common.json", "alive"))
     }
 
+    /** `web-admin` starts with `web`: the module whose name is a prefix must not reach into it. */
+    @Test
+    fun deleteScopedToModule_leavesAModuleWithALongerNameUntouched() {
+        addFileToProject("web/locales/en/common.json", """{"dead":"web","alive":"yes"}""")
+        addFileToProject("web-admin/locales/en/common.json", """{"dead":"admin","alive":"oui"}""")
+
+        deleteInModule("common:dead", "web")
+
+        Assertions.assertNull(valueAt("web/locales/en/common.json", "dead"))
+        Assertions.assertEquals(
+            "admin",
+            valueAt("web-admin/locales/en/common.json", "dead"),
+            "web-admin is not inside web"
+        )
+    }
+
     @Test
     fun runsOnFinishedAfterTheDeletion() {
         addFileToProject("locales/en/common.json", """{"dead":"gone","alive":"yes"}""")

@@ -2,6 +2,8 @@ package com.ibrahimdans.i18n.plugin.ide.inspection
 
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
@@ -39,13 +41,13 @@ internal object TranslationFileScope {
 
     /**
      * The locale placeholders are compared against: the reference locale of the module holding the
-     * file, when one declares it, otherwise `en`.
+     * file — the innermost one when roots nest — when it declares one, otherwise `en`.
      */
     fun referenceLocaleFor(file: PsiFile, source: LocalizationSource): String {
         val modules = Settings.getInstance(file.project).config().modules
-        return modules
-            .firstOrNull { it.referenceLocale.isNotBlank() && it.rootDirectory.isNotBlank() && source.displayPath.startsWith(it.rootDirectory.trimEnd('/')) }
+        return ModuleSources.owner(modules, TranslationDataLoader.projectPathOf(source))
             ?.referenceLocale
+            ?.takeIf { it.isNotBlank() }
             ?: DEFAULT_REFERENCE_LOCALE
     }
 

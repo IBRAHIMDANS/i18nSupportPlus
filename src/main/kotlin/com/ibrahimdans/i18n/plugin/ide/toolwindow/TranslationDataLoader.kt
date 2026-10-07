@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
@@ -128,13 +129,19 @@ object TranslationDataLoader {
         val service = project.getService(LocalizationSourceService::class.java)
         val all = service.findAllSources(project)
         val scoped = if (moduleConfig == null || moduleConfig.rootDirectory.isBlank()) all
-        else {
-            // Filter to only sources whose displayPath starts with the module's rootDirectory
-            val rootDir = moduleConfig.rootDirectory.trimEnd('/')
-            all.filter { source -> source.displayPath.startsWith(rootDir) }
-        }
+        else all.filter { ModuleSources.contains(moduleConfig, projectPathOf(it)) }
         return filterToRecognizedLocales(scoped)
     }
+
+    /**
+     * [source]'s project-relative path, as [ModuleSources] matches it against a module's root.
+     *
+     * A bare `displayPath.startsWith(root)` put `apps/web-admin/locales/en.json` in `apps/web`;
+     * [ModuleSources.contains] and [ModuleSources.owner] compare whole segments. A source outside
+     * the project directory keeps its absolute path, which no module root holds.
+     */
+    internal fun projectPathOf(source: LocalizationSource): ModuleSources.FilePath =
+        ModuleSources.FilePath(source.displayPath, anchored = true)
 
     /** Extracted so the exclusion rule can be unit-tested without a project. */
     internal fun filterToRecognizedLocales(sources: List<LocalizationSource>): List<LocalizationSource> =

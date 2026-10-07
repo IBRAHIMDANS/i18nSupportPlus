@@ -2,8 +2,12 @@ package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.Localization
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class TranslationDataLoaderTest {
@@ -17,6 +21,29 @@ class TranslationDataLoaderTest {
         displayPath = "$parent/$name",
         localization = mockk<Localization<*>>() as Localization<com.intellij.psi.PsiElement>
     )
+
+    // ---- projectPathOf ----
+
+    @Test
+    fun `a module holds its own sources but not those of a module whose name it prefixes`() {
+        val web = ModuleConfig(name = "web", rootDirectory = "apps/web")
+        val ownSource = TranslationDataLoader.projectPathOf(source("en.json", "apps/web/locales"))
+        val adminSource = TranslationDataLoader.projectPathOf(source("en.json", "apps/web-admin/locales"))
+
+        assertTrue(ModuleSources.contains(web, ownSource))
+        assertFalse(ModuleSources.contains(web, adminSource), "apps/web-admin is not inside apps/web")
+    }
+
+    @Test
+    fun `a nested source belongs to the innermost module`() {
+        val modules = listOf(
+            ModuleConfig(name = "apps", rootDirectory = "apps"),
+            ModuleConfig(name = "web", rootDirectory = "apps/web/"),
+        )
+        val path = TranslationDataLoader.projectPathOf(source("en.json", "apps/web/locales"))
+
+        assertEquals("web", ModuleSources.owner(modules, path)?.name)
+    }
 
     // ---- extractLocale ----
 
