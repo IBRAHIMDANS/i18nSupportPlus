@@ -56,6 +56,20 @@ class HardcodedJsxTextInspectionTest : ExtractionTestBase() {
     }
 
     @Test
+    fun textualAriaAttributesAndLabelAreReported() {
+        val reported = reportedIn(
+            """<div><i aria-description="Opens the menu" aria-roledescription="slide"/><div aria-placeholder="Search"/><option value="fr" label="French"/><Field name="email" label="Email"/></div>"""
+        )
+        assertEquals(listOf("\"Opens the menu\"", "\"slide\"", "\"Search\"", "\"French\"", "\"Email\""), reported)
+    }
+
+    @Test
+    fun ariaAttributesNamingAnIdAreIgnored() {
+        val reported = reportedIn("""<div><input aria-labelledby="name-label" aria-describedby="name-help"/></div>""")
+        assertTrue(reported.isEmpty(), "$reported")
+    }
+
+    @Test
     fun technicalAttributesAreIgnored() {
         val reported = reportedIn(
             """<div><span className="title text" style="color" key="row" id="main" data-testid="save button" type="submit" href="/home"/></div>"""
