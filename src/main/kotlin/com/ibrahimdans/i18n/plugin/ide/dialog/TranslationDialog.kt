@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.command.CommandProcessor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.InputValidator
@@ -403,14 +404,17 @@ class TranslationDialog(
         } else {
             fullKey
         }
-        textAreas.forEach { (source, textArea) ->
-            val currentValue = sources[source]
-            val newValue = textArea.text
-            // Save only if there is a non-blank value different from the original
-            if (newValue.isNotBlank() && newValue != currentValue) {
-                viewModel.saveTranslation(source, effectiveKey, newValue)
+        // One command for every locale written: one Ctrl+Z undoes the dialog as a whole.
+        CommandProcessor.getInstance().executeCommand(project, {
+            textAreas.forEach { (source, textArea) ->
+                val currentValue = sources[source]
+                val newValue = textArea.text
+                // Save only if there is a non-blank value different from the original
+                if (newValue.isNotBlank() && newValue != currentValue) {
+                    viewModel.saveTranslation(source, effectiveKey, newValue)
+                }
             }
-        }
+        }, PluginBundle.message("dialog.translation.command.update"), null)
         super.doOKAction()
     }
 
