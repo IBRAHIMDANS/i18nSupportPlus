@@ -365,6 +365,11 @@
                 icon="AllIcons.Actions.Copy">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
         </action>
+        <action id="com.ibrahimdans.i18n.DeleteI18nKey"
+                class="com.ibrahimdans.i18n.plugin.ide.actions.DeleteI18nKeyAction"
+                icon="AllIcons.Actions.GC">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
         <!-- Consumed by the tool window toolbar, which resolves it by id; it belongs to no
              group so that the table's own scan button could disappear without the feature
              becoming unreachable from Find Action. -->
