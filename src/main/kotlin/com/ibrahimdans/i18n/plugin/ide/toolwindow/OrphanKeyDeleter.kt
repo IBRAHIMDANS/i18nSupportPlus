@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
 import com.intellij.json.psi.JsonProperty
@@ -93,9 +94,8 @@ internal class OrphanKeyDeleter(
 
     /** Keeps only the sources belonging to [moduleConfig], like TranslationDataLoader does for reads. */
     private fun scopeToModule(sources: List<LocalizationSource>): List<LocalizationSource> {
-        val root = moduleConfig?.rootDirectory?.trimEnd('/')
-        if (root.isNullOrBlank()) return sources
-        return sources.filter { it.displayPath.startsWith(root) }
+        val module = moduleConfig?.takeIf { it.rootDirectory.isNotBlank() } ?: return sources
+        return sources.filter { ModuleSources.contains(module, TranslationDataLoader.projectPathOf(it)) }
     }
 
     companion object {
