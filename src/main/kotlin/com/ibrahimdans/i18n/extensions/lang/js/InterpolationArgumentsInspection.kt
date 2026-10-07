@@ -6,7 +6,9 @@ import com.ibrahimdans.i18n.extensions.lang.js.extractors.SvelteI18nExtractor
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
+import com.ibrahimdans.i18n.extensions.lang.js.extractors.XmlAttributeKeyExtractor
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.tree.PluralGroup
 import com.ibrahimdans.i18n.plugin.tree.Tree
@@ -19,7 +21,7 @@ import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.lang.javascript.psi.JSCallExpression
-import com.intellij.lang.javascript.psi.JSElementVisitor
+import com.intellij.lang.javascript.psi.JSEmbeddedContent
 import com.intellij.lang.javascript.psi.JSExpression
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.lang.javascript.psi.JSObjectLiteralExpression
@@ -29,6 +31,9 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.project.DumbService
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
+import com.intellij.psi.PsiWhiteSpace
+import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.xml.XmlTag
 
 /**
  * Flags a translation call that does not pass a variable its message needs:
@@ -85,7 +90,13 @@ import com.intellij.psi.PsiElementVisitor
  *    `intl.formatMessage({ id: 'key' }, { name })` — the descriptor's id is the key literal
  *    [com.ibrahimdans.i18n.extensions.lang.js.extractors.ReactIntlExtractor] reads, so the key resolves as the annotator resolves it;
  *  - vue-i18n's `$tc('key', choice, { name })` — a locale may stand before the values — always
- *    passes `count` and `n` as well: vue-i18n fills both from the choice by itself.
+ *    passes `count` and `n` as well: vue-i18n fills both from the choice by itself;
+ *  - the components pass the values as an attribute: react-intl's
+ *    `<FormattedMessage id="key" values={{ name }} />` and react-i18next's
+ *    `<Trans i18nKey="key" values={{ name }} />`. The key is the attribute value the key extraction
+ *    reads; `values` must be an object literal written inline. A `<Trans>` holding children takes
+ *    its message from them — `<Trans>Hello {{name}}</Trans>` — and is left alone. Without a module
+ *    preset, `FormattedMessage` is react-intl's (single braces) and `Trans` i18next's.
  *
  * All forms of a plural are read: a variable used only in `item_other` is still needed.
  */
@@ -96,20 +107,54 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
 
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
         if (DumbService.isDumb(holder.project)) return PsiElementVisitor.EMPTY_VISITOR
-        return object : JSElementVisitor() {
-            override fun visitJSCallExpression(node: JSCallExpression) {
-                checkCall(node, holder)
+        // A plain visitor: JS calls and JSX tags both fall back to visitElement.
+        return object : PsiElementVisitor() {
+            override fun visitElement(element: PsiElement) {
+                when (element) {
+                    is JSCallExpression -> checkCall(element, holder)
+                    is XmlTag -> checkComponent(element, holder)
+                }
             }
         }
     }
 
+    /** `<FormattedMessage id="key" values={{ name }} />`, `<Trans i18nKey="key" values={{ name }} />`. */
+    private fun checkComponent(tag: XmlTag, holder: ProblemsHolder) {
+        val keyAttribute = COMPONENT_KEYS[tag.name] ?: return
+        if (tag.name == TRANS && hasChildren(tag)) return
+        val key = tag.getAttribute(keyAttribute)?.valueElement ?: return
+        if (key.children.any { it is JSEmbeddedContent }) return
+        val supplied = componentValues(tag) ?: return
+        val frameworks = ModulePresets.presetOf(key)?.let(::setOf) ?: setOf(COMPONENT_FRAMEWORKS.getValue(tag.name))
+        val singleBraces = frameworks.all { it in SINGLE_BRACE_FRAMEWORKS }
+        // `i18nKey` is read by the key extraction only around a call: the attribute is read here.
+        val rawKey = if (tag.name == TRANS) XmlAttributeKeyExtractor().extract(key) else null
+        val expected = expectedVariables(key, singleBraces, rawKey) ?: return
+        report(key, expected - supplied, holder)
+    }
+
+    /** The names of the inline object literal of [tag]'s `values`, none without it, or null when unknown. */
+    private fun componentValues(tag: XmlTag): Set<String>? {
+        val values = tag.getAttribute(VALUES)?.valueElement ?: return emptySet()
+        val embedded = values.children.firstOrNull { it is JSEmbeddedContent } ?: return null
+        val literal = PsiTreeUtil.getChildOfType(embedded, JSExpression::class.java) as? JSObjectLiteralExpression ?: return null
+        return propertyNames(literal, nested = null)
+    }
+
+    /** True when [tag] holds a tag or a text: `<Trans>` then takes its message from them. */
+    private fun hasChildren(tag: XmlTag): Boolean =
+        tag.subTags.isNotEmpty() || tag.value.children.any { it !is PsiWhiteSpace && it.text.isNotBlank() }
+
     private fun checkCall(call: JSCallExpression, holder: ProblemsHolder) {
         val (keyLiteral, supplied) = readCall(call) ?: return
         val expected = expectedVariables(keyLiteral, interpolatesSingleBraces(call, keyLiteral)) ?: return
-        val missing = expected - supplied
+        report(keyLiteral, expected - supplied, holder)
+    }
+
+    private fun report(key: PsiElement, missing: Set<String>, holder: ProblemsHolder) {
         if (missing.isEmpty()) return
         holder.registerProblem(
-            keyLiteral,
+            key,
             PluginBundle.message("inspection.interpolation.arguments.message", missing.sorted().joinToString(", "))
         )
     }
@@ -156,15 +201,17 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
     }
 
     /**
-     * The variables the value of the key written in [keyLiteral] uses in the reference locale, or
-     * null when that value cannot be read with certainty.
+     * The variables the value of the key written in [keyLiteral] — a JS literal or a JSX attribute
+     * value — uses in the reference locale, or null when that value cannot be read with certainty.
      */
-    private fun expectedVariables(keyLiteral: JSLiteralExpression, singleBraces: Boolean): Set<String>? {
+    private fun expectedVariables(keyLiteral: PsiElement, singleBraces: Boolean, knownKey: RawKey? = null): Set<String>? {
         val project = keyLiteral.project
-        val translationFunctionNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
-        val lang = Extensions.LANG.extensionList.firstOrNull { it.canExtractKey(keyLiteral, translationFunctionNames) }
-            ?: return null
-        val rawKey = lang.extractRawKey(keyLiteral) ?: return null
+        val rawKey = knownKey ?: run {
+            val translationFunctionNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
+            val lang = Extensions.LANG.extensionList.firstOrNull { it.canExtractKey(keyLiteral, translationFunctionNames) }
+                ?: return null
+            lang.extractRawKey(keyLiteral)
+        } ?: return null
         val fullKey = RawKeyParser(project).parse(rawKey, keyLiteral) ?: return null
         if (fullKey.isDynamic) return null
 
@@ -273,6 +320,15 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
         /** vue-i18n's plural function, and the variables it always passes. */
         private const val TC = "\$tc"
         private val TC_IMPLICIT = setOf("count", "n")
+
+        private const val TRANS = "Trans"
+        private const val VALUES = "values"
+
+        /** The attribute each translation component writes its key in. */
+        private val COMPONENT_KEYS = mapOf("FormattedMessage" to "id", TRANS to "i18nKey")
+
+        /** The technology of a component when no module preset says otherwise. */
+        private val COMPONENT_FRAMEWORKS = mapOf("FormattedMessage" to "react-intl", TRANS to "i18next")
 
         /** The technologies for which `{name}` is a variable rather than text. */
         internal val SINGLE_BRACE_FRAMEWORKS = setOf("vue-i18n", "lingui", "react-intl", SVELTE_I18N)
