@@ -1,7 +1,12 @@
 package com.ibrahimdans.i18n.plugin.ide.preview
 
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.AlarmRefreshScheduler
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.LocaleStats
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationChangeWatcher
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationSourceMatcher
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationStatsAnalyzer
 import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.application.ReadAction
@@ -11,11 +16,15 @@ import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.StatusBarWidgetFactory
+import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.openapi.vfs.newvfs.BulkFileListener
+import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.util.concurrency.AppExecutorUtil
 
 /**
- * `i18n: en` in the status bar; a click lists the project's locales and switches to the one
- * picked — see [PreviewLocaleSwitcher].
+ * `i18n: fr · 94 %` in the status bar — the preview locale and how much of it is translated,
+ * every locale's rate in the tooltip ([LocaleProgress]); a click lists the project's locales and
+ * switches to the one picked — see [PreviewLocaleSwitcher].
  */
 class PreviewLocaleWidgetFactory : StatusBarWidgetFactory {
 
@@ -36,18 +45,29 @@ class PreviewLocaleWidget(private val project: Project) : StatusBarWidget, Statu
     @Volatile
     private var locales: List<String> = emptyList()
 
+    /**
+     * The coverage of every locale of the project, computed with the locales: it reads every
+     * translation file, so never on the EDT, and only again when one of them changes.
+     */
+    @Volatile
+    private var stats: List<LocaleStats> = emptyList()
+
+    private var statusBar: StatusBar? = null
+
     override fun ID(): String = PreviewLocaleSwitcher.WIDGET_ID
 
     override fun getPresentation(): StatusBarWidget.WidgetPresentation = this
 
     override fun install(statusBar: StatusBar) {
+        this.statusBar = statusBar
         refreshLocales()
+        watchTranslationFiles()
     }
 
     override fun getSelectedValue(): String =
-        PluginBundle.message("preview.locale.widget.text", PreviewLocaleSwitcher.effective(Settings.getInstance(project).config()))
+        LocaleProgress.text(PreviewLocaleSwitcher.effective(Settings.getInstance(project).config()), stats)
 
-    override fun getTooltipText(): String = PluginBundle.message("preview.locale.widget.tooltip")
+    override fun getTooltipText(): String = LocaleProgress.tooltip(stats)
 
     override fun getPopup(): JBPopup? {
         val setting = PreviewLocaleSwitcher.effective(Settings.getInstance(project).config())
@@ -68,10 +88,37 @@ class PreviewLocaleWidget(private val project: Project) : StatusBarWidget, Statu
     }
 
     private fun refreshLocales() {
-        ReadAction.nonBlocking<List<String>> { TranslationDataLoader.discoverLocales(project) }
+        ReadAction.nonBlocking<Pair<List<String>, List<LocaleStats>>> {
+            TranslationDataLoader.discoverLocales(project) to TranslationStatsAnalyzer.analyze(project)
+        }
             .inSmartMode(project)
-            .expireWith(project)
-            .finishOnUiThread(com.intellij.openapi.application.ModalityState.any()) { locales = it }
+            .expireWith(this)
+            .coalesceBy(this)
+            .finishOnUiThread(com.intellij.openapi.application.ModalityState.any()) { (found, coverage) ->
+                locales = found
+                stats = coverage
+                statusBar?.updateWidget(ID())
+            }
             .submit(AppExecutorUtil.getAppExecutorService())
+    }
+
+    /**
+     * Recomputes the rates when a translation file changes, as the tool window reloads: the
+     * same [TranslationSourceMatcher] decides what is a translation file, and a burst of
+     * keystrokes is grouped into one computation.
+     */
+    private fun watchTranslationFiles() {
+        val matcher = TranslationSourceMatcher(project)
+        matcher.rememberDisplayedSources()
+        val scheduler = AlarmRefreshScheduler(this, TranslationChangeWatcher.DEFAULT_DEBOUNCE_MS)
+        project.messageBus.connect(this).subscribe(VirtualFileManager.VFS_CHANGES, object : BulkFileListener {
+            override fun after(events: MutableList<out VFileEvent>) {
+                if (!matcher.matchesAny(events.toList())) return
+                scheduler.schedule {
+                    refreshLocales()
+                    matcher.rememberDisplayedSources()
+                }
+            }
+        })
     }
 }
