@@ -228,6 +228,13 @@
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.PlaceholderConsistencyInspection"/>
         <localInspection
             groupName="i18n Support Plus"
+            key="inspection.plural.forms.display.name"
+            shortName="I18nMissingPluralForms"
+            enabledByDefault="true"
+            level="WEAK WARNING"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.MissingPluralFormsInspection"/>
+        <localInspection
+            groupName="i18n Support Plus"
             key="inspection.markup.display.name"
             shortName="I18nMarkupConsistency"
             enabledByDefault="true"
