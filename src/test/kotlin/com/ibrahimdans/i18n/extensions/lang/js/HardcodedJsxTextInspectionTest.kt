@@ -3,6 +3,8 @@ package com.ibrahimdans.i18n.extensions.lang.js
 import com.ibrahimdans.i18n.plugin.ide.actions.ExtractionTestBase
 import com.ibrahimdans.i18n.plugin.ide.launchActionAndWait
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.ui.TestDialogManager.setTestInputDialog
@@ -20,9 +22,9 @@ class HardcodedJsxTextInspectionTest : ExtractionTestBase() {
     private val message = "Hardcoded text: extract it to a translation key"
 
     /** The texts this inspection reports in a component returning [jsx], in a file of [extension]. */
-    private fun reportedIn(jsx: String, extension: String = "tsx"): List<String> {
+    private fun reportedIn(jsx: String, extension: String = "tsx", config: Config = config("json")): List<String> {
         var reported = emptyList<String>()
-        myFixture.runWithConfig(config("json")) {
+        myFixture.runWithConfig(config) {
             myFixture.enableInspections(HardcodedJsxTextInspection::class.java)
             myFixture.configureByText(
                 "App.$extension",
@@ -96,6 +98,16 @@ class HardcodedJsxTextInspectionTest : ExtractionTestBase() {
             "<p>{user.name} meets {name}</p>",
             "<p>{name}</p>",
         ).forEach { assertTrue(reportedIn(it).isEmpty(), it) }
+    }
+
+    /** In a single-brace technology the extraction writes `{name}`: a variable alone is still no text. */
+    @Test
+    fun aVariableAloneIsIgnoredWhateverThePlaceholderSyntax() {
+        listOf("lingui", "i18n-js").forEach { preset ->
+            val config = config("json").copy(modules = listOf(ModuleConfig(name = "app", rootDirectory = "src", preset = preset)))
+            assertTrue(reportedIn("<p>{name}</p>", config = config).isEmpty(), preset)
+            assertEquals(listOf("Hello {name}"), reportedIn("<p>Hello {name}</p>", config = config), preset)
+        }
     }
 
     /** `Hello` sits next to a tag, which the extraction does not handle; `you` is a text of its own. */

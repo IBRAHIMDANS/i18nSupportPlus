@@ -222,7 +222,7 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
         private const val SVELTE_I18N = "svelte-i18n"
 
         /** The technologies for which `{name}` is a variable rather than text. */
-        private val SINGLE_BRACE_FRAMEWORKS = setOf("vue-i18n", "lingui", "react-intl", SVELTE_I18N)
+        internal val SINGLE_BRACE_FRAMEWORKS = setOf("vue-i18n", "lingui", "react-intl", SVELTE_I18N)
 
         /**
          * The names of the variables [text] fills from the call's options, in the order they
