@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
+import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
@@ -44,11 +45,12 @@ internal object ExistingKeyFinder {
         val project = caller.project
         val config = Settings.getInstance(project).config()
         val module = ownerOf(caller, config)
-        val locale = referenceLocale(module, config)
+        val sources = ModuleSources.sourcesOf(project, module).filter { it.hasRecognizedLocale() }
+        val locale = ReferenceLocale.of(module, config, sources.map { it.localeLabel() }.distinct()) ?: return emptyMap()
         val defaultNamespace = config.defaultNamespaces().first()
         val found = linkedMapOf<String, LinkedHashSet<String>>()
-        ModuleSources.sourcesOf(project, module)
-            .filter { it.hasRecognizedLocale() && it.localeLabel() == locale }
+        sources
+            .filter { it.localeLabel() == locale }
             .forEach { source ->
                 val file = ModuleSources.readableFile(source) ?: return@forEach
                 val namespace = TranslationDataLoader.extractNamespace(source, defaultNamespace)
@@ -62,23 +64,17 @@ internal object ExistingKeyFinder {
 
     /**
      * [path] in [namespace] as the code writes it: the namespace is left out when it is a default
-     * one — or when keys are flat and carry none — exactly as [KeyRequest] would parse it back.
+     * one — or when keys are flat, or the namespace separator empty, and the code writes none —
+     * exactly as [KeyRequest] would parse it back. A first-component namespace is joined with the
+     * key separator, whatever the namespace separator.
      */
     internal fun spell(namespace: String, path: List<String>, config: Config): String {
         val key = path.joinToString(config.keySeparator)
         if (config.usesFlatKeys() || namespace in config.defaultNamespaces()) return key
-        val separator = if (config.firstComponentNs) config.keySeparator else config.nsSeparator
-        return namespace + separator + key
+        if (config.firstComponentNs) return namespace + config.keySeparator + key
+        if (config.nsSeparator.isEmpty()) return key
+        return namespace + config.nsSeparator + key
     }
-
-    /**
-     * The locale the module translates from, then the project's preview locale, then the folding
-     * language — the fallback order [ModuleConfig.referenceLocale] documents.
-     */
-    private fun referenceLocale(module: ModuleConfig?, config: Config): String =
-        module?.referenceLocale?.takeIf { it.isNotBlank() }
-            ?: config.previewLocale.takeIf { it.isNotBlank() }
-            ?: config.foldingPreferredLanguage
 
     private fun ownerOf(caller: PsiElement, config: Config): ModuleConfig? {
         if (config.modules.isEmpty()) return null

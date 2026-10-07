@@ -52,6 +52,14 @@ class ExistingKeyFinderTest : PlatformBaseTest() {
         assertEquals(listOf("common:actions.save"), find("Enregistrer", caller("src/Other.js"), Config(previewLocale = "fr")))
     }
 
+    /** The default reference locale `en` designates `en-US` files: they used to be skipped. */
+    @Test
+    fun `a regional reference locale is found from its language`() {
+        addFileToProject("locales/en-US/common.json", """{"actions": {"save": "Save"}}""")
+        addFileToProject("locales/fr-FR/common.json", """{"actions": {"save": "Enregistrer"}}""")
+        assertEquals(listOf("common:actions.save"), find("Save", caller()))
+    }
+
     @Test
     fun `keys are spelled with the configured separators`() {
         val path = listOf("actions", "save")
@@ -59,6 +67,8 @@ class ExistingKeyFinderTest : PlatformBaseTest() {
         assertEquals("common.actions.save", ExistingKeyFinder.spell("common", path, Config(firstComponentNs = true)))
         assertEquals("common|actions_save", ExistingKeyFinder.spell("common", path, Config(nsSeparator = "|", keySeparator = "_")))
         assertEquals("app.title", ExistingKeyFinder.spell("common", listOf("app.title"), Config(flatKeys = true)))
+        assertEquals("actions.save", ExistingKeyFinder.spell("common", path, Config(nsSeparator = "")))
+        assertEquals("common.actions.save", ExistingKeyFinder.spell("common", path, Config(nsSeparator = "", firstComponentNs = true)))
     }
 
     @Test

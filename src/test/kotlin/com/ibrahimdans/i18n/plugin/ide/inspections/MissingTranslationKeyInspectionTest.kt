@@ -31,6 +31,14 @@ class MissingTranslationKeyInspectionTest : PlatformBaseTest() {
         assertTrue(warnings.any { it.contains("'title'") }, "$warnings")
     }
 
+    /** No locale declared: the default `en` designates the `en-US` files, and the message names them. */
+    @Test
+    fun aRegionalReferenceLocaleIsFoundFromItsLanguage() {
+        myFixture.addFileToProject("locales/en-US/common.json", """{"title": "Title", "bye": "Bye"}""")
+        val warnings = missingKeyWarnings("locales/fr-FR/common.json", """{"title": "Titre"}""")
+        assertTrue(warnings.any { it.contains("'bye'") && it.contains("'en-US'") }, "$warnings")
+    }
+
     @Test
     fun theReferenceFileIsNeverReported() {
         myFixture.addFileToProject("locales/fr/common.json", """{"onlyInFrench": "Seulement"}""")

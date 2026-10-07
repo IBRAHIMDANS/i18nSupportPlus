@@ -5,6 +5,8 @@ import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.intellij.ide.actions.searcheverywhere.SearchEverywhereContributor
 import com.intellij.openapi.progress.EmptyProgressIndicator
+import com.intellij.openapi.project.DumbService
+import com.intellij.testFramework.DumbModeTestUtils
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -118,5 +120,21 @@ class TranslationSearchEverywhereContributorTest : PlatformBaseTest() {
         // key's line, not on the enclosing object.
         val line = text.substring(0, target.second).substringAfterLast('\n') + text.substring(target.second).substringBefore('\n')
         assertTrue(line.contains("\"welcome\""), "the offset must land on the key's line, was ${target.second}: '$line'")
+    }
+
+    /**
+     * Searching while the project indexes neither throws nor stays empty: the scan goes through
+     * `FileTypeIndex`, which the platform serves in dumb mode, and a file added meanwhile is found.
+     */
+    @Test
+    fun `searches while the project is indexing`() = myFixture.runWithConfig(Config()) {
+        addFileToProject("locales/en/common.json", """{"greeting": {"welcome": "Welcome back"}}""")
+        val hits = mutableListOf<TranslationSearchHit>()
+        DumbModeTestUtils.runInDumbModeSynchronously(project) {
+            assertTrue(DumbService.isDumb(project))
+            addFileToProject("locales/fr/common.json", """{"greeting": {"welcome": "Bon retour"}}""")
+            contributor().fetchElements("retour", EmptyProgressIndicator()) { hits += it; true }
+        }
+        assertEquals(listOf(TranslationSearchHit("common:greeting.welcome", "fr", "Bon retour")), hits)
     }
 }

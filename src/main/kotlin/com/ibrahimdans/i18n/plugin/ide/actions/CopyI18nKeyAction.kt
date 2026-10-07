@@ -60,12 +60,7 @@ class CopyI18nKeyAction : AnAction() {
             val source = TranslationFileScope.sourceOf(file) ?: return null
             val path = TranslationFileKeys.pathOf(element).takeIf { it.isNotEmpty() } ?: return null
             val config = Settings.getInstance(file.project).config()
-            val defaultNamespace = config.defaultNamespaces().first()
-            // An empty namespace separator means the code writes no namespace — unless the first
-            // key component is one, which spell joins with the key separator instead.
-            val namespace =
-                if (config.nsSeparator.isEmpty() && !config.firstComponentNs) defaultNamespace
-                else TranslationDataLoader.extractNamespace(source, defaultNamespace)
+            val namespace = TranslationDataLoader.extractNamespace(source, config.defaultNamespaces().first())
             return ExistingKeyFinder.spell(namespace, path, config)
         }
     }
