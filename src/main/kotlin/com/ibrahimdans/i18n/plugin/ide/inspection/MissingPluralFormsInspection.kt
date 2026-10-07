@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
 import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.codeInsight.intention.preview.IntentionPreviewInfo
 import com.intellij.codeInspection.LocalInspectionTool
@@ -16,14 +17,10 @@ import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.codeInspection.options.OptPane
 import com.intellij.codeInspection.options.OptPane.checkbox
 import com.intellij.codeInspection.options.OptPane.pane
-import com.intellij.json.psi.JsonObject
-import com.intellij.json.psi.JsonProperty
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
-import org.jetbrains.yaml.psi.YAMLKeyValue
-import org.jetbrains.yaml.psi.YAMLMapping
 
 /**
  * Flags, in a locale file, an i18next plural group lacking a category its language needs:
@@ -66,19 +63,10 @@ class MissingPluralFormsInspection : LocalInspectionTool() {
         val needed = PluralCategories.of(locale, largeNumberForms)
 
         return object : PsiElementVisitor() {
-            // YAML types stay inside this visitor: the platform reflects on the inspection
-            // class's own members to save the profile (see InspectionYamlIsolationTest).
             override fun visitElement(element: PsiElement) {
-                when (element) {
-                    is JsonProperty -> {
-                        val siblings = (element.parent as? JsonObject)?.propertyList ?: return
-                        check(element.name, element.nameElement, siblings.map { it.name }, needed, locale, holder)
-                    }
-                    is YAMLKeyValue -> {
-                        val siblings = (element.parent as? YAMLMapping)?.keyValues ?: return
-                        check(element.keyText, element.key ?: return, siblings.map { it.keyText }, needed, locale, holder)
-                    }
-                }
+                val entry = TranslationPsi.entryOf(element) ?: return
+                val siblings = TranslationPsi.siblingNames(element) ?: return
+                check(entry.name, entry.keyElement, siblings, needed, locale, holder)
             }
         }
     }

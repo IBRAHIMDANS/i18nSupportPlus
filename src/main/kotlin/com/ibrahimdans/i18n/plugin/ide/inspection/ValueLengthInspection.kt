@@ -2,18 +2,15 @@ package com.ibrahimdans.i18n.plugin.ide.inspection
 
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.codeInspection.options.OptPane
 import com.intellij.codeInspection.options.OptPane.number
 import com.intellij.codeInspection.options.OptPane.pane
-import com.intellij.json.psi.JsonProperty
-import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.openapi.project.DumbService
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
-import org.jetbrains.yaml.psi.YAMLKeyValue
-import org.jetbrains.yaml.psi.YAMLScalar
 import kotlin.math.roundToInt
 
 /**
@@ -58,19 +55,9 @@ class ValueLengthInspection : LocalInspectionTool() {
         val refTranslations: Map<String, String> by lazy { TranslationFileKeys.referenceTranslations(file) }
 
         return object : PsiElementVisitor() {
-            // YAML types stay inside this visitor: the platform reflects on the inspection
-            // class's own members to save the profile (see InspectionYamlIsolationTest).
             override fun visitElement(element: PsiElement) {
-                when (element) {
-                    is JsonProperty -> {
-                        val literal = element.value as? JsonStringLiteral ?: return
-                        check(literal, literal.value, holder, refTranslations)
-                    }
-                    is YAMLKeyValue -> {
-                        val scalar = element.value as? YAMLScalar ?: return
-                        check(scalar, scalar.textValue, holder, refTranslations)
-                    }
-                }
+                val entry = TranslationPsi.entryOf(element) ?: return
+                check(entry.literal ?: return, entry.text ?: return, holder, refTranslations)
             }
         }
     }

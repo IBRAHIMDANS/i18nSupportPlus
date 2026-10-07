@@ -1,16 +1,13 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.ProblemsHolder
-import com.intellij.json.psi.JsonProperty
-import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.openapi.project.DumbService
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
-import org.jetbrains.yaml.psi.YAMLKeyValue
-import org.jetbrains.yaml.psi.YAMLScalar
 
 private val ICU_BLOCK_REGEX = Regex("""\{\s*\w+\s*,\s*(plural|select)\s*,([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}""")
 
@@ -68,16 +65,8 @@ class IcuFormatInspection : LocalInspectionTool() {
         val requiresOne = language !in OTHER_ONLY_LANGUAGES
         return object : PsiElementVisitor() {
             override fun visitElement(element: PsiElement) {
-                when (element) {
-                    is JsonProperty -> {
-                        val literal = element.value as? JsonStringLiteral ?: return
-                        checkIcuValue(holder, literal, literal.value, requiresOne)
-                    }
-                    is YAMLKeyValue -> {
-                        val scalar = element.value as? YAMLScalar ?: return
-                        checkIcuValue(holder, scalar, scalar.textValue, requiresOne)
-                    }
-                }
+                val entry = TranslationPsi.entryOf(element) ?: return
+                checkIcuValue(holder, entry.literal ?: return, entry.text ?: return, requiresOne)
             }
         }
     }

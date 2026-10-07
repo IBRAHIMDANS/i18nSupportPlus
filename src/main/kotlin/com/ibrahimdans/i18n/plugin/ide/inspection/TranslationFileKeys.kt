@@ -1,16 +1,13 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
+import com.ibrahimdans.i18n.extensions.localization.yaml.YamlTranslationPsi
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.json.psi.JsonFile
 import com.intellij.json.psi.JsonObject
-import com.intellij.json.psi.JsonProperty
 import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
-import org.jetbrains.yaml.psi.YAMLFile
-import org.jetbrains.yaml.psi.YAMLKeyValue
-import org.jetbrains.yaml.psi.YAMLMapping
-import org.jetbrains.yaml.psi.YAMLScalar
 
 /**
  * The keys a JSON or YAML translation file holds, read straight from its PSI.
@@ -59,12 +56,11 @@ internal object TranslationFileKeys {
      */
     fun translationLeaves(file: PsiFile): Map<List<String>, String> {
         val result = linkedMapOf<List<String>, String>()
-        when (file) {
-            is JsonFile -> PsiTreeUtil.getChildOfType(file, JsonObject::class.java)
+        // No YAML class named here: see TranslationPsi.
+        when {
+            file is JsonFile -> PsiTreeUtil.getChildOfType(file, JsonObject::class.java)
                 ?.let { collectJsonProperties(it, emptyList(), result) }
-            is YAMLFile -> file.documents.firstOrNull()
-                ?.let { PsiTreeUtil.getChildOfType(it, YAMLMapping::class.java) }
-                ?.let { collectYamlKeyValues(it, emptyList(), result) }
+            TranslationPsi.isYaml(file) -> YamlTranslationPsi.collectLeaves(file, result)
         }
         return result
     }
@@ -78,10 +74,7 @@ internal object TranslationFileKeys {
         val parts = ArrayDeque<String>()
         var current: PsiElement? = element
         while (current != null && current !is PsiFile) {
-            when (current) {
-                is JsonProperty -> parts.addFirst(current.name)
-                is YAMLKeyValue -> parts.addFirst(current.keyText)
-            }
+            TranslationPsi.nameOf(current)?.let(parts::addFirst)
             current = current.parent
         }
         return parts.toList()
@@ -96,17 +89,6 @@ internal object TranslationFileKeys {
             when (val value = prop.value) {
                 is JsonStringLiteral -> result[path] = value.value
                 is JsonObject -> collectJsonProperties(value, path, result)
-                else -> {}
-            }
-        }
-    }
-
-    private fun collectYamlKeyValues(mapping: YAMLMapping, prefix: List<String>, result: MutableMap<List<String>, String>) {
-        for (kv in mapping.keyValues) {
-            val path = prefix + kv.keyText
-            when (val value = kv.value) {
-                is YAMLScalar -> result[path] = value.textValue
-                is YAMLMapping -> collectYamlKeyValues(value, path, result)
                 else -> {}
             }
         }

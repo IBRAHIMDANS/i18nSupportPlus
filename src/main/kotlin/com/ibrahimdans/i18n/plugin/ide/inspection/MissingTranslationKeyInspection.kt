@@ -6,12 +6,12 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.codeInsight.intention.preview.IntentionPreviewInfo
 import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.LocalQuickFix
 import com.intellij.codeInspection.ProblemDescriptor
 import com.intellij.codeInspection.ProblemsHolder
-import com.intellij.json.psi.JsonFile
 import com.intellij.json.psi.JsonObject
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
@@ -19,8 +19,6 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
-import org.jetbrains.yaml.psi.YAMLFile
-import org.jetbrains.yaml.psi.YAMLMapping
 
 /**
  * Flags, in a locale file, every key of the reference locale's file for the same namespace that
@@ -49,7 +47,7 @@ class MissingTranslationKeyInspection : LocalInspectionTool() {
 
         return object : PsiElementVisitor() {
             override fun visitElement(element: PsiElement) {
-                if (element is JsonFile || element is YAMLFile) checkFile(element as PsiFile, holder)
+                if (element is PsiFile) checkFile(element, holder)
             }
         }
     }
@@ -58,7 +56,7 @@ class MissingTranslationKeyInspection : LocalInspectionTool() {
         val reference = TranslationFileKeys.referenceFileOf(file) ?: return
         val referenceLeaves = TranslationFileKeys.translationLeaves(reference).keys
         if (referenceLeaves.isEmpty()) return
-        val root = rootOf(file) ?: return
+        val root = TranslationPsi.rootOf(file) ?: return
         val source = TranslationFileScope.sourceOf(file) ?: return
         val referenceLocale = TranslationFileScope.referenceLocaleFor(file, source)
 
@@ -87,32 +85,14 @@ class MissingTranslationKeyInspection : LocalInspectionTool() {
         var container: PsiElement = root
         var anchor = Anchor(rootAnchorOf(root), canHoldKey = true)
         for ((index, segment) in path.withIndex()) {
-            val property = childOf(container, segment) ?: return anchor
+            val entry = TranslationPsi.childOf(container, segment) ?: return anchor
             if (index == path.lastIndex) return null
-            val value = property.value
-            val keyElement = property.key ?: return anchor
-            if (value !is JsonObject && value !is YAMLMapping) return Anchor(keyElement, canHoldKey = false)
+            val value = TranslationPsi.valueOf(entry.property)
+            if (value == null || !TranslationPsi.isContainer(value)) return Anchor(entry.keyElement, canHoldKey = false)
             container = value
-            anchor = Anchor(keyElement, canHoldKey = true)
+            anchor = Anchor(entry.keyElement, canHoldKey = true)
         }
         return anchor
-    }
-
-    /** A property of a JSON object or a YAML mapping, seen the same way. */
-    private class Property(val key: PsiElement?, val value: PsiElement?)
-
-    private fun childOf(container: PsiElement, name: String): Property? = when (container) {
-        is JsonObject -> container.findProperty(name)?.let { Property(it.nameElement, it.value) }
-        is YAMLMapping -> container.getKeyValueByKey(name)?.let { Property(it.key, it.value) }
-        else -> null
-    }
-
-    /** The top-level object of [file]: what a key missing from the root is reported on. */
-    private fun rootOf(file: PsiFile): PsiElement? = when (file) {
-        is JsonFile -> file.topLevelValue as? JsonObject
-        // The first document only, as TranslationFileKeys reads the keys and resolution finds them.
-        is YAMLFile -> file.documents.firstOrNull()?.topLevelValue as? YAMLMapping
-        else -> null
     }
 
     /**

@@ -1,18 +1,13 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.ProblemsHolder
-import com.intellij.json.psi.JsonFile
-import com.intellij.json.psi.JsonProperty
-import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.openapi.project.DumbService
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
-import com.intellij.psi.util.PsiTreeUtil
-import org.jetbrains.yaml.psi.YAMLFile
-import org.jetbrains.yaml.psi.YAMLKeyValue
-import org.jetbrains.yaml.psi.YAMLScalar
+import com.intellij.psi.PsiFile
 
 /**
  * Flags leaf translation entries that share the same (non-blank) value within a single
@@ -33,26 +28,10 @@ class DuplicateTranslationValueInspection : LocalInspectionTool() {
         if (TranslationFileScope.sourceOf(holder.file) == null) return PsiElementVisitor.EMPTY_VISITOR
 
         return object : PsiElementVisitor() {
-        // YAML types stay inside this visitor: the platform reflects on the inspection class's
-        // own methods (`getDeclaredMethods`) to save the inspection profile, and one of them
-        // naming a YAML class fails with NoClassDefFoundError when the YAML plugin is disabled.
             override fun visitElement(element: PsiElement) {
-                when (element) {
-                    is JsonFile -> reportDuplicates(
-                        PsiTreeUtil.findChildrenOfType(element, JsonProperty::class.java).mapNotNull { property ->
-                            val value = property.value as? JsonStringLiteral ?: return@mapNotNull null
-                            value.value to property.nameElement
-                        },
-                        holder
-                    )
-                    is YAMLFile -> reportDuplicates(
-                        PsiTreeUtil.findChildrenOfType(element, YAMLKeyValue::class.java).mapNotNull { keyValue ->
-                            val value = keyValue.value as? YAMLScalar ?: return@mapNotNull null
-                            value.textValue to (keyValue.key ?: return@mapNotNull null)
-                        },
-                        holder
-                    )
-                }
+                if (element !is PsiFile) return
+                val values = TranslationPsi.allEntries(element).mapNotNull { entry -> entry.text?.let { it to entry.keyElement } }
+                reportDuplicates(values, holder)
             }
         }
     }

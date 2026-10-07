@@ -1,13 +1,10 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.codeInspection.ProblemsHolder
-import com.intellij.json.psi.JsonProperty
-import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.openapi.project.DumbService
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
-import org.jetbrains.yaml.psi.YAMLKeyValue
-import org.jetbrains.yaml.psi.YAMLScalar
 
 /**
  * A visitor for the inspections comparing each value of a translation file with the same key's
@@ -15,9 +12,8 @@ import org.jetbrains.yaml.psi.YAMLScalar
  * value, for every key both files hold.
  *
  * Nothing is visited in a file that is not a translation source, nor in the reference file
- * itself (it has no counterpart). JSON and YAML are read alike; the YAML types stay inside this
- * function rather than in an inspection class, whose members the platform reflects on to save
- * the inspection profile — see `InspectionYamlIsolationTest`.
+ * itself (it has no counterpart). JSON and YAML are read alike, through [TranslationPsi], which
+ * names no YAML class — see its documentation.
  */
 internal fun referenceValueVisitor(
     holder: ProblemsHolder,
@@ -36,10 +32,8 @@ internal fun referenceValueVisitor(
 
     return object : PsiElementVisitor() {
         override fun visitElement(element: PsiElement) {
-            when (element) {
-                is JsonProperty -> (element.value as? JsonStringLiteral)?.let { visit(it, it.value) }
-                is YAMLKeyValue -> (element.value as? YAMLScalar)?.let { visit(it, it.textValue) }
-            }
+            val entry = TranslationPsi.entryOf(element) ?: return
+            visit(entry.literal ?: return, entry.text ?: return)
         }
     }
 }

@@ -10,9 +10,7 @@ import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
 import com.ibrahimdans.i18n.plugin.utils.unQuote
-import com.intellij.json.psi.JsonElementGenerator
-import com.intellij.json.psi.JsonProperty
-import com.intellij.json.psi.JsonStringLiteral
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -31,10 +29,6 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.searches.ReferencesSearch
-import com.intellij.psi.util.PsiTreeUtil
-import org.jetbrains.yaml.YAMLElementGenerator
-import org.jetbrains.yaml.psi.YAMLKeyValue
-import org.jetbrains.yaml.psi.YAMLScalar
 import java.awt.BorderLayout
 import java.awt.Dimension
 import javax.swing.JComponent
@@ -280,34 +274,12 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
         }
     }
 
-    private fun toPropertyElement(element: PsiElement): PsiElement? =
-        PsiTreeUtil.getParentOfType(element, JsonProperty::class.java)
-            ?: PsiTreeUtil.getParentOfType(element, YAMLKeyValue::class.java)
-            ?: (element.parent as? JsonProperty)
-            ?: (element.parent as? YAMLKeyValue)
+    private fun toPropertyElement(element: PsiElement): PsiElement? = TranslationPsi.propertyOf(element)
 
-    private fun readPsiValue(element: PsiElement): String? =
-        when (element) {
-            is JsonStringLiteral -> element.value
-            is YAMLScalar -> element.textValue
-            is YAMLKeyValue -> element.valueText
-            else -> element.text
-        }
+    private fun readPsiValue(element: PsiElement): String? = TranslationPsi.readValue(element)
 
-    private fun updatePsiValue(element: PsiElement, newValue: String, project: Project) {
-        when (element) {
-            is JsonStringLiteral -> element.replace(JsonElementGenerator(project).createStringLiteral(newValue))
-            is YAMLScalar -> {
-                val kv = PsiTreeUtil.getParentOfType(element, YAMLKeyValue::class.java) ?: return
-                YAMLElementGenerator.getInstance(project).createYamlKeyValue(kv.keyText, newValue).value
-                    ?.let { element.replace(it) }
-            }
-            is YAMLKeyValue -> {
-                YAMLElementGenerator.getInstance(project).createYamlKeyValue(element.keyText, newValue).value
-                    ?.let { element.value?.replace(it) }
-            }
-        }
-    }
+    private fun updatePsiValue(element: PsiElement, newValue: String, project: Project) =
+        TranslationPsi.replaceValue(element, newValue, project)
 
     private fun rewriteCodeUsage(doc: Document, element: PsiElement, keyPath: String, newKey: String) {
         val original = element.text

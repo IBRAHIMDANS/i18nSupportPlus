@@ -1,21 +1,18 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
 import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.LocalQuickFix
 import com.intellij.codeInspection.ProblemDescriptor
 import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.json.psi.JsonProperty
-import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
-import com.intellij.psi.PsiFile
-import org.jetbrains.yaml.psi.YAMLKeyValue
-import org.jetbrains.yaml.psi.YAMLScalar
 
 class UnusedTranslationKeyInspection : LocalInspectionTool() {
 
@@ -30,20 +27,12 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
         val heads = mutableMapOf<String, Set<String>>()
 
         return object : PsiElementVisitor() {
-        // YAML types stay inside this visitor: the platform reflects on the inspection class's
-        // own methods (`getDeclaredMethods`) to save the inspection profile, and one of them
-        // naming a YAML class fails with NoClassDefFoundError when the YAML plugin is disabled.
             override fun visitElement(element: PsiElement) {
-                when (element) {
-                    is JsonProperty -> {
-                        if (element.value !is JsonStringLiteral) return
-                        check(element, element.nameElement, element.nameElement, holder, heads)
-                    }
-                    is YAMLKeyValue -> {
-                        if (element.value !is YAMLScalar) return
-                        check(element, element, element.key ?: return, holder, heads)
-                    }
-                }
+                val entry = TranslationPsi.entryOf(element) ?: return
+                if (entry.literal == null) return
+                // JSON references sit on the property's name, YAML ones on the key-value itself.
+                val named = if (TranslationPsi.isYaml(element)) element else entry.keyElement
+                check(element, named, entry.keyElement, holder, heads)
             }
         }
     }
@@ -79,11 +68,8 @@ private class DeleteUnusedKeyFix : LocalQuickFix {
     override fun getFamilyName(): String = getName()
 
     override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
-        val target = when (val parent = descriptor.psiElement.parent) {
-            is JsonProperty -> parent
-            is YAMLKeyValue -> parent
-            else -> descriptor.psiElement
-        }
+        val parent = descriptor.psiElement.parent
+        val target = if (parent != null && TranslationPsi.nameOf(parent) != null) parent else descriptor.psiElement
         // Removes the separating comma too: a bare JsonProperty.delete()
         // leaves `{,"b":…}` behind and corrupts the file.
         deletePropertyAndSeparator(target)
