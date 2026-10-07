@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.extensions.lang.js
 
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
+import com.ibrahimdans.i18n.plugin.utils.ModulePresets
 import com.ibrahimdans.i18n.plugin.utils.toBoolean
 import com.intellij.lang.Language
 import com.intellij.lang.javascript.patterns.JSPatterns
@@ -50,14 +51,16 @@ internal class JsxTranslationExtractor : TranslationExtractor {
         val tag = PsiTreeUtil.getParentOfType(element, XmlTag::class.java) ?: return element.text
         val variables = variables(tag)
         if (variables.isNullOrEmpty()) return tag.value.textElements.joinToString(" ") { it.text }
-        // `Hello {name}!` reads `Hello {{name}}!`: each expression becomes the placeholder of its
-        // variable. Read from the source, as the spaces between the parts are not part of them.
+        // `Hello {name}!` reads `Hello {{name}}!` — or `{name}`, `%{name}`, see [placeholderSyntax]:
+        // each expression becomes the placeholder of its variable. Read from the source, as the
+        // spaces between the parts are not part of them.
         val parts = content(tag)
         val start = parts.first().textRange.startOffset
         val source = StringBuilder(tag.containingFile.text.substring(start, parts.last().textRange.endOffset))
+        val placeholder = placeholderSyntax(tag)
         for (part in parts.filterIsInstance<JSEmbeddedContent>().asReversed()) {
             val name = variables.entries.first { it.value == expression(part)?.text }.key
-            source.replace(part.textRange.startOffset - start, part.textRange.endOffset - start, "{{$name}}")
+            source.replace(part.textRange.startOffset - start, part.textRange.endOffset - start, placeholder(name))
         }
         return source.toString().replace(WHITESPACE, " ").trim()
     }
@@ -98,6 +101,22 @@ internal class JsxTranslationExtractor : TranslationExtractor {
         return variables
     }
 
+    /**
+     * How the technology of the module holding [element] writes a variable in a message: `{name}`
+     * where it interpolates single braces (lingui, react-intl, vue-i18n, svelte-i18n — the list
+     * [InterpolationArgumentsInspection] reads calls with), `%{name}` for i18n-js, and i18next's
+     * `{{name}}` otherwise, a module without a preset included. A placeholder in another
+     * technology's syntax is printed as is: `Hello {{name}}` on screen.
+     */
+    private fun placeholderSyntax(element: PsiElement): (name: String) -> String {
+        val preset = ModulePresets.presetOf(element)
+        return when {
+            preset == I18N_JS -> { name -> "%{$name}" }
+            preset != null && preset in InterpolationArgumentsInspection.SINGLE_BRACE_FRAMEWORKS -> { name -> "{$name}" }
+            else -> { name -> "{{$name}}" }
+        }
+    }
+
     /** The text and the expressions between [tag]'s start and end tags, in order. */
     private fun content(tag: XmlTag): List<PsiElement> =
         tag.children.filter { it is XmlText || it is JSEmbeddedContent }
@@ -118,5 +137,6 @@ internal class JsxTranslationExtractor : TranslationExtractor {
 
     private companion object {
         val WHITESPACE = Regex("\\s+")
+        const val I18N_JS = "i18n-js"
     }
 }

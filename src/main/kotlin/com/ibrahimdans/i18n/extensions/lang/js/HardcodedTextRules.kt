@@ -14,8 +14,12 @@ internal object HardcodedTextRules {
 
     private val ENTITY = Regex("&#?\\w+;")
 
-    /** `{{name}}`: a variable's placeholder, whose letters are not text. */
-    private val PLACEHOLDER = Regex("\\{\\{\\w+}}")
+    /**
+     * `{{name}}`, `{name}`, `%{name}`: a variable's placeholder, whose letters are not text. The
+     * JSX extraction writes whichever the module's technology reads, so `<p>{name}</p>` is a
+     * variable alone in every technology, never text to translate.
+     */
+    private val PLACEHOLDER = Regex("\\{\\{\\w+}}|%?\\{\\w+}")
 
     /** True when [text] holds a letter once its HTML entities and placeholders are removed. */
     fun isTranslatable(text: String): Boolean =
