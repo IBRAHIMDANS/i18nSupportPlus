@@ -15,4 +15,7 @@
             level="WEAK WARNING"
             implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedVueTextInspection"/>
     </extensions>
+    <extensions defaultExtensionNs="com.ibrahimdans.i18n">
+        <componentSources implementation="com.ibrahimdans.i18n.extensions.localization.vue.VueI18nBlockSources"/>
+    </extensions>
 </idea-plugin>

@@ -154,7 +154,23 @@ class LocalizationSourceService {
      * modules, and a module whose translations all live outside its root directory (a shared
      * package) keep the project-wide result.
      */
-    fun findSources(fileNames: List<String>, caller: PsiElement): List<LocalizationSource> {
+    fun findSources(fileNames: List<String>, caller: PsiElement): List<LocalizationSource> =
+        componentSources(fileNames, caller) + projectSources(fileNames, caller)
+
+    /**
+     * The sources the component holding [caller] declares for itself — vue-i18n's `<i18n>` block —
+     * when the key is asked of a default namespace, which is the only one a block declares. They
+     * come first: the framework resolves a component's own messages before the project's.
+     */
+    private fun componentSources(fileNames: List<String>, caller: PsiElement): List<LocalizationSource> {
+        val providers = Extensions.COMPONENT_SOURCES.extensionList
+        if (providers.isEmpty()) return emptyList()
+        val defaults = Settings.getInstance(caller.project).config().defaultNamespaces()
+        if (fileNames.isNotEmpty() && fileNames.none { it in defaults }) return emptyList()
+        return providers.flatMap { it.sourcesFor(caller) }
+    }
+
+    private fun projectSources(fileNames: List<String>, caller: PsiElement): List<LocalizationSource> {
         val project = caller.project
         val sources = findSources(fileNames, project)
         val config = Settings.getInstance(project).config()

@@ -8,5 +8,6 @@ class Extensions {
         val LOCALIZATION = ExtensionPointName.create<Localization<PsiElement>>("com.ibrahimdans.i18n.localization")
         val LANG = ExtensionPointName.create<Lang>("com.ibrahimdans.i18n.lang")
         val TECHNOLOGY = ExtensionPointName.create<Technology>("com.ibrahimdans.i18n.technology")
+        val COMPONENT_SOURCES = ExtensionPointName.create<ComponentSourceProvider>("com.ibrahimdans.i18n.componentSources")
     }
 }

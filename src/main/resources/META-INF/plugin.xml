@@ -164,6 +164,7 @@
         <extensionPoint interface="com.ibrahimdans.i18n.Localization" name="localization" dynamic="true"/>
         <extensionPoint interface="com.ibrahimdans.i18n.Lang" name="lang" dynamic="true"/>
         <extensionPoint interface="com.ibrahimdans.i18n.Technology" name="technology" dynamic="true"/>
+        <extensionPoint interface="com.ibrahimdans.i18n.ComponentSourceProvider" name="componentSources" dynamic="true"/>
     </extensionPoints>
     <extensions defaultExtensionNs="com.intellij">
         <errorHandler implementation="com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter"/>
