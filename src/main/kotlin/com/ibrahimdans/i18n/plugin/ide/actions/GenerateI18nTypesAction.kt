@@ -50,8 +50,24 @@ class GenerateI18nTypesAction : AnAction() {
     /** A module to write a declaration for, rooted at [rootPath] (absolute). */
     internal data class Target(val module: ModuleConfig?, val rootPath: String)
 
-    /** The [text] to write for a target, and the hand-written declarations of its module it would contradict. */
-    private data class Declaration(val text: String, val competing: List<String>)
+    /** What reading a target's reference locale gave: a declaration to write, or why there is none. */
+    internal sealed interface Reading {
+        /**
+         * The [text] to write. [unread] names the namespaces of the reference locale held in a
+         * format the generator does not read (PO, a JS object…): their keys are missing from [text].
+         */
+        data class Declaration(val text: String, val unread: List<String>) : Reading
+
+        /**
+         * No file of the reference locale could be read: [wanted] matches none of the [available]
+         * locales, or only files in a format the generator does not read. Writing anyway would
+         * declare `resources: {}`, which turns every `t('…')` of the module into a type error.
+         */
+        data class NoReference(val wanted: String, val available: List<String>) : Reading
+    }
+
+    /** What was read for a target, and the hand-written declarations of its module it would contradict. */
+    private data class Plan(val reading: Reading, val competing: List<String>)
 
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
 
@@ -67,8 +83,13 @@ class GenerateI18nTypesAction : AnAction() {
 
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.generate.types.progress"), false) {
             override fun run(indicator: ProgressIndicator) {
-                val contents = DumbService.getInstance(project).runReadActionInSmartMode<Map<Target, Declaration>> {
-                    targets.associateWith { Declaration(declarationOf(project, it), competingDeclarations(project, it)) }
+                val contents = DumbService.getInstance(project).runReadActionInSmartMode<Map<Target, Plan>> {
+                    targets.associateWith { target ->
+                        val reading = readReference(project, target)
+                        // Nothing will be written without a reference: no reason to ask about the others.
+                        val competing = if (reading is Reading.Declaration) competingDeclarations(project, target) else emptyList()
+                        Plan(reading, competing)
+                    }
                 }
                 ApplicationManager.getApplication().invokeLater {
                     if (!project.isDisposed) write(project, contents)
@@ -81,18 +102,35 @@ class GenerateI18nTypesAction : AnAction() {
      * Writes each declaration, asking before replacing a file the plugin did not generate, and
      * before writing next to a hand-written declaration: two `CustomTypeOptions` contradict
      * each other, and only the user knows which one to keep — nothing is deleted for them.
+     *
+     * A target whose reference locale could not be read is skipped, and a warning says why: the
+     * file it would get, or keep, must never be a declaration without keys.
      */
-    private fun write(project: Project, contents: Map<Target, Declaration>) {
+    private fun write(project: Project, contents: Map<Target, Plan>) {
         val written = mutableListOf<String>()
-        for ((target, declaration) in contents) {
-            val text = declaration.text
+        val unread = mutableListOf<String>()
+        val skipped = mutableListOf<String>()
+        for ((target, plan) in contents) {
             val path = targetFileOf(target)
-            if (declaration.competing.isNotEmpty()) {
+            val relativePath = path.removePrefix("${project.basePath}/")
+            val declaration = when (val reading = plan.reading) {
+                is Reading.Declaration -> reading
+                is Reading.NoReference -> {
+                    skipped += PluginBundle.message(
+                        "action.generate.types.no.reference",
+                        relativePath,
+                        reading.wanted,
+                        reading.available.joinToString(", ").ifEmpty { "—" }
+                    )
+                    continue
+                }
+            }
+            if (plan.competing.isNotEmpty()) {
                 val answer = Messages.showYesNoDialog(
                     project,
                     PluginBundle.message(
                         "action.generate.types.competing",
-                        declaration.competing.joinToString("\n") { it.removePrefix("${project.basePath}/") }
+                        plan.competing.joinToString("\n") { it.removePrefix("${project.basePath}/") }
                     ),
                     PluginBundle.message("action.generate.types.title"),
                     Messages.getWarningIcon()
@@ -112,18 +150,24 @@ class GenerateI18nTypesAction : AnAction() {
             WriteCommandAction.runWriteCommandAction(project, PluginBundle.message("action.generate.types.title"), null, {
                 val directory = VfsUtil.createDirectoryIfMissing(path.substringBeforeLast('/')) ?: return@runWriteCommandAction
                 val file = directory.findChild(FILE_NAME) ?: directory.createChildData(this, FILE_NAME)
-                VfsUtil.saveText(file, text)
-                written += path.removePrefix("${project.basePath}/")
+                VfsUtil.saveText(file, declaration.text)
+                written += relativePath
+                if (declaration.unread.isNotEmpty()) {
+                    unread += PluginBundle.message("action.generate.types.unread", relativePath, declaration.unread.joinToString(", "))
+                }
             })
         }
+        if (skipped.isNotEmpty()) notify(project, skipped.joinToString("<br/>"), NotificationType.WARNING)
         if (written.isEmpty()) return
+        val done = PluginBundle.message("action.generate.types.done", written.joinToString("<br/>"))
+        if (unread.isEmpty()) notify(project, done, NotificationType.INFORMATION)
+        else notify(project, (listOf(done) + unread).joinToString("<br/><br/>"), NotificationType.WARNING)
+    }
+
+    private fun notify(project: Project, content: String, type: NotificationType) {
         NotificationGroupManager.getInstance()
             .getNotificationGroup("i18n Support Plus")
-            .createNotification(
-                PluginBundle.message("action.generate.types.title"),
-                PluginBundle.message("action.generate.types.done", written.joinToString("<br/>")),
-                NotificationType.INFORMATION
-            )
+            .createNotification(PluginBundle.message("action.generate.types.title"), content, type)
             .notify(project)
     }
 
@@ -162,21 +206,32 @@ class GenerateI18nTypesAction : AnAction() {
             return I18NEXT in FrameworkDetector.detect(VfsUtilCore.loadText(packageJson))
         }
 
-        /** The declaration of [target]'s keys in its reference locale. Needs a read action and indexes. */
-        private fun declarationOf(project: Project, target: Target): String {
+        /**
+         * The declaration of [target]'s keys in its reference locale, or why there is none — see
+         * [Reading]. Needs a read action and indexes.
+         */
+        internal fun readReference(project: Project, target: Target): Reading {
             val config = Settings.getInstance(project).config()
             val defaultNamespace = config.defaultNamespaces().first()
             val sources = ModuleSources.sourcesOf(project, target.module).filter { it.hasRecognizedLocale() }
             val wanted = target.module?.referenceLocale?.takeIf { it.isNotBlank() } ?: DEFAULT_REFERENCE_LOCALE
-            val locale = LocaleMatching.pick(wanted, sources.map { it.localeLabel() }.distinct())
+            val available = sources.map { it.localeLabel() }.distinct()
+            val locale = LocaleMatching.pick(wanted, available)
+                ?: return Reading.NoReference(wanted, available.sorted())
             val namespaces = sortedMapOf<String, MutableList<List<String>>>()
+            val unread = sortedSetOf<String>()
             sources.filter { it.localeLabel() == locale }.forEach { source ->
-                val file = ModuleSources.readableFile(source) ?: return@forEach
                 val namespace = TranslationDataLoader.extractNamespace(source, defaultNamespace)
-                namespaces.getOrPut(namespace) { mutableListOf() } += TranslationFileKeys.translationLeaves(file).keys
+                val file = ModuleSources.readableFile(source)
+                if (file == null) unread += namespace
+                else namespaces.getOrPut(namespace) { mutableListOf() } += TranslationFileKeys.translationLeaves(file).keys
             }
+            if (namespaces.isEmpty()) return Reading.NoReference(wanted, available.sorted())
             val keySeparator = if (config.usesFlatKeys()) null else config.keySeparator
-            return I18nextTypesGenerator.generate(namespaces, defaultNamespace, keySeparator, config.nsSeparator)
+            return Reading.Declaration(
+                I18nextTypesGenerator.generate(namespaces, defaultNamespace, keySeparator, config.nsSeparator),
+                (unread - namespaces.keys).toList()
+            )
         }
 
         /**
