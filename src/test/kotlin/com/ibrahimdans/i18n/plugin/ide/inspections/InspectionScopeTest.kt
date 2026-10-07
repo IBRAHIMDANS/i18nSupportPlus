@@ -1,6 +1,9 @@
 package com.ibrahimdans.i18n.plugin.ide.inspections
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.ide.runWithConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.inspection.IcuFormatInspection
 import com.ibrahimdans.i18n.plugin.ide.inspection.MissingTranslationKeyInspection
 import com.ibrahimdans.i18n.plugin.ide.inspection.PlaceholderConsistencyInspection
@@ -53,6 +56,23 @@ class InspectionScopeTest : PlatformBaseTest() {
         myFixture.addFileToProject("locales/en/common.json", """{"hello": "Hello {name}, you have {count} messages"}""")
         val warnings = warningsIn("locales/fr/common.json", """{"hello": "Bonjour {name}"}""")
         assertTrue(warnings.any { it.contains("{count}") }, "$warnings")
+    }
+
+    /**
+     * `web-admin` compares against its own reference locale, not against that of `web`, whose root
+     * its path starts with. In the light fixture, project files live under `src/`.
+     */
+    @Test
+    fun aModuleWhoseNameIsAPrefixDoesNotLendItsReferenceLocale() {
+        val modules = listOf(
+            ModuleConfig(name = "web", rootDirectory = "src/web", referenceLocale = "de"),
+            ModuleConfig(name = "web-admin", rootDirectory = "src/web-admin", referenceLocale = "en"),
+        )
+        myFixture.runWithConfig(Config(modules = modules)) {
+            myFixture.addFileToProject("web-admin/locales/en/common.json", """{"hello": "Hello {name}, {count} new"}""")
+            val warnings = warningsIn("web-admin/locales/de/common.json", """{"hello": "Hallo {name}"}""")
+            assertTrue(warnings.any { it.contains("{count}") }, "de must be compared with en, web-admin's reference: $warnings")
+        }
     }
 
     /**
