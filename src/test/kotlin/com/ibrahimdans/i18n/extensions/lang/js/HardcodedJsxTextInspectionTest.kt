@@ -130,6 +130,12 @@ class HardcodedJsxTextInspectionTest : ExtractionTestBase() {
         assertEquals(listOf("you"), reportedIn("<p>Hello <b>you</b></p>"))
     }
 
+    /** CRA and Vite projects write JSX in `.js` files. */
+    @Test
+    fun jsxInAJsFileIsReported() {
+        assertEquals(listOf("Save"), reportedIn("<button>Save</button>", "js"))
+    }
+
     @Test
     fun plainJavaScriptFilesAreIgnored() {
         assertTrue(reportedIn("'Save'", "ts").isEmpty())
