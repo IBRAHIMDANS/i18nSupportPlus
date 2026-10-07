@@ -45,39 +45,13 @@ class HardcodedJsxTextInspection : LocalInspectionTool() {
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor =
         object : PsiElementVisitor() {
             override fun visitElement(element: PsiElement) {
-                when (element) {
-                    is XmlText -> checkText(element, holder)
-                    is XmlAttributeValue -> checkAttribute(element, holder)
-                }
+                val found = hardcodedText(element) ?: return
+                val range = EXTRACTOR.textRange(found.leaf).shiftLeft(found.tag.textRange.startOffset)
+                holder.registerProblem(
+                    found.tag, range, PluginBundle.message("inspection.hardcoded.jsx.text.message"), ExtractFix(found.leaf)
+                )
             }
         }
-
-    private fun checkText(text: XmlText, holder: ProblemsHolder) {
-        val tag = PsiTreeUtil.getParentOfType(text, XmlTag::class.java) ?: return
-        // The extractor takes every text of the tag at once: report it once, on the first.
-        if (tag.value.textElements.firstOrNull() != text) return
-        if (EXTRACTOR.variables(tag) == null) return
-        check(text.firstChild ?: return, tag, holder)
-    }
-
-    private fun checkAttribute(value: XmlAttributeValue, holder: ProblemsHolder) {
-        val attribute = value.parent as? XmlAttribute ?: return
-        if (attribute.name !in HardcodedTextRules.VISIBLE_ATTRIBUTES) return
-        // The string between the quotes; `title={…}` holds an expression instead, and `title=""` nothing.
-        val token = generateSequence(value.firstChild) { it.nextSibling }
-            .firstOrNull { it.firstChild == null && it.textRange == value.valueTextRange && !it.textRange.isEmpty }
-            ?: return
-        check(token, attribute.parent ?: return, holder)
-    }
-
-    /** Reports the text [leaf] holds in [tag], over the range the extraction replaces, when it is one to translate. */
-    private fun check(leaf: PsiElement, tag: XmlTag, holder: ProblemsHolder) {
-        if (tag.name in UNTRANSLATED_TAGS) return
-        if (!EXTRACTOR.canExtract(leaf) || EXTRACTOR.isExtracted(leaf)) return
-        if (!HardcodedTextRules.isTranslatable(EXTRACTOR.text(leaf))) return
-        val range = EXTRACTOR.textRange(leaf).shiftLeft(tag.textRange.startOffset)
-        holder.registerProblem(tag, range, PluginBundle.message("inspection.hardcoded.jsx.text.message"), ExtractFix(leaf))
-    }
 
     /** Delegates to [ExtractI18nIntentionAction], which asks for the key and writes it. */
     private class ExtractFix(leaf: PsiElement) : LocalQuickFixAndIntentionActionOnPsiElement(leaf) {
@@ -92,11 +66,49 @@ class HardcodedJsxTextInspection : LocalInspectionTool() {
         }
     }
 
-    private companion object {
+    /** A text to translate: the [leaf] the extraction is run on, in its [tag]. */
+    internal data class HardcodedText(val leaf: PsiElement, val tag: XmlTag)
+
+    internal companion object {
 
         private val EXTRACTOR = JsxTranslationExtractor()
 
         /** `Trans` (react-i18next, lingui) holds a message or its fallback; the others hold code. */
         private val UNTRANSLATED_TAGS = HardcodedTextRules.CODE_TAGS + "Trans"
+
+        /**
+         * The text [element] holds when it is one this inspection reports — a JSX text or a
+         * visible attribute's value, by the rules of the class documentation — or null. Shared
+         * with *Batch extract*, so the two never disagree on what is text to translate.
+         */
+        internal fun hardcodedText(element: PsiElement): HardcodedText? {
+            val found = when (element) {
+                is XmlText -> textOf(element)
+                is XmlAttributeValue -> attributeOf(element)
+                else -> null
+            } ?: return null
+            if (found.tag.name in UNTRANSLATED_TAGS) return null
+            if (!EXTRACTOR.canExtract(found.leaf) || EXTRACTOR.isExtracted(found.leaf)) return null
+            if (!HardcodedTextRules.isTranslatable(EXTRACTOR.text(found.leaf))) return null
+            return found
+        }
+
+        private fun textOf(text: XmlText): HardcodedText? {
+            val tag = PsiTreeUtil.getParentOfType(text, XmlTag::class.java) ?: return null
+            // The extractor takes every text of the tag at once: report it once, on the first.
+            if (tag.value.textElements.firstOrNull() != text) return null
+            if (EXTRACTOR.variables(tag) == null) return null
+            return HardcodedText(text.firstChild ?: return null, tag)
+        }
+
+        private fun attributeOf(value: XmlAttributeValue): HardcodedText? {
+            val attribute = value.parent as? XmlAttribute ?: return null
+            if (attribute.name !in HardcodedTextRules.VISIBLE_ATTRIBUTES) return null
+            // The string between the quotes; `title={…}` holds an expression instead, and `title=""` nothing.
+            val token = generateSequence(value.firstChild) { it.nextSibling }
+                .firstOrNull { it.firstChild == null && it.textRange == value.valueTextRange && !it.textRange.isEmpty }
+                ?: return null
+            return HardcodedText(token, attribute.parent ?: return null)
+        }
     }
 }
