@@ -97,6 +97,13 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         rail.select(currentStep)
     }
 
+    /**
+     * No help page. Kept although the platform deprecates it — the Plugin Verifier reports it as
+     * *scheduled for removal* from 2026.1 — because it is **abstract** in 2025.1 and 2025.2
+     * (`sinceBuild` 251): without it, the wizard's help button would throw AbstractMethodError
+     * there. 2025.3 gives it a default and adds `getHelpId()` in its place. In an IDE that removes
+     * it, this method merely stays unused; remove it once `sinceBuild` reaches 253.
+     */
     override fun getHelpID(): String? = null
 
     // -- Steps

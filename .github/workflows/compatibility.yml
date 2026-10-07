@@ -6,6 +6,9 @@ on:
   schedule:
     # Run weekly to catch new IDE releases
     - cron: '0 8 * * 1'
+  # Run by hand on any branch (Actions tab, or `gh workflow run compatibility.yml --ref <branch>`):
+  # verifying locally downloads every IDE of the list, several GB.
+  workflow_dispatch:
 
 jobs:
   verify:
@@ -37,7 +40,7 @@ jobs:
       - name: Build plugin
         run: ./gradlew buildPlugin -x test
 
-      - name: Verify compatibility (2024.3 / 2025.1 / 2025.2)
+      - name: Verify compatibility (recommended IDEs + 2025.1 / 2025.2, see build.gradle.kts)
         run: ./gradlew verifyPlugin
 
       - name: Upload verification reports
