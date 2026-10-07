@@ -103,6 +103,28 @@ class CopyI18nKeyActionTest : PlatformBaseTest() {
         assertFalse(presentation.isEnabled)
     }
 
+    @Test
+    fun theActionIsDisabledBetweenTwoPropertiesOfAnObject() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        val content = """{"menu": {"home": "Accueil",<caret> "about": "À propos"}}"""
+        val file = myFixture.addFileToProject("locales/fr/common.json", content.replace(CARET, ""))
+        myFixture.configureFromExistingVirtualFile(file.virtualFile)
+        myFixture.editor.caretModel.moveToOffset(content.indexOf(CARET))
+        val presentation = myFixture.testAction(CopyI18nKeyAction())
+        assertTrue(presentation.isVisible)
+        assertFalse(presentation.isEnabled)
+    }
+
+    /** The name of an object copies its path: the prefix a `keyPrefix` takes. */
+    @Test
+    fun theNameOfAnObjectCopiesItsPrefix() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        assertEquals("common:menu", copiedKey("locales/fr/common.json", """{"me<caret>nu": {"home": "Accueil"}}"""))
+    }
+
+    @Test
+    fun theNameOfAYamlObjectCopiesItsPrefix() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        assertEquals("common:menu", copiedKey("locales/fr/common.yaml", "me<caret>nu:\n  home: Accueil\n"))
+    }
+
     private companion object {
         const val CARET = "<caret>"
         const val UNTOUCHED = "untouched"

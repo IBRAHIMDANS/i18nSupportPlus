@@ -54,14 +54,37 @@ class CopyI18nKeyAction : AnAction() {
         /**
          * The key [element] stands for, as the code writes it, or null when [element] is not in a
          * translation file or sits on no key.
+         *
+         * Inside an object, only its name stands for it: the caret between two properties of
+         * `menu: { … }` sits on no key, and copying `common:menu` — no translatable key — misled
+         * more than it helped. On the name, the object's path is copied: the prefix a `keyPrefix`
+         * takes, or a nested plural's key.
          */
         internal fun keyAt(element: PsiElement): String? {
             val file: PsiFile = element.containingFile ?: return null
             val source = TranslationFileScope.sourceOf(file) ?: return null
             val path = TranslationFileKeys.pathOf(element).takeIf { it.isNotEmpty() } ?: return null
+            if (isObject(file, path) && !isOnName(element, path)) return null
             val config = Settings.getInstance(file.project).config()
             val namespace = TranslationDataLoader.extractNamespace(source, config.defaultNamespaces().first())
             return ExistingKeyFinder.spell(namespace, path, config)
+        }
+
+        /** Whether some translation of [file] lies below [path]. */
+        private fun isObject(file: PsiFile, path: List<String>): Boolean =
+            TranslationFileKeys.translationLeaves(file).keys.any { it.size > path.size && it.subList(0, path.size) == path }
+
+        /**
+         * Whether [element] is in the name of the property [path] ends with: the first child of the
+         * outermost ancestor still at [path] — a JSON property's name, a YAML key — read without
+         * the YAML classes, an optional dependency.
+         */
+        private fun isOnName(element: PsiElement, path: List<String>): Boolean {
+            val property = generateSequence(element) { it.parent }
+                .takeWhile { it !is PsiFile && TranslationFileKeys.pathOf(it) == path }
+                .lastOrNull() ?: return false
+            val name = property.firstChild ?: return false
+            return name.textRange.contains(element.textRange)
         }
     }
 }
