@@ -47,6 +47,16 @@ class JsxTranslationExtractorTest : PlatformBaseTest() {
         Assertions.assertTrue(JsTranslationExtractor().canExtract(literal))
     }
 
+    /** The children of a tag split its text, not its attributes. */
+    @Test
+    fun testCanExtract_anAttributeOfATagHoldingAnotherTag() {
+        val file = myFixture.configureByText("App.tsx", "export const App = () => <a title=\"Home\">Go <b>home</b></a>;")
+        val title = file.findElementAt(file.text.indexOf("Home"))!!
+        val go = file.findElementAt(file.text.indexOf("Go"))!!
+        Assertions.assertTrue(extractor.canExtract(title))
+        Assertions.assertFalse(extractor.canExtract(go))
+    }
+
     // ── Null parent XmlTag ────────────────────────────────────────────────────
 
     @Test

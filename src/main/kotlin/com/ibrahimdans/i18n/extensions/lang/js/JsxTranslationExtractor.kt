@@ -20,7 +20,9 @@ import com.intellij.psi.xml.XmlText
 
 internal class JsxTranslationExtractor : TranslationExtractor {
     /**
-     * True for a text or attribute of a JSX tag holding no other tag, in any JavaScript dialect:
+     * True for an attribute of a JSX tag, or a text of a JSX tag holding no other tag — `Hi` in
+     * `<p>Hi <b>you</b></p>` cannot be extracted in one piece, but `title` in
+     * `<a title="Home">Go <b>home</b></a>` can — in any JavaScript dialect:
      * CRA and Vite projects write JSX in `.js` files, which a test on the `.jsx` / `.tsx` extension
      * left without extraction or inspection. A tag under a JavaScript file can only be JSX; a Vue
      * template or an HTML fragment injected in a string is a file of another language.
@@ -28,6 +30,8 @@ internal class JsxTranslationExtractor : TranslationExtractor {
     override fun canExtract(element: PsiElement): Boolean {
         val javaScript = Language.findLanguageByID("JavaScript") ?: return false
         if (!element.containingFile.language.isKindOf(javaScript)) return false
+        // An attribute is extracted alone: whatever its tag holds does not split it.
+        if (element.parent is XmlAttributeValue) return PsiTreeUtil.getParentOfType(element, XmlTag::class.java) != null
         return PsiTreeUtil.getParentOfType(element, XmlTag::class.java)?.let {
             !PsiTreeUtil.findChildOfType(it, XmlTag::class.java).toBoolean()
         } ?: false
