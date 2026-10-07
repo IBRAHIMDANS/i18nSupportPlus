@@ -235,6 +235,13 @@
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.MarkupConsistencyInspection"/>
         <localInspection
             groupName="i18n Support Plus"
+            key="inspection.length.display.name"
+            shortName="I18nValueLength"
+            enabledByDefault="false"
+            level="WEAK WARNING"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.ValueLengthInspection"/>
+        <localInspection
+            groupName="i18n Support Plus"
             key="inspection.icu.display.name"
             shortName="I18nIcuFormat"
             enabledByDefault="true"
