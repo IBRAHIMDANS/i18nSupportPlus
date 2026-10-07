@@ -70,6 +70,11 @@ class HardcodedJsxTextInspectionTest : ExtractionTestBase() {
     }
 
     @Test
+    fun anAttributeOfATagHoldingAnotherTagIsReported() {
+        assertEquals(listOf("\"Home\"", "home"), reportedIn("""<a title="Home">Go <b>home</b></a>"""))
+    }
+
+    @Test
     fun technicalAttributesAreIgnored() {
         val reported = reportedIn(
             """<div><span className="title text" style="color" key="row" id="main" data-testid="save button" type="submit" href="/home"/></div>"""
