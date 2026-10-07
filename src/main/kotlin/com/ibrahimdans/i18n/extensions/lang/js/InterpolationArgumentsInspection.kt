@@ -60,6 +60,10 @@ import com.intellij.psi.PsiElementVisitor
  *  - `%s` / `%1$s` (sprintf) are not: they are positional, filled from an array, never by name.
  *  - A `{…}` inside another pair of braces is not either: it is an ICU branch (`one {# item}`,
  *    `male {He}`), text rather than a variable.
+ *  - The argument of an ICU block — `count` in `{count, plural, one {# item} other {# items}}`,
+ *    likewise `select` and `selectordinal` — is, where single braces are: it picks the branch, and
+ *    forgetting it is the commonest mistake. Read here because the dialog's rule cannot match a
+ *    `{…}` holding braces; only a block at the top level, not one nested in another's branch.
  *
  * Silence wins over a guess, since a false warning on every call teaches people to disable the
  * inspection. Nothing is reported when:
@@ -230,11 +234,22 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
          * and so is anything that is not a JavaScript identifier once its decorations are removed.
          * Single-brace `{name}` counts only when [singleBraces] says the technology interpolates it.
          */
-        fun namedVariables(text: String, singleBraces: Boolean): Set<String> =
-            DialogViewModel.variableRanges(text)
+        fun namedVariables(text: String, singleBraces: Boolean): Set<String> {
+            val variables = DialogViewModel.variableRanges(text)
                 .filter { range -> braceDepthBefore(text, range.first) == 0 }
                 .mapNotNull { range -> variableName(text.substring(range), singleBraces) }
                 .toSet()
+            return if (singleBraces) variables + icuArguments(text) else variables
+        }
+
+        /** `{count, plural, one {# item} other {# items}}` → `count`, for blocks at the top level of [text]. */
+        private fun icuArguments(text: String): List<String> =
+            ICU_ARGUMENT.findAll(text)
+                .filter { braceDepthBefore(text, it.range.first) == 0 }
+                .map { it.groupValues[1] }
+                .toList()
+
+        private val ICU_ARGUMENT = Regex("""\{\s*([A-Za-z_$][\w$]*)\s*,\s*(?:plural|select|selectordinal)\s*,""")
 
         /** `{{- user.name, uppercase}}` → `user`; `%{count}` → `count`; `{amount, number}` → `amount`; `%s` → null. */
         private fun variableName(token: String, singleBraces: Boolean): String? {
