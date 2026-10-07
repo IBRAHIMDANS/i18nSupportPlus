@@ -9,6 +9,7 @@ import com.ibrahimdans.i18n.plugin.utils.CsvTranslationCodec
 import com.ibrahimdans.i18n.plugin.utils.CsvTranslationCodec.ImportPlan
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.XliffTranslationCodec
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -36,7 +37,9 @@ import javax.swing.table.DefaultTableModel
 
 /**
  * Imports translations from a CSV file produced by [ExportTranslationsAction]
- * (column "key" + one column per locale). Shows a mandatory preview of what
+ * (column "key" + one column per locale), or from an XLIFF file (`.xlf`,
+ * `.xliff`) a CAT tool sends back — read by [XliffTranslationCodec] into the
+ * same records, so both go through one import plan. Shows a mandatory preview of what
  * will be created and updated before writing anything; unknown keys and
  * unknown locale columns are reported and never written. All writes run in
  * a single WriteCommandAction (one undo step).
@@ -54,15 +57,17 @@ class ImportTranslationsAction : AnAction() {
 
         val scope = chooseModuleScope(project, PluginBundle.message("action.import.title")) ?: return
 
-        val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor("csv")
+        val descriptor = FileChooserDescriptorFactory.createSingleFileNoJarsDescriptor()
+            .withFileFilter { it.extension?.lowercase() in IMPORTABLE_EXTENSIONS }
             .withTitle(PluginBundle.message("action.import.chooser.title"))
         val file = FileChooser.chooseFile(descriptor, project, null) ?: return
         val text = String(file.contentsToByteArray(), StandardCharsets.UTF_8)
+        val isXliff = file.extension?.lowercase() in XliffTranslationCodec.EXTENSIONS
 
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.import.progress.analyzing"), false) {
             override fun run(indicator: ProgressIndicator) {
                 val plan = try {
-                    val records = CsvTranslationCodec.parse(text)
+                    val records = if (isXliff) XliffTranslationCodec.parse(text) else CsvTranslationCodec.parse(text)
                     val existing = TranslationDataLoader.loadAllTranslations(project, scope.config)
                     val knownLocales = existing.values.flatMap { it.keys }.distinct()
                     CsvTranslationCodec.computeImportPlan(existing, knownLocales, records)
@@ -170,6 +175,9 @@ class ImportTranslationsAction : AnAction() {
     private companion object {
         /** How many of the ignored keys the summary names before trailing off. */
         const val SAMPLE_SIZE = 5
+
+        /** CSV, and the extensions an XLIFF file goes by. */
+        val IMPORTABLE_EXTENSIONS = setOf("csv") + XliffTranslationCodec.EXTENSIONS
     }
 }
 
