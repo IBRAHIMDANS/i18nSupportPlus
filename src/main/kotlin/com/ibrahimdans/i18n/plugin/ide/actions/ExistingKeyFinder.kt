@@ -64,13 +64,16 @@ internal object ExistingKeyFinder {
 
     /**
      * [path] in [namespace] as the code writes it: the namespace is left out when it is a default
-     * one — or when keys are flat and carry none — exactly as [KeyRequest] would parse it back.
+     * one — or when keys are flat, or the namespace separator empty, and the code writes none —
+     * exactly as [KeyRequest] would parse it back. A first-component namespace is joined with the
+     * key separator, whatever the namespace separator.
      */
     internal fun spell(namespace: String, path: List<String>, config: Config): String {
         val key = path.joinToString(config.keySeparator)
         if (config.usesFlatKeys() || namespace in config.defaultNamespaces()) return key
-        val separator = if (config.firstComponentNs) config.keySeparator else config.nsSeparator
-        return namespace + separator + key
+        if (config.firstComponentNs) return namespace + config.keySeparator + key
+        if (config.nsSeparator.isEmpty()) return key
+        return namespace + config.nsSeparator + key
     }
 
     private fun ownerOf(caller: PsiElement, config: Config): ModuleConfig? {

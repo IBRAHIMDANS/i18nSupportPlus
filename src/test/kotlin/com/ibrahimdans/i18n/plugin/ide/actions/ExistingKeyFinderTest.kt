@@ -67,6 +67,8 @@ class ExistingKeyFinderTest : PlatformBaseTest() {
         assertEquals("common.actions.save", ExistingKeyFinder.spell("common", path, Config(firstComponentNs = true)))
         assertEquals("common|actions_save", ExistingKeyFinder.spell("common", path, Config(nsSeparator = "|", keySeparator = "_")))
         assertEquals("app.title", ExistingKeyFinder.spell("common", listOf("app.title"), Config(flatKeys = true)))
+        assertEquals("actions.save", ExistingKeyFinder.spell("common", path, Config(nsSeparator = "")))
+        assertEquals("common.actions.save", ExistingKeyFinder.spell("common", path, Config(nsSeparator = "", firstComponentNs = true)))
     }
 
     @Test
