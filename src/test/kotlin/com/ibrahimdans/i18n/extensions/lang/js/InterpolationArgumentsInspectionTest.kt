@@ -243,4 +243,43 @@ class InterpolationArgumentsInspectionTest : PlatformBaseTest() {
             "only top-level ICU blocks name a variable"
         )
     }
+
+    // ── react-intl: formatMessage({ id }, values) ─────────────────────────────
+
+    /** A react-intl call: the key is the descriptor's id, the values come next to it. */
+    private fun formatMessageWarnings(translations: String, call: String): List<String> =
+        warningsIn(translations, "js", "export const label = (intl, n, opts) => intl.$call;")
+
+    @Test
+    fun formatMessageReadsTheDescriptorIdAndTheValues() {
+        val translations = """{"greeting": "Hello {name}, {count, plural, one {# item} other {# items}}"}"""
+        val missing = formatMessageWarnings(translations, "formatMessage({ id: 'greeting' })")
+        assertTrue(missing.single().endsWith(": count, name"), "$missing")
+        assertTrue(formatMessageWarnings(translations, "formatMessage({ id: 'greeting' }, { count: n })").single().endsWith(": name"))
+        assertTrue(formatMessageWarnings(translations, "formatMessage({ id: 'greeting', defaultMessage: 'Hi' }, { name: 'x', count: n })").isEmpty())
+    }
+
+    @Test
+    fun formatMessageValuesKnownAtRuntimeOnlyAreNotReported() {
+        val translations = """{"greeting": "Hello {name}"}"""
+        assertTrue(formatMessageWarnings(translations, "formatMessage({ id: 'greeting' }, opts)").isEmpty())
+        assertTrue(formatMessageWarnings(translations, "formatMessage({ id: 'greeting' }, { ...opts })").isEmpty())
+    }
+
+    // ── vue-i18n: $tc(key, choice, [locale], [values]) ────────────────────────
+
+    /** `$tc` always passes `count` and `n`: vue-i18n fills both from the choice. */
+    @Test
+    fun tcPassesCountAndNByItself() {
+        val translations = """{"apples": "no apples | {n} apple | {count} apples of {owner}"}"""
+        assertTrue(vueWarnings(translations, "\$tc('apples', n)").single().endsWith(": owner"))
+        assertTrue(vueWarnings(translations, "\$tc('apples', n, { owner: 'Ann' })").isEmpty())
+        assertTrue(vueWarnings(translations, "\$tc('apples', n, 'fr', { owner: 'Ann' })").isEmpty())
+    }
+
+    @Test
+    fun tcValuesKnownAtRuntimeOnlyAreNotReported() {
+        val translations = """{"apples": "{count} apples of {owner}"}"""
+        assertTrue(vueWarnings(translations, "\$tc('apples', n, opts)").isEmpty())
+    }
 }

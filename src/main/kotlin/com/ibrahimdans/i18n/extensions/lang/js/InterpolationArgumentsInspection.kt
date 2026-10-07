@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.extensions.lang.js
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.extensions.lang.js.extractors.MessageDescriptors
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.SvelteI18nExtractor
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
@@ -79,7 +80,12 @@ import com.intellij.psi.PsiElementVisitor
  *    vue-i18n's `$t(key, locale, values)`) pass the object's properties;
  *  - i18next's `replace: { name }` counts as well, and `count` is an ordinary property: a plural
  *    whose forms use `{{count}}` needs it like any other variable;
- *  - svelte-i18n passes its variables under `values`: `$_('key', { values: { name } })`.
+ *  - svelte-i18n passes its variables under `values`: `$_('key', { values: { name } })`;
+ *  - react-intl writes the key as the `id` of a descriptor and passes the values next to it:
+ *    `intl.formatMessage({ id: 'key' }, { name })` — the descriptor's id is the key literal
+ *    [com.ibrahimdans.i18n.extensions.lang.js.extractors.ReactIntlExtractor] reads, so the key resolves as the annotator resolves it;
+ *  - vue-i18n's `$tc('key', choice, { name })` — a locale may stand before the values — always
+ *    passes `count` and `n` as well: vue-i18n fills both from the choice by itself.
  *
  * All forms of a plural are read: a variable used only in `item_other` is still needed.
  */
@@ -98,9 +104,7 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
     }
 
     private fun checkCall(call: JSCallExpression, holder: ProblemsHolder) {
-        val keyLiteral = call.arguments.firstOrNull() as? JSLiteralExpression ?: return
-        if (!keyLiteral.isQuotedLiteral) return
-        val supplied = suppliedVariables(call, keyLiteral) ?: return
+        val (keyLiteral, supplied) = readCall(call) ?: return
         val expected = expectedVariables(keyLiteral, interpolatesSingleBraces(call, keyLiteral)) ?: return
         val missing = expected - supplied
         if (missing.isEmpty()) return
@@ -108,6 +112,47 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
             keyLiteral,
             PluginBundle.message("inspection.interpolation.arguments.message", missing.sorted().joinToString(", "))
         )
+    }
+
+    /**
+     * The literal [call] writes its key in, and the variables it passes, or null when either is
+     * unknown statically. See the class documentation for the shapes understood.
+     */
+    private fun readCall(call: JSCallExpression): Pair<JSLiteralExpression, Set<String>>? {
+        val first = call.arguments.firstOrNull() ?: return null
+        if (first is JSObjectLiteralExpression) return readFormatMessage(call, first)
+        val keyLiteral = first as? JSLiteralExpression ?: return null
+        if (!keyLiteral.isQuotedLiteral) return null
+        val supplied = (if (isTc(call)) tcVariables(call) else suppliedVariables(call, keyLiteral)) ?: return null
+        return keyLiteral to supplied
+    }
+
+    /** `formatMessage({ id: 'key' }, values)`: the descriptor's id, and the values' names. */
+    private fun readFormatMessage(call: JSCallExpression, descriptor: JSObjectLiteralExpression): Pair<JSLiteralExpression, Set<String>>? {
+        val id = descriptor.findProperty("id")?.value as? JSLiteralExpression ?: return null
+        if (!id.isQuotedLiteral || !MessageDescriptors.isFormatMessageDescriptor(id)) return null
+        val values = call.arguments.getOrNull(1) ?: return id to emptySet()
+        val supplied = (values as? JSObjectLiteralExpression)?.let { propertyNames(it, nested = null) } ?: return null
+        return id to supplied
+    }
+
+    /** True for vue-i18n's `$tc`, called bare or as `this.$tc`. */
+    private fun isTc(call: JSCallExpression): Boolean =
+        (call.methodExpression as? JSReferenceExpression)?.referenceName == TC
+
+    /**
+     * What `$tc(key, choice, [locale], [values])` passes: `count` and `n`, which vue-i18n fills
+     * from the choice, plus the values' names.
+     */
+    private fun tcVariables(call: JSCallExpression): Set<String>? {
+        val arguments = call.arguments
+        val values: JSExpression = when {
+            arguments.size < 3 -> return TC_IMPLICIT
+            isStringLiteral(arguments[2]) -> arguments.getOrNull(3) ?: return TC_IMPLICIT
+            else -> arguments[2]
+        }
+        val literal = values as? JSObjectLiteralExpression ?: return null
+        return TC_IMPLICIT + (propertyNames(literal, nested = null) ?: return null)
     }
 
     /**
@@ -224,6 +269,10 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
     internal companion object {
 
         private const val SVELTE_I18N = "svelte-i18n"
+
+        /** vue-i18n's plural function, and the variables it always passes. */
+        private const val TC = "\$tc"
+        private val TC_IMPLICIT = setOf("count", "n")
 
         /** The technologies for which `{name}` is a variable rather than text. */
         internal val SINGLE_BRACE_FRAMEWORKS = setOf("vue-i18n", "lingui", "react-intl", SVELTE_I18N)
