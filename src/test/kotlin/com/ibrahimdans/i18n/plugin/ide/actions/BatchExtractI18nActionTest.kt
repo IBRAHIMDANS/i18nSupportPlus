@@ -65,6 +65,53 @@ class BatchExtractI18nActionTest : ExtractionTestBase() {
         assertTrue(translations.contains("\"goodbye\": \"Goodbye everyone\""), translations)
     }
 
+    /** The candidates of a component written in a file named [name]. */
+    private fun candidatesIn(name: String, code: String): List<Candidate> {
+        myFixture.configureByText(name, code.trimIndent())
+        return ReadAction.compute<List<Candidate>, RuntimeException> {
+            BatchExtractI18nAction().collectCandidates(myFixture.file)
+        }
+    }
+
+    /** The texts *Hardcoded text in JSX* reports are offered too, once per tag, in file order. */
+    @Test
+    fun jsxTextsAndVisibleAttributesAreCandidates() = myFixture.runWithConfig(config("json")) {
+        val candidates = candidatesIn(
+            "Menu.tsx",
+            """
+                export const Menu = () => <nav><img alt="Logo" className="logo"/><p>Go <b>home</b></p><p>Save</p><code>npm</code><p>—</p></nav>;
+            """
+        )
+        // `Go` sits in a tag holding another tag, `npm` is code and `—` no text: all left out, as
+        // the inspection leaves them out.
+        assertEquals(listOf("Logo", "home", "Save"), candidates.map { it.originalText })
+    }
+
+    @Test
+    fun aJsxTextKeepsItsVariables() = myFixture.runWithConfig(config("json")) {
+        myFixture.addFileToProject("assets/test.json", "{}")
+        val candidates = candidatesIn(
+            "Greeting.tsx",
+            """
+                export const Greeting = ({ name }: any) => <p>Hello {name}</p>;
+            """
+        )
+        assertEquals(listOf("Hello {{name}}"), candidates.map { it.originalText })
+
+        acceptDefaultValues()
+        BatchExtractI18nAction().extract(project, myFixture.editor, candidates.zip(listOf("test:greeting")))
+        waitForAsyncWork()
+
+        myFixture.checkResult("export const Greeting = ({ name }: any) => <p>{i18n.t('test:greeting', { name })}</p>;")
+        assertTrue(translationsText("assets/test.json").contains("\"greeting\": \"Hello {{name}}\""))
+    }
+
+    @Test
+    fun aFileWithoutJsxKeepsItsLiteralsOnly() = myFixture.runWithConfig(config("json")) {
+        val candidates = candidatesIn("labels.ts", "export const label = 'Save';")
+        assertEquals(listOf("Save"), candidates.map { it.originalText })
+    }
+
     private fun candidatesOf(code: String): List<Candidate> {
         myFixture.configureByText("batch.js", code.trimIndent())
         return ReadAction.compute<List<Candidate>, RuntimeException> {

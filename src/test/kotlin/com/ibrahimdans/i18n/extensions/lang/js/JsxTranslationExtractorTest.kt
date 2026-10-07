@@ -16,6 +16,37 @@ class JsxTranslationExtractorTest : PlatformBaseTest() {
 
     private val extractor = JsxTranslationExtractor()
 
+    // ── Which files hold JSX ──────────────────────────────────────────────────
+
+    /** The text of the first `<p>` of [code], written in a file named [name]. */
+    private fun paragraphText(name: String, code: String): XmlText {
+        val file = myFixture.configureByText(name, code)
+        val tag = PsiTreeUtil.findChildrenOfType(file, XmlTag::class.java).first { it.name == "p" }
+        return PsiTreeUtil.findChildOfType(tag, XmlText::class.java)!!
+    }
+
+    /** CRA and Vite write JSX in `.js` files: the extension alone used to rule them out. */
+    @Test
+    fun testCanExtract_jsxInAJsFile() {
+        val text = paragraphText("App.js", "export const App = () => <p>Save</p>;")
+        Assertions.assertTrue(extractor.canExtract(text.firstChild))
+    }
+
+    @Test
+    fun testCanExtract_jsxAndTsxFilesUnchanged() {
+        Assertions.assertTrue(extractor.canExtract(paragraphText("App.jsx", "export const App = () => <p>Save</p>;").firstChild))
+        Assertions.assertTrue(extractor.canExtract(paragraphText("App.tsx", "export const App = () => <p>Save</p>;").firstChild))
+    }
+
+    /** A `.js` file without JSX holds no tag: its strings stay with [JsTranslationExtractor]. */
+    @Test
+    fun testCanExtract_aJsFileWithoutJsxIsLeftToTheJsExtractor() {
+        val file = myFixture.configureByText("labels.js", "export const label = 'Save';")
+        val literal = file.findElementAt(file.text.indexOf("Save"))!!
+        Assertions.assertFalse(extractor.canExtract(literal))
+        Assertions.assertTrue(JsTranslationExtractor().canExtract(literal))
+    }
+
     // ── Null parent XmlTag ────────────────────────────────────────────────────
 
     @Test

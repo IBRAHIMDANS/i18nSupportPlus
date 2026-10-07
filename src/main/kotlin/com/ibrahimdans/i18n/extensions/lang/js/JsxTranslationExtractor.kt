@@ -19,14 +19,16 @@ import com.intellij.psi.xml.XmlTag
 import com.intellij.psi.xml.XmlText
 
 internal class JsxTranslationExtractor : TranslationExtractor {
+    /**
+     * True for a text or attribute of a JSX tag holding no other tag, in any JavaScript dialect:
+     * CRA and Vite projects write JSX in `.js` files, which a test on the `.jsx` / `.tsx` extension
+     * left without extraction or inspection. A tag under a JavaScript file can only be JSX; a Vue
+     * template or an HTML fragment injected in a string is a file of another language.
+     */
     override fun canExtract(element: PsiElement): Boolean {
-        val fileType = element.containingFile.fileType
-        val fileName = element.containingFile.name
-        val isJsxFile = fileType.name.contains("JSX", ignoreCase = true) ||
-            fileName.endsWith(".jsx", ignoreCase = true) ||
-            fileName.endsWith(".tsx", ignoreCase = true)
-
-        return isJsxFile && PsiTreeUtil.getParentOfType(element, XmlTag::class.java)?.let {
+        val javaScript = Language.findLanguageByID("JavaScript") ?: return false
+        if (!element.containingFile.language.isKindOf(javaScript)) return false
+        return PsiTreeUtil.getParentOfType(element, XmlTag::class.java)?.let {
             !PsiTreeUtil.findChildOfType(it, XmlTag::class.java).toBoolean()
         } ?: false
     }
