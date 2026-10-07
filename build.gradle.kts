@@ -44,10 +44,6 @@ dependencies {
         // Svelte is not bundled in IntelliJ Ultimate; without it a .svelte file is PLAIN_TEXT,
         // so no key inside one can be seen. Published by JetBrains, versioned on the platform.
         plugin("dev.blachut.svelte.lang:253.31033.19")
-        // Svelte is not bundled in IntelliJ Ultimate; without it a .svelte file is PLAIN_TEXT,
-        // so no key inside one can be seen. Published by JetBrains, versioned on the platform.
-        // Svelte is not bundled in IntelliJ Ultimate; without it a .svelte file is PLAIN_TEXT,
-        // so no key inside one can be seen. Published by JetBrains, versioned on the platform.
 
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
