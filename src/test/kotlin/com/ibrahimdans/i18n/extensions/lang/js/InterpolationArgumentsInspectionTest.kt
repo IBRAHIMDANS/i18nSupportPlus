@@ -137,13 +137,29 @@ class InterpolationArgumentsInspectionTest : PlatformBaseTest() {
     private fun vueWarnings(translations: String, call: String): List<String> =
         warningsIn(translations, "js", "export default { methods: { label(n) { return this.$call; } } };")
 
+    /** The branches of an ICU block are text; its selector is the variable that picks one. */
     @Test
     fun icuBranchesAreNotVariables() {
         val icu = """{"gender": "{g, select, male {He} female {She} other {They}} left"}"""
         assertTrue(vueWarnings(icu, "\$t('gender', { g: n })").isEmpty())
-        // The selector `g` itself is not asked for either: the dialog's rule does not match a
-        // `{…}` holding braces, so a complex ICU argument goes unchecked rather than misread.
-        assertTrue(vueWarnings(icu, "\$t('gender')").isEmpty())
+        assertTrue(vueWarnings(icu, "\$t('gender')").single().endsWith(": g"))
+    }
+
+    /** lingui writes ICU messages: the plural's argument is the variable most often forgotten. */
+    @Test
+    fun anIcuPluralNeedsItsArgument() {
+        val translations = """{"items": "{count, plural, one {# item} other {# items}}"}"""
+        fun lingui(call: String) =
+            warningsIn(translations, "js", "import { i18n } from '@lingui/core';\nexport const label = (n) => $call;")
+        assertTrue(lingui("i18n._('items')").single().endsWith(": count"))
+        assertTrue(lingui("i18n._('items', { count: n })").isEmpty())
+    }
+
+    /** i18next prints `{count, plural, …}` as text: nothing is asked for. */
+    @Test
+    fun anIcuBlockIsTextForI18next() {
+        val translations = """{"items": "{count, plural, one {# item} other {# items}}"}"""
+        assertTrue(warningsFor(translations, "t('items')").isEmpty())
     }
 
     /** i18next interpolates `{{name}}` only: a single-brace `{name}` is text it prints as is. */
@@ -217,6 +233,14 @@ class InterpolationArgumentsInspectionTest : PlatformBaseTest() {
         Assertions.assertEquals(
             setOf("count"),
             InterpolationArgumentsInspection.namedVariables("%{count} %{ count } %s", singleBraces = false)
+        )
+        Assertions.assertEquals(
+            setOf("rank", "gender"),
+            InterpolationArgumentsInspection.namedVariables(
+                "{ rank , selectordinal, one {#st} other {#th}} {gender, select, other {{n, plural, other {x}}}}",
+                singleBraces = true
+            ),
+            "only top-level ICU blocks name a variable"
         )
     }
 }
