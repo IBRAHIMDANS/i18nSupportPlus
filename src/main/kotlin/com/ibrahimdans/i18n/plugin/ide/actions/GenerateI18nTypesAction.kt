@@ -6,7 +6,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.FrameworkDetector
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
-import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
+import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
@@ -173,7 +173,6 @@ class GenerateI18nTypesAction : AnAction() {
 
     internal companion object {
         const val FILE_NAME = "i18next.d.ts"
-        private const val DEFAULT_REFERENCE_LOCALE = "en"
         private const val I18NEXT = "i18next"
 
         /**
@@ -214,9 +213,9 @@ class GenerateI18nTypesAction : AnAction() {
             val config = Settings.getInstance(project).config()
             val defaultNamespace = config.defaultNamespaces().first()
             val sources = ModuleSources.sourcesOf(project, target.module).filter { it.hasRecognizedLocale() }
-            val wanted = target.module?.referenceLocale?.takeIf { it.isNotBlank() } ?: DEFAULT_REFERENCE_LOCALE
+            val wanted = ReferenceLocale.wanted(target.module, config)
             val available = sources.map { it.localeLabel() }.distinct()
-            val locale = LocaleMatching.pick(wanted, available)
+            val locale = ReferenceLocale.of(target.module, config, available)
                 ?: return Reading.NoReference(wanted, available.sorted())
             val namespaces = sortedMapOf<String, MutableList<List<String>>>()
             val unread = sortedSetOf<String>()

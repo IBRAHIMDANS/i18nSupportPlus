@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
+import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
@@ -44,11 +45,12 @@ internal object ExistingKeyFinder {
         val project = caller.project
         val config = Settings.getInstance(project).config()
         val module = ownerOf(caller, config)
-        val locale = referenceLocale(module, config)
+        val sources = ModuleSources.sourcesOf(project, module).filter { it.hasRecognizedLocale() }
+        val locale = ReferenceLocale.of(module, config, sources.map { it.localeLabel() }.distinct()) ?: return emptyMap()
         val defaultNamespace = config.defaultNamespaces().first()
         val found = linkedMapOf<String, LinkedHashSet<String>>()
-        ModuleSources.sourcesOf(project, module)
-            .filter { it.hasRecognizedLocale() && it.localeLabel() == locale }
+        sources
+            .filter { it.localeLabel() == locale }
             .forEach { source ->
                 val file = ModuleSources.readableFile(source) ?: return@forEach
                 val namespace = TranslationDataLoader.extractNamespace(source, defaultNamespace)
@@ -70,15 +72,6 @@ internal object ExistingKeyFinder {
         val separator = if (config.firstComponentNs) config.keySeparator else config.nsSeparator
         return namespace + separator + key
     }
-
-    /**
-     * The locale the module translates from, then the project's preview locale, then the folding
-     * language — the fallback order [ModuleConfig.referenceLocale] documents.
-     */
-    private fun referenceLocale(module: ModuleConfig?, config: Config): String =
-        module?.referenceLocale?.takeIf { it.isNotBlank() }
-            ?: config.previewLocale.takeIf { it.isNotBlank() }
-            ?: config.foldingPreferredLanguage
 
     private fun ownerOf(caller: PsiElement, config: Config): ModuleConfig? {
         if (config.modules.isEmpty()) return null
