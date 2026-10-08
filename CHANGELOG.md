@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.6.0 - 2026-10-07
+
 ### Features
 
 - [Inspections] **Translation key missing from a locale** (`I18nMissingKey`, on): in `fr/common.json`, every key of the reference locale's file it lacks, on the closest existing parent; plurals are compared as a group. *Add missing key* writes it with an empty value, so *Empty translation value* keeps pointing at it. JSON and YAML
