@@ -17,11 +17,11 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
-import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -83,14 +83,16 @@ class GenerateI18nTypesAction : AnAction() {
 
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.generate.types.progress"), false) {
             override fun run(indicator: ProgressIndicator) {
-                val contents = DumbService.getInstance(project).runReadActionInSmartMode<Map<Target, Plan>> {
+                // Waits for smart mode like the deprecated `DumbService.runReadActionInSmartMode`, but
+                // yields to a write action and starts the reading over instead of holding it back.
+                val contents = ReadAction.nonBlocking<Map<Target, Plan>> {
                     targets.associateWith { target ->
                         val reading = readReference(project, target)
                         // Nothing will be written without a reference: no reason to ask about the others.
                         val competing = if (reading is Reading.Declaration) competingDeclarations(project, target) else emptyList()
                         Plan(reading, competing)
                     }
-                }
+                }.inSmartMode(project).executeSynchronously()
                 ApplicationManager.getApplication().invokeLater {
                     if (!project.isDisposed) write(project, contents)
                 }
