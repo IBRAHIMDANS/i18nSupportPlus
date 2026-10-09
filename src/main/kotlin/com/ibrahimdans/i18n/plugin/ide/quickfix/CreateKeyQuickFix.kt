@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.ContentGenerator
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.dialog.BatchPlaceholderDialog
 import com.ibrahimdans.i18n.plugin.ide.dialog.PlaceholderStrategy
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
@@ -76,19 +77,14 @@ class CreateKeyQuickFix(
         translationValue: String
     ) {
         if (allSources.size == 1) {
-            createPropertyInFile(project, allSources.first(), translationValue)
+            writeKey(project, allSources, translationValue, onComplete)
         } else if (allSources.size > 1) {
-            // Track which sources were actually written by the selector
-            val writtenSources = mutableListOf<LocalizationSource>()
             selector.select(
                 allSources,
                 { selectedSources ->
-                    selectedSources.forEach { source ->
-                        createPropertyInFile(project, source, translationValue)
-                        writtenSources.add(source)
-                    }
+                    writeKey(project, selectedSources, translationValue, onComplete)
                     // After writing to selected sources, offer to fill the remaining ones
-                    val remainingSources = allSources.filter { it !in writtenSources }
+                    val remainingSources = remainingSources(allSources, selectedSources)
                     if (remainingSources.isNotEmpty()) {
                         offerPlaceholderForRemainingLocales(project, remainingSources, translationValue)
                     }
@@ -116,31 +112,30 @@ class CreateKeyQuickFix(
             PlaceholderStrategy.KEY_NAME -> fullKey.source
             PlaceholderStrategy.COPY_FROM_DEFAULT -> primaryValue
         }
-        remainingSources.forEach { source ->
-            createPropertyInFile(project, source, placeholderValue)
-        }
+        writeKey(project, remainingSources, placeholderValue) {}
     }
 
     /**
-     * Resolves the key inside the write action rather than before it.
+     * Writes the key into [targets], then runs [afterWrite] once if at least one was written —
+     * all in one command, so one Ctrl+Z undoes the files and the code together.
      *
-     * [resolveCompositeKey] walks the translation file's PSI, and every caller here reaches this
-     * method from the EDT — either straight from [invoke]'s `invokeLater`, or from the action
-     * listener of the [UserChoice] popup. Since the platform dropped the EDT's implicit read
-     * access, a bare PSI read there fails `assertReadAccessAllowed` ("Read access is allowed from
-     * inside read-action only"). The write action already grants read access, so resolving inside
-     * it needs no separate `ReadAction`, and it also makes resolution and generation atomic: the
-     * tree cannot be modified between the lookup and the write that depends on it.
+     * [afterWrite] replaces the extracted text in the editor, at the range it had before the
+     * extraction. It used to run after each file: extracting to 26 files replaced that range
+     * 26 times, each time over the call the previous one had inserted, and left
+     * `{i18n.t('key')}y')}y')}…` in the code.
+     *
+     * The key is resolved inside the write action rather than before it: [resolveCompositeKey]
+     * walks the translation file's PSI, and every caller reaches this method from the EDT, which
+     * no longer holds read access implicitly. The write action grants it, and makes resolution
+     * and generation atomic: the tree cannot change between the lookup and the write.
      */
-    private fun createPropertyInFile(project: Project, target: LocalizationSource, translationValue: String) {
+    private fun writeKey(project: Project, targets: List<LocalizationSource>, translationValue: String, afterWrite: () -> Unit) {
         CommandProcessor.getInstance().executeCommand(
             project,
             {
                 ApplicationManager.getApplication().runWriteAction {
-                    val ref = resolveCompositeKey(fullKey.compositeKey, target) ?: return@runWriteAction
-                    val element = ref.element ?: return@runWriteAction
-                    createPropertiesChain(element.value(), ref.unresolved, target.localization.contentGenerator(), translationValue)
-                    onComplete()
+                    val written = targets.count { createPropertyInFile(it, translationValue) }
+                    if (written > 0) afterWrite()
                 }
             },
             commandCaption,
@@ -148,9 +143,38 @@ class CreateKeyQuickFix(
         )
     }
 
+    /**
+     * Writes the key into [target]; false when the file offers nowhere to write it. A key the
+     * file already holds counts as written: the code still points at it, its value is kept.
+     */
+    private fun createPropertyInFile(target: LocalizationSource, translationValue: String): Boolean {
+        val ref = resolveCompositeKey(fullKey.compositeKey, target) ?: return false
+        val element = ref.element ?: return false
+        createPropertiesChain(element.value(), ref.unresolved, target.localization.contentGenerator(), translationValue)
+        return true
+    }
+
     private fun createPropertiesChain(element: PsiElement, unresolved: List<Literal>, generator: ContentGenerator, translationValue: String) {
         if(generator.isSuitable(element)) {
             generator.generate(element, fullKey, unresolved, translationValue)
+        }
+    }
+
+    companion object {
+        /**
+         * The sources [selected] left out that hold the same namespaces: the other locales of the
+         * files the key was written to.
+         *
+         * A key written without a namespace is looked up in every file of the project, so
+         * `allSources` can span every namespace. Offering all the files left out wrote the key into
+         * `account.json`, `auth.json`, `errors.json`… of every locale, where nothing reads it.
+         */
+        internal fun remainingSources(
+            allSources: List<LocalizationSource>,
+            selected: List<LocalizationSource>
+        ): List<LocalizationSource> {
+            val namespaces = selected.mapTo(mutableSetOf()) { TranslationDataLoader.extractNamespace(it) }
+            return allSources.filter { it !in selected && TranslationDataLoader.extractNamespace(it) in namespaces }
         }
     }
 }
