@@ -142,8 +142,9 @@ class LocalizationSourceService {
     private fun computeSources(fileNames: List<String>, project: Project): List<LocalizationSource> {
         val config = Settings.getInstance(project).config()
         val requestedNamespaces = fileNames.whenMatches { it.isNotEmpty() }
-        val sources = (typedSourcesByName(project, config, requestedNamespaces ?: config.defaultNamespaces()) +
-            configuredSources(project, config))
+        val namespaces = requestedNamespaces ?: config.defaultNamespaces()
+        val sources = (typedSourcesByName(project, config, namespaces) +
+            configuredSources(project, config).filter { it.namespace == null || it.namespace in namespaces })
             .distinctBy { it.displayPath }
         if (sources.isNotEmpty() || requestedNamespaces != null) return sources
         // Cached on the project, so the extra call costs nothing per highlighting pass.
@@ -205,7 +206,10 @@ class LocalizationSourceService {
      */
     fun findNamespaceFiles(fileNames: List<String>, project: Project): List<LocalizationSource> {
         if (fileNames.isEmpty()) return emptyList()
-        return typedSourcesByName(project, Settings.getInstance(project).config(), fileNames)
+        val config = Settings.getInstance(project).config()
+        // A technology may declare the namespace of a file not named after it: a Transloco scope.
+        return typedSourcesByName(project, config, fileNames) +
+            configuredSources(project, config).filter { it.namespace != null && it.namespace in fileNames }
     }
 
     /**
@@ -231,7 +235,11 @@ class LocalizationSourceService {
         val cache = composedSources(project)
         cache.all?.let { cached -> if (allValid(cached)) return cached }
         val config = Settings.getInstance(project).config()
-        return (typedAllSources(project, config) + configuredSources(project, config)).also { cache.all = it }
+        val configured = configuredSources(project, config)
+        // A file whose namespace a technology states is listed once, under that namespace: the
+        // locale heuristic alone would also read a Transloco scope file as the default namespace.
+        val claimed = configured.filter { it.namespace != null }.mapTo(HashSet()) { it.displayPath }
+        return (typedAllSources(project, config).filter { it.displayPath !in claimed } + configured).also { cache.all = it }
     }
 
     /*

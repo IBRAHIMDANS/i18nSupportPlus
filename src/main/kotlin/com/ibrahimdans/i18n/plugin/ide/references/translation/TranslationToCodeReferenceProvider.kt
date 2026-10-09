@@ -30,12 +30,14 @@ internal class TranslationToCodeReferenceProvider : KeyComposer<PsiElement> {
     fun getReferences(element: PsiElement, textRange: TextRange, parents: List<String>): List<PsiReference> {
         val project = element.project
         val config = Settings.getInstance(project).config()
+        // A scope file (Transloco) is named after its locale: its keys are written `scope.key`.
+        val scope = element.containingFile?.let { file -> Extensions.TECHNOLOGY.extensionList.firstNotNullOfOrNull { it.keyScopeOf(file) } }
         val key = composeKey(
-            parents,
+            if (scope != null) listOf(scope) + parents.drop(1) else parents,
             Separators(config.nsSeparator, config.keySeparator, config.pluralSeparator),
             config.defaultNamespaces() + Extensions.TECHNOLOGY.extensionList.flatMap {it.cfgNamespaces()},
             false,
-            config.firstComponentNs
+            config.firstComponentNs || scope != null
         )
         @Suppress("DEPRECATION")
         if (PsiSearchHelper.SearchCostResult.FEW_OCCURRENCES ==

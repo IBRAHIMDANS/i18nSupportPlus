@@ -56,12 +56,15 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
         ReadAction.compute<Boolean, RuntimeException> {
             val project = element.project
             val config = Settings.getInstance(project).config()
+            val path = pathOf(element)
+            // A scope file (Transloco) is named after its locale: its keys are written `scope.key`.
+            val scope = element.containingFile?.let { file -> Extensions.TECHNOLOGY.extensionList.firstNotNullOfOrNull { it.keyScopeOf(file) } }
             val key = composeKey(
-                pathOf(element),
+                if (scope != null) listOf(scope) + path.drop(1) else path,
                 Separators(config.nsSeparator, config.keySeparator, config.pluralSeparator),
                 config.defaultNamespaces() + Extensions.TECHNOLOGY.extensionList.flatMap { it.cfgNamespaces() },
                 false,
-                config.firstComponentNs,
+                config.firstComponentNs || scope != null,
             )
             DynamicKeyUsages.isReached(
                 key,

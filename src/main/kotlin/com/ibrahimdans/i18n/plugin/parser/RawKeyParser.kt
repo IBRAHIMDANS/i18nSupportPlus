@@ -1,8 +1,10 @@
 package com.ibrahimdans.i18n.plugin.parser
 
+import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
+import com.ibrahimdans.i18n.plugin.key.parser.KeyParser
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
@@ -38,8 +40,21 @@ class RawKeyParser(private val project: Project) {
             syntax == KeySyntax.NoNamespace -> parser.parse(rawKey, emptyNamespace = true, firstComponentNamespace = false)
             firstComponent -> parser.parse(rawKey, emptyNamespace = true, firstComponentNamespace = true)
             syntax != null -> parser.parse(rawKey)
-            else -> parser.parse(rawKey, false, config.firstComponentNs)
+            config.firstComponentNs -> parser.parse(rawKey, false, true)
+            else -> parser.parse(rawKey)?.let { key -> scoped(key, rawKey, parser) ?: key }
         }
+    }
+
+    /**
+     * [key] read again with its first segment as the namespace, when that segment names a scope a
+     * technology declares ([com.ibrahimdans.i18n.Technology.keyScopes]): Transloco writes the key
+     * `title` of the scope `admin` as `admin.title`. Null for any other key, which keeps its reading.
+     */
+    private fun scoped(key: FullKey, rawKey: RawKey, parser: KeyParser): FullKey? {
+        if (key.ns != null || key.keyPrefix.isNotEmpty() || key.compositeKey.size < 2) return null
+        val first = key.compositeKey.first().text
+        if (Extensions.TECHNOLOGY.extensionList.none { first in it.keyScopes(project) }) return null
+        return parser.parse(rawKey, emptyNamespace = true, firstComponentNamespace = true)
     }
 
     /** The key syntax of the module holding [caller]'s file, or null to use the project settings. */
