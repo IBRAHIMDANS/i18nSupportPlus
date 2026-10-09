@@ -143,6 +143,26 @@ class CodeHighlightingTestBase: PlatformBaseTest() {
     }
 
     /**
+     * A literal in the *condition* of a ternary is compared, not looked up: `'remove'` is no key,
+     * while both branches still are. Pins `JsLang.isInsideConditionalCondition`, which runs only once
+     * no translation function accepts the literal directly.
+     */
+    @Test
+    fun testTernaryConditionLiteralIsNotAKey() {
+        val tg = JsonTranslationGenerator()
+        myFixture.addFileToProject("en/dashboard.${tg.ext()}",
+            """{"status":{"active":"Active","inactive":"Inactive"}}""")
+        myFixture.configureByText("Status.tsx", """
+            import { useTranslation } from 'react-i18next';
+            export default function Status({ mode }: { mode: string }) {
+                const { t } = useTranslation('dashboard');
+                return t(mode === 'remove' ? 'status.active' : 'status.<error descr="Unresolved key">missing</error>');
+            }
+        """.trimIndent())
+        myFixture.checkHighlighting(true, true, true, true)
+    }
+
+    /**
      * Repro: ternary inside t(...) with `const { t } = useTranslation()` (no namespace)
      * and explicit namespace prefix in both branch keys. Must produce no annotation error.
      */
