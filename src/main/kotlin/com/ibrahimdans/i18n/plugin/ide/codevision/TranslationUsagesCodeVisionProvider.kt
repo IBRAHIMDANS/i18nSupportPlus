@@ -28,7 +28,9 @@ import com.intellij.psi.util.PsiTreeUtil
  * (`t(`menu.${'$'}{id}`)`) may reach it, shown as "dynamic usage" rather than "no usages".
  *
  * One reference search per key: past [MAX_KEYS] keys in a file nothing is shown, rather than
- * slowing the daemon down on a catalogue of thousands of keys. JSON only — YAML is an optional
+ * slowing the daemon down on a catalogue of thousands of keys. Each search stops past [MAX_USAGES]:
+ * a key used everywhere reads "99+ usages", and the search does not walk every one of its usages
+ * again after each edit of the file. JSON only — YAML is an optional
  * dependency, kept out of the code `plugin.xml` loads.
  */
 class TranslationUsagesCodeVisionProvider : DaemonBoundCodeVisionProvider {
@@ -44,8 +46,9 @@ class TranslationUsagesCodeVisionProvider : DaemonBoundCodeVisionProvider {
         if (leaves.size > MAX_KEYS) return emptyList()
         val heads = mutableMapOf<String, Set<String>>()
         return leaves.map { property ->
-            val count = TranslationKeyUsages.count(property, property.nameElement)
+            val count = TranslationKeyUsages.count(property, property.nameElement, MAX_USAGES + 1)
             val text = when {
+                count > MAX_USAGES -> PluginBundle.message("codevision.usages.many", MAX_USAGES)
                 count > 0 -> PluginBundle.message("codevision.usages.count", count)
                 TranslationKeyUsages.reachedDynamically(property.nameElement, heads) -> PluginBundle.message("codevision.usages.dynamic")
                 else -> PluginBundle.message("codevision.usages.none")
@@ -59,6 +62,8 @@ class TranslationUsagesCodeVisionProvider : DaemonBoundCodeVisionProvider {
 
     internal companion object {
         const val ID = "com.ibrahimdans.i18n.translationUsages"
-        const val MAX_KEYS = 500
+        // About 14 ms per key search on the benchmark: 500 keys held each pass of the file for 7 s.
+        const val MAX_KEYS = 100
+        const val MAX_USAGES = 99
     }
 }

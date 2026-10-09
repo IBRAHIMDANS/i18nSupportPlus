@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.perf
 
 import com.ibrahimdans.i18n.extensions.lang.js.InterpolationArgumentsInspection
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.ide.codevision.TranslationUsagesCodeVisionProvider
 import com.ibrahimdans.i18n.plugin.ide.inspection.IcuFormatInspection
 import com.ibrahimdans.i18n.plugin.ide.inspection.MarkupConsistencyInspection
 import com.ibrahimdans.i18n.plugin.ide.inspection.MissingPluralFormsInspection
@@ -9,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.ide.inspection.MissingTranslationKeyInspectio
 import com.ibrahimdans.i18n.plugin.ide.inspection.PlaceholderConsistencyInspection
 import com.ibrahimdans.i18n.plugin.ide.inspection.UntranslatedValueInspection
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.components.service
 import com.intellij.psi.PsiDocumentManager
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -70,6 +72,11 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
  * its extractor first): plugin frames in (b)'s passes 28 % → 16–18 % (two profiles, heavily loaded
  * machine — times not comparable). Left: `JsLang.canExtractKey` and the `useTranslation` hook
  * resolution, both under the inlay collector.
+ *
+ * TASK-PERF-CODEVISION added (f), the usages code vision on a JSON file after a keystroke in it. On a
+ * 500-key file: 7.2 s per pass, 6.5 s for the same searches without the 99-usage cap — the cost is
+ * one reference search per key, about 14 ms each, which the cap does not touch. `MAX_KEYS` lowered
+ * from 500 to 100 to bound it; (f) now measures a file at that limit: 1.2 s.
  */
 @EnabledIfEnvironmentVariable(named = "I18N_PERF", matches = "true")
 class HighlightingPerformanceTest : PlatformBaseTest() {
@@ -171,6 +178,29 @@ class HighlightingPerformanceTest : PlatformBaseTest() {
         assertBelow(NAMESPACE_LOOKUPS_CEILING_MS, elapsed)
     }
 
+    /**
+     * (f) What the usages code vision costs on a [LargeProjectFixture.CATALOG_KEYS]-key JSON file after
+     * a character typed in it: one reference search per key, repaid after each edit.
+     */
+    @Test
+    fun usagesCodeVisionAfterTypingInALargeJsonFile() {
+        addFileToProject("src/Catalog.js", LargeProjectFixture.catalogComponent())
+        myFixture.configureFromExistingVirtualFile(myFixture.addFileToProject("locales/en/catalog.json", LargeProjectFixture.catalog()).virtualFile)
+        myFixture.editor.caretModel.moveToOffset(myFixture.editor.document.text.indexOf("value 0"))
+        val provider = TranslationUsagesCodeVisionProvider()
+        val labels = runReadAction { provider.computeForEditor(myFixture.editor, myFixture.file) }
+        assertEquals(LargeProjectFixture.CATALOG_KEYS, labels.size)
+
+        val elapsed = medianOf(RUNS) {
+            myFixture.type("x")
+            PsiDocumentManager.getInstance(project).commitAllDocuments()
+            timed { runReadAction { provider.computeForEditor(myFixture.editor, myFixture.file) } }
+        }
+        log("(f) usages code vision after typing in a ${LargeProjectFixture.CATALOG_KEYS}-key JSON file, median of $RUNS", elapsed)
+
+        assertBelow(CODE_VISION_CEILING_MS, elapsed)
+    }
+
     /** The benchmark is only worth something on the resolved path: a fixture mistake must fail here. */
     private fun assertAllKeysResolved() {
         val unresolved = myFixture.doHighlighting().filter { it.description?.contains("Unresolved") == true }
@@ -202,5 +232,6 @@ class HighlightingPerformanceTest : PlatformBaseTest() {
         const val UNRELATED_TYPING_CEILING_MS = 1_000L
         const val RESCAN_CEILING_MS = 1_000L
         const val NAMESPACE_LOOKUPS_CEILING_MS = 1_000L
+        const val CODE_VISION_CEILING_MS = 15_000L
     }
 }
