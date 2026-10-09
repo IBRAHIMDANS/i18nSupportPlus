@@ -60,31 +60,31 @@ internal class ExtractKeyDialog(
         private set
 
     private val offered = model.existingKeys.take(MAX_OFFERED_KEYS)
-    private val reuseButtons = offered.map { JBRadioButton(PluginBundle.message("action.intention.extract.key.reuse.option", it)) }
-    private val createButton = JBRadioButton(PluginBundle.message("action.intention.extract.key.reuse.create"))
+    internal val reuseButtons = offered.map { JBRadioButton(PluginBundle.message("action.intention.extract.key.reuse.option", it)) }
+    internal val createButton = JBRadioButton(PluginBundle.message("action.intention.extract.key.reuse.create"))
 
-    private val namespaceCombo = ComboBox(model.namespaces.toTypedArray())
+    internal val namespaceCombo = ComboBox(model.namespaces.toTypedArray())
     private val addNamespaceButton = JButton("+")
     private val prefixLabel = JBLabel()
     /** The group the key goes under, completed from the groups of the selected namespace. */
-    private val parentField = TextFieldWithAutoCompletion.create(
+    internal val parentField = TextFieldWithAutoCompletion.create(
         project, model.parents(model.initialNamespace), true, model.initialParent(model.initialNamespace)
     )
     private val separatorLabel = JBLabel(model.keySeparator)
-    private val keyField = JBTextField(model.proposedName(model.initialNamespace))
+    internal val keyField = JBTextField(model.proposedName(model.initialNamespace))
     private val keyStatus = JBLabel()
     private val localesHost = JPanel(BorderLayout())
     private val fields = LinkedHashMap<LocalizationSource, JBTextField>()
     private val leaveEmptyButton = JBRadioButton(PluginBundle.message("dialog.extract.empty.leave"), true)
-    private val copyReferenceButton = JBRadioButton(PluginBundle.message("dialog.extract.empty.copy"))
-    private val previewLabel = JBLabel()
+    internal val copyReferenceButton = JBRadioButton(PluginBundle.message("dialog.extract.empty.copy"))
+    internal val previewLabel = JBLabel()
 
     /** The variables as currently named; their placeholders are the ones standing in the fields. */
     private val variables = model.variables.toMutableList()
-    private val variableFields = model.variables.map { JBTextField(it.name, VARIABLE_COLUMNS) }
+    internal val variableFields = model.variables.map { JBTextField(it.name, VARIABLE_COLUMNS) }
 
     /** Writes `key_one`, `key_other`… — offered while a `{{count}}` is passed. */
-    private val pluralBox = JBCheckBox(PluginBundle.message("dialog.extract.plural.label"))
+    internal val pluralBox = JBCheckBox(PluginBundle.message("dialog.extract.plural.label"))
     private val pluralFields = LinkedHashMap<LocalizationSource, LinkedHashMap<String, JBTextField>>()
     private var pluralRow: Row? = null
     private var pluralOffered = model.canPluralise(model.variables)
@@ -203,8 +203,13 @@ internal class ExtractKeyDialog(
 
     private fun reused(): String? = offered.getOrNull(reuseButtons.indexOfFirst { it.isSelected })
 
-    /** The key as typed — parent and name — without the namespace prefix, in case it was typed too. */
-    private fun keyText(): String = model.join(parentField.text.trim().removePrefix(model.prefix(namespace())), keyField.text)
+    /**
+     * The key as typed — parent and name — without the namespace prefix, in case it was typed too.
+     * Empty without a name: the parent alone names a group, not the key to create.
+     */
+    private fun keyText(): String =
+        if (keyField.text.isBlank()) ""
+        else model.join(parentField.text.trim().removePrefix(model.prefix(namespace())), keyField.text)
 
     /**
      * One field per file of the selected namespace, the reference locale first and holding the
@@ -353,6 +358,19 @@ internal class ExtractKeyDialog(
         )
         super.doOKAction()
     }
+
+    // ── For ExtractKeyDialogTest: a test container builds the dialog but never shows it ──
+
+    /** The values typed, by locale — `en` — or by locale and plural form — `en.one`. */
+    internal fun typedValues(): Map<String, String> =
+        fields.entries.associate { (source, field) -> source.localeLabel() to field.text } +
+            pluralFields.entries.flatMap { (source, forms) -> forms.map { (form, field) -> "${source.localeLabel()}.$form" to field.text } }
+
+    /** What OK would refuse, or null. */
+    internal fun validationError(): String? = doValidate()?.message
+
+    /** Presses OK: [answer] is set. */
+    internal fun confirm() = doOKAction()
 
     override fun getPreferredFocusedComponent(): JComponent = keyField.also { it.selectAll() }
 
