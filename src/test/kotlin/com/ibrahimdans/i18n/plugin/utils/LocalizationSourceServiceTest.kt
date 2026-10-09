@@ -140,4 +140,66 @@ class LocalizationSourceServiceTest : PlatformBaseTest() {
             Assertions.assertNotSame(first, findSources("common"), "a configuration change must drop the cached lookup")
         }
     }
+
+    private fun findNamespaceFiles(vararg namespaces: String): List<LocalizationSource> =
+        ReadAction.compute<List<LocalizationSource>, RuntimeException> {
+            project.service<LocalizationSourceService>().findNamespaceFiles(namespaces.toList(), project)
+        }
+
+    /** Asked by the annotator for every key naming a namespace, on each pass: cached like [findSources]. */
+    @Test
+    fun findNamespaceFiles_reusesTheLookupWhenNothingChanged() {
+        addFileToProject("locales/en/common.json", """{"menu":"Home"}""")
+        addFileToProject("locales/fr/common.json", """{"menu":"Accueil"}""")
+
+        val first = findNamespaceFiles("common")
+
+        Assertions.assertEquals(2, first.size)
+        Assertions.assertSame(first, findNamespaceFiles("common"), "the second call must be served from the cache")
+        Assertions.assertTrue(findNamespaceFiles("auth").isEmpty(), "each namespace list gets its own answer")
+    }
+
+    /** The two lookups share a cache but not their answers: `findSources` adds the configured sources. */
+    @Test
+    fun findNamespaceFiles_doesNotServeTheAnswerOfFindSources() {
+        addFileToProject("locales/en/common.json", """{"menu":"Home"}""")
+
+        val sources = findSources("common")
+
+        Assertions.assertNotSame(sources, findNamespaceFiles("common"))
+    }
+
+    @Test
+    fun findNamespaceFiles_seesANamespaceFileAddedAfterTheFirstLookup() {
+        addFileToProject("locales/en/common.json", """{"menu":"Home"}""")
+        Assertions.assertTrue(findNamespaceFiles("auth").isEmpty())
+
+        addFileToProject("locales/en/auth.json", """{"login":"Log in"}""")
+
+        Assertions.assertEquals(1, findNamespaceFiles("auth").size, "a new file must invalidate the cached lookup")
+    }
+
+    @Test
+    fun findNamespaceFiles_seesAnEditMadeAfterTheFirstLookup() {
+        val file = addFileToProject("locales/en/common.json", """{"menu":"Home"}""")
+        Assertions.assertEquals(1, findNamespaceFiles("common").size)
+
+        myFixture.openFileInEditor(file.virtualFile)
+        myFixture.type(" ")
+
+        val tree = ReadAction.compute<String?, RuntimeException> {
+            findNamespaceFiles("common").single().tree?.value()?.takeIf { it.isValid }?.text
+        }
+        Assertions.assertNotNull(tree, "the cached tree must not survive an edit as an invalid element")
+    }
+
+    @Test
+    fun findNamespaceFiles_isRecomputedWhenTheConfigurationChanges() {
+        addFileToProject("locales/en/common.json", """{"menu":"Home"}""")
+        val first = findNamespaceFiles("common")
+
+        myFixture.runWithConfig(Config(defaultNs = "other")) {
+            Assertions.assertNotSame(first, findNamespaceFiles("common"), "a configuration change must drop the cached lookup")
+        }
+    }
 }
