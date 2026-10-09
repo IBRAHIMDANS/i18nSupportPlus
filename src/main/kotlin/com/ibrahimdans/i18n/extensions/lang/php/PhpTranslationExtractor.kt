@@ -29,10 +29,11 @@ internal class PhpTranslationExtractor: TranslationExtractor {
      * the project's own extractor cannot see. [com.ibrahimdans.i18n.extensions.lang.php.PhpLang]
      * and `PhpReferenceAssistant` already read the aliases to *recognise* such calls — only
      * writing them was left behind, so the plugin could not re-read what it had just extracted.
+     * A Laravel project calls `__('…')` the same way: Laravel has no `t()`.
      */
     private fun translationFunctionNames(element: PsiElement): List<String> {
         val config = Settings.getInstance(element.project).config()
-        if (!config.gettext) return listOf("t")
+        if (!config.gettext) return if (LaravelProject.isLaravel(element.project)) listOf("__") else listOf("t")
         return config.gettextAliases
             .split(",")
             .map { it.trim() }
