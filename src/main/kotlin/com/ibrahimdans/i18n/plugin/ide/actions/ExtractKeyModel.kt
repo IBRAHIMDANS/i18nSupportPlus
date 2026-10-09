@@ -1,13 +1,20 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.plugin.factory.MessageVariable
+import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.dialog.KeyCheck
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
+import com.ibrahimdans.i18n.plugin.utils.distance
+import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
+import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
+import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
+import com.ibrahimdans.i18n.plugin.utils.pathToRoot
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import java.text.Normalizer
@@ -29,6 +36,13 @@ sealed interface ExtractAnswer {
         val key: String,
         val values: Map<LocalizationSource, String>,
         val copyReference: Boolean = false,
+        /** The variables the call passes, as renamed in the dialog; their placeholders stand in [values]. */
+        val variables: List<MessageVariable> = emptyList(),
+        /**
+         * The plural forms typed per file, by CLDR category (`one`, `other`…), written as
+         * `key_one`, `key_other`… in place of [values]; empty for a key without plural forms.
+         */
+        val plurals: Map<LocalizationSource, Map<String, String>> = emptyMap(),
     ) : ExtractAnswer
 }
 
@@ -51,20 +65,92 @@ internal class ExtractKeyModel(
     /** The locale whose field is filled with [text]: the declared reference, else the most complete. */
     val referenceLocale: String?,
     private val config: Config,
-    private val template: (argument: String) -> String,
+    /** The call replacing the text, given the key argument and the variables it passes. */
+    private val call: (argument: String, variables: List<MessageVariable>) -> String,
+    /** The values the text interpolates, as the extractor named them. */
+    val variables: List<MessageVariable> = emptyList(),
+    /**
+     * What an unqualified key resolves against where the text stands, the first by default:
+     * the namespaces of the `useTranslation` whose `t` the [call] calls. Empty for the
+     * project's default namespaces.
+     */
+    private val scopeNamespaces: List<String> = emptyList(),
+    /** Where the keys around the text suggest the new one goes: a namespace and a group in it. */
+    private val placement: Pair<String, List<String>>? = null,
 ) {
     private val sourceCache = sourcesByNamespace.toMutableMap()
     private val keyCache = keysByNamespace.toMutableMap()
 
     /** Empty when keys are flat: a dot is then part of the key, not a level. */
-    private val keySeparator: String = if (config.usesFlatKeys()) "" else config.keySeparator
+    val keySeparator: String = if (config.usesFlatKeys()) "" else config.keySeparator
 
-    /** The namespace selected first: a default namespace of the project when it has files, else the first. */
+    /**
+     * The namespace selected first: the one the `t` in scope reads by default, else the one the
+     * keys around the text use, else a default namespace of the project, when it has files —
+     * else the first.
+     */
     val initialNamespace: String? =
-        config.defaultNamespaces().firstOrNull { it in namespaces } ?: namespaces.firstOrNull()
+        (scopeNamespaces.take(1) + listOfNotNull(placement?.first) + config.defaultNamespaces())
+            .firstOrNull { it in namespaces } ?: namespaces.firstOrNull()
 
-    /** `Save changes` → `save_changes`: the key field's starting point. */
-    val proposedKey: String = proposeKey(text)
+    /** The group the parent field starts on in [namespace]: where the keys around the text sit. */
+    fun initialParent(namespace: String?): String =
+        placement?.takeIf { it.first == namespace && keySeparator.isNotEmpty() }?.second?.joinToString(keySeparator).orEmpty()
+
+    /**
+     * The name field's starting point: the text in the naming style the keys of [namespace]
+     * follow, or those of the whole project when its own tell nothing — `Save changes` →
+     * `saveChanges` where keys read `noTrustee`, `save_changes` where they read `no_trustee`.
+     */
+    fun proposedName(namespace: String?): String {
+        val style = keyStyle(keyCache[namespace].orEmpty()) ?: keyStyle(keyCache.values.flatten()) ?: KeyStyle.SNAKE
+        return proposeName(text, style)
+    }
+
+    /**
+     * The groups of [namespace] a key can go under, as typed in the parent field: `myAccount`,
+     * `myAccount.myTrustees`… None when keys are flat.
+     */
+    fun parents(namespace: String?): List<String> {
+        if (keySeparator.isEmpty()) return emptyList()
+        return keyCache[namespace].orEmpty()
+            .flatMap { key -> key.split(LOADER_SEPARATOR).let { parts -> (1 until parts.size).map { parts.take(it) } } }
+            .map { it.joinToString(keySeparator) }
+            .distinct()
+            .sorted()
+    }
+
+    /** [name] under [parent]: `myAccount.myTrustees` and `title` give `myAccount.myTrustees.title`. */
+    fun join(parent: String, name: String): String =
+        listOf(parent.trim().removeSuffix(keySeparator), name.trim())
+            .filter { it.isNotEmpty() }
+            .joinToString(keySeparator)
+
+    /**
+     * Why [key] cannot be written in [namespace] — a level of it already is a translation, which
+     * cannot hold keys, or the key already holds keys, which a value would wipe out — or null.
+     */
+    fun conflict(namespace: String?, key: String): Conflict? {
+        if (keySeparator.isEmpty() || key.isBlank()) return null
+        val existing = keyCache[namespace].orEmpty().map { it.replace(LOADER_SEPARATOR, keySeparator) }.toSet()
+        val parts = key.trim().split(keySeparator)
+        (1 until parts.size).map { parts.take(it).joinToString(keySeparator) }.firstOrNull { it in existing }
+            ?.let { return Conflict.LeafAsParent(it) }
+        if (existing.any { it.startsWith(key.trim() + keySeparator) }) return Conflict.GroupAsLeaf(key.trim())
+        return null
+    }
+
+    /** See [conflict]. */
+    sealed interface Conflict {
+        /** [path] is a translation: nothing can go under it. */
+        data class LeafAsParent(val path: String) : Conflict
+
+        /** [path] already holds keys: a value there would replace them all. */
+        data class GroupAsLeaf(val path: String) : Conflict
+    }
+
+    /** How the keys of a project name their levels. */
+    enum class KeyStyle { CAMEL, SNAKE, KEBAB }
 
     /**
      * The prefix the key field shows before the key, as the code will read it: empty for a
@@ -92,17 +178,50 @@ internal class ExtractKeyModel(
      * The intention used to insert the key as typed, whatever file the popup then wrote it to:
      * `'ddd'` written to `deposit-box.json` resolved nowhere.
      */
-    fun codeKey(namespace: String?, key: String): String =
-        ExistingKeyFinder.spell(namespace ?: config.defaultNamespaces().first(), path(key), config)
+    fun codeKey(namespace: String?, key: String): String {
+        val resolved = namespace ?: config.defaultNamespaces().first()
+        if (scopeNamespaces.isEmpty() || !qualifies()) return ExistingKeyFinder.spell(resolved, path(key), config)
+        // Under `useTranslation('account')`, an unqualified key reads `account`, not the defaults:
+        // every other namespace, a default one included, is written out.
+        val joined = path(key).joinToString(config.keySeparator)
+        return if (resolved == scopeNamespaces.first()) joined else qualify(resolved, joined)
+    }
 
-    /** The call replacing the text: `{i18n.t('account:save')}`. */
-    fun preview(namespace: String?, key: String): String = template("'${codeKey(namespace, key)}'")
+    /**
+     * The call pointing at [key], a key that already exists, spelled as [ExistingKeyFinder] found
+     * it: without its namespace when that is a default one — which the `t` of a
+     * `useTranslation('account')` would look up in `account`. Such a key is qualified then.
+     */
+    fun reusePreview(key: String): String {
+        val unqualified = qualifies() && !key.contains(config.nsSeparator)
+        val default = config.defaultNamespaces().first()
+        val spelled = if (unqualified && scopeNamespaces.isNotEmpty() && scopeNamespaces.first() != default) qualify(default, key) else key
+        return call("'$spelled'", variables)
+    }
 
-    /** The call pointing at [key], a key that already exists, written as found. */
-    fun reusePreview(key: String): String = template("'$key'")
+    /** True when the code writes namespaces with the namespace separator, which [qualify] adds. */
+    private fun qualifies(): Boolean =
+        !config.usesFlatKeys() && !config.firstComponentNs && config.nsSeparator.isNotEmpty()
 
-    /** A value to write into [source]; when not [overwrite], only where the key is missing. */
-    data class Write(val source: LocalizationSource, val value: String, val overwrite: Boolean)
+    private fun qualify(namespace: String, key: String): String = namespace + config.nsSeparator + key
+
+    /** The call replacing the text, with [variables] as named: `{t('account:greeting', { name: user.name })}`. */
+    fun preview(namespace: String?, key: String, variables: List<MessageVariable> = this.variables): String =
+        call("'${codeKey(namespace, key)}'", variables)
+
+    /**
+     * Why the [variables] as named cannot be written — a name that is not an identifier, or two
+     * alike — or null.
+     */
+    fun variableProblem(variables: List<MessageVariable>): String? =
+        variables.firstOrNull { !IDENTIFIER.matches(it.name) }?.name
+            ?: variables.groupBy { it.name }.entries.firstOrNull { it.value.size > 1 }?.key
+
+    /**
+     * A value to write into [source], under the key followed by [suffix] — `_one` for a plural
+     * form; when not [overwrite], only where that key is missing.
+     */
+    data class Write(val source: LocalizationSource, val value: String, val overwrite: Boolean, val suffix: String = "")
 
     /**
      * What [answer] writes. A value typed is written as is; a field left blank receives the
@@ -111,6 +230,7 @@ internal class ExtractKeyModel(
      * the ones left to translate. A blank field never overwrites a translation the key already has.
      */
     fun writes(answer: ExtractAnswer.Create): List<Write> {
+        if (answer.plurals.isNotEmpty()) return pluralWrites(answer)
         val reference = answer.values.entries.firstOrNull { it.key.localeLabel() == referenceLocale && it.value.isNotBlank() }?.value
             ?: answer.values.values.firstOrNull { it.isNotBlank() }
             ?: text
@@ -120,6 +240,36 @@ internal class ExtractKeyModel(
         }
     }
 
+    /**
+     * [writes] for plural forms, one per category of each file: a blank form receives the same
+     * form of the reference locale — or its `other` — when [ExtractAnswer.Create.copyReference].
+     */
+    private fun pluralWrites(answer: ExtractAnswer.Create): List<Write> {
+        val reference = answer.plurals.entries.firstOrNull { it.key.localeLabel() == referenceLocale }?.value
+            ?: answer.plurals.values.firstOrNull().orEmpty()
+        return answer.plurals.flatMap { (source, forms) ->
+            forms.map { (category, value) ->
+                val suffix = PLURAL_SEPARATOR + category
+                if (value.isNotBlank()) Write(source, value, overwrite = true, suffix = suffix)
+                else {
+                    val copied = reference[category]?.takeIf { it.isNotBlank() } ?: reference[PluralCategories.OTHER].orEmpty()
+                    Write(source, if (answer.copyReference) copied else "", overwrite = false, suffix = suffix)
+                }
+            }
+        }
+    }
+
+    /**
+     * True when [variables] carry an i18next `{{count}}`: i18next then picks `key_one`,
+     * `key_other`… from the count passed. Other technologies write plurals inside the message
+     * (ICU, vue-i18n's `|`): offering suffixed keys there would write keys nothing reads.
+     */
+    fun canPluralise(variables: List<MessageVariable>): Boolean =
+        !config.usesFlatKeys() && variables.any { it.name == COUNT && it.placeholder == "{{$COUNT}}" }
+
+    /** The plural forms [locale] needs for an integer count, CLDR order. */
+    fun pluralForms(locale: String): List<String> = PluralCategories.ALL.filter { it in PluralCategories.of(locale) }
+
     /** The key the files are written under. Built rather than parsed: the files are already chosen. */
     fun fullKey(namespace: String?, key: String): FullKey =
         FullKey(codeKey(namespace, key), namespace?.let { Literal(it) }, path(key).map { Literal(it) })
@@ -128,8 +278,47 @@ internal class ExtractKeyModel(
         if (keySeparator.isEmpty()) listOf(key.trim()) else key.trim().split(keySeparator)
 
     companion object {
+        private val IDENTIFIER = Regex("[A-Za-z_$][A-Za-z0-9_$]*")
+
+        /** The variable i18next chooses plural forms on, and how it suffixes them: `item_one`. */
+        private const val COUNT = "count"
+        private const val PLURAL_SEPARATOR = "_"
+
         /** A one-segment key whose spelling leaves the namespace prefix around it. */
         private const val PROBE = "k"
+
+        /** How [TranslationDataLoader] joins levels in the keys [keysByNamespace] holds, whatever the settings. */
+        private const val LOADER_SEPARATOR = "."
+
+        private val PLURAL_SUFFIX = Regex("_(zero|one|two|few|many|other)$")
+
+        /** Words kept in a proposed name: a sentence makes a poor key. */
+        private const val MAX_NAME_WORDS = 5
+
+        /**
+         * The style most levels of [keys] follow, groups included — a last level is often a
+         * single word (`title`) that tells nothing; null when no level tells. i18next's plural
+         * suffixes (`item_one`, `item_other`) are not a style, and are left out.
+         */
+        internal fun keyStyle(keys: Collection<String>): KeyStyle? {
+            val names = keys.flatMap { it.split(LOADER_SEPARATOR) }.map { it.replace(PLURAL_SUFFIX, "") }.distinct()
+            val counts = mapOf(
+                KeyStyle.CAMEL to names.count { name -> name.any { it.isUpperCase() } && '_' !in name && '-' !in name },
+                KeyStyle.SNAKE to names.count { '_' in it },
+                KeyStyle.KEBAB to names.count { '-' in it },
+            )
+            return counts.entries.filter { it.value > 0 }.maxByOrNull { it.value }?.key
+        }
+
+        /** The first words of [text] as a name in [style]: `Créer un compte` → `creerUnCompte`. */
+        internal fun proposeName(text: String, style: KeyStyle): String {
+            val words = proposeKey(text).split('_').filter { it.isNotEmpty() }.take(MAX_NAME_WORDS)
+            return when (style) {
+                KeyStyle.CAMEL -> words.mapIndexed { i, word -> if (i == 0) word else word.replaceFirstChar(Char::uppercaseChar) }.joinToString("")
+                KeyStyle.SNAKE -> words.joinToString("_")
+                KeyStyle.KEBAB -> words.joinToString("-")
+            }
+        }
 
         /**
          * Reads the snapshot. Walks the file-type index and every translation file: never on the
@@ -140,11 +329,18 @@ internal class ExtractKeyModel(
             caller: PsiElement,
             text: String,
             existingKeys: List<String>,
-            template: (String) -> String,
+            call: (String, List<MessageVariable>) -> String,
+            variables: List<MessageVariable> = emptyList(),
+            scopeNamespaces: List<String> = emptyList(),
         ): ExtractKeyModel {
             val viewModel = DialogViewModel(project)
-            val namespaces = viewModel.loadNamespaces()
-            val sources = namespaces.associateWith { viewModel.sourcesFor(listOf(it), caller) }
+            val callerPath = caller.hostVirtualFile()?.let { pathToRoot(project.basePath ?: "", it.path) }.orEmpty()
+            val sources = viewModel.loadNamespaces()
+                .associateWith { offered(viewModel.sourcesFor(listOf(it), caller), callerPath) }
+                .filterValues { it.isNotEmpty() }
+            val namespaces = sources.keys.toList()
+            val config = Settings.getInstance(project).config()
+            val around = caller.containingFile?.let { ContextKeys.around(it, config.defaultNamespaces().first()) }.orEmpty()
             return ExtractKeyModel(
                 text = text,
                 existingKeys = existingKeys,
@@ -152,9 +348,35 @@ internal class ExtractKeyModel(
                 sourcesByNamespace = sources,
                 keysByNamespace = namespaces.associateWith { viewModel.existingKeys(it) },
                 referenceLocale = viewModel.localeToCopyFrom(sources.values.flatten()),
-                config = Settings.getInstance(project).config(),
-                template = template,
+                config = config,
+                call = call,
+                variables = variables,
+                scopeNamespaces = scopeNamespaces,
+                placement = ContextKeys.placement(around, namespaces),
             )
+        }
+
+        /**
+         * The files of a namespace the dialog offers: those of a recognised locale — all of them
+         * when none is, in a project with a single, unnamed language — under the translation root
+         * nearest [callerPath], the code file's project-relative path.
+         *
+         * Without a module configuration, a namespace is looked up project-wide: a `common.json`
+         * lying in another folder of the repository was offered as a locale called `common`.
+         */
+        internal fun offered(sources: List<LocalizationSource>, callerPath: String): List<LocalizationSource> {
+            val located = sources.filter { it.hasRecognizedLocale() }.ifEmpty { sources }
+            if (located.isEmpty()) return emptyList()
+            val byRoot = located.groupBy { rootOf(it) }
+            val callerDir = callerPath.trim('/').substringBeforeLast('/', "")
+            val nearest = byRoot.keys.minBy { distance(it, callerDir) }
+            return byRoot.getValue(nearest)
+        }
+
+        /** `public/locales` for `public/locales/en/common.json` as for `public/locales/en.json`. */
+        private fun rootOf(source: LocalizationSource): String {
+            val directory = source.displayPath.trim('/').substringBeforeLast('/', "")
+            return if (source.isLocaleNamedFile()) directory else directory.substringBeforeLast('/', "")
         }
 
         /**

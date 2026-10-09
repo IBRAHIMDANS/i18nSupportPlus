@@ -244,9 +244,46 @@ class ExtractI18nIntentionActionTest: ExtractionTestBase() {
         Assertions.assertEquals("""{"king":"Roi"}""", compact("locales/fr/account.json"))
     }
 
+    /** A concatenation becomes one message, its expressions variables of the call. */
+    @Test
+    fun testExtractsAConcatenationWithItsVariables() = myFixture.runWithConfig(config("json")) {
+        myFixture.addFileToProject("locales/en/account.json", "{}")
+        myFixture.configureByText("greeting.ts", "export const greeting = (user) => 'Hel<caret>lo ' + user.name + '!';")
+        TestDialogManager.setTestInputDialog(predefinedTextInputDialog("account:greeting"))
+        myFixture.launchActionAndWait(myFixture.findSingleIntention(hint))
+
+        myFixture.checkResult("export const greeting = (user) => i18n.t('account:greeting', { name: user.name });")
+        Assertions.assertTrue(compact("locales/en/account.json").contains(""""greeting":"Hello{{name}}!""""))
+    }
+
+    /**
+     * Plural forms: `files_one` and `files_other` in each locale — the reference typed, the other
+     * left empty — while the code passes `count` and names no form, i18next picking it.
+     */
+    @Test
+    fun testWritesThePluralFormsOfACount() = myFixture.runWithConfig(config("json")) {
+        myFixture.addFileToProject("locales/en/account.json", """{"a": "A", "b": "B"}""")
+        myFixture.addFileToProject("locales/fr/account.json", "{}")
+        myFixture.configureByText("files.ts", "export const files = (list) => `\${list.length} fi<caret>les`;")
+        ExtractI18nIntentionAction.opener = { _, model, _ ->
+            val (en, fr) = model.sources("account")
+            ExtractAnswer.Create(
+                "account", "files", emptyMap(), variables = model.variables,
+                plurals = mapOf(en to mapOf("one" to "{{count}} file", "other" to "{{count}} files"), fr to mapOf("one" to "", "other" to ""))
+            )
+        }
+        myFixture.launchActionAndWait(myFixture.findSingleIntention(hint))
+
+        myFixture.checkResult("export const files = (list) => i18n.t('account:files', { count: list.length });")
+        val en = compact("locales/en/account.json")
+        Assertions.assertTrue(en.contains(""""files_one":"{{count}}file"""") && en.contains(""""files_other":"{{count}}files""""), en)
+        Assertions.assertEquals("""{"files_one":"","files_other":""}""", compact("locales/fr/account.json"))
+    }
+
     private fun compact(path: String): String =
         FileDocumentManager.getInstance().getDocument(myFixture.findFileInTempDir(path))!!.text.replace(Regex("\\s"), "")
 
+    /** The component holds `t` from `useTranslation`: the call uses it rather than `i18n.t`. */
     @Test
     fun testRootSource2() {
         val tg = JsonTranslationGenerator()
@@ -255,7 +292,7 @@ class ExtractI18nIntentionActionTest: ExtractionTestBase() {
             runTestCase(
                     "simple.${cg.ext()}",
                     cg.generateBlock("\"I want to <caret>move it to translation\""),
-                    cg.generateBlock("{i18n.t('test:ref.value3')}"),
+                    cg.generateBlock("{t('test:ref.value3')}"),
                     "assets/test.${tg.ext()}",
                     tg.generate("ref", arrayOf("section", "key", "Reference in json")),
                     tg.generate("ref", arrayOf("section", "key", "Reference in json"), arrayOf("value3", "I want to move it to translation")),

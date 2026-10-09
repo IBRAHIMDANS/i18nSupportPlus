@@ -8,22 +8,31 @@ import org.junit.jupiter.api.Test
 /** The rules of the extraction dialog, read off a snapshot without any dialog or project. */
 class ExtractKeyModelTest {
 
-    private fun model(config: Config = Config(defaultNs = "common"), namespaces: List<String> = listOf("account", "common")) =
+    private fun model(
+        config: Config = Config(defaultNs = "common"),
+        namespaces: List<String> = listOf("account", "common"),
+        scopeNamespaces: List<String> = emptyList(),
+        keys: Map<String, Set<String>> = mapOf("account" to setOf("title")),
+        text: String = "Save changes",
+        placement: Pair<String, List<String>>? = null,
+    ) =
         ExtractKeyModel(
-            text = "Save changes",
+            text = text,
             existingKeys = emptyList(),
             namespaces = namespaces,
             sourcesByNamespace = emptyMap(),
-            keysByNamespace = mapOf("account" to setOf("title")),
+            keysByNamespace = keys,
             referenceLocale = "en",
             config = config,
-            template = { "{i18n.t($it)}" },
+            call = { argument, _ -> "{t($argument)}" },
+            scopeNamespaces = scopeNamespaces,
+            placement = placement,
         )
 
     @Test
     fun theCodeGetsTheNamespaceOfTheFilesWritten() {
         assertEquals("account:save", model().codeKey("account", "save"))
-        assertEquals("{i18n.t('account:save')}", model().preview("account", "save"))
+        assertEquals("{t('account:save')}", model().preview("account", "save"))
     }
 
     @Test
@@ -63,8 +72,102 @@ class ExtractKeyModelTest {
 
     @Test
     fun theProposedKeyIsTheTextInLowerSnakeCase() {
-        assertEquals("save_changes", model().proposedKey)
+        assertEquals("save_changes", model().proposedName("common"))
         assertEquals("paap_le_roi", ExtractKeyModel.proposeKey(" Paap le roi! "))
         assertEquals("creer_un_compte", ExtractKeyModel.proposeKey("Créer un compte"))
+    }
+
+    /** Under `useTranslation('account')`, `t('save')` reads `account`: only that namespace goes unwritten. */
+    @Test
+    fun theNamespaceOfTheHookInScopeIsLeftOutAndSelectedFirst() {
+        val model = model(namespaces = listOf("auth", "account", "common"), scopeNamespaces = listOf("account"))
+        assertEquals("account", model.initialNamespace)
+        assertEquals("save", model.codeKey("account", "save"))
+        assertEquals("", model.prefix("account"))
+        assertEquals("common:save", model.codeKey("common", "save"))
+        assertEquals("auth:save", model.codeKey("auth", "save"))
+    }
+
+    /** A reused key found without its default namespace gets it back under a hook reading another one. */
+    @Test
+    fun aReusedDefaultKeyIsQualifiedUnderAHook() {
+        assertEquals("{t('common:save')}", model(scopeNamespaces = listOf("account")).reusePreview("save"))
+        assertEquals("{t('save')}", model(scopeNamespaces = listOf("common")).reusePreview("save"))
+        assertEquals("{t('save')}", model().reusePreview("save"))
+    }
+
+    private val trustees = mapOf(
+        "account" to setOf("myAccount.myTrustees.title", "myAccount.myTrustees.noTrustee.title", "myAccount.help")
+    )
+
+    @Test
+    fun theParentsAreTheGroupsOfTheNamespace() {
+        assertEquals(
+            listOf("myAccount", "myAccount.myTrustees", "myAccount.myTrustees.noTrustee"),
+            model(keys = trustees).parents("account")
+        )
+        assertEquals(emptyList<String>(), model(keys = trustees).parents("common"))
+        assertEquals(emptyList<String>(), model(Config(defaultNs = "common", flatKeys = true), keys = trustees).parents("account"))
+    }
+
+    @Test
+    fun theNameGoesUnderTheParent() {
+        assertEquals("myAccount.myTrustees.add", model().join("myAccount.myTrustees", "add"))
+        assertEquals("myAccount.add", model().join("myAccount.", " add "))
+        assertEquals("add", model().join("", "add"))
+    }
+
+    @Test
+    fun aKeyCannotGoUnderATranslationNorReplaceAGroup() {
+        val model = model(keys = trustees)
+        assertEquals(ExtractKeyModel.Conflict.LeafAsParent("myAccount.help"), model.conflict("account", "myAccount.help.more"))
+        assertEquals(ExtractKeyModel.Conflict.GroupAsLeaf("myAccount.myTrustees"), model.conflict("account", "myAccount.myTrustees"))
+        assertEquals(null, model.conflict("account", "myAccount.myTrustees.add"))
+        assertEquals(null, model.conflict("common", "myAccount.help.more"))
+    }
+
+    /** cbox-front names its keys `noTrustee`, `removeTrustee`: the proposal follows. */
+    @Test
+    fun theProposedNameFollowsTheStyleOfTheProject() {
+        assertEquals("testExtract", model(keys = trustees, text = "test extract").proposedName("account"))
+        // A namespace whose keys tell nothing follows the project.
+        assertEquals("testExtract", model(keys = trustees + ("common" to setOf("title")), text = "test extract").proposedName("common"))
+        // Plural suffixes are not a style.
+        assertEquals(ExtractKeyModel.KeyStyle.CAMEL, ExtractKeyModel.keyStyle(listOf("fileCount_one", "fileCount_other", "noTrustee")))
+        assertEquals(ExtractKeyModel.KeyStyle.SNAKE, ExtractKeyModel.keyStyle(listOf("a.no_trustee", "b.title")))
+        assertEquals(ExtractKeyModel.KeyStyle.KEBAB, ExtractKeyModel.keyStyle(listOf("no-trustee")))
+        assertEquals("pleaseConfirmTheAdditionOf", ExtractKeyModel.proposeName("Please confirm the addition of a trustee", ExtractKeyModel.KeyStyle.CAMEL))
+    }
+
+    /** The keys around the text place the new one; the hook in scope still has the last word. */
+    @Test
+    fun theKeysAroundTheTextPlaceTheNewOne() {
+        val around = "account" to listOf("myAccount", "myTrustees")
+        val model = model(placement = around)
+        assertEquals("account", model.initialNamespace)
+        assertEquals("myAccount.myTrustees", model.initialParent("account"))
+        assertEquals("", model.initialParent("common"))
+        assertEquals("common", model(placement = around, scopeNamespaces = listOf("common")).initialNamespace)
+    }
+
+    @Test
+    fun aVariableNeedsAnIdentifierOfItsOwn() {
+        val name = com.ibrahimdans.i18n.plugin.factory.MessageVariable("name", "user.name", "{{name}}")
+        assertEquals(null, model().variableProblem(listOf(name, name.renamed("count"))))
+        assertEquals("user name", model().variableProblem(listOf(name.renamed("user name"))))
+        assertEquals("name", model().variableProblem(listOf(name, name)))
+        assertEquals("{{userName}}", name.renamed("userName").placeholder)
+    }
+
+    private val count = com.ibrahimdans.i18n.plugin.factory.MessageVariable("count", "files.length", "{{count}}")
+
+    /** i18next picks `key_one`, `key_other` on a `{{count}}`; another syntax, or another name, picks nothing. */
+    @Test
+    fun pluralFormsAreOfferedOnAnI18nextCount() {
+        assertEquals(true, model().canPluralise(listOf(count)))
+        assertEquals(false, model().canPluralise(listOf(count.renamed("total"))))
+        assertEquals(false, model().canPluralise(listOf(count.copy(placeholder = "{count}"))))
+        assertEquals(listOf("one", "other"), model().pluralForms("en"))
+        assertEquals(listOf("one", "few", "many", "other"), model().pluralForms("ru"))
     }
 }

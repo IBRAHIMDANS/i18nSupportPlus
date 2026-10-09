@@ -63,9 +63,11 @@ class ExtractI18nIntentionAction : PsiElementBaseIntentionAction(), IntentionAct
     private fun doInvoke(editor: Editor, project: Project, element: PsiElement) {
         val extractor = getExtractor(element)
         val text = extractor.text(element).trim()
-        val template = extractor.template(element)
         ReadAction.nonBlocking<ExtractKeyModel> {
-            ExtractKeyModel.load(project, element, text, ExistingKeyFinder.find(text, element), template)
+            ExtractKeyModel.load(
+                project, element, text, ExistingKeyFinder.find(text, element),
+                extractor.call(element), extractor.variables(element), extractor.scopeNamespaces(element)
+            )
         }
             .inSmartMode(project)
             .expireWith(project)
@@ -96,13 +98,16 @@ class ExtractI18nIntentionAction : PsiElementBaseIntentionAction(), IntentionAct
         if (!range.isValid) return
         val call = when (answer) {
             is ExtractAnswer.Reuse -> model.reusePreview(answer.key)
-            is ExtractAnswer.Create -> model.preview(answer.namespace, answer.key)
+            is ExtractAnswer.Create -> model.preview(answer.namespace, answer.key, answer.variables)
         }
         WriteCommandAction.runWriteCommandAction(project, getText(), null, {
             if (answer is ExtractAnswer.Create) {
                 val key = model.fullKey(answer.namespace, answer.key)
                 val viewModel = DialogViewModel(project)
-                model.writes(answer).forEach { viewModel.saveTranslation(it.source, key, it.value, it.overwrite) }
+                model.writes(answer).forEach { write ->
+                    val written = if (write.suffix.isEmpty()) key else model.fullKey(answer.namespace, answer.key + write.suffix)
+                    viewModel.saveTranslation(write.source, written, write.value, write.overwrite)
+                }
             }
             editor.document.replaceString(range.startOffset, range.endOffset, call)
             extractor.postProcess(editor, range.startOffset)
