@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.7.0 - 2026-10-09
+
 ### Features
 
 - [Extraction] **Extract i18n key opens one dialog instead of up to five prompts**: reuse a key already holding the text, or pick the namespace (`+` creates one), adjust the proposed key (`Créer un compte` → `creer_un_compte`, checked as it is typed) and fill the locales — the reference one starts with the text, the others are left empty or copy it. The call the code will receive is previewed, and the code gets the key with its namespace (left out when it is a default one): the key typed used to be inserted as is, whatever file it was then written to, so `'ddd'` written to `deposit-box.json` resolved nowhere. One Ctrl+Z undoes the files and the code. A locale left blank never empties a translation the key already has. A project without any translation file keeps the prompts that create one
