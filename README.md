@@ -70,6 +70,8 @@ A setup wizard auto-configures it on first launch.
 
 > Vue support requires the Vue.js plugin (optional dependency).
 > PHP support requires the PHP plugin (optional dependency).
+>
+> In a Laravel project — a `composer.json` outside `vendor/` requiring `laravel/framework` or `illuminate/translation` — `__()`, `trans()` and `trans_choice()` are translation calls too, and extracting a string writes `__('…')`. Elsewhere `__()` is left alone: WordPress passes it a text, not a key. Blade's `@lang` is not recognised.
 
 ## Translation File Formats
 

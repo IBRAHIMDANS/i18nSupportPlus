@@ -12,7 +12,6 @@ import com.ibrahimdans.i18n.plugin.rules.RuleDecision
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.patterns.ElementPattern
-import com.intellij.patterns.PlatformPatterns
 import com.intellij.psi.PsiElement
 
 internal class PhpReferenceAssistant: ReferenceAssistant {
@@ -33,19 +32,9 @@ internal class PhpReferenceAssistant: ReferenceAssistant {
     }
 
     private fun isPublishedCall(element: PsiElement, config: Config): Boolean {
-        if (config.gettext) {
-            if (!gettextPattern(config).accepts(element)) return false
-        } else {
-            val functionNames = Extensions.TECHNOLOGY.extensionList
-                .flatMap { it.translationFunctionNames() }
-                .filter { PhpPatternsExt.isValidPhpFunctionName(it) }
-            if (functionNames.isEmpty()) return false
-            val pattern = PlatformPatterns.or(
-                *functionNames.map { PhpPatternsExt.phpArgument(it, 0) }.toTypedArray()
-            )
-            if (!pattern.accepts(element)) return false
-        }
-        return true
+        val technologyNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
+        return phpTranslationFunctionNames(element.project, config, technologyNames)
+            .any { PhpPatternsExt.phpArgument(it, 0).accepts(element) }
     }
 
     private fun parse(element: PsiElement, config: Config): FullKey? {
@@ -56,7 +45,4 @@ internal class PhpReferenceAssistant: ReferenceAssistant {
         // Like the annotator, so a module's key template reads the key the same way on both sides.
         return RawKeyParser(element.project).parse(rawKey, element)
     }
-
-    private fun gettextPattern(config: Config) =
-        PlatformPatterns.or(*config.gettextAliases.split(",").map { PhpPatternsExt.phpArgument(it.trim(), 0) }.toTypedArray())
 }

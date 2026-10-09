@@ -5,6 +5,7 @@
 ### Features
 
 - [Angular] **Transloco is supported**: `translocoService.translate('key')` and `.selectTranslate('key')`, the `{{ 'key' | transloco }}` pipe in Angular templates and `t('key')` under `*transloco="let t"` resolve and are reported like any other key. `@jsverse/transloco` and `@ngneat/transloco` are detected by the setup wizard. Scoped keys (`admin.title` from `i18n/admin/en.json`) are not resolved yet
+- [PHP] **Laravel's `__()`, `trans()` and `trans_choice()` are translation calls in a Laravel project**: outside GetText mode only `t()` was read, so a Laravel project had to write three key assistance rules. A project whose `composer.json` (outside `vendor/`) requires `laravel/framework` or `illuminate/translation` now gets them, and extracting a string there writes `__('…')`. Other PHP projects are left as they were — in WordPress `__()` holds a text, not a key — and GetText mode keeps its own aliases
 - [Tool window] **The table filters the keys holding a duplicate value**: *Duplicate values* in the status filter keeps the keys whose value, in a shown locale, another key of the same namespace holds too — the rule of the *Duplicate translation value* inspection, which flagged them one file at a time. Blank values are left out
 
 ### Performance
