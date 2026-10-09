@@ -1,5 +1,7 @@
 package com.ibrahimdans.i18n.plugin.perf
 
+import com.ibrahimdans.i18n.plugin.ide.codevision.TranslationUsagesCodeVisionProvider
+
 /**
  * A project the size of a real multi-namespace app: [LOCALES] × [NAMESPACES] JSON files laid out
  * as `locales/{lang}/{ns}.json`, and a component calling [KEY_CALLS] keys, half of them naming a
@@ -52,6 +54,24 @@ internal object LargeProjectFixture {
             |}
             |// $caretMarker
         """.trimMargin()
+    }
+
+    /** Keys of [catalog], at the code vision's limit: past it, the provider shows nothing. */
+    const val CATALOG_KEYS = TranslationUsagesCodeVisionProvider.MAX_KEYS
+    /** How many times [catalogComponent] calls the first catalog key, well past the code vision's cap. */
+    const val POPULAR_KEY_CALLS = 300
+
+    /** A namespace of [CATALOG_KEYS] keys, for `locales/en/catalog.json`. */
+    fun catalog(): String =
+        (0 until CATALOG_KEYS).joinToString(",\n", "{\n", "\n}") { key ->
+            """  "item$key": "value $key""""
+        }
+
+    /** Calls every catalog key twice, and the first one [POPULAR_KEY_CALLS] times. */
+    fun catalogComponent(): String {
+        val calls = (List(POPULAR_KEY_CALLS) { 0 } + (0 until CATALOG_KEYS) + (0 until CATALOG_KEYS))
+            .joinToString(",\n") { key -> "    t('catalog:item$key')" }
+        return "export const labels = (t) => [\n$calls\n];\n"
     }
 
     /** A file the plugin has nothing to do with, to measure what an edit elsewhere costs. */
