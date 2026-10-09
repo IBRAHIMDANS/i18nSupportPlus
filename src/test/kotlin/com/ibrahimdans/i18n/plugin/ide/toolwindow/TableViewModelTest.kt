@@ -697,6 +697,44 @@ class TableViewModelTest {
         assertTrue(viewModel.filterByStatus(StatusFilter.ORPHAN, rows, allLocales).isEmpty())
     }
 
+    private val duplicateRows = listOf(
+        TranslationRow("common:save", mapOf("en" to "Save", "fr" to "Enregistrer")),
+        TranslationRow("common:submit", mapOf("en" to "Save", "fr" to "Valider")),
+        TranslationRow("common:cancel", mapOf("en" to "Cancel", "fr" to "Annuler")),
+        TranslationRow("auth:save", mapOf("en" to "Cancel", "fr" to "Enregistrer")),
+        TranslationRow("common:empty1", mapOf("en" to " ", "fr" to "")),
+        TranslationRow("common:empty2", mapOf("en" to " ", "fr" to "")),
+    )
+
+    @Test
+    fun `filterByStatus DUPLICATE keeps keys sharing a value in a shown locale`() {
+        val kept = viewModel.filterByStatus(StatusFilter.DUPLICATE, duplicateRows, listOf("en", "fr")).map { it.key }
+
+        assertEquals(listOf("common:save", "common:submit"), kept)
+    }
+
+    @Test
+    fun `filterByStatus DUPLICATE does not match the same value across namespaces`() {
+        // common:cancel and auth:save both read "Cancel" in en, common:save and auth:save "Enregistrer" in fr.
+        val kept = viewModel.filterByStatus(StatusFilter.DUPLICATE, duplicateRows, listOf("en", "fr")).map { it.key }
+
+        assertTrue("common:cancel" !in kept && "auth:save" !in kept)
+    }
+
+    @Test
+    fun `filterByStatus DUPLICATE ignores blank values`() {
+        val kept = viewModel.filterByStatus(StatusFilter.DUPLICATE, duplicateRows, listOf("en", "fr")).map { it.key }
+
+        assertTrue("common:empty1" !in kept && "common:empty2" !in kept)
+    }
+
+    @Test
+    fun `filterByStatus DUPLICATE ignores a hidden locale`() {
+        val shown = viewModel.visibleLocales(listOf("en", "fr"), setOf("en"))
+
+        assertTrue(viewModel.filterByStatus(StatusFilter.DUPLICATE, duplicateRows, shown).isEmpty())
+    }
+
     @Test
     fun `ORPHAN is unavailable until some key was scanned`() {
         val unscanned = listOf(TranslationRow("a", emptyMap()), TranslationRow("b", emptyMap()))

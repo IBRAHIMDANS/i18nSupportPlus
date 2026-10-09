@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
+import com.ibrahimdans.i18n.plugin.ide.inspection.DuplicateTranslationValueInspection
 import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumulator
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
@@ -90,7 +91,10 @@ enum class StatusFilter(private val labelKey: String) {
     BLANK("toolwindow.table.status.blank"),
 
     /** Keys the last scan found used nowhere; meaningless before a scan, see [TableViewModel.isStatusFilterAvailable]. */
-    ORPHAN("toolwindow.table.status.orphan");
+    ORPHAN("toolwindow.table.status.orphan"),
+
+    /** Keys whose value, in a *shown* locale, another key of the same namespace holds too. */
+    DUPLICATE("toolwindow.table.status.duplicate");
 
     /** The text shown in the combo. Never compared against anything. */
     val label: String get() = PluginBundle.message(labelKey)
@@ -194,7 +198,9 @@ class TableViewModel {
      * A hidden locale does not hold a row back: hiding `de` is how a user says "not my concern
      * right now", and *Missing* answering with rows whose every shown cell is filled would point
      * at nothing visible. [StatusFilter.ORPHAN] keeps the rows the scan found unused — none
-     * before a scan, since "not scanned" is not "unused".
+     * before a scan, since "not scanned" is not "unused". [StatusFilter.DUPLICATE] compares the
+     * values of one locale and one namespace at a time — one translation file, as the
+     * *Duplicate translation value* inspection does.
      */
     fun filterByStatus(filter: StatusFilter, rows: List<TranslationRow>, shownLocales: List<String>): List<TranslationRow> {
         fun anyShown(status: ValueStatus) = { row: TranslationRow ->
@@ -205,6 +211,19 @@ class TableViewModel {
             StatusFilter.MISSING -> rows.filter(anyShown(ValueStatus.MISSING))
             StatusFilter.BLANK -> rows.filter(anyShown(ValueStatus.BLANK))
             StatusFilter.ORPHAN -> rows.filter { usageStatus(it.usageCount) == UsageStatus.ORPHAN }
+            StatusFilter.DUPLICATE -> {
+                val duplicated = duplicatedKeys(rows, shownLocales)
+                rows.filter { it.key in duplicated }
+            }
+        }
+    }
+
+    private fun duplicatedKeys(rows: List<TranslationRow>, shownLocales: List<String>): Set<String> {
+        val byNamespace = rows.groupBy { namespaceOf(it.key) }.values
+        return shownLocales.flatMapTo(mutableSetOf()) { locale ->
+            byNamespace.flatMap { namespaceRows ->
+                DuplicateTranslationValueInspection.duplicated(namespaceRows.mapNotNull { row -> row.values[locale]?.let { it to row.key } })
+            }
         }
     }
 
