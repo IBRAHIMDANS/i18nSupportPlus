@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin.rules
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.utils.hostFile
 import com.ibrahimdans.i18n.plugin.utils.unQuote
+import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 
@@ -19,6 +20,7 @@ object RuleCalls {
      * on imports. With no rule configured this is a single settings read.
      */
     fun decide(element: PsiElement, language: String, callee: String, imports: (PsiFile) -> Set<String>): RuleDecision {
+        if (!hasRules(element.project)) return RuleDecision.NONE
         val rules = Settings.getInstance(element.project).config().rules
         if (rules.isEmpty() || rules.none { it.trigger.trim() == callee }) return RuleDecision.NONE
         val file = element.hostFile()
@@ -31,6 +33,13 @@ object RuleCalls {
         )
         return KeyRules.decide(rules, context)
     }
+
+    /**
+     * Whether any rule is configured. Asked first, of every element of every file: it reads the
+     * settings' own list — `isEmpty` walks nothing, so the settings panel editing it in place cannot
+     * break it — rather than building a whole `Config` to find nothing in it.
+     */
+    fun hasRules(project: Project): Boolean = Settings.getInstance(project).rules.isNotEmpty()
 
     /** [file]'s path relative to the project directory when it lives under it, its full path otherwise. */
     private fun projectPath(file: PsiFile): String {

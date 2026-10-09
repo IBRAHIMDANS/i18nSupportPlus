@@ -16,6 +16,8 @@ object ModulePresets {
     /** The preset of the module holding [element]'s file, or null when none applies (no module, empty preset). */
     fun presetOf(element: PsiElement): String? {
         val project = element.project
+        // Asked of every element: no Config built for a project without modules, nearly all of them.
+        if (Settings.getInstance(project).modules.isEmpty()) return null
         val modules = Settings.getInstance(project).config().modules
         if (modules.none { it.preset.isNotBlank() }) return null
         val file = element.hostVirtualFile() ?: return null
