@@ -1,10 +1,11 @@
 package com.ibrahimdans.i18n.extensions.lang.js
 
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.AngularTranslatePipeExtractor
+import com.ibrahimdans.i18n.extensions.lang.js.extractors.TranslocoPipeExtractor
 import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
 
 /**
- * Angular templates: the call-based syntaxes of [JsLang] plus the `| translate` pipe as it
+ * Angular templates: the call-based syntaxes of [JsLang] plus the `| translate` and `| transloco` pipes as they
  * actually appears once a template is parsed.
  *
  * A `.html` is only parsed as Angular inside an Angular project — a component referencing it
@@ -14,5 +15,5 @@ import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
 class AngularLang : JsLang() {
 
     override fun syntaxOwnedExtractors(): List<KeyExtractor> =
-        listOf(AngularTranslatePipeExtractor()) + super.syntaxOwnedExtractors()
+        listOf(AngularTranslatePipeExtractor(), TranslocoPipeExtractor()) + super.syntaxOwnedExtractors()
 }

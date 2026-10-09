@@ -5,7 +5,7 @@ Plugin ID: `com.ibrahimdans.i18n`
 <!-- Plugin description -->
 IntelliJ IDEA plugin providing i18n support for JavaScript, TypeScript, JSX, TSX, and PHP projects.
 
-Supports **i18next**, **vue-i18n**, **lingui**, **react-intl**, **ngx-translate**, **svelte-i18n**, and **i18n-js** frameworks with JSON, YAML, and PO/POT translation files.
+Supports **i18next**, **vue-i18n**, **lingui**, **react-intl**, **ngx-translate**, **Transloco**, **svelte-i18n**, and **i18n-js** frameworks with JSON, YAML, and PO/POT translation files.
 
 Highlights unresolved i18n keys, offers navigation from keys to their translation files, provides autocomplete for key names,
 displays translation values as inline hints, and supports key extraction from plain text strings.
@@ -30,7 +30,7 @@ whether a key exists, in which namespace, and whether it's translated everywhere
   Scan Orphans (find unused keys), CSV export/import, and inspections for empty,
   duplicate or inconsistent values.
 
-Works with **i18next, vue-i18n, lingui, react-intl, ngx-translate, svelte-i18n & i18n-js**
+Works with **i18next, vue-i18n, lingui, react-intl, ngx-translate, Transloco, svelte-i18n & i18n-js**
 across JS/TS/JSX/TSX, Vue SFC and PHP, with JSON, YAML and PO/POT files.
 A setup wizard auto-configures it on first launch.
 
@@ -43,16 +43,19 @@ A setup wizard auto-configures it on first launch.
 | lingui (`@lingui/core`, `@lingui/react`, `@lingui/macro`) | `msg('key')`, `i18n._('key')`, source-based `<Trans>Hello world!</Trans>` | No |
 | react-intl (FormatJS) | `formatMessage({ id: 'key' })`, `<FormattedMessage id="key" />` | No |
 | ngx-translate (Angular) | `translate.instant('key')`, `.get('key')`, `.stream('key')`, `{{ 'key' \| translate }}` <sup>1</sup> | No |
+| Transloco (Angular) | `translocoService.translate('key')`, `.selectTranslate('key')`, `{{ 'key' \| transloco }}` <sup>1</sup>, `*transloco="let t"` then `t('key')` <sup>4</sup> | No |
 | svelte-i18n | `$_('key')`, `_('key')` <sup>2</sup> | No |
 | i18n-js (React Native / Expo) | `t('key')`, `i18n.t('key')`, plain locale-keyed TS/JS catalogues, nested plurals <sup>3</sup> | No |
 
 `useTranslation` supports both string form (`useTranslation('ns')`) and array form (`useTranslation(['ns1', 'ns2'])`). The namespace can also come from an options object (`t('key', { ns: 'auth' })`) or from the key itself (`t('auth:key')`).
 
-<sup>1</sup> The `| translate` pipe is recognised in JSX/TSX and in standalone Angular templates (`.html`). A template is parsed as Angular only inside an Angular project — a component referencing it through `templateUrl`, with `@angular/core` resolvable; outside one the file stays plain HTML and the pipe is inert text.
+<sup>1</sup> The `| translate` and `| transloco` pipes are recognised in JSX/TSX and in standalone Angular templates (`.html`). A template is parsed as Angular only inside an Angular project — a component referencing it through `templateUrl`, with `@angular/core` resolvable; outside one the file stays plain HTML and the pipe is inert text.
 
 <sup>2</sup> `.svelte` single-file components are analysed as well, provided the [Svelte plugin](https://plugins.jetbrains.com/plugin/12375-svelte) is installed — it is not bundled with IntelliJ Ultimate, and without it a `.svelte` file is plain text to the IDE. With it, both the `<script>` block and `{…}` expressions in the markup are ordinary JavaScript, so keys inside them resolve like any other.
 
 <sup>3</sup> i18n-js pluralizes into a nested object (`{ one: …, other: … }`) rather than through i18next's flat `key_one` suffixes; such a key is treated as resolved. Its `%{count}` placeholders are displayed verbatim, as the plugin interprets no interpolation syntax.
+
+<sup>4</sup> Transloco's service calls are recognised when the object they are called on names the service (`translocoService`, `transloco`): `translate` alone is too common a method name. Scoped keys (`admin.title`, read from `i18n/admin/en.json`) are not resolved yet: the scope folder is not read as a namespace.
 
 ## Supported Languages
 
@@ -90,7 +93,7 @@ namespace.
 
 On first launch, a wizard guides you through configuration in 3 steps:
 
-1. **Framework detection** — auto-detects i18next, vue-i18n, lingui, react-intl, ngx-translate, svelte-i18n or i18n-js from your `package.json`
+1. **Framework detection** — auto-detects i18next, vue-i18n, lingui, react-intl, ngx-translate, Transloco, svelte-i18n or i18n-js from your `package.json`
 2. **Translation file discovery** — scans for `.json`, `.yaml`, `.po`, and `.pot` files in `locales/`, `i18n/`, `translations/` folders (PO/POT support requires the optional **GNU GetText** plugin — see Plugin Dependencies)
 3. **Summary** — review and apply the configuration
 
