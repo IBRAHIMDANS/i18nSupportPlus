@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
+import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
@@ -9,6 +10,8 @@ import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.openapi.components.service
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiFile
 
 /**
@@ -23,9 +26,32 @@ internal object TranslationFileScope {
     /** The source [file] is read as, or null when it is not a translation file. */
     fun sourceOf(file: PsiFile): LocalizationSource? {
         val virtualFile = file.originalFile.virtualFile ?: return null
+        if (!mayHoldSource(file.project, virtualFile)) return null
         return file.project.service<LocalizationSourceService>().findAllSources(file.project)
-            .firstOrNull { it.tree?.value()?.containingFile?.virtualFile == virtualFile }
+            .firstOrNull { it.holds(virtualFile) }
     }
+
+    /**
+     * False when [virtualFile] cannot be among [LocalizationSourceService.findAllSources], told without
+     * running it.
+     *
+     * The language-less inspections ask [sourceOf] of every file the IDE highlights — the `.tsx` being
+     * typed in included — and each keystroke had dropped the scan's cache, so a component paid for a
+     * rescan of every translation file it would never be. The scan reads two kinds of sources: files of
+     * a [com.ibrahimdans.i18n.Localization] type, found through the file index by that type alone, and
+     * those a technology declares (a TS catalog, an i18next configuration). A file of neither kind is
+     * in neither list. The scan still answers for the others, so callers comparing sources by identity
+     * keep getting its instances.
+     */
+    private fun mayHoldSource(project: Project, virtualFile: VirtualFile): Boolean {
+        val fileType = virtualFile.fileType
+        if (Extensions.LOCALIZATION.extensionList.any { localization -> localization.types().any { it.languageFileType == fileType } }) return true
+        return Extensions.TECHNOLOGY.extensionList.any { technology ->
+            technology.findSourcesByConfiguration(project).any { it.holds(virtualFile) }
+        }
+    }
+
+    private fun LocalizationSource.holds(virtualFile: VirtualFile) = tree?.value()?.containingFile?.virtualFile == virtualFile
 
     /**
      * The source holding the same namespace as [source] in [locale], or null.
