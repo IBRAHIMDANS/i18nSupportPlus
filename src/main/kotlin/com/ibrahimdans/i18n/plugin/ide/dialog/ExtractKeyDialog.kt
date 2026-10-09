@@ -15,6 +15,8 @@ import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.psi.PsiElement
 import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.TextFieldWithAutoCompletion
+import com.ibrahimdans.i18n.plugin.tree.PluralCategories
+import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBRadioButton
 import com.intellij.ui.components.JBScrollPane
@@ -22,6 +24,7 @@ import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.RightGap
+import com.intellij.ui.dsl.builder.Row
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.NamedColorUtil
@@ -80,6 +83,12 @@ internal class ExtractKeyDialog(
     private val variables = model.variables.toMutableList()
     private val variableFields = model.variables.map { JBTextField(it.name, VARIABLE_COLUMNS) }
 
+    /** Writes `key_one`, `key_other`… — offered while a `{{count}}` is passed. */
+    private val pluralBox = JBCheckBox(PluginBundle.message("dialog.extract.plural.label"))
+    private val pluralFields = LinkedHashMap<LocalizationSource, LinkedHashMap<String, JBTextField>>()
+    private var pluralRow: Row? = null
+    private var pluralOffered = model.canPluralise(model.variables)
+
     init {
         title = PluginBundle.message("dialog.extract.title")
         setOKButtonText(PluginBundle.message("dialog.extract.ok"))
@@ -111,6 +120,7 @@ internal class ExtractKeyDialog(
             override fun textChanged(e: DocumentEvent) = refresh()
         })
         prefixLabel.foreground = NamedColorUtil.getInactiveTextColor()
+        pluralBox.addActionListener { rebuildLocales(); refresh() }
         variableFields.forEachIndexed { index, field ->
             field.document.addDocumentListener(object : DocumentAdapter() {
                 override fun textChanged(e: DocumentEvent) = renameVariable(index, field.text.trim())
@@ -165,6 +175,8 @@ internal class ExtractKeyDialog(
                             cell(variableFields[index]).comment(PluginBundle.message("dialog.extract.variables.comment"))
                         }
                     }
+                    pluralRow = row { cell(pluralBox).comment(PluginBundle.message("dialog.extract.plural.comment")) }
+                        .visible(pluralOffered)
                 }
             }
             row { cell(localesHost).align(Align.FILL) }.resizableRow()
@@ -200,22 +212,39 @@ internal class ExtractKeyDialog(
      */
     private fun rebuildLocales() {
         val typed = fields.entries.associate { (source, field) -> source.localeLabel() to field.text }
+        val typedForms = pluralFields.entries.associate { (source, forms) -> source.localeLabel() to forms.mapValues { it.value.text } }
         fields.clear()
+        pluralFields.clear()
+        val plural = pluralBox.isSelected && pluralOffered
         localesHost.removeAll()
         localesHost.add(panel {
             model.sources(namespace()).forEach { source ->
                 val locale = source.localeLabel()
-                val initial = typed[locale] ?: if (locale == model.referenceLocale || fields.isEmpty()) currentText() else ""
-                val field = JBTextField(initial)
-                fields[source] = field
-                val title =
-                    if (locale == model.referenceLocale) PluginBundle.message("dialog.extract.locale.reference", locale) else locale
-                row(title) { cell(field).align(AlignX.FILL).comment(source.displayPath) }
+                val reference = locale == model.referenceLocale || (fields.isEmpty() && pluralFields.isEmpty())
+                val title = if (locale == model.referenceLocale) PluginBundle.message("dialog.extract.locale.reference", locale) else locale
+                if (plural) {
+                    val forms = LinkedHashMap<String, JBTextField>()
+                    pluralFields[source] = forms
+                    model.pluralForms(locale).forEach { category ->
+                        val initial = typedForms[locale]?.get(category) ?: typed[locale] ?: if (reference) currentText() else ""
+                        val field = JBTextField(initial).also { forms[category] = it }
+                        row("$title · $category") { cell(field).align(AlignX.FILL) }
+                    }
+                    row("") { comment(source.displayPath) }
+                } else {
+                    val initial = typed[locale] ?: typedForms[locale]?.get(PluralCategories.OTHER) ?: if (reference) currentText() else ""
+                    val field = JBTextField(initial)
+                    fields[source] = field
+                    row(title) { cell(field).align(AlignX.FILL).comment(source.displayPath) }
+                }
             }
         }, BorderLayout.CENTER)
         localesHost.revalidate()
         localesHost.repaint()
     }
+
+    /** Every value field, plural forms included. */
+    private fun valueFields(): List<JBTextField> = fields.values + pluralFields.values.flatMap { it.values }
 
     /** The text with its placeholders as the variables are currently named. */
     private fun currentText(): String =
@@ -229,7 +258,7 @@ internal class ExtractKeyDialog(
         if (newName.isEmpty()) return refresh()
         val old = variables[index]
         val renamed = model.variables[index].renamed(newName)
-        fields.values.forEach { field -> field.text = field.text.replace(old.placeholder, renamed.placeholder) }
+        valueFields().forEach { field -> field.text = field.text.replace(old.placeholder, renamed.placeholder) }
         variables[index] = renamed
         refresh()
     }
@@ -239,7 +268,15 @@ internal class ExtractKeyDialog(
         val reused = reused()
         (listOf(namespaceCombo, addNamespaceButton, parentField, keyField, leaveEmptyButton, copyReferenceButton) + variableFields)
             .forEach { it.isEnabled = reused == null }
-        fields.values.forEach { it.isEnabled = reused == null }
+        valueFields().forEach { it.isEnabled = reused == null }
+        // i18next picks the form on `count`: renamed, the variable no longer selects any.
+        val pluralisable = model.canPluralise(variables)
+        if (pluralOffered != pluralisable) {
+            pluralOffered = pluralisable
+            pluralRow?.visible(pluralisable)
+            if (pluralBox.isSelected) rebuildLocales()
+        }
+        pluralBox.isEnabled = reused == null
         prefixLabel.text = model.prefix(namespace())
         val check = if (reused == null) model.checkKey(namespace(), keyText()) else KeyCheck.AVAILABLE
         val conflict = if (reused == null) model.conflict(namespace(), keyText())?.let(::message) else null
@@ -299,8 +336,8 @@ internal class ExtractKeyDialog(
             val field = variableFields.getOrNull(variables.indexOfFirst { it.name == name })
             return ValidationInfo(PluginBundle.message("dialog.extract.variables.invalid", name), field)
         }
-        if (fields.values.none { it.text.isNotBlank() }) {
-            return ValidationInfo(PluginBundle.message("dialog.translation.error.value.required"), fields.values.firstOrNull())
+        if (valueFields().none { it.text.isNotBlank() }) {
+            return ValidationInfo(PluginBundle.message("dialog.translation.error.value.required"), valueFields().firstOrNull())
         }
         return null
     }
@@ -311,7 +348,8 @@ internal class ExtractKeyDialog(
             keyText(),
             fields.mapValues { it.value.text },
             copyReference = copyReferenceButton.isSelected,
-            variables = variables.toList()
+            variables = variables.toList(),
+            plurals = pluralFields.mapValues { (_, forms) -> forms.mapValues { it.value.text } }
         )
         super.doOKAction()
     }

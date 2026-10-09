@@ -158,4 +158,16 @@ class ExtractKeyModelTest {
         assertEquals("name", model().variableProblem(listOf(name, name)))
         assertEquals("{{userName}}", name.renamed("userName").placeholder)
     }
+
+    private val count = com.ibrahimdans.i18n.plugin.factory.MessageVariable("count", "files.length", "{{count}}")
+
+    /** i18next picks `key_one`, `key_other` on a `{{count}}`; another syntax, or another name, picks nothing. */
+    @Test
+    fun pluralFormsAreOfferedOnAnI18nextCount() {
+        assertEquals(true, model().canPluralise(listOf(count)))
+        assertEquals(false, model().canPluralise(listOf(count.renamed("total"))))
+        assertEquals(false, model().canPluralise(listOf(count.copy(placeholder = "{count}"))))
+        assertEquals(listOf("one", "other"), model().pluralForms("en"))
+        assertEquals(listOf("one", "few", "many", "other"), model().pluralForms("ru"))
+    }
 }

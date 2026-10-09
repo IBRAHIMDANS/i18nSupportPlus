@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.dialog
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.factory.MessageVariable
 import com.ibrahimdans.i18n.plugin.ide.actions.ExtractKeyModel
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.Disposer
@@ -14,12 +15,12 @@ import org.junit.jupiter.api.Test
  */
 class ExtractKeyDialogTest : PlatformBaseTest() {
 
-    private fun build(existingKeys: List<String>) {
+    private fun build(existingKeys: List<String>, variables: List<MessageVariable> = emptyList()) {
         addFileToProject("locales/en/account.json", """{"title": "Title"}""")
         addFileToProject("locales/fr/account.json", "{}")
         val file = myFixture.configureByText("App.jsx", "export const App = () => <p>Save</p>;")
         val model = ReadAction.compute<ExtractKeyModel, RuntimeException> {
-            ExtractKeyModel.load(project, file, "Save", existingKeys, { argument, _ -> "{i18n.t($argument)}" })
+            ExtractKeyModel.load(project, file, "Save", existingKeys, { argument, _ -> "{i18n.t($argument)}" }, variables)
         }
         val dialog = ExtractKeyDialog(project, model, file)
         try {
@@ -31,6 +32,9 @@ class ExtractKeyDialogTest : PlatformBaseTest() {
 
     @Test
     fun opensWithoutAnExistingKey() = build(emptyList())
+
+    @Test
+    fun opensWithVariablesAndPluralForms() = build(emptyList(), listOf(MessageVariable("count", "files.length", "{{count}}")))
 
     @Test
     fun opensWithExistingKeys() = build(listOf("common:actions.save", "account:save"))

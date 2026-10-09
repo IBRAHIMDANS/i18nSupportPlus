@@ -104,7 +104,10 @@ class ExtractI18nIntentionAction : PsiElementBaseIntentionAction(), IntentionAct
             if (answer is ExtractAnswer.Create) {
                 val key = model.fullKey(answer.namespace, answer.key)
                 val viewModel = DialogViewModel(project)
-                model.writes(answer).forEach { viewModel.saveTranslation(it.source, key, it.value, it.overwrite) }
+                model.writes(answer).forEach { write ->
+                    val written = if (write.suffix.isEmpty()) key else model.fullKey(answer.namespace, answer.key + write.suffix)
+                    viewModel.saveTranslation(write.source, written, write.value, write.overwrite)
+                }
             }
             editor.document.replaceString(range.startOffset, range.endOffset, call)
             extractor.postProcess(editor, range.startOffset)

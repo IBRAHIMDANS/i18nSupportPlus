@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.factory.MessageVariable
+import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.dialog.KeyCheck
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
@@ -37,6 +38,11 @@ sealed interface ExtractAnswer {
         val copyReference: Boolean = false,
         /** The variables the call passes, as renamed in the dialog; their placeholders stand in [values]. */
         val variables: List<MessageVariable> = emptyList(),
+        /**
+         * The plural forms typed per file, by CLDR category (`one`, `other`…), written as
+         * `key_one`, `key_other`… in place of [values]; empty for a key without plural forms.
+         */
+        val plurals: Map<LocalizationSource, Map<String, String>> = emptyMap(),
     ) : ExtractAnswer
 }
 
@@ -211,8 +217,11 @@ internal class ExtractKeyModel(
         variables.firstOrNull { !IDENTIFIER.matches(it.name) }?.name
             ?: variables.groupBy { it.name }.entries.firstOrNull { it.value.size > 1 }?.key
 
-    /** A value to write into [source]; when not [overwrite], only where the key is missing. */
-    data class Write(val source: LocalizationSource, val value: String, val overwrite: Boolean)
+    /**
+     * A value to write into [source], under the key followed by [suffix] — `_one` for a plural
+     * form; when not [overwrite], only where that key is missing.
+     */
+    data class Write(val source: LocalizationSource, val value: String, val overwrite: Boolean, val suffix: String = "")
 
     /**
      * What [answer] writes. A value typed is written as is; a field left blank receives the
@@ -221,6 +230,7 @@ internal class ExtractKeyModel(
      * the ones left to translate. A blank field never overwrites a translation the key already has.
      */
     fun writes(answer: ExtractAnswer.Create): List<Write> {
+        if (answer.plurals.isNotEmpty()) return pluralWrites(answer)
         val reference = answer.values.entries.firstOrNull { it.key.localeLabel() == referenceLocale && it.value.isNotBlank() }?.value
             ?: answer.values.values.firstOrNull { it.isNotBlank() }
             ?: text
@@ -229,6 +239,36 @@ internal class ExtractKeyModel(
             else Write(source, if (answer.copyReference) reference else "", overwrite = false)
         }
     }
+
+    /**
+     * [writes] for plural forms, one per category of each file: a blank form receives the same
+     * form of the reference locale — or its `other` — when [ExtractAnswer.Create.copyReference].
+     */
+    private fun pluralWrites(answer: ExtractAnswer.Create): List<Write> {
+        val reference = answer.plurals.entries.firstOrNull { it.key.localeLabel() == referenceLocale }?.value
+            ?: answer.plurals.values.firstOrNull().orEmpty()
+        return answer.plurals.flatMap { (source, forms) ->
+            forms.map { (category, value) ->
+                val suffix = PLURAL_SEPARATOR + category
+                if (value.isNotBlank()) Write(source, value, overwrite = true, suffix = suffix)
+                else {
+                    val copied = reference[category]?.takeIf { it.isNotBlank() } ?: reference[PluralCategories.OTHER].orEmpty()
+                    Write(source, if (answer.copyReference) copied else "", overwrite = false, suffix = suffix)
+                }
+            }
+        }
+    }
+
+    /**
+     * True when [variables] carry an i18next `{{count}}`: i18next then picks `key_one`,
+     * `key_other`… from the count passed. Other technologies write plurals inside the message
+     * (ICU, vue-i18n's `|`): offering suffixed keys there would write keys nothing reads.
+     */
+    fun canPluralise(variables: List<MessageVariable>): Boolean =
+        !config.usesFlatKeys() && variables.any { it.name == COUNT && it.placeholder == "{{$COUNT}}" }
+
+    /** The plural forms [locale] needs for an integer count, CLDR order. */
+    fun pluralForms(locale: String): List<String> = PluralCategories.ALL.filter { it in PluralCategories.of(locale) }
 
     /** The key the files are written under. Built rather than parsed: the files are already chosen. */
     fun fullKey(namespace: String?, key: String): FullKey =
@@ -239,6 +279,10 @@ internal class ExtractKeyModel(
 
     companion object {
         private val IDENTIFIER = Regex("[A-Za-z_$][A-Za-z0-9_$]*")
+
+        /** The variable i18next chooses plural forms on, and how it suffixes them: `item_one`. */
+        private const val COUNT = "count"
+        private const val PLURAL_SEPARATOR = "_"
 
         /** A one-segment key whose spelling leaves the namespace prefix around it. */
         private const val PROBE = "k"
