@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.8.0 - 2026-10-09
+
 ### Features
 
 - [Angular] **Transloco is supported**: `translocoService.translate('key')` and `.selectTranslate('key')`, the `{{ 'key' | transloco }}` pipe in Angular templates and `t('key')` under `*transloco="let t"` resolve and are reported like any other key. Scoped keys resolve in their scope file: `admin.title` is the key `title` of `i18n/admin/en.json`, the folder named after its scope next to the global locale files, which the tool window lists under that scope and whose keys lead back to their call sites. A first segment is read as a scope only when such a folder exists, in a Transloco project — every other key is parsed as before. `@jsverse/transloco` and `@ngneat/transloco` are detected by the setup wizard. A scope set by the directive (`read: 'admin'`) is not read
