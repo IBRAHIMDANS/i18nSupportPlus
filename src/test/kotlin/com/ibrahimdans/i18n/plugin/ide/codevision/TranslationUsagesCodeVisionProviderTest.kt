@@ -31,12 +31,31 @@ class TranslationUsagesCodeVisionProviderTest : PlatformBaseTest() {
         assertEquals("no usages", labels["about"])
     }
 
+    /** Past [TranslationUsagesCodeVisionProvider.MAX_USAGES], the search stops and the label says so. */
+    @Test
+    fun aKeyUsedPastTheLimitShowsACappedLabel() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        val max = TranslationUsagesCodeVisionProvider.MAX_USAGES
+        addFileToProject("locales/en/common.json", """{"menu": {"home": "Home", "about": "About"}}""")
+        val calls = (List(max + 5) { "t('common:menu.home')" } + List(max) { "t('common:menu.about')" }).joinToString()
+        addFileToProject("src/App.js", "export const a = (t) => [$calls];")
+        val labels = labelsOf("locales/en/common.json")
+        assertEquals("$max+ usages", labels["home"])
+        assertEquals("$max usages", labels["about"])
+    }
+
     /** `t(`common:status.${kind}`)` names no key, yet may reach every `status.*`. */
     @Test
     fun aKeyReachedByADynamicKeyIsShownAsSuch() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
         addFileToProject("locales/en/common.json", """{"status": {"ok": "OK"}}""")
         addFileToProject("src/App.js", "export const s = (t, kind) => t(`common:status.\${kind}`);")
         assertEquals("dynamic usage", labelsOf("locales/en/common.json")["ok"])
+    }
+
+    @Test
+    fun aFilePastTheKeyLimitShowsNothing() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        val keys = (0..TranslationUsagesCodeVisionProvider.MAX_KEYS).joinToString { "\"k$it\": \"v\"" }
+        addFileToProject("locales/en/common.json", "{$keys}")
+        assertTrue(labelsOf("locales/en/common.json").isEmpty())
     }
 
     @Test
