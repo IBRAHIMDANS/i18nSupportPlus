@@ -38,7 +38,8 @@ open class JsLang : Lang {
          *    `defaultMessage` included;
          *  - a react-intl catalogue declares its descriptors under `defineMessages({ … })`,
          *    a call no `translationFunctionNames` entry ever names;
-         *  - ngx-translate calls are always qualified (`translate.instant('key')`), and
+         *  - ngx-translate and Transloco service calls are always qualified
+         *    (`translate.instant('key')`, `translocoService.translate('key')`), and
          *    [isDirectOrConfiguredCall] rejects qualified calls by design;
          *  - svelte-i18n's `_` / `$_` carry no namespace options, so matching the call
          *    itself is more precise than matching a bare string literal.
@@ -47,6 +48,7 @@ open class JsLang : Lang {
             REACT_INTL_EXTRACTOR,
             DefineMessagesExtractor(),
             NgxTranslateExtractor(),
+            TranslocoExtractor(),
             SvelteI18nExtractor(),
         )
     }
@@ -147,6 +149,7 @@ open class JsLang : Lang {
 private fun frameworkOf(extractor: KeyExtractor): String? = when (extractor) {
     is ReactIntlExtractor, is DefineMessagesExtractor, is FormattedMessageExtractor -> "react-intl"
     is NgxTranslateExtractor, is NgxTranslatePipeExtractor -> "ngx-translate"
+    is TranslocoExtractor, is TranslocoPipeExtractor -> "transloco"
     is SvelteI18nExtractor -> "svelte-i18n"
     is LinguiTransKeyExtractor -> "lingui"
     else -> null

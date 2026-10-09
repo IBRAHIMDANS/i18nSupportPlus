@@ -15,6 +15,7 @@ object FrameworkDetector {
         "lingui" to listOf("@lingui/core", "@lingui/react", "@lingui/macro", "@lingui/react/macro"),
         "react-intl" to listOf("react-intl", "@formatjs/intl"),
         "ngx-translate" to listOf("@ngx-translate/core"),
+        "transloco" to listOf("@jsverse/transloco", "@ngneat/transloco"),
         "svelte-i18n" to listOf("svelte-i18n"),
         "i18n-js" to listOf("i18n-js")
     )
@@ -26,6 +27,7 @@ object FrameworkDetector {
         "lingui" to "lingui",
         "react-intl" to "react-intl (FormatJS)",
         "ngx-translate" to "ngx-translate (Angular)",
+        "transloco" to "Transloco (Angular)",
         "svelte-i18n" to "svelte-i18n",
         "i18n-js" to "i18n-js (React Native / Expo)"
     )
