@@ -391,21 +391,7 @@ Then install via **Settings > Plugins > ⚙️ > Install Plugin from Disk**.
 
 ## Contributing
 
-```bash
-# Build
-./gradlew build
-
-# Run tests
-./gradlew test
-
-# Launch IDE with plugin loaded
-./gradlew runIde
-
-# Code coverage
-./gradlew jacocoTestReport
-```
-
-Requires Java 21 (`JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64`).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contributor setup, run/test commands, architecture notes, conventions, and troubleshooting tips.
 
 ## Credits
 
