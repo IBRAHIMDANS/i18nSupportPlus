@@ -22,7 +22,9 @@ private const val BUNDLE = "messages.I18nBundle"
  * as `!some.key!` in the interface without logging anything. The remaining `getMessage`
  * callers belong to packages this batch does not cover and move over with their own batch.
  */
-object PluginBundle : DynamicBundle(BUNDLE) {
+// The constructor taking the bundle's class: the one taking only its path is deprecated, and
+// resolves the bundle through a class loader looked up from the call stack.
+object PluginBundle : DynamicBundle(PluginBundle::class.java, BUNDLE) {
 
     /** The translated string for [key], with [params] substituted into its placeholders. */
     @Nls
