@@ -13,6 +13,9 @@ import com.intellij.lang.javascript.psi.JSObjectLiteralExpression
 import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.lang.javascript.psi.JSVariable
 import com.intellij.psi.PsiElement
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
+import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.psi.util.PsiTreeUtil
 
 /**
@@ -77,25 +80,30 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
         return literal?.takeIf { it.isQuotedLiteral }?.stringValue
     }
 
-    private fun resolveTranslationFunctionDefinition(element: PsiElement): PsiElement? {
-        return PsiTreeUtil
-            .getChildOfType(
-                PsiTreeUtil.getParentOfType(element, JSCallExpression::class.java),
-                JSReferenceExpression::class.java
-            )
-            ?.reference
-            ?.resolve()
-    }
+    private fun resolveTranslationFunctionDefinition(call: JSCallExpression): PsiElement? =
+        PsiTreeUtil.getChildOfType(call, JSReferenceExpression::class.java)?.reference?.resolve()
 
     private fun resolveDestructuringElement(t: PsiElement?): JSDestructuringElement? {
         return PsiTreeUtil.getParentOfType(t, JSDestructuringElement::class.java)
     }
 
+    /**
+     * The hook call that defined the function called with [literal], cached on that call until the
+     * PSI changes: the annotator, inlay hints, gutter and references each ask it — the inlay
+     * collector two or three times per key — and each time resolved `t` and walked the scope.
+     */
     private fun resolveHook(literal: PsiElement): JSCallExpression? {
+        val call = PsiTreeUtil.getParentOfType(literal, JSCallExpression::class.java) ?: return null
+        return CachedValuesManager.getCachedValue(call) {
+            CachedValueProvider.Result.create(computeHook(call), PsiModificationTracker.MODIFICATION_COUNT)
+        }
+    }
+
+    private fun computeHook(call: JSCallExpression): JSCallExpression? {
         // Primary: follow reference to local definition. react-i18next destructures the hook's
         // result (`const { t } = useTranslation()`); next-intl returns `t` itself
         // (`const t = useTranslations('Home')`), a plain variable initializer.
-        val definition = resolveTranslationFunctionDefinition(literal)
+        val definition = resolveTranslationFunctionDefinition(call)
         val viaRef = definition
             ?.let { resolveDestructuringElement(it) }
             ?.let { it.initializer as? JSCallExpression }
@@ -103,11 +111,10 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
         if (viaRef != null && viaRef.methodExpression?.text in HOOKS) return viaRef
 
         // Fallback: scope walk when reference resolution goes to type declarations
-        return resolveHookViaScopeWalk(literal)
+        return resolveHookViaScopeWalk(call)
     }
 
-    private fun resolveHookViaScopeWalk(literal: PsiElement): JSCallExpression? {
-        val tCall = PsiTreeUtil.getParentOfType(literal, JSCallExpression::class.java) ?: return null
+    private fun resolveHookViaScopeWalk(tCall: JSCallExpression): JSCallExpression? {
         val fnName = PsiTreeUtil.getChildOfType(tCall, JSReferenceExpression::class.java)?.text ?: return null
         val scope = PsiTreeUtil.getParentOfType(tCall, JSFunction::class.java) ?: return null
         val namePattern = Regex("\\b${Regex.escape(fnName)}\\b")

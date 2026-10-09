@@ -207,6 +207,8 @@ internal fun calleeOf(element: PsiElement): String? =
  * even though one does.
  */
 internal fun jsRuleDecision(element: PsiElement): RuleDecision {
+    // Before looking for the call: with no rule, the walk up to it was made for every element.
+    if (!RuleCalls.hasRules(element.project)) return RuleDecision.NONE
     val callee = calleeOf(element) ?: return RuleDecision.NONE
     return RuleCalls.decide(element, "js", callee, ::importsOf)
 }
