@@ -9,8 +9,6 @@
 ### Bug Fixes
 
 - [Translation dialog] **Projects with one file per locale (`locales/en.json`) get their namespace in Create Translation**: the file names were offered as namespaces, `en` and `fr`, each showing a single locale
-### Bug Fixes
-
 - [Extraction] **Extracting a text into several translation files no longer garbles the code**: the text was replaced once per file written, each time over the call the previous one had inserted, leaving `{i18n.t('key')}y')}y')}…` in the source. The code is now replaced once, in the same command as the files — one Ctrl+Z undoes both
 - [Extraction] **Fill Remaining Locales only offers the other locales of the chosen file**: a key typed without a namespace listed every translation file of the project, and confirming the dialog wrote the key into every namespace of every locale
 
