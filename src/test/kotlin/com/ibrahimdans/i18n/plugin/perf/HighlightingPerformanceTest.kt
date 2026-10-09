@@ -58,6 +58,13 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
  * kind before the scan): `findAllSources` left (b)'s profile; samples of the highlighting passes holding
  * a plugin frame fell from 172 to 93 (40 % to 29 % of the passes). (b) 0.8–1.4 s, still noisy. What the
  * plugin keeps in (b) is `findSources`, recomputed per namespace after each keystroke.
+ *
+ * After TASK-PERF-TRANSLATION-TRACKER (the file-index scan stamped with `TranslationModificationTracker`):
+ * the same source instances are served across keystrokes, and no file-index scan is left in the
+ * profile of (b)'s measured loop. Plugin frames in its highlighting passes: 38 % before, 28 % after;
+ * what remains is the inlay collector, `canExtractKey` and the `useTranslation` hook resolution. (b)
+ * itself, 0.8–0.9 s, is now mostly the platform's own JS highlighting. Profiles taken from the
+ * measured loop only (the `medianOf` lambda): the warm-up pass before it is cold by design.
  */
 @EnabledIfEnvironmentVariable(named = "I18N_PERF", matches = "true")
 class HighlightingPerformanceTest : PlatformBaseTest() {

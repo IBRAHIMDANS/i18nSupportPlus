@@ -23,11 +23,14 @@ import java.lang.ref.SoftReference
 class LocalizationSourceService {
 
     companion object {
-        private val ALL_SOURCES_CACHE =
-            Key.create<SoftReference<CachedSources>>("i18n.localization.allSources")
+        private val TYPED_SOURCES_CACHE =
+            Key.create<SoftReference<TypedSources>>("i18n.localization.typedSources")
 
-        private val NAMED_SOURCES_CACHE =
-            Key.create<SoftReference<CachedNamedSources>>("i18n.localization.namedSources")
+        private val CONFIGURED_SOURCES_CACHE =
+            Key.create<SoftReference<ConfiguredSources>>("i18n.localization.configuredSources")
+
+        private val COMPOSED_SOURCES_CACHE =
+            Key.create<SoftReference<ComposedSources>>("i18n.localization.composedSources")
 
         private val DEFAULT_EXCLUDED_DIRS = setOf(
             "node_modules", "build", "dist", ".next", "out",
@@ -129,25 +132,18 @@ class LocalizationSourceService {
     fun findSources(fileNames: List<String>, project: Project): List<LocalizationSource> {
         // Every key of every feature asks this on each highlighting pass, and each lookup scanned
         // the file index and rebuilt the trees of the files it kept: measured at ~4.6 ms a call
-        // with 500 translation files, ~16x a cached answer. Cached per namespace list, dropped on
-        // the same changes as [findAllSources].
-        val cache = namedSourcesCache(project)
+        // with 500 translation files, ~16x a cached answer. Cached per namespace list (see
+        // [composedSources] for what drops it).
+        val cache = composedSources(project)
         cache.byNames[fileNames]?.let { cached -> if (allValid(cached)) return cached }
         return computeSources(fileNames, project).also { cache.byNames[fileNames] = it }
     }
 
-    /** The per-namespace answers for the current [CacheStamps], started afresh when they moved. */
-    private fun namedSourcesCache(project: Project): CachedNamedSources {
-        val stamps = cacheStamps(project, Settings.getInstance(project).config())
-        return project.getUserData(NAMED_SOURCES_CACHE)?.get()?.takeIf { it.stamps == stamps }
-            ?: CachedNamedSources(stamps).also { project.putUserData(NAMED_SOURCES_CACHE, SoftReference(it)) }
-    }
-
     private fun computeSources(fileNames: List<String>, project: Project): List<LocalizationSource> {
+        val config = Settings.getInstance(project).config()
         val requestedNamespaces = fileNames.whenMatches { it.isNotEmpty() }
-        val sources = (findVirtualFilesByName(project,
-            requestedNamespaces ?: Settings.getInstance(project).config().defaultNamespaces()
-        ) + findSourcesByConfiguration(project))
+        val sources = (typedSourcesByName(project, config, requestedNamespaces ?: config.defaultNamespaces()) +
+            configuredSources(project, config))
             .distinctBy { it.displayPath }
         if (sources.isNotEmpty() || requestedNamespaces != null) return sources
         // Cached on the project, so the extra call costs nothing per highlighting pass.
@@ -205,14 +201,11 @@ class LocalizationSourceService {
      * The annotator asks this for every key naming a namespace, on every pass: uncached, it scanned
      * the file index and rebuilt a tree per matching file each time — measured at 290–540 ms a pass
      * for 100 such keys over 500 translation files (`HighlightingPerformanceTest`, scenario e).
-     * Cached alongside [findSources], and dropped on the same changes.
+     * Cached with the other lookups of the file index (see [typedSources]).
      */
     fun findNamespaceFiles(fileNames: List<String>, project: Project): List<LocalizationSource> {
         if (fileNames.isEmpty()) return emptyList()
-        val cache = namedSourcesCache(project)
-        cache.namespaceFiles[fileNames]?.let { cached -> if (allValid(cached)) return cached }
-        return findVirtualFilesByName(project, fileNames).distinctBy { it.displayPath }
-            .also { cache.namespaceFiles[fileNames] = it }
+        return typedSourcesByName(project, Settings.getInstance(project).config(), fileNames)
     }
 
     /**
@@ -226,72 +219,109 @@ class LocalizationSourceService {
      *
      * The result is cached on the project: the annotator, completion, folding, inlay hints and
      * gutter icons all call this on every highlighting pass, and each call used to re-query the
-     * file index and rebuild an element tree per translation file. The cache is dropped as soon
-     * as the PSI, the project roots or the plugin configuration change (see [CacheStamps]), and
-     * is held through a SoftReference so it never keeps translation files from being collected.
+     * file index and rebuild an element tree per translation file. See [composedSources] for what
+     * drops it; every cache here is held through a SoftReference so it never keeps translation
+     * files from being collected.
      *
      * A platform CachedValue is deliberately not used here: the element trees are rebuilt on
      * every computation and carry no structural equals, which the platform idempotence checker
      * reports as a non-idempotent provider in unit-test mode.
      */
     fun findAllSources(project: Project): List<LocalizationSource> {
+        val cache = composedSources(project)
+        cache.all?.let { cached -> if (allValid(cached)) return cached }
         val config = Settings.getInstance(project).config()
-        val stamps = cacheStamps(project, config)
-
-        cachedSources(project, stamps)?.let { return it }
-
-        val sources = computeAllSources(project, config)
-        project.putUserData(ALL_SOURCES_CACHE, SoftReference(CachedSources(stamps, sources)))
-        return sources
+        return (typedAllSources(project, config) + configuredSources(project, config)).also { cache.all = it }
     }
+
+    /*
+     * Three caches, because the sources come from two places that change at different times.
+     *
+     * - [typedSources]: what the file index finds by Localization file type — the expensive part,
+     *   one scan per namespace list. Stamped with [TranslationModificationTracker], so it survives
+     *   a keystroke in a component.
+     * - [configuredSources]: what the technologies declare (a TS catalog, an i18next configuration).
+     *   Those live in JS/TS files, so they stay stamped with the project-wide PSI count: recomputed
+     *   once after a keystroke, not once per namespace as when everything shared that stamp.
+     * - [composedSources]: the answers handed out, the two put together. Stamped with both, so a
+     *   caller keeps getting the same instance while nothing moved — callers compare sources by
+     *   identity — and putting them together again costs no scan.
+     *
+     * Two threads racing on any of them recompute the same thing and the last one wins: cached
+     * values are immutable, so a duplicated computation is the only cost.
+     */
+
+    private fun typedSources(project: Project, config: Config): TypedSources {
+        val stamps = CacheStamps(TranslationModificationTracker.getInstance(project).modificationCount, project, config)
+        return project.getUserData(TYPED_SOURCES_CACHE)?.get()?.takeIf { it.stamps == stamps }
+            ?: TypedSources(stamps).also { project.putUserData(TYPED_SOURCES_CACHE, SoftReference(it)) }
+    }
+
+    private fun typedSourcesByName(project: Project, config: Config, fileNames: List<String>): List<LocalizationSource> {
+        val cache = typedSources(project, config)
+        cache.byNames[fileNames]?.let { cached -> if (allValid(cached)) return cached }
+        return findVirtualFilesByName(project, fileNames).distinctBy { it.displayPath }.also { cache.byNames[fileNames] = it }
+    }
+
+    private fun typedAllSources(project: Project, config: Config): List<LocalizationSource> {
+        val cache = typedSources(project, config)
+        cache.all?.let { cached -> if (allValid(cached)) return cached }
+        val basePath = project.basePath ?: ""
+        return Extensions.LOCALIZATION.extensionList.flatMap { findAllSourcesByFileType(project, it, config, basePath) }
+            .also { cache.all = it }
+    }
+
+    private fun configuredSources(project: Project, config: Config): List<LocalizationSource> {
+        val stamps = configuredStamps(project, config)
+        project.getUserData(CONFIGURED_SOURCES_CACHE)?.get()
+            ?.takeIf { it.stamps == stamps && allValid(it.sources) }
+            ?.let { return it.sources }
+        return findSourcesByConfiguration(project)
+            .also { project.putUserData(CONFIGURED_SOURCES_CACHE, SoftReference(ConfiguredSources(stamps, it))) }
+    }
+
+    private fun composedSources(project: Project): ComposedSources {
+        val config = Settings.getInstance(project).config()
+        val stamps = CacheStamps(TranslationModificationTracker.getInstance(project).modificationCount, project, config) to
+            configuredStamps(project, config)
+        return project.getUserData(COMPOSED_SOURCES_CACHE)?.get()?.takeIf { it.stamps == stamps }
+            ?: ComposedSources(stamps).also { project.putUserData(COMPOSED_SOURCES_CACHE, SoftReference(it)) }
+    }
+
+    private fun configuredStamps(project: Project, config: Config) =
+        CacheStamps(PsiModificationTracker.getInstance(project).modificationCount, project, config)
 
     /**
-     * Returns the cached scan when it is still current, null when it must be recomputed.
+     * A file reloaded from disk can leave invalid PSI behind: handing those elements out would throw
+     * PsiInvalidElementAccessException in the callers, so a cached answer holding one is recomputed.
      *
-     * Two threads racing here recompute the same thing and the last one wins: the cached
-     * value is immutable, so a duplicated scan is the only cost.
+     * `isValid` touches the PSI, so it needs a read action. The four tool window callers
+     * (TreeViewPanel, TableViewPanel and TranslationStatsPanel twice) reach [findAllSources] from a
+     * pooled thread without holding one, which the platform reports as a SEVERE naming the plugin.
+     * Opening it here rather than at each call site is what keeps a fifth caller from reintroducing
+     * the defect, and it stays narrow on purpose: the scan itself already runs its own read actions,
+     * and holding one across a full rescan would block writes for longer than this check needs.
      */
-    private fun cachedSources(project: Project, stamps: CacheStamps): List<LocalizationSource>? {
-        val cached = project.getUserData(ALL_SOURCES_CACHE)?.get() ?: return null
-        if (cached.stamps != stamps) return null
-        // A file reloaded from disk can leave invalid PSI behind: handing those elements
-        // out would throw PsiInvalidElementAccessException in the callers, so rescan.
-        //
-        // `isValid` touches the PSI, so it needs a read action. The four tool window callers
-        // (TreeViewPanel, TableViewPanel and TranslationStatsPanel twice) reach this from a
-        // pooled thread without holding one, which the platform reports as a SEVERE naming
-        // the plugin. Opening it here rather than at each call site is what keeps a fifth
-        // caller from reintroducing the defect, and it stays narrow on purpose: the scan
-        // itself already runs its own read actions, and holding one across a full rescan
-        // would block writes for longer than this check needs.
-        if (!allValid(cached.sources)) return null
-        return cached.sources
-    }
-
     private fun allValid(sources: List<LocalizationSource>): Boolean =
         ReadAction.compute<Boolean, RuntimeException> { sources.none { it.tree?.value()?.isValid == false } }
 
-    private fun cacheStamps(project: Project, config: Config) = CacheStamps(
-        psi = PsiModificationTracker.getInstance(project).modificationCount,
-        roots = ProjectRootManager.getInstance(project).modificationCount,
-        config = config.hashCode()
-    )
-
-    private fun computeAllSources(project: Project, config: Config): List<LocalizationSource> {
-        val basePath = project.basePath ?: ""
-        return Extensions.LOCALIZATION.extensionList.flatMap { findAllSourcesByFileType(project, it, config, basePath) } +
-                findSourcesByConfiguration(project)
+    /** What a cached answer depends on: [changes] (a modification count), the project roots and the configuration. */
+    private data class CacheStamps(val changes: Long, val roots: Long, val config: Int) {
+        constructor(changes: Long, project: Project, config: Config) :
+            this(changes, ProjectRootManager.getInstance(project).modificationCount, config.hashCode())
     }
 
-    /** Everything [findAllSources] and [findSources] depend on; any change invalidates the cached scan. */
-    private data class CacheStamps(val psi: Long, val roots: Long, val config: Int)
-
-    private class CachedSources(val stamps: CacheStamps, val sources: List<LocalizationSource>)
-
-    /** [findSources] and [findNamespaceFiles] answers for one set of [CacheStamps], by requested namespace list. */
-    private class CachedNamedSources(val stamps: CacheStamps) {
+    private class TypedSources(val stamps: CacheStamps) {
+        @Volatile var all: List<LocalizationSource>? = null
         val byNames = java.util.concurrent.ConcurrentHashMap<List<String>, List<LocalizationSource>>()
-        val namespaceFiles = java.util.concurrent.ConcurrentHashMap<List<String>, List<LocalizationSource>>()
+    }
+
+    private class ConfiguredSources(val stamps: CacheStamps, val sources: List<LocalizationSource>)
+
+    /** [findSources] and [findAllSources] answers for one pair of stamps (typed, configured). */
+    private class ComposedSources(val stamps: Pair<CacheStamps, CacheStamps>) {
+        @Volatile var all: List<LocalizationSource>? = null
+        val byNames = java.util.concurrent.ConcurrentHashMap<List<String>, List<LocalizationSource>>()
     }
 
     private fun findAllSourcesByFileType(
