@@ -26,21 +26,21 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
      * Tries to parse element as i18n key and annotates it when succeeded
      */
     override fun annotate(element: PsiElement, holder: AnnotationHolder) {
+        // Asked of every element of every file: the one test most of them fail comes first, and the
+        // configuration and the exclusions — a new Config, a path split — only for a key.
+        val translationFunctionNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
+        if (!lang.canExtractKey(element, translationFunctionNames)) return
+        if (isLeafOfClaimedParent(element, translationFunctionNames)) return
         val config = Settings.getInstance(element.project).config()
         val virtualFile = element.containingFile?.virtualFile ?: return
-        val filePath = virtualFile.path
         val excludedDirs = config.excludedDirectorySet()
-        if (excludedDirs.isNotEmpty() && filePath.split('/').any { it in excludedDirs }) return
+        if (excludedDirs.isNotEmpty() && virtualFile.path.split('/').any { it in excludedDirs }) return
         val excludedExts = config.excludedFileExtensionSet()
         if (excludedExts.isNotEmpty() && virtualFile.extension?.lowercase() in excludedExts) return
-        val translationFunctionNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
-        if (isLeafOfClaimedParent(element, translationFunctionNames)) return
-        if(lang.canExtractKey(element, translationFunctionNames)) {
-            lang.extractRawKey(element)?.let { rawKey ->
-                RawKeyParser(element.project).parse(rawKey, element)
-            }?.also {
-                annotateI18nLiteral(it, element, holder, config)
-            }
+        lang.extractRawKey(element)?.let { rawKey ->
+            RawKeyParser(element.project).parse(rawKey, element)
+        }?.also {
+            annotateI18nLiteral(it, element, holder, config)
         }
     }
 
