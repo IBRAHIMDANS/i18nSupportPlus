@@ -83,12 +83,16 @@ internal class JsxTranslationExtractor : TranslationExtractor {
     override fun template(element: PsiElement): (argument: String) -> String {
         val tag = if (element.parent is XmlAttributeValue) null else PsiTreeUtil.getParentOfType(element, XmlTag::class.java)
         val variables = tag?.let { variables(it) }
-        if (variables.isNullOrEmpty()) return { "{i18n.t($it)}" }
+        val function = translationFunction(element)
+        if (variables.isNullOrEmpty()) return { "{$function($it)}" }
         val options = variables.entries.joinToString(", ") { (name, expression) ->
             if (name == expression) name else "$name: $expression"
         }
-        return { "{i18n.t($it, { $options })}" }
+        return { "{$function($it, { $options })}" }
     }
+
+    override fun scopeNamespaces(element: PsiElement): List<String> =
+        TranslationHookInScope.find(element)?.namespaces.orEmpty()
 
     /**
      * The JSX expressions of [tag]'s text — `name` for `{name}`, `name` → `user.name` for

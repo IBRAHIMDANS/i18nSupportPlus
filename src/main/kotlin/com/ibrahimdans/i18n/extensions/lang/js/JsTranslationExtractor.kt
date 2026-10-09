@@ -24,6 +24,14 @@ internal class JsTranslationExtractor: TranslationExtractor {
     }
     override fun text(element: PsiElement): String = element.text.unQuote()
 
+    override fun template(element: PsiElement): (argument: String) -> String {
+        val function = translationFunction(element)
+        return { "$function($it)" }
+    }
+
+    override fun scopeNamespaces(element: PsiElement): List<String> =
+        TranslationHookInScope.find(element)?.namespaces.orEmpty()
+
     private fun isDirectOrConfiguredCall(element: PsiElement): Boolean {
         val callExpr = PsiTreeUtil.getParentOfType(element, JSCallExpression::class.java) ?: return true
         val refExpr = callExpr.methodExpression as? JSReferenceExpression ?: return true

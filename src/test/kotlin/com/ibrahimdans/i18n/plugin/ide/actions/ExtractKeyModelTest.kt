@@ -8,7 +8,11 @@ import org.junit.jupiter.api.Test
 /** The rules of the extraction dialog, read off a snapshot without any dialog or project. */
 class ExtractKeyModelTest {
 
-    private fun model(config: Config = Config(defaultNs = "common"), namespaces: List<String> = listOf("account", "common")) =
+    private fun model(
+        config: Config = Config(defaultNs = "common"),
+        namespaces: List<String> = listOf("account", "common"),
+        scopeNamespaces: List<String> = emptyList(),
+    ) =
         ExtractKeyModel(
             text = "Save changes",
             existingKeys = emptyList(),
@@ -17,13 +21,14 @@ class ExtractKeyModelTest {
             keysByNamespace = mapOf("account" to setOf("title")),
             referenceLocale = "en",
             config = config,
-            template = { "{i18n.t($it)}" },
+            template = { "{t($it)}" },
+            scopeNamespaces = scopeNamespaces,
         )
 
     @Test
     fun theCodeGetsTheNamespaceOfTheFilesWritten() {
         assertEquals("account:save", model().codeKey("account", "save"))
-        assertEquals("{i18n.t('account:save')}", model().preview("account", "save"))
+        assertEquals("{t('account:save')}", model().preview("account", "save"))
     }
 
     @Test
@@ -66,5 +71,24 @@ class ExtractKeyModelTest {
         assertEquals("save_changes", model().proposedKey)
         assertEquals("paap_le_roi", ExtractKeyModel.proposeKey(" Paap le roi! "))
         assertEquals("creer_un_compte", ExtractKeyModel.proposeKey("Créer un compte"))
+    }
+
+    /** Under `useTranslation('account')`, `t('save')` reads `account`: only that namespace goes unwritten. */
+    @Test
+    fun theNamespaceOfTheHookInScopeIsLeftOutAndSelectedFirst() {
+        val model = model(namespaces = listOf("auth", "account", "common"), scopeNamespaces = listOf("account"))
+        assertEquals("account", model.initialNamespace)
+        assertEquals("save", model.codeKey("account", "save"))
+        assertEquals("", model.prefix("account"))
+        assertEquals("common:save", model.codeKey("common", "save"))
+        assertEquals("auth:save", model.codeKey("auth", "save"))
+    }
+
+    /** A reused key found without its default namespace gets it back under a hook reading another one. */
+    @Test
+    fun aReusedDefaultKeyIsQualifiedUnderAHook() {
+        assertEquals("{t('common:save')}", model(scopeNamespaces = listOf("account")).reusePreview("save"))
+        assertEquals("{t('save')}", model(scopeNamespaces = listOf("common")).reusePreview("save"))
+        assertEquals("{t('save')}", model().reusePreview("save"))
     }
 }

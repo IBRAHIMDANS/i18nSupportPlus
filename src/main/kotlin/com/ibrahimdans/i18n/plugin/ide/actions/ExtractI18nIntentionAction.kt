@@ -63,9 +63,11 @@ class ExtractI18nIntentionAction : PsiElementBaseIntentionAction(), IntentionAct
     private fun doInvoke(editor: Editor, project: Project, element: PsiElement) {
         val extractor = getExtractor(element)
         val text = extractor.text(element).trim()
-        val template = extractor.template(element)
         ReadAction.nonBlocking<ExtractKeyModel> {
-            ExtractKeyModel.load(project, element, text, ExistingKeyFinder.find(text, element), template)
+            ExtractKeyModel.load(
+                project, element, text, ExistingKeyFinder.find(text, element),
+                extractor.template(element), extractor.scopeNamespaces(element)
+            )
         }
             .inSmartMode(project)
             .expireWith(project)
