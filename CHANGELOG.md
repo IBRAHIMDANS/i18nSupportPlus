@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Performance
+
+- [Highlighting] **The namespace files of a key are looked up once per change, not once per key**: the annotator asked for the files of a key's namespace (`t('common:title')`) on every key of every pass, and each time scanned the file index and rebuilt a tree per file — 290–540 ms a pass for 100 such keys over 500 translation files. The answer is now cached alongside the other lookups and dropped on the same changes. Scanning the index also built the excluded directories and the plugin configuration again for every file it visited; they are built once per scan, and a file is matched on its name before its path is examined
+
 ### Tests
 
 - [Performance] **A benchmark of the highlighting pass on a 500-file project**: `HighlightingPerformanceTest` builds 10 locales × 50 namespaces and a 200-key `.tsx`, then times the first pass, a pass after typing in the component, a pass after typing in an unrelated file, the project-wide source rescan and one pass worth of `findNamespaceFiles` calls. First figures: about a second per keystroke in the component, a third to a half of it in `findNamespaceFiles`, which has no cache, while the rescan itself costs a few milliseconds. Opt-in (`I18N_PERF=true`), since the fixture takes the class past a minute

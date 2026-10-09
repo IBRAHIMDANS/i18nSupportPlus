@@ -43,6 +43,11 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
  *
  * (e) is a third to a half of (b), and (d) shows that the project-wide rescan itself is cheap.
  * A change that moves one of these figures updates this table.
+ *
+ * After TASK-PERF-NAMESPACE-CACHE (cached `findNamespaceFiles`, exclusions built once per scan): (e)
+ * 0 ms, since every call after the first is a cache hit. (b) did not move beyond the noise: each
+ * keystroke still drops the cache, and a JFR profile of (b) puts nearly half of the plugin's time
+ * in `JsLang.canExtractKey`, run on every PSI element by the annotator, inlays, gutter and references.
  */
 @EnabledIfEnvironmentVariable(named = "I18N_PERF", matches = "true")
 class HighlightingPerformanceTest : PlatformBaseTest() {
@@ -168,12 +173,12 @@ class HighlightingPerformanceTest : PlatformBaseTest() {
     private companion object {
         const val RUNS = 5
 
-        // About 10x the cost measured on 2026-10-09, with a 1 s floor for the figures too small to
+        // About 10x the cost measured on 2026-10-09 (or since lowered by a TASK-PERF-* change), with a 1 s floor for the figures too small to
         // be stable. A change that makes a scenario much faster lowers its ceiling with it.
         const val FIRST_HIGHLIGHTING_CEILING_MS = 65_000L
         const val TYPING_CEILING_MS = 10_000L
         const val UNRELATED_TYPING_CEILING_MS = 1_000L
         const val RESCAN_CEILING_MS = 1_000L
-        const val NAMESPACE_LOOKUPS_CEILING_MS = 6_000L
+        const val NAMESPACE_LOOKUPS_CEILING_MS = 1_000L
     }
 }

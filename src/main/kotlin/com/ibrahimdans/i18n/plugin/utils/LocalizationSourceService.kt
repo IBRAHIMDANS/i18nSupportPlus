@@ -91,13 +91,18 @@ class LocalizationSourceService {
      * Uses IntelliJ's ProjectFileIndex first (respects .gitignore and IDE exclusions),
      * then falls back to a hardcoded list + user-configured excluded directories.
      */
-    private fun isExcludedPath(file: VirtualFile, project: Project): Boolean {
+    private fun isExcludedPath(file: VirtualFile, project: Project, exclusions: Set<String>): Boolean {
         if (ProjectFileIndex.getInstance(project).isExcluded(file)) return true
-        val customExclusions = Settings.getInstance(project).config().excludedDirectorySet()
-        val allExclusions = DEFAULT_EXCLUDED_DIRS + customExclusions
         val segments = file.path.split('/')
-        return segments.any { it in allExclusions }
+        return segments.any { it in exclusions }
     }
+
+    /**
+     * The directory names [isExcludedPath] skips. Built once per scan, not once per file: rebuilt for
+     * each of the hundreds of files a scan visits, it was a quarter of the plugin's own highlighting
+     * time in a JFR profile of `HighlightingPerformanceTest`.
+     */
+    private fun excludedDirectories(config: Config): Set<String> = DEFAULT_EXCLUDED_DIRS + config.excludedDirectorySet()
 
     /**
      * Sources holding the requested namespaces, falling back to [Config.defaultNamespaces]
@@ -126,11 +131,16 @@ class LocalizationSourceService {
         // the file index and rebuilt the trees of the files it kept: measured at ~4.6 ms a call
         // with 500 translation files, ~16x a cached answer. Cached per namespace list, dropped on
         // the same changes as [findAllSources].
-        val stamps = cacheStamps(project, Settings.getInstance(project).config())
-        val cache = project.getUserData(NAMED_SOURCES_CACHE)?.get()?.takeIf { it.stamps == stamps }
-            ?: CachedNamedSources(stamps).also { project.putUserData(NAMED_SOURCES_CACHE, SoftReference(it)) }
+        val cache = namedSourcesCache(project)
         cache.byNames[fileNames]?.let { cached -> if (allValid(cached)) return cached }
         return computeSources(fileNames, project).also { cache.byNames[fileNames] = it }
+    }
+
+    /** The per-namespace answers for the current [CacheStamps], started afresh when they moved. */
+    private fun namedSourcesCache(project: Project): CachedNamedSources {
+        val stamps = cacheStamps(project, Settings.getInstance(project).config())
+        return project.getUserData(NAMED_SOURCES_CACHE)?.get()?.takeIf { it.stamps == stamps }
+            ?: CachedNamedSources(stamps).also { project.putUserData(NAMED_SOURCES_CACHE, SoftReference(it)) }
     }
 
     private fun computeSources(fileNames: List<String>, project: Project): List<LocalizationSource> {
@@ -189,9 +199,20 @@ class LocalizationSourceService {
         return scoped
     }
 
+    /**
+     * The files named after one of [fileNames], whatever the configuration says.
+     *
+     * The annotator asks this for every key naming a namespace, on every pass: uncached, it scanned
+     * the file index and rebuilt a tree per matching file each time — measured at 290–540 ms a pass
+     * for 100 such keys over 500 translation files (`HighlightingPerformanceTest`, scenario e).
+     * Cached alongside [findSources], and dropped on the same changes.
+     */
     fun findNamespaceFiles(fileNames: List<String>, project: Project): List<LocalizationSource> {
         if (fileNames.isEmpty()) return emptyList()
+        val cache = namedSourcesCache(project)
+        cache.namespaceFiles[fileNames]?.let { cached -> if (allValid(cached)) return cached }
         return findVirtualFilesByName(project, fileNames).distinctBy { it.displayPath }
+            .also { cache.namespaceFiles[fileNames] = it }
     }
 
     /**
@@ -267,9 +288,10 @@ class LocalizationSourceService {
 
     private class CachedSources(val stamps: CacheStamps, val sources: List<LocalizationSource>)
 
-    /** [findSources] answers for one set of [CacheStamps], by requested namespace list. */
+    /** [findSources] and [findNamespaceFiles] answers for one set of [CacheStamps], by requested namespace list. */
     private class CachedNamedSources(val stamps: CacheStamps) {
         val byNames = java.util.concurrent.ConcurrentHashMap<List<String>, List<LocalizationSource>>()
+        val namespaceFiles = java.util.concurrent.ConcurrentHashMap<List<String>, List<LocalizationSource>>()
     }
 
     private fun findAllSourcesByFileType(
@@ -280,10 +302,11 @@ class LocalizationSourceService {
     ): List<LocalizationSource> {
         return ReadAction.compute<List<LocalizationSource>, RuntimeException> {
             val searchScope = config.searchScope(project)
+            val exclusions = excludedDirectories(config)
             localization.types().flatMap { localizationType ->
                 FileTypeIndex
                     .getFiles(localizationType.languageFileType, searchScope)
-                    .filter { file -> !isExcludedPath(file, project) }
+                    .filter { file -> !isExcludedPath(file, project, exclusions) }
                     .mapNotNull { file ->
                         val template = moduleMatch(config, file, basePath)
                         when {
@@ -354,14 +377,17 @@ class LocalizationSourceService {
 
     private fun findSourcesByFileType(project: Project, fileNames: List<String>, localization: Localization<PsiElement>): List<LocalizationSource> {
         return ReadAction.compute<List<LocalizationSource>, RuntimeException> {
-            val searchScope = Settings.getInstance(project).config().searchScope(project)
+            val config = Settings.getInstance(project).config()
+            val searchScope = config.searchScope(project)
+            val exclusions = excludedDirectories(config)
+            val basePath = project.basePath ?: ""
             localization.types().flatMap { localizationType ->
                 FileTypeIndex
                     .getFiles(localizationType.languageFileType, searchScope)
-                    .filter { file -> !isExcludedPath(file, project) && localization.matches(localizationType, file, fileNames) }
+                    // Matched on the name first: it is the cheap test, and it discards nearly every file.
+                    .filter { file -> localization.matches(localizationType, file, fileNames) && !isExcludedPath(file, project, exclusions) }
                     .mapNotNull { virtualFile ->
-                        val config = Settings.getInstance(project).config()
-                        sourceOf(project, localization, virtualFile, moduleMatch(config, virtualFile, project.basePath ?: ""))
+                        sourceOf(project, localization, virtualFile, moduleMatch(config, virtualFile, basePath))
                     }
             }
         }
