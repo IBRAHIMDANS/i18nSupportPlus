@@ -7,7 +7,12 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
+import com.ibrahimdans.i18n.plugin.utils.distance
+import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
+import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
+import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
+import com.ibrahimdans.i18n.plugin.utils.pathToRoot
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import java.text.Normalizer
@@ -174,8 +179,11 @@ internal class ExtractKeyModel(
             scopeNamespaces: List<String> = emptyList(),
         ): ExtractKeyModel {
             val viewModel = DialogViewModel(project)
-            val namespaces = viewModel.loadNamespaces()
-            val sources = namespaces.associateWith { viewModel.sourcesFor(listOf(it), caller) }
+            val callerPath = caller.hostVirtualFile()?.let { pathToRoot(project.basePath ?: "", it.path) }.orEmpty()
+            val sources = viewModel.loadNamespaces()
+                .associateWith { offered(viewModel.sourcesFor(listOf(it), caller), callerPath) }
+                .filterValues { it.isNotEmpty() }
+            val namespaces = sources.keys.toList()
             return ExtractKeyModel(
                 text = text,
                 existingKeys = existingKeys,
@@ -187,6 +195,29 @@ internal class ExtractKeyModel(
                 template = template,
                 scopeNamespaces = scopeNamespaces,
             )
+        }
+
+        /**
+         * The files of a namespace the dialog offers: those of a recognised locale — all of them
+         * when none is, in a project with a single, unnamed language — under the translation root
+         * nearest [callerPath], the code file's project-relative path.
+         *
+         * Without a module configuration, a namespace is looked up project-wide: a `common.json`
+         * lying in another folder of the repository was offered as a locale called `common`.
+         */
+        internal fun offered(sources: List<LocalizationSource>, callerPath: String): List<LocalizationSource> {
+            val located = sources.filter { it.hasRecognizedLocale() }.ifEmpty { sources }
+            if (located.isEmpty()) return emptyList()
+            val byRoot = located.groupBy { rootOf(it) }
+            val callerDir = callerPath.trim('/').substringBeforeLast('/', "")
+            val nearest = byRoot.keys.minBy { distance(it, callerDir) }
+            return byRoot.getValue(nearest)
+        }
+
+        /** `public/locales` for `public/locales/en/common.json` as for `public/locales/en.json`. */
+        private fun rootOf(source: LocalizationSource): String {
+            val directory = source.displayPath.trim('/').substringBeforeLast('/', "")
+            return if (source.isLocaleNamedFile()) directory else directory.substringBeforeLast('/', "")
         }
 
         /**
