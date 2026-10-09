@@ -2,6 +2,8 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
+import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
+import com.ibrahimdans.i18n.plugin.ide.dialog.ExtractKeyDialog
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.whenMatches
 import com.intellij.codeInsight.intention.IntentionAction
@@ -11,6 +13,7 @@ import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.psi.PsiElement
@@ -50,42 +53,67 @@ class ExtractI18nIntentionAction : PsiElementBaseIntentionAction(), IntentionAct
             ?: DefaultExtractor()
 
     /**
-     * Looks for keys already holding the text before asking for a new one.
+     * Reads what the dialog shows — the keys already holding the text, the namespaces and their
+     * files — then opens it, and applies the answer.
      *
-     * [ExistingKeyFinder] walks the file-type index, which the platform forbids on the EDT: it runs
-     * in a non-blocking read action, and the dialogs start back on the EDT, as in [KeyCreator].
+     * The reading walks the file-type index, which the platform forbids on the EDT: it runs in a
+     * non-blocking read action, and the dialog starts back on the EDT, as in [KeyCreator]. A
+     * project without any translation file keeps the prompts that create one.
      */
     private fun doInvoke(editor: Editor, project: Project, element: PsiElement) {
         val extractor = getExtractor(element)
         val text = extractor.text(element).trim()
-        ReadAction.nonBlocking<List<String>> { ExistingKeyFinder.find(text, element) }
+        val template = extractor.template(element)
+        ReadAction.nonBlocking<ExtractKeyModel> {
+            ExtractKeyModel.load(project, element, text, ExistingKeyFinder.find(text, element), template)
+        }
             .inSmartMode(project)
             .expireWith(project)
             .expireWhen { editor.isDisposed || !element.isValid }
-            .finishOnUiThread(ModalityState.defaultModalityState()) { existingKeys ->
-                when (val choice = request.choose(project, text, existingKeys)) {
-                    is KeyChoice.Existing -> reuseKey(editor, project, element, extractor, choice.key)
-                    KeyChoice.New -> createKey(editor, project, element, extractor, text)
-                    KeyChoice.Cancelled -> {}
-                }
+            .finishOnUiThread(ModalityState.defaultModalityState()) { model ->
+                if (model.namespaces.isEmpty()) return@finishOnUiThread createKey(editor, project, element, extractor, text)
+                val range = editor.document.createRangeMarker(extractor.textRange(element))
+                val answer = opener(project, model, element)
+                if (answer != null) apply(editor, project, extractor, range, model, answer)
+                range.dispose()
             }
             .submit(AppExecutorUtil.getAppExecutorService())
     }
 
     /**
-     * Replaces the literal with [key] through the same template as a created key, and writes
-     * nothing to the translation files: the key already holds the text.
+     * Writes the translations [answer] asks for and replaces the text with the call, in one
+     * command: one Ctrl+Z undoes the extraction as a whole. [range] follows the text through any
+     * edit made while the dialog was open.
      */
-    private fun reuseKey(editor: Editor, project: Project, element: PsiElement, extractor: TranslationExtractor, key: String) {
-        val template = extractor.template(element)
-        val range = extractor.textRange(element)
+    private fun apply(
+        editor: Editor,
+        project: Project,
+        extractor: TranslationExtractor,
+        range: RangeMarker,
+        model: ExtractKeyModel,
+        answer: ExtractAnswer
+    ) {
+        if (!range.isValid) return
+        val call = when (answer) {
+            is ExtractAnswer.Reuse -> model.reusePreview(answer.key)
+            is ExtractAnswer.Create -> model.preview(answer.namespace, answer.key)
+        }
         WriteCommandAction.runWriteCommandAction(project, getText(), null, {
-            editor.document.replaceString(range.startOffset, range.endOffset, template("'$key'"))
+            if (answer is ExtractAnswer.Create) {
+                val key = model.fullKey(answer.namespace, answer.key)
+                val viewModel = DialogViewModel(project)
+                model.writes(answer).forEach { viewModel.saveTranslation(it.source, key, it.value, it.overwrite) }
+            }
+            editor.document.replaceString(range.startOffset, range.endOffset, call)
             extractor.postProcess(editor, range.startOffset)
         })
         editor.caretModel.primaryCaret.removeSelection()
     }
 
+    /**
+     * The prompts of a project without any translation file: a key, then the file it creates —
+     * see [KeyCreator].
+     */
     private fun createKey(editor: Editor, project: Project, element: PsiElement, extractor: TranslationExtractor, text: String) {
         val document = editor.document
         val requestResult = request.key(project, text)
@@ -109,5 +137,15 @@ class ExtractI18nIntentionAction : PsiElementBaseIntentionAction(), IntentionAct
 
     override fun isAvailable(project: Project, editor: Editor?, element: PsiElement): Boolean =
         getExtractor(element).canExtract(element)
+
+    companion object {
+        /**
+         * Shows the dialog and returns its answer, null when cancelled. A test swaps it for a
+         * scripted answer: a `DialogWrapper` cannot be shown in a test container.
+         */
+        internal var opener: (Project, ExtractKeyModel, PsiElement) -> ExtractAnswer? = { project, model, element ->
+            ExtractKeyDialog(project, model, element).let { if (it.showAndGet()) it.answer else null }
+        }
+    }
 }
 

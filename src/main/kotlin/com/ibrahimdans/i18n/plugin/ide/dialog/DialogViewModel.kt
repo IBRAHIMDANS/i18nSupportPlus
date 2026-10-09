@@ -64,15 +64,22 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
 
     /**
      * Returns the distinct sorted list of namespaces available in the project
-     * (file names without extension, e.g. "auth", "common", "errors").
+     * (e.g. "auth", "common", "errors").
+     *
+     * Read through [TranslationDataLoader.extractNamespace]: a file named after its locale
+     * (`locales/en.json`) holds the default namespace. The file name was taken as the namespace,
+     * so such a project was offered `en` and `fr` as namespaces, one locale each.
      */
     fun loadNamespaces(): List<String> {
         val sourceService = project.service<LocalizationSourceService>()
         return sourceService.findAllSources(project)
-            .map { it.name.substringBeforeLast('.') }
+            .map { namespaceOf(it) }
             .distinct()
             .sorted()
     }
+
+    private fun namespaceOf(source: LocalizationSource): String =
+        TranslationDataLoader.extractNamespace(source, Settings.getInstance(project).config().defaultNamespaces().first())
 
     /**
      * Loads all sources matching the given namespace name (file stem).
@@ -84,13 +91,13 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
     /**
      * The sources of [namespaces], in the module of [caller] when one is given — a key created
      * from a code file goes to that file's module, not to its neighbour's — and project-wide
-     * otherwise. Falls back to the files named after the namespace when the lookup finds none.
+     * otherwise. Falls back to the files holding the namespace when the lookup finds none.
      */
     fun sourcesFor(namespaces: List<String>, caller: PsiElement? = null): List<LocalizationSource> {
         val sourceService = project.service<LocalizationSourceService>()
         val found = if (caller != null) sourceService.findSources(namespaces, caller) else sourceService.findSources(namespaces, project)
         return found.ifEmpty {
-            sourceService.findAllSources(project).filter { it.name.substringBeforeLast('.') in namespaces }
+            sourceService.findAllSources(project).filter { namespaceOf(it) in namespaces }
         }
     }
 
@@ -157,8 +164,10 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
      * file's PSI, every caller runs on the EDT, and the EDT no longer carries an implicit read
      * action. The write action grants read access and makes lookup and write atomic, so the
      * tree cannot change between the two.
+     *
+     * Unless [overwrite], a key the source already holds keeps its value.
      */
-    fun saveTranslation(source: LocalizationSource, fullKey: FullKey, value: String) {
+    fun saveTranslation(source: LocalizationSource, fullKey: FullKey, value: String, overwrite: Boolean = true) {
         val generator = source.localization.contentGenerator()
         CommandProcessor.getInstance().executeCommand(
             project,
@@ -167,8 +176,7 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
                     val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@runWriteAction
                     if (ref.unresolved.isEmpty() && ref.element != null) {
                         // Key exists — update value in place
-                        val element = ref.element.value()
-                        updatePsiValue(element, value)
+                        if (overwrite) updatePsiValue(ref.element.value(), value)
                     } else if (ref.element != null) {
                         // Key partially resolved — generate missing chain
                         if (generator.isSuitable(ref.element.value())) {

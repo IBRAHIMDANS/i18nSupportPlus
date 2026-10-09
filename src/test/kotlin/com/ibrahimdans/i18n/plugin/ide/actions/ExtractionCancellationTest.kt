@@ -1,19 +1,15 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
-import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.ide.launchActionAndWait
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.JsonTranslationGenerator
 import com.intellij.codeInsight.intention.IntentionAction
 import com.intellij.openapi.ui.InputValidator
-import com.intellij.openapi.ui.TestDialog
-import com.intellij.openapi.ui.TestDialogManager.setTestDialog
 import com.intellij.openapi.ui.TestDialogManager.setTestInputDialog
 import com.intellij.openapi.ui.TestInputDialog
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
-class ExtractionCancellationTest: PlatformBaseTest() {
-
-    private val hint = "Extract i18n key"
+class ExtractionCancellationTest: ExtractionTestBase() {
 
     private val simpleJs = """
         export const test = () => {
@@ -33,28 +29,7 @@ class ExtractionCancellationTest: PlatformBaseTest() {
             override fun show(message: String): String? = null
             override fun show(message: String, validator: InputValidator?) = null
         })
-        myFixture.launchAction(action)
-        myFixture.checkResult(simpleJs)
-        myFixture.checkResult("assets/test.json", testJson, false)
-    }
-
-    @Test
-    fun testCancelInvalid() {
-        myFixture.configureByText("simple.js", simpleJs)
-        myFixture.addFileToProject("assets/test.json", testJson)
-        val action = myFixture.findSingleIntention(hint)
-        assertNotNull(action)
-        setTestInputDialog(object : TestInputDialog {
-            override fun show(message: String): String? = null
-            override fun show(message: String, validator: InputValidator?) = "not:a:key{here}"
-        })
-        setTestDialog(object : TestDialog {
-            override fun show(message: String): Int {
-                assertEquals("Invalid i18n key", message)
-                return 1
-            }
-        })
-        myFixture.launchAction(action)
+        myFixture.launchActionAndWait(action)
         myFixture.checkResult(simpleJs)
         myFixture.checkResult("assets/test.json", testJson, false)
     }

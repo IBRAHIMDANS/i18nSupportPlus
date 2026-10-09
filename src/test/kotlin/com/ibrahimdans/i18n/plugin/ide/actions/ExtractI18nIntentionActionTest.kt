@@ -7,7 +7,8 @@ import com.ibrahimdans.i18n.plugin.utils.generator.code.CodeGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.code.ReactTransJsxAttrGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.JsonTranslationGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.TranslationGenerator
-import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.ide.launchActionAndWait
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.ui.TestDialog
 import com.intellij.openapi.ui.TestDialogManager
 import org.junit.jupiter.api.Assertions
@@ -141,7 +142,7 @@ class ExtractI18nIntentionActionTest: ExtractionTestBase() {
     }
 
     /**
-     * The *Cancel* button (after the key and *Create a new key…*) and Escape (-1) both abandon the
+     * *Cancel* (after the key and *Create a new key*) and Escape (-1) both abandon the
      * extraction: neither the code nor the translation file changes, and no key is asked for.
      */
     @ParameterizedTest
@@ -168,17 +169,13 @@ class ExtractI18nIntentionActionTest: ExtractionTestBase() {
         }
     }
 
-    /**
-     * Four keys hold "Save": three are offered as buttons and the message counts the fourth, so
-     * the fourth button is *Create a new key…* rather than a key.
-     */
+    /** Every key holding "Save" is offered; *Create* comes after them. */
     @ParameterizedTest
     @ArgumentsSource(JsonYamlCodeGenerators::class)
-    fun testCapsOfferedKeys(cg: CodeGenerator, tg: TranslationGenerator) {
+    fun testOffersEveryExistingKey(cg: CodeGenerator, tg: TranslationGenerator) {
         val keys = arrayOf(arrayOf("save", "Save"), arrayOf("store", "Save"), arrayOf("submit", "Save"), arrayOf("keep", "Save"))
-        val expectedMessage = PluginBundle.message("action.intention.extract.key.reuse.message", "Save") +
-            "\n" + PluginBundle.message("action.intention.extract.key.reuse.more", 1)
-        withChoice(3, tg.ext(), expectedMessage) {
+        val expected = listOf("common:actions.save", "common:actions.store", "common:actions.submit", "common:actions.keep")
+        withChoice(4, tg.ext(), expected) {
             runTestCase(
                 "simple.${cg.ext()}",
                 cg.generateBlock("<caret>Save"),
@@ -192,7 +189,7 @@ class ExtractI18nIntentionActionTest: ExtractionTestBase() {
     }
 
     /**
-     * Answers the "already translated" chooser with button [index], for [block] only: the dialog
+     * Answers the "already translated" choice with option [index], for [block] only: the dialog
      * set through [TestDialogManager] outlives the test otherwise. The translation files live in
      * `locales/en/`, the layout the source scan reads a locale from; the fixture cannot create two
      * directory levels at once, so they are created first.
@@ -200,19 +197,55 @@ class ExtractI18nIntentionActionTest: ExtractionTestBase() {
     private fun withChoice(
         index: Int,
         ext: String,
-        expectedMessage: String = PluginBundle.message("action.intention.extract.key.reuse.message", "Save"),
+        expectedKeys: List<String> = listOf("common:actions.save"),
         block: () -> Unit
     ) {
-        val messages = mutableListOf<String>()
-        val previous = TestDialogManager.setTestDialog(TestDialog { message -> messages += message; index })
+        val previous = TestDialogManager.setTestDialog(TestDialog { index })
         try {
             myFixture.tempDirFixture.findOrCreateDir("locales/en")
             myFixture.runWithConfig(config(ext), block)
         } finally {
             TestDialogManager.setTestDialog(previous)
         }
-        Assertions.assertEquals(expectedMessage, messages.firstOrNull(), "the existing key was not offered")
+        Assertions.assertEquals(expectedKeys, offeredKeys, "the existing keys were not offered")
     }
+
+    /**
+     * The key goes to its namespace in every locale, and nowhere else: the reference locale gets
+     * the text, the other one an empty value, another namespace nothing — and the code gets the
+     * namespace, without which the key resolves nowhere.
+     */
+    @Test
+    fun testWritesTheKeyInItsNamespaceOnly() = myFixture.runWithConfig(config("json")) {
+        myFixture.addFileToProject("locales/en/account.json", "{}")
+        myFixture.addFileToProject("locales/fr/account.json", "{}")
+        myFixture.addFileToProject("locales/en/common.json", "{}")
+        myFixture.configureByText("App.jsx", "export const App = (i18n) => (<p>Ki<caret>ng</p>);")
+        TestDialogManager.setTestInputDialog(predefinedTextInputDialog("account:king"))
+        myFixture.launchActionAndWait(myFixture.findSingleIntention(hint))
+
+        myFixture.checkResult("export const App = (i18n) => (<p>{i18n.t('account:king')}</p>);")
+        Assertions.assertEquals("""{"king":"King"}""", compact("locales/en/account.json"))
+        Assertions.assertEquals("""{"king":""}""", compact("locales/fr/account.json"))
+        Assertions.assertEquals("{}", compact("locales/en/common.json"))
+    }
+
+    /** A locale left blank never empties the translation a key already has there. */
+    @Test
+    fun testKeepsTheTranslationsOfAnExistingKey() = myFixture.runWithConfig(config("json")) {
+        // en, the most complete locale, is the reference.
+        myFixture.addFileToProject("locales/en/account.json", """{"queen": "Queen", "jack": "Jack"}""")
+        myFixture.addFileToProject("locales/fr/account.json", """{"king": "Roi"}""")
+        myFixture.configureByText("App.jsx", "export const App = (i18n) => (<p>Ki<caret>ng</p>);")
+        TestDialogManager.setTestInputDialog(predefinedTextInputDialog("account:king"))
+        myFixture.launchActionAndWait(myFixture.findSingleIntention(hint))
+
+        Assertions.assertTrue(compact("locales/en/account.json").contains(""""king":"King""""))
+        Assertions.assertEquals("""{"king":"Roi"}""", compact("locales/fr/account.json"))
+    }
+
+    private fun compact(path: String): String =
+        FileDocumentManager.getInstance().getDocument(myFixture.findFileInTempDir(path))!!.text.replace(Regex("\\s"), "")
 
     @Test
     fun testRootSource2() {
