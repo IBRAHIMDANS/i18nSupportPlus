@@ -184,11 +184,7 @@ class BatchExtractI18nAction : AnAction() {
         }
     }
 
-    private fun toProposedKey(text: String): String =
-        text.lowercase().trim()
-            .replace(Regex("[^a-z0-9]+"), "_")
-            .take(50)
-            .trim('_')
+    private fun toProposedKey(text: String): String = ExtractKeyModel.proposeKey(text)
 }
 
 internal data class Candidate(

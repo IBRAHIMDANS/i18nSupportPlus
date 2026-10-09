@@ -18,8 +18,8 @@ import com.intellij.psi.PsiFile
  * remaining locales — and an empty prompt wrote **the key itself as the value**, a string that
  * looked translated everywhere (`"saxve": "common:actions.saxve"`). The dialog shows one field
  * per locale with the file it writes to, checks the key as it is typed, refuses to write
- * nothing, and writes nothing on Cancel. [CreateKeyQuickFix] remains the extraction actions'
- * path, where the value is the extracted text.
+ * nothing, and writes nothing on Cancel. [CreateKeyQuickFix] remains *Batch extract*'s path,
+ * where the value is the extracted text; *Extract i18n key* has its own dialog.
  *
  * The dialog is scoped to the module of the file the key is written in, like the writes were.
  */
