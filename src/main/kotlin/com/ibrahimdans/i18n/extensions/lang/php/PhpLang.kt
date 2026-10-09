@@ -16,6 +16,10 @@ import com.jetbrains.php.lang.psi.elements.ParameterList
 
 class PhpLang: Lang {
     override fun canExtractKey(element: PsiElement, translationFunctionNames: List<String>): Boolean {
+        // The one test only a PHP quoted-string token passes, so it goes first: every Lang is asked of
+        // every element of every file, and on a JS element the rest allocated a Config, walked up to
+        // the file root and built a pattern per name before this answered no.
+        if (extractRawKey(element) == null) return false
         val config = Settings.getInstance(element.project).config()
         val decision = phpRuleDecision(element)
         if (decision == RuleDecision.EXCLUDE) return false
@@ -33,7 +37,7 @@ class PhpLang: Lang {
         return functionNames.any { name ->
             val pattern = PhpPatternsExt.phpArgument(name, 0)
             pattern.accepts(element) || pattern.accepts(argumentAncestor)
-        } && extractRawKey(element) != null
+        }
     }
 
     override fun extractRawKey(element: PsiElement): RawKey? {
