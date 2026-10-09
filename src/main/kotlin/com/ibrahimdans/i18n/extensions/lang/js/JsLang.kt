@@ -12,17 +12,21 @@ import com.ibrahimdans.i18n.plugin.utils.ModulePresets
 import com.ibrahimdans.i18n.plugin.utils.hostFile
 import com.ibrahimdans.i18n.plugin.utils.type
 import com.intellij.lang.javascript.patterns.JSPatterns
+import com.intellij.patterns.ElementPattern
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.lang.javascript.psi.JSThisExpression
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
+import java.util.concurrent.ConcurrentHashMap
 
 open class JsLang : Lang {
 
     companion object {
         private val REACT_INTL_EXTRACTOR = ReactIntlExtractor()
+
+        private val FIRST_ARGUMENT_PATTERNS = ConcurrentHashMap<String, ElementPattern<*>>()
 
         /**
          * Extractors that recognise their own call syntax, so they answer before the
@@ -72,16 +76,23 @@ open class JsLang : Lang {
         val names = if (decision == RuleDecision.INCLUDE) {
             presetNames + listOfNotNull(calleeOf(element)?.substringAfterLast('.'))
         } else presetNames
-        return names.any { t ->
-            JSPatterns.jsArgument(t, 0).let { pattern ->
-                pattern.accepts(element) ||
-                    (!isNestedInsideTemplateExpression(element) &&
-                        !isInsideConditionalCondition(element) &&
-                        pattern.accepts(PsiTreeUtil.findFirstParent(element) { it.parent?.type() == "JS:ARGUMENT_LIST" }))
-            }
-        } && isDirectOrConfiguredCall(element, presetNames)
-          && extractRawKey(element) != null
+        val patterns = names.map(::firstArgumentPattern)
+        if (patterns.none { it.accepts(element) }) {
+            // Nothing below depends on the name, so it is walked once rather than once per name —
+            // and not at all for an element outside any argument list, which is most of a file.
+            // Asked of every PSI element by the annotator, inlays, gutter and references, these
+            // walks to the file root, repeated for each translation function name, were nearly half
+            // of the plugin's highlighting time in a JFR profile of `HighlightingPerformanceTest`.
+            val argument = PsiTreeUtil.findFirstParent(element) { it.parent?.type() == "JS:ARGUMENT_LIST" } ?: return false
+            if (isNestedInsideTemplateExpression(element) || isInsideConditionalCondition(element)) return false
+            if (patterns.none { it.accepts(argument) }) return false
+        }
+        return isDirectOrConfiguredCall(element, presetNames) && extractRawKey(element) != null
     }
+
+    /** `name(…)`'s first argument; built once per name, patterns being immutable. */
+    private fun firstArgumentPattern(name: String): ElementPattern<*> =
+        FIRST_ARGUMENT_PATTERNS.computeIfAbsent(name) { JSPatterns.jsArgument(it, 0) }
 
     private fun isNestedInsideTemplateExpression(element: PsiElement): Boolean {
         var current = element.parent

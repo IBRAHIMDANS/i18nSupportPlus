@@ -48,6 +48,11 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
  * 0 ms, since every call after the first is a cache hit. (b) did not move beyond the noise: each
  * keystroke still drops the cache, and a JFR profile of (b) puts nearly half of the plugin's time
  * in `JsLang.canExtractKey`, run on every PSI element by the annotator, inlays, gutter and references.
+ *
+ * After TASK-PERF-CAN-EXTRACT-KEY (tree walks hoisted out of the per-name loop): `canExtractKey` fell
+ * from 133 to 45 samples in (b)'s window, out of the top of the profile; (b) 0.8–0.9 s on a loaded
+ * machine. The plugin's remaining cost in (b) is the per-namespace lookups the keystroke invalidated
+ * and `findAllSources`, which the language-less inspections reach on the `.tsx` itself.
  */
 @EnabledIfEnvironmentVariable(named = "I18N_PERF", matches = "true")
 class HighlightingPerformanceTest : PlatformBaseTest() {

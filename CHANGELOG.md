@@ -4,6 +4,7 @@
 
 ### Performance
 
+- [Highlighting] **Telling whether a JS element holds a key no longer walks up to the file root once per translation function name**: the annotator, inlay hints, gutter icons and references ask it of every element of every JS/TS file, and for each of the configured names (`t`, `$t`, `i18n.t`…) three walks climbed the tree — to the root, for an element outside any call. They do not depend on the name: they now run once, and not at all for an element outside any argument list. Its share of a highlighting pass fell about fivefold in a profile of the 500-file benchmark
 - [Highlighting] **The namespace files of a key are looked up once per change, not once per key**: the annotator asked for the files of a key's namespace (`t('common:title')`) on every key of every pass, and each time scanned the file index and rebuilt a tree per file — 290–540 ms a pass for 100 such keys over 500 translation files. The answer is now cached alongside the other lookups and dropped on the same changes. Scanning the index also built the excluded directories and the plugin configuration again for every file it visited; they are built once per scan, and a file is matched on its name before its path is examined
 
 ### Tests
