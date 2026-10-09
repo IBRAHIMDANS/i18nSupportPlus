@@ -7,6 +7,15 @@ import com.intellij.patterns.ElementPattern
 import com.intellij.psi.PsiElement
 
 /**
+ * A value a message interpolates: [placeholder] stands for it in the translation, [expression]
+ * computes it in the code, and [name] links both — `{{name}}`, `user.name`, `name`.
+ */
+data class MessageVariable(val name: String, val expression: String, val placeholder: String) {
+    /** The same variable under [newName], its placeholder renamed in the syntax it is written in. */
+    fun renamed(newName: String): MessageVariable = copy(name = newName, placeholder = placeholder.replace(name, newName))
+}
+
+/**
  * Defines translation text extraction
  */
 interface TranslationExtractor {
@@ -35,6 +44,19 @@ interface TranslationExtractor {
      * Get template to substitute translation with
      */
     fun template(element: PsiElement): (argument: String) -> String = {"i18n.t($it)"}
+
+    /**
+     * The values the [text] interpolates, in order, their placeholders already standing in it:
+     * `Hello {{name}}` for `<p>Hello {user.name}</p>`. The extraction dialog lets them be renamed.
+     */
+    fun variables(element: PsiElement): List<MessageVariable> = emptyList()
+
+    /**
+     * The call replacing the text, given the key [argument] and the [variables] it passes, as
+     * named in the extraction dialog — [template] passes those of [variables] itself.
+     */
+    fun call(element: PsiElement): (argument: String, variables: List<MessageVariable>) -> String =
+        template(element).let { template -> { argument, _ -> template(argument) } }
 
     /**
      * The namespaces an unqualified key resolves against where [element] stands — those of a

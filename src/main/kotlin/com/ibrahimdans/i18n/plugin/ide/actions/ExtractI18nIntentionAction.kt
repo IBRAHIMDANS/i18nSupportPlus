@@ -66,7 +66,7 @@ class ExtractI18nIntentionAction : PsiElementBaseIntentionAction(), IntentionAct
         ReadAction.nonBlocking<ExtractKeyModel> {
             ExtractKeyModel.load(
                 project, element, text, ExistingKeyFinder.find(text, element),
-                extractor.template(element), extractor.scopeNamespaces(element)
+                extractor.call(element), extractor.variables(element), extractor.scopeNamespaces(element)
             )
         }
             .inSmartMode(project)
@@ -98,7 +98,7 @@ class ExtractI18nIntentionAction : PsiElementBaseIntentionAction(), IntentionAct
         if (!range.isValid) return
         val call = when (answer) {
             is ExtractAnswer.Reuse -> model.reusePreview(answer.key)
-            is ExtractAnswer.Create -> model.preview(answer.namespace, answer.key)
+            is ExtractAnswer.Create -> model.preview(answer.namespace, answer.key, answer.variables)
         }
         WriteCommandAction.runWriteCommandAction(project, getText(), null, {
             if (answer is ExtractAnswer.Create) {
