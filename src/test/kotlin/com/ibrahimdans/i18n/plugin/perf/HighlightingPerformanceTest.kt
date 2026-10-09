@@ -65,6 +65,11 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
  * what remains is the inlay collector, `canExtractKey` and the `useTranslation` hook resolution. (b)
  * itself, 0.8–0.9 s, is now mostly the platform's own JS highlighting. Profiles taken from the
  * measured loop only (the `medianOf` lambda): the warm-up pass before it is cold by design.
+ *
+ * After TASK-PERF-INLAY-COLLECTOR (config and names read once per inlay collector, `PhpLang` testing
+ * its extractor first): plugin frames in (b)'s passes 28 % → 16–18 % (two profiles, heavily loaded
+ * machine — times not comparable). Left: `JsLang.canExtractKey` and the `useTranslation` hook
+ * resolution, both under the inlay collector.
  */
 @EnabledIfEnvironmentVariable(named = "I18N_PERF", matches = "true")
 class HighlightingPerformanceTest : PlatformBaseTest() {

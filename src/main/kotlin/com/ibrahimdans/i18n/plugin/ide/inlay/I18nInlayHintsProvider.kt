@@ -34,24 +34,25 @@ import com.intellij.psi.PsiFile
  */
 class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiElement> {
 
-    override fun createCollector(file: PsiFile, editor: Editor): InlayHintsCollector =
-        object : SharedBypassCollector {
+    override fun createCollector(file: PsiFile, editor: Editor): InlayHintsCollector {
+        // One collector per file and pass, asked of every PSI element: what does not depend on the
+        // element is read here once. Per element, it allocated a Config and rebuilt the name list
+        // for every element of the file — the whole of the plugin's time while typing, in a JFR
+        // profile of `HighlightingPerformanceTest`.
+        val config = Settings.getInstance(file.project).config()
+        val translationFunctionNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
+        val langs = Extensions.LANG.extensionList
+        return object : SharedBypassCollector {
             override fun collectFromElement(element: PsiElement, sink: InlayTreeSink) {
                 val project = element.project
-                val config = Settings.getInstance(project).config()
-                val translationFunctionNames = Extensions.TECHNOLOGY.extensionList
-                    .flatMap { it.translationFunctionNames() }
-
-                val lang = Extensions.LANG.extensionList
-                    .firstOrNull { it.canExtractKey(element, translationFunctionNames) }
-                    ?: return
+                val lang = langs.firstOrNull { it.canExtractKey(element, translationFunctionNames) } ?: return
 
                 // A literal expression and its leaf token are both claimed and end at the same
                 // offset: the parent owns the hint, the leaf would stack a second one on it.
                 if (element.firstChild == null) {
                     val parent = element.parent
                     if (parent != null && parent.firstChild === element &&
-                        Extensions.LANG.extensionList.any { it.canExtractKey(parent, translationFunctionNames) }
+                        langs.any { it.canExtractKey(parent, translationFunctionNames) }
                     ) return
                 }
 
@@ -81,4 +82,5 @@ class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiEleme
                 }
             }
         }
+    }
 }
