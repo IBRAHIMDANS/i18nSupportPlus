@@ -26,6 +26,8 @@
 ### Tests
 
 - [Performance] **A benchmark of the highlighting pass on a 500-file project**: `HighlightingPerformanceTest` builds 10 locales × 50 namespaces and a 200-key `.tsx`, then times the first pass, a pass after typing in the component, a pass after typing in an unrelated file, the project-wide source rescan and one pass worth of `findNamespaceFiles` calls. It also times the usages code vision on a JSON file after a keystroke in it. The figures before and after each performance change of this release are kept in the class documentation. Opt-in (`I18N_PERF=true`), since the fixture takes the class past a minute
+- [Blade] **Laravel keys inside Blade echoes are covered**: `{{ __('key') }}`, `{!! trans('key') !!}` and `{{ trans_choice('key', n) }}` already resolved and reported, the Blade plugin injecting PHP there; `BladeEchoTest` now holds it, with the Blade plugin loaded in the test and `runIde` sandboxes. The `@lang` and `@choice` directives are still not recognised
+- [Performance] **A benchmark of the highlighting pass on a 500-file project**: `HighlightingPerformanceTest` builds 10 locales × 50 namespaces and a 200-key `.tsx`, then times the first pass, a pass after typing in the component, a pass after typing in an unrelated file, the project-wide source rescan and one pass worth of `findNamespaceFiles` calls. First figures: about a second per keystroke in the component, a third to a half of it in `findNamespaceFiles`, which has no cache, while the rescan itself costs a few milliseconds. Opt-in (`I18N_PERF=true`), since the fixture takes the class past a minute
 
 ## 1.7.0 - 2026-10-09
 

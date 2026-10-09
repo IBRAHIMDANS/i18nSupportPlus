@@ -44,6 +44,9 @@ dependencies {
         // Svelte is not bundled in IntelliJ Ultimate; without it a .svelte file is PLAIN_TEXT,
         // so no key inside one can be seen. Published by JetBrains, versioned on the platform.
         plugin("dev.blachut.svelte.lang:253.31033.19")
+        // Blade is not bundled in IntelliJ Ultimate either. Only for the tests and runIde: the plugin
+        // declares no dependency on it, a Blade echo being PHP the Blade plugin injects.
+        plugin("com.jetbrains.php.blade:253.28294.325")
 
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
