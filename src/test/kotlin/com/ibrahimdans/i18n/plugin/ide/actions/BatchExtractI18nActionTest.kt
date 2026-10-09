@@ -231,4 +231,11 @@ class BatchExtractI18nActionTest : ExtractionTestBase() {
         )
         assertEquals(content, translationsText(path))
     }
+
+    /** The literals of a concatenation are one message: offered, and replaced, once. */
+    @Test
+    fun aConcatenationIsOneCandidate() {
+        val candidates = candidatesOf("export const greeting = (user) => 'Hello ' + user.name + '!';")
+        assertEquals(listOf("Hello {{name}}!"), candidates.map { it.originalText })
+    }
 }

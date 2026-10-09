@@ -76,6 +76,10 @@ internal class ExtractKeyDialog(
     private val copyReferenceButton = JBRadioButton(PluginBundle.message("dialog.extract.empty.copy"))
     private val previewLabel = JBLabel()
 
+    /** The variables as currently named; their placeholders are the ones standing in the fields. */
+    private val variables = model.variables.toMutableList()
+    private val variableFields = model.variables.map { JBTextField(it.name, VARIABLE_COLUMNS) }
+
     init {
         title = PluginBundle.message("dialog.extract.title")
         setOKButtonText(PluginBundle.message("dialog.extract.ok"))
@@ -107,6 +111,11 @@ internal class ExtractKeyDialog(
             override fun textChanged(e: DocumentEvent) = refresh()
         })
         prefixLabel.foreground = NamedColorUtil.getInactiveTextColor()
+        variableFields.forEachIndexed { index, field ->
+            field.document.addDocumentListener(object : DocumentAdapter() {
+                override fun textChanged(e: DocumentEvent) = renameVariable(index, field.text.trim())
+            })
+        }
         separatorLabel.foreground = NamedColorUtil.getInactiveTextColor()
         previewLabel.font = Font(Font.MONOSPACED, Font.PLAIN, UIUtil.getLabelFont().size)
 
@@ -149,6 +158,15 @@ internal class ExtractKeyDialog(
                 cell(keyControl).align(AlignX.FILL)
             }
             row("") { cell(keyStatus).align(AlignX.FILL) }
+            if (variables.isNotEmpty()) {
+                group(PluginBundle.message("dialog.extract.variables.label")) {
+                    model.variables.forEachIndexed { index, variable ->
+                        row(variable.expression) {
+                            cell(variableFields[index]).comment(PluginBundle.message("dialog.extract.variables.comment"))
+                        }
+                    }
+                }
+            }
             row { cell(localesHost).align(Align.FILL) }.resizableRow()
             buttonsGroup {
                 row(PluginBundle.message("dialog.extract.empty.label")) {
@@ -187,7 +205,7 @@ internal class ExtractKeyDialog(
         localesHost.add(panel {
             model.sources(namespace()).forEach { source ->
                 val locale = source.localeLabel()
-                val initial = typed[locale] ?: if (locale == model.referenceLocale || fields.isEmpty()) model.text else ""
+                val initial = typed[locale] ?: if (locale == model.referenceLocale || fields.isEmpty()) currentText() else ""
                 val field = JBTextField(initial)
                 fields[source] = field
                 val title =
@@ -199,10 +217,27 @@ internal class ExtractKeyDialog(
         localesHost.repaint()
     }
 
+    /** The text with its placeholders as the variables are currently named. */
+    private fun currentText(): String =
+        model.variables.zip(variables).fold(model.text) { text, (original, current) -> text.replace(original.placeholder, current.placeholder) }
+
+    /**
+     * Follows a variable renamed in its field: its placeholder is renamed in every locale's
+     * value — `{{name}}` becomes `{{userName}}` — and in the call previewed.
+     */
+    private fun renameVariable(index: Int, newName: String) {
+        if (newName.isEmpty()) return refresh()
+        val old = variables[index]
+        val renamed = model.variables[index].renamed(newName)
+        fields.values.forEach { field -> field.text = field.text.replace(old.placeholder, renamed.placeholder) }
+        variables[index] = renamed
+        refresh()
+    }
+
     /** Enables what the choice needs, and says what the key and the code will be. */
     private fun refresh() {
         val reused = reused()
-        listOf(namespaceCombo, addNamespaceButton, parentField, keyField, leaveEmptyButton, copyReferenceButton)
+        (listOf(namespaceCombo, addNamespaceButton, parentField, keyField, leaveEmptyButton, copyReferenceButton) + variableFields)
             .forEach { it.isEnabled = reused == null }
         fields.values.forEach { it.isEnabled = reused == null }
         prefixLabel.text = model.prefix(namespace())
@@ -223,7 +258,7 @@ internal class ExtractKeyDialog(
         previewLabel.text = when {
             reused != null -> model.reusePreview(reused)
             keyText().isEmpty() -> ""
-            else -> model.preview(namespace(), keyText())
+            else -> model.preview(namespace(), keyText(), variables)
         }
     }
 
@@ -260,6 +295,10 @@ internal class ExtractKeyDialog(
             KeyCheck.TAKEN, KeyCheck.AVAILABLE -> Unit
         }
         model.conflict(namespace(), keyText())?.let { return ValidationInfo(message(it), keyField) }
+        model.variableProblem(variables)?.let { name ->
+            val field = variableFields.getOrNull(variables.indexOfFirst { it.name == name })
+            return ValidationInfo(PluginBundle.message("dialog.extract.variables.invalid", name), field)
+        }
         if (fields.values.none { it.text.isNotBlank() }) {
             return ValidationInfo(PluginBundle.message("dialog.translation.error.value.required"), fields.values.firstOrNull())
         }
@@ -271,7 +310,8 @@ internal class ExtractKeyDialog(
             namespace(),
             keyText(),
             fields.mapValues { it.value.text },
-            copyReference = copyReferenceButton.isSelected
+            copyReference = copyReferenceButton.isSelected,
+            variables = variables.toList()
         )
         super.doOKAction()
     }
@@ -290,6 +330,7 @@ internal class ExtractKeyDialog(
         const val MAX_OFFERED_KEYS = 5
         const val MAX_TEXT_SHOWN = 80
         const val PREFIX_GAP = 2
+        const val VARIABLE_COLUMNS = 16
         const val PREFERRED_WIDTH = 620
         const val PREFERRED_HEIGHT = 420
     }

@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.plugin.factory.MessageVariable
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.dialog.KeyCheck
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
@@ -34,6 +35,8 @@ sealed interface ExtractAnswer {
         val key: String,
         val values: Map<LocalizationSource, String>,
         val copyReference: Boolean = false,
+        /** The variables the call passes, as renamed in the dialog; their placeholders stand in [values]. */
+        val variables: List<MessageVariable> = emptyList(),
     ) : ExtractAnswer
 }
 
@@ -56,10 +59,13 @@ internal class ExtractKeyModel(
     /** The locale whose field is filled with [text]: the declared reference, else the most complete. */
     val referenceLocale: String?,
     private val config: Config,
-    private val template: (argument: String) -> String,
+    /** The call replacing the text, given the key argument and the variables it passes. */
+    private val call: (argument: String, variables: List<MessageVariable>) -> String,
+    /** The values the text interpolates, as the extractor named them. */
+    val variables: List<MessageVariable> = emptyList(),
     /**
      * What an unqualified key resolves against where the text stands, the first by default:
-     * the namespaces of the `useTranslation` whose `t` the [template] calls. Empty for the
+     * the namespaces of the `useTranslation` whose `t` the [call] calls. Empty for the
      * project's default namespaces.
      */
     private val scopeNamespaces: List<String> = emptyList(),
@@ -184,7 +190,7 @@ internal class ExtractKeyModel(
         val unqualified = qualifies() && !key.contains(config.nsSeparator)
         val default = config.defaultNamespaces().first()
         val spelled = if (unqualified && scopeNamespaces.isNotEmpty() && scopeNamespaces.first() != default) qualify(default, key) else key
-        return template("'$spelled'")
+        return call("'$spelled'", variables)
     }
 
     /** True when the code writes namespaces with the namespace separator, which [qualify] adds. */
@@ -193,8 +199,17 @@ internal class ExtractKeyModel(
 
     private fun qualify(namespace: String, key: String): String = namespace + config.nsSeparator + key
 
-    /** The call replacing the text: `{i18n.t('account:save')}`. */
-    fun preview(namespace: String?, key: String): String = template("'${codeKey(namespace, key)}'")
+    /** The call replacing the text, with [variables] as named: `{t('account:greeting', { name: user.name })}`. */
+    fun preview(namespace: String?, key: String, variables: List<MessageVariable> = this.variables): String =
+        call("'${codeKey(namespace, key)}'", variables)
+
+    /**
+     * Why the [variables] as named cannot be written — a name that is not an identifier, or two
+     * alike — or null.
+     */
+    fun variableProblem(variables: List<MessageVariable>): String? =
+        variables.firstOrNull { !IDENTIFIER.matches(it.name) }?.name
+            ?: variables.groupBy { it.name }.entries.firstOrNull { it.value.size > 1 }?.key
 
     /** A value to write into [source]; when not [overwrite], only where the key is missing. */
     data class Write(val source: LocalizationSource, val value: String, val overwrite: Boolean)
@@ -223,6 +238,8 @@ internal class ExtractKeyModel(
         if (keySeparator.isEmpty()) listOf(key.trim()) else key.trim().split(keySeparator)
 
     companion object {
+        private val IDENTIFIER = Regex("[A-Za-z_$][A-Za-z0-9_$]*")
+
         /** A one-segment key whose spelling leaves the namespace prefix around it. */
         private const val PROBE = "k"
 
@@ -268,7 +285,8 @@ internal class ExtractKeyModel(
             caller: PsiElement,
             text: String,
             existingKeys: List<String>,
-            template: (String) -> String,
+            call: (String, List<MessageVariable>) -> String,
+            variables: List<MessageVariable> = emptyList(),
             scopeNamespaces: List<String> = emptyList(),
         ): ExtractKeyModel {
             val viewModel = DialogViewModel(project)
@@ -287,7 +305,8 @@ internal class ExtractKeyModel(
                 keysByNamespace = namespaces.associateWith { viewModel.existingKeys(it) },
                 referenceLocale = viewModel.localeToCopyFrom(sources.values.flatten()),
                 config = config,
-                template = template,
+                call = call,
+                variables = variables,
                 scopeNamespaces = scopeNamespaces,
                 placement = ContextKeys.placement(around, namespaces),
             )

@@ -19,7 +19,7 @@ class ExtractKeyDialogTest : PlatformBaseTest() {
         addFileToProject("locales/fr/account.json", "{}")
         val file = myFixture.configureByText("App.jsx", "export const App = () => <p>Save</p>;")
         val model = ReadAction.compute<ExtractKeyModel, RuntimeException> {
-            ExtractKeyModel.load(project, file, "Save", existingKeys, { "{i18n.t($it)}" })
+            ExtractKeyModel.load(project, file, "Save", existingKeys, { argument, _ -> "{i18n.t($argument)}" })
         }
         val dialog = ExtractKeyDialog(project, model, file)
         try {
