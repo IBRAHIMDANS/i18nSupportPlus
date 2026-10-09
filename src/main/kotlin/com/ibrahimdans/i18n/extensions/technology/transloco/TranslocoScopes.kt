@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.extensions.technology.transloco
 
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.intellij.json.JsonFileType
+import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VfsUtilCore
@@ -30,7 +31,8 @@ internal object TranslocoScopes {
 
     fun isTransloco(project: Project): Boolean {
         if (DumbService.isDumb(project)) return false
-        return CachedValuesManager.getManager(project).getCachedValue(project) {
+        // The tool window asks from a pooled thread: the index needs a read action.
+        return runReadAction { CachedValuesManager.getManager(project).getCachedValue(project) {
             val manifests = FilenameIndex.getVirtualFilesByName("package.json", GlobalSearchScope.projectScope(project))
                 .filter { "/node_modules/" !in it.path }
             val transloco = manifests.any { manifest ->
@@ -38,7 +40,7 @@ internal object TranslocoScopes {
                 PACKAGES.any { it in text }
             }
             CachedValueProvider.Result.create(transloco, *manifests.toTypedArray(), VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
-        }
+        } }
     }
 
     /**
@@ -48,13 +50,13 @@ internal object TranslocoScopes {
      */
     fun scopeFiles(project: Project): List<ScopeFile> {
         if (!isTransloco(project)) return emptyList()
-        return CachedValuesManager.getManager(project).getCachedValue(project) {
+        return runReadAction { CachedValuesManager.getManager(project).getCachedValue(project) {
             val found = FileTypeIndex.getFiles(JsonFileType.INSTANCE, GlobalSearchScope.projectScope(project))
                 .filter { "/node_modules/" !in it.path }
                 .mapNotNull(::scopeFileOf)
                 .sortedBy { it.file.path }
             CachedValueProvider.Result.create(found, VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
-        }
+        } }
     }
 
     fun scopes(project: Project): Set<String> = scopeFiles(project).mapTo(mutableSetOf()) { it.scope }

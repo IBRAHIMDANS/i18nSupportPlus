@@ -207,9 +207,11 @@ class LocalizationSourceService {
     fun findNamespaceFiles(fileNames: List<String>, project: Project): List<LocalizationSource> {
         if (fileNames.isEmpty()) return emptyList()
         val config = Settings.getInstance(project).config()
+        val typed = typedSourcesByName(project, config, fileNames)
         // A technology may declare the namespace of a file not named after it: a Transloco scope.
-        return typedSourcesByName(project, config, fileNames) +
-            configuredSources(project, config).filter { it.namespace != null && it.namespace in fileNames }
+        // The cached list itself otherwise, which callers compare by identity.
+        val declared = configuredSources(project, config).filter { it.namespace != null && it.namespace in fileNames }
+        return if (declared.isEmpty()) typed else typed + declared
     }
 
     /**
