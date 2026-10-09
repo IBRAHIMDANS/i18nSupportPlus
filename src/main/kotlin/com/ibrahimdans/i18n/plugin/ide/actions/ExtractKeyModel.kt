@@ -68,7 +68,7 @@ internal class ExtractKeyModel(
     private val keyCache = keysByNamespace.toMutableMap()
 
     /** Empty when keys are flat: a dot is then part of the key, not a level. */
-    private val keySeparator: String = if (config.usesFlatKeys()) "" else config.keySeparator
+    val keySeparator: String = if (config.usesFlatKeys()) "" else config.keySeparator
 
     /**
      * The namespace selected first: the one the `t` in scope reads by default, else a default
@@ -77,8 +77,60 @@ internal class ExtractKeyModel(
     val initialNamespace: String? =
         (scopeNamespaces.take(1) + config.defaultNamespaces()).firstOrNull { it in namespaces } ?: namespaces.firstOrNull()
 
-    /** `Save changes` → `save_changes`: the key field's starting point. */
-    val proposedKey: String = proposeKey(text)
+    /**
+     * The name field's starting point: the text in the naming style the keys of [namespace]
+     * follow, or those of the whole project when its own tell nothing — `Save changes` →
+     * `saveChanges` where keys read `noTrustee`, `save_changes` where they read `no_trustee`.
+     */
+    fun proposedName(namespace: String?): String {
+        val style = keyStyle(keyCache[namespace].orEmpty()) ?: keyStyle(keyCache.values.flatten()) ?: KeyStyle.SNAKE
+        return proposeName(text, style)
+    }
+
+    /**
+     * The groups of [namespace] a key can go under, as typed in the parent field: `myAccount`,
+     * `myAccount.myTrustees`… None when keys are flat.
+     */
+    fun parents(namespace: String?): List<String> {
+        if (keySeparator.isEmpty()) return emptyList()
+        return keyCache[namespace].orEmpty()
+            .flatMap { key -> key.split(LOADER_SEPARATOR).let { parts -> (1 until parts.size).map { parts.take(it) } } }
+            .map { it.joinToString(keySeparator) }
+            .distinct()
+            .sorted()
+    }
+
+    /** [name] under [parent]: `myAccount.myTrustees` and `title` give `myAccount.myTrustees.title`. */
+    fun join(parent: String, name: String): String =
+        listOf(parent.trim().removeSuffix(keySeparator), name.trim())
+            .filter { it.isNotEmpty() }
+            .joinToString(keySeparator)
+
+    /**
+     * Why [key] cannot be written in [namespace] — a level of it already is a translation, which
+     * cannot hold keys, or the key already holds keys, which a value would wipe out — or null.
+     */
+    fun conflict(namespace: String?, key: String): Conflict? {
+        if (keySeparator.isEmpty() || key.isBlank()) return null
+        val existing = keyCache[namespace].orEmpty().map { it.replace(LOADER_SEPARATOR, keySeparator) }.toSet()
+        val parts = key.trim().split(keySeparator)
+        (1 until parts.size).map { parts.take(it).joinToString(keySeparator) }.firstOrNull { it in existing }
+            ?.let { return Conflict.LeafAsParent(it) }
+        if (existing.any { it.startsWith(key.trim() + keySeparator) }) return Conflict.GroupAsLeaf(key.trim())
+        return null
+    }
+
+    /** See [conflict]. */
+    sealed interface Conflict {
+        /** [path] is a translation: nothing can go under it. */
+        data class LeafAsParent(val path: String) : Conflict
+
+        /** [path] already holds keys: a value there would replace them all. */
+        data class GroupAsLeaf(val path: String) : Conflict
+    }
+
+    /** How the keys of a project name their levels. */
+    enum class KeyStyle { CAMEL, SNAKE, KEBAB }
 
     /**
      * The prefix the key field shows before the key, as the code will read it: empty for a
@@ -165,6 +217,39 @@ internal class ExtractKeyModel(
     companion object {
         /** A one-segment key whose spelling leaves the namespace prefix around it. */
         private const val PROBE = "k"
+
+        /** How [TranslationDataLoader] joins levels in the keys [keysByNamespace] holds, whatever the settings. */
+        private const val LOADER_SEPARATOR = "."
+
+        private val PLURAL_SUFFIX = Regex("_(zero|one|two|few|many|other)$")
+
+        /** Words kept in a proposed name: a sentence makes a poor key. */
+        private const val MAX_NAME_WORDS = 5
+
+        /**
+         * The style most levels of [keys] follow, groups included — a last level is often a
+         * single word (`title`) that tells nothing; null when no level tells. i18next's plural
+         * suffixes (`item_one`, `item_other`) are not a style, and are left out.
+         */
+        internal fun keyStyle(keys: Collection<String>): KeyStyle? {
+            val names = keys.flatMap { it.split(LOADER_SEPARATOR) }.map { it.replace(PLURAL_SUFFIX, "") }.distinct()
+            val counts = mapOf(
+                KeyStyle.CAMEL to names.count { name -> name.any { it.isUpperCase() } && '_' !in name && '-' !in name },
+                KeyStyle.SNAKE to names.count { '_' in it },
+                KeyStyle.KEBAB to names.count { '-' in it },
+            )
+            return counts.entries.filter { it.value > 0 }.maxByOrNull { it.value }?.key
+        }
+
+        /** The first words of [text] as a name in [style]: `Créer un compte` → `creerUnCompte`. */
+        internal fun proposeName(text: String, style: KeyStyle): String {
+            val words = proposeKey(text).split('_').filter { it.isNotEmpty() }.take(MAX_NAME_WORDS)
+            return when (style) {
+                KeyStyle.CAMEL -> words.mapIndexed { i, word -> if (i == 0) word else word.replaceFirstChar(Char::uppercaseChar) }.joinToString("")
+                KeyStyle.SNAKE -> words.joinToString("_")
+                KeyStyle.KEBAB -> words.joinToString("-")
+            }
+        }
 
         /**
          * Reads the snapshot. Walks the file-type index and every translation file: never on the

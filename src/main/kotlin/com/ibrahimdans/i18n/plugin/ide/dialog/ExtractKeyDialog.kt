@@ -14,6 +14,7 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.psi.PsiElement
 import com.intellij.ui.DocumentAdapter
+import com.intellij.ui.TextFieldWithAutoCompletion
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBRadioButton
 import com.intellij.ui.components.JBScrollPane
@@ -62,7 +63,10 @@ internal class ExtractKeyDialog(
     private val namespaceCombo = ComboBox(model.namespaces.toTypedArray())
     private val addNamespaceButton = JButton("+")
     private val prefixLabel = JBLabel()
-    private val keyField = JBTextField(model.proposedKey)
+    /** The group the key goes under, completed from the groups of the selected namespace. */
+    private val parentField = TextFieldWithAutoCompletion.create(project, model.parents(model.initialNamespace), true, "")
+    private val separatorLabel = JBLabel(model.keySeparator)
+    private val keyField = JBTextField(model.proposedName(model.initialNamespace))
     private val keyStatus = JBLabel()
     private val localesHost = JPanel(BorderLayout())
     private val fields = LinkedHashMap<LocalizationSource, JBTextField>()
@@ -81,18 +85,44 @@ internal class ExtractKeyDialog(
 
     override fun createCenterPanel(): JComponent {
         (reuseButtons + createButton).forEach { it.addActionListener { refresh() } }
-        namespaceCombo.addActionListener { rebuildLocales(); refresh() }
+        var proposed = keyField.text
+        namespaceCombo.addActionListener {
+            parentField.setVariants(model.parents(namespace()))
+            // A name the user has not touched follows the style of the namespace selected.
+            if (keyField.text == proposed) keyField.text = model.proposedName(namespace()).also { proposed = it }
+            rebuildLocales()
+            refresh()
+        }
+        parentField.addDocumentListener(object : com.intellij.openapi.editor.event.DocumentListener {
+            override fun documentChanged(event: com.intellij.openapi.editor.event.DocumentEvent) = refresh()
+        })
+        parentField.setPlaceholder(PluginBundle.message("dialog.extract.parent.placeholder"))
         addNamespaceButton.toolTipText = PluginBundle.message("toolwindow.action.add.namespace")
         addNamespaceButton.addActionListener { addNamespace() }
         keyField.document.addDocumentListener(object : DocumentAdapter() {
             override fun textChanged(e: DocumentEvent) = refresh()
         })
         prefixLabel.foreground = NamedColorUtil.getInactiveTextColor()
+        separatorLabel.foreground = NamedColorUtil.getInactiveTextColor()
         previewLabel.font = Font(Font.MONOSPACED, Font.PLAIN, UIUtil.getLabelFont().size)
 
+        // `account:` [parent] `.` [name]: the key reads as the code will write it. Flat keys have
+        // no levels, hence no parent.
+        val hasLevels = model.keySeparator.isNotEmpty()
+        val nameControl = JPanel(BorderLayout(JBUI.scale(PREFIX_GAP), 0)).apply {
+            if (hasLevels) add(separatorLabel, BorderLayout.WEST)
+            add(keyField, BorderLayout.CENTER)
+        }
         val keyControl = JPanel(BorderLayout(JBUI.scale(PREFIX_GAP), 0)).apply {
             add(prefixLabel, BorderLayout.WEST)
-            add(keyField, BorderLayout.CENTER)
+            if (hasLevels) {
+                add(JPanel(java.awt.GridLayout(1, 2, JBUI.scale(PREFIX_GAP), 0)).apply {
+                    add(parentField)
+                    add(nameControl)
+                }, BorderLayout.CENTER)
+            } else {
+                add(keyField, BorderLayout.CENTER)
+            }
         }
         val content = panel {
             row(PluginBundle.message("dialog.extract.text.label")) {
@@ -139,8 +169,8 @@ internal class ExtractKeyDialog(
 
     private fun reused(): String? = offered.getOrNull(reuseButtons.indexOfFirst { it.isSelected })
 
-    /** The key as typed, without the namespace prefix shown before it, in case it was typed too. */
-    private fun keyText(): String = keyField.text.trim().removePrefix(model.prefix(namespace()))
+    /** The key as typed — parent and name — without the namespace prefix, in case it was typed too. */
+    private fun keyText(): String = model.join(parentField.text.trim().removePrefix(model.prefix(namespace())), keyField.text)
 
     /**
      * One field per file of the selected namespace, the reference locale first and holding the
@@ -168,12 +198,13 @@ internal class ExtractKeyDialog(
     /** Enables what the choice needs, and says what the key and the code will be. */
     private fun refresh() {
         val reused = reused()
-        listOf(namespaceCombo, addNamespaceButton, keyField, leaveEmptyButton, copyReferenceButton)
+        listOf(namespaceCombo, addNamespaceButton, parentField, keyField, leaveEmptyButton, copyReferenceButton)
             .forEach { it.isEnabled = reused == null }
         fields.values.forEach { it.isEnabled = reused == null }
         prefixLabel.text = model.prefix(namespace())
         val check = if (reused == null) model.checkKey(namespace(), keyText()) else KeyCheck.AVAILABLE
-        keyStatus.text = when (check) {
+        val conflict = if (reused == null) model.conflict(namespace(), keyText())?.let(::message) else null
+        keyStatus.text = if (conflict != null) conflict else when (check) {
             KeyCheck.EMPTY -> ""
             KeyCheck.INVALID_SEGMENT -> PluginBundle.message("dialog.translation.key.status.invalid")
             KeyCheck.TAKEN -> PluginBundle.message("dialog.translation.key.status.taken")
@@ -181,7 +212,7 @@ internal class ExtractKeyDialog(
         }
         keyStatus.icon = when {
             keyStatus.text.isEmpty() -> null
-            check == KeyCheck.INVALID_SEGMENT -> AllIcons.General.Error
+            conflict != null || check == KeyCheck.INVALID_SEGMENT -> AllIcons.General.Error
             check == KeyCheck.TAKEN -> AllIcons.General.Warning
             else -> AllIcons.General.InspectionsOK
         }
@@ -224,6 +255,7 @@ internal class ExtractKeyDialog(
             KeyCheck.INVALID_SEGMENT -> return ValidationInfo(PluginBundle.message("dialog.translation.key.status.invalid"), keyField)
             KeyCheck.TAKEN, KeyCheck.AVAILABLE -> Unit
         }
+        model.conflict(namespace(), keyText())?.let { return ValidationInfo(message(it), keyField) }
         if (fields.values.none { it.text.isNotBlank() }) {
             return ValidationInfo(PluginBundle.message("dialog.translation.error.value.required"), fields.values.firstOrNull())
         }
@@ -241,6 +273,11 @@ internal class ExtractKeyDialog(
     }
 
     override fun getPreferredFocusedComponent(): JComponent = keyField.also { it.selectAll() }
+
+    private fun message(conflict: ExtractKeyModel.Conflict): String = when (conflict) {
+        is ExtractKeyModel.Conflict.LeafAsParent -> PluginBundle.message("dialog.extract.conflict.leaf", conflict.path)
+        is ExtractKeyModel.Conflict.GroupAsLeaf -> PluginBundle.message("dialog.extract.conflict.group", conflict.path)
+    }
 
     private fun String.ellipsised(): String = if (length <= MAX_TEXT_SHOWN) this else take(MAX_TEXT_SHOWN - 1) + "…"
 
