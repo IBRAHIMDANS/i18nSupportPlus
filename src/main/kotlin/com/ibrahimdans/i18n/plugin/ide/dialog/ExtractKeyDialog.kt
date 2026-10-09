@@ -64,7 +64,9 @@ internal class ExtractKeyDialog(
     private val addNamespaceButton = JButton("+")
     private val prefixLabel = JBLabel()
     /** The group the key goes under, completed from the groups of the selected namespace. */
-    private val parentField = TextFieldWithAutoCompletion.create(project, model.parents(model.initialNamespace), true, "")
+    private val parentField = TextFieldWithAutoCompletion.create(
+        project, model.parents(model.initialNamespace), true, model.initialParent(model.initialNamespace)
+    )
     private val separatorLabel = JBLabel(model.keySeparator)
     private val keyField = JBTextField(model.proposedName(model.initialNamespace))
     private val keyStatus = JBLabel()
@@ -86,8 +88,10 @@ internal class ExtractKeyDialog(
     override fun createCenterPanel(): JComponent {
         (reuseButtons + createButton).forEach { it.addActionListener { refresh() } }
         var proposed = keyField.text
+        var proposedParent = parentField.text
         namespaceCombo.addActionListener {
             parentField.setVariants(model.parents(namespace()))
+            if (parentField.text == proposedParent) parentField.text = model.initialParent(namespace()).also { proposedParent = it }
             // A name the user has not touched follows the style of the namespace selected.
             if (keyField.text == proposed) keyField.text = model.proposedName(namespace()).also { proposed = it }
             rebuildLocales()
