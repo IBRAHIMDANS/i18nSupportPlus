@@ -244,6 +244,18 @@ class ExtractI18nIntentionActionTest: ExtractionTestBase() {
         Assertions.assertEquals("""{"king":"Roi"}""", compact("locales/fr/account.json"))
     }
 
+    /** A concatenation becomes one message, its expressions variables of the call. */
+    @Test
+    fun testExtractsAConcatenationWithItsVariables() = myFixture.runWithConfig(config("json")) {
+        myFixture.addFileToProject("locales/en/account.json", "{}")
+        myFixture.configureByText("greeting.ts", "export const greeting = (user) => 'Hel<caret>lo ' + user.name + '!';")
+        TestDialogManager.setTestInputDialog(predefinedTextInputDialog("account:greeting"))
+        myFixture.launchActionAndWait(myFixture.findSingleIntention(hint))
+
+        myFixture.checkResult("export const greeting = (user) => i18n.t('account:greeting', { name: user.name });")
+        Assertions.assertTrue(compact("locales/en/account.json").contains(""""greeting":"Hello{{name}}!""""))
+    }
+
     private fun compact(path: String): String =
         FileDocumentManager.getInstance().getDocument(myFixture.findFileInTempDir(path))!!.text.replace(Regex("\\s"), "")
 

@@ -112,6 +112,8 @@ class BatchExtractI18nAction : AnAction() {
             .mapNotNull { HardcodedJsxTextInspection.hardcodedText(it)?.leaf }
         return (literals + jsxTexts)
             .sortedBy { it.textRange.startOffset }
+            // The literals of one concatenation (`'Hello ' + name + '!'`) are one message: replaced once.
+            .distinctBy { literal -> extractors.first { it.canExtract(literal) }.textRange(literal) }
             .map { literal ->
                 val extractor = extractors.first { it.canExtract(literal) }
                 val text = extractor.text(literal).trim()

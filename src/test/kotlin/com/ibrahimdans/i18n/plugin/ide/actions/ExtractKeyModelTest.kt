@@ -24,7 +24,7 @@ class ExtractKeyModelTest {
             keysByNamespace = keys,
             referenceLocale = "en",
             config = config,
-            template = { "{t($it)}" },
+            call = { argument, _ -> "{t($argument)}" },
             scopeNamespaces = scopeNamespaces,
             placement = placement,
         )
@@ -148,5 +148,14 @@ class ExtractKeyModelTest {
         assertEquals("myAccount.myTrustees", model.initialParent("account"))
         assertEquals("", model.initialParent("common"))
         assertEquals("common", model(placement = around, scopeNamespaces = listOf("common")).initialNamespace)
+    }
+
+    @Test
+    fun aVariableNeedsAnIdentifierOfItsOwn() {
+        val name = com.ibrahimdans.i18n.plugin.factory.MessageVariable("name", "user.name", "{{name}}")
+        assertEquals(null, model().variableProblem(listOf(name, name.renamed("count"))))
+        assertEquals("user name", model().variableProblem(listOf(name.renamed("user name"))))
+        assertEquals("name", model().variableProblem(listOf(name, name)))
+        assertEquals("{{userName}}", name.renamed("userName").placeholder)
     }
 }

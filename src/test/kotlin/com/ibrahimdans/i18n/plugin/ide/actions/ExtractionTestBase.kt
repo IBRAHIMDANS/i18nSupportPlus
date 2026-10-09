@@ -57,7 +57,9 @@ abstract class ExtractionTestBase: PlatformBaseTest() {
         val key = if (namespace == null) typed else typed.substringAfter(Settings.getInstance(project).config().nsSeparator)
         val chosen = namespace ?: model.initialNamespace
         val sources = model.sources(chosen)
-        return ExtractAnswer.Create(chosen, key, sources.associateWith { if (it == sources.first()) model.text else "" })
+        return ExtractAnswer.Create(
+            chosen, key, sources.associateWith { if (it == sources.first()) model.text else "" }, variables = model.variables
+        )
     }
 
     override fun getTestDataPath(): String = "src/test/resources/keyExtraction"
