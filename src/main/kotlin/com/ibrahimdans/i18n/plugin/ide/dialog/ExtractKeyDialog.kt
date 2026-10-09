@@ -27,7 +27,6 @@ import com.intellij.util.ui.NamedColorUtil
 import com.intellij.util.ui.UIUtil
 import java.awt.BorderLayout
 import java.awt.Font
-import javax.swing.ButtonGroup
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -74,8 +73,6 @@ internal class ExtractKeyDialog(
     init {
         title = PluginBundle.message("dialog.extract.title")
         setOKButtonText(PluginBundle.message("dialog.extract.ok"))
-        ButtonGroup().apply { (reuseButtons + createButton).forEach(::add) }
-        ButtonGroup().apply { add(leaveEmptyButton); add(copyReferenceButton) }
         // One key holding the text is the obvious intent; with several, choosing is the user's call.
         (if (offered.size == 1) reuseButtons.first() else createButton).isSelected = true
         model.initialNamespace?.let { namespaceCombo.selectedItem = it }
@@ -102,7 +99,8 @@ internal class ExtractKeyDialog(
                 label("« ${model.text.ellipsised()} »")
             }
             if (offered.isNotEmpty()) {
-                group(PluginBundle.message("dialog.extract.existing.label")) {
+                // The UI DSL only takes radio buttons inside a buttonsGroup, which groups them.
+                buttonsGroup(PluginBundle.message("dialog.extract.existing.label")) {
                     reuseButtons.forEach { button -> row { cell(button) } }
                     val hidden = model.existingKeys.size - offered.size
                     if (hidden > 0) row { comment(PluginBundle.message("action.intention.extract.key.reuse.more", hidden)) }
@@ -118,9 +116,11 @@ internal class ExtractKeyDialog(
             }
             row("") { cell(keyStatus).align(AlignX.FILL) }
             row { cell(localesHost).align(Align.FILL) }.resizableRow()
-            row(PluginBundle.message("dialog.extract.empty.label")) {
-                cell(leaveEmptyButton)
-                cell(copyReferenceButton)
+            buttonsGroup {
+                row(PluginBundle.message("dialog.extract.empty.label")) {
+                    cell(leaveEmptyButton)
+                    cell(copyReferenceButton)
+                }
             }
             separator()
             row(PluginBundle.message("dialog.extract.code.label")) {
