@@ -9,6 +9,7 @@
 
 ### Bug Fixes
 
+- [Extraction] **The extraction dialog only offers the locales of the translation folder nearest the code**: a `common.json` lying in another folder of the repository, with no locale, was listed as a locale called `common`, and another app's locales were listed too
 - [Translation dialog] **Projects with one file per locale (`locales/en.json`) get their namespace in Create Translation**: the file names were offered as namespaces, `en` and `fr`, each showing a single locale
 
 ## 1.6.0 - 2026-10-07
