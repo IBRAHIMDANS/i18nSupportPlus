@@ -6,7 +6,10 @@ import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.service
+import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.PsiFile
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import java.util.concurrent.TimeUnit
@@ -201,5 +204,91 @@ class LocalizationSourceServiceTest : PlatformBaseTest() {
         myFixture.runWithConfig(Config(defaultNs = "other")) {
             Assertions.assertNotSame(first, findNamespaceFiles("common"), "a configuration change must drop the cached lookup")
         }
+    }
+
+    // What drops the caches. The scan by file type is stamped with TranslationModificationTracker,
+    // the technologies' sources with the project-wide PSI count: a keystroke in a component keeps the
+    // former, any change to a translation file, the file structure or a JS/TS catalog drops what
+    // depends on it.
+
+    private fun edit(file: PsiFile, text: String) {
+        WriteCommandAction.runWriteCommandAction(project) {
+            PsiDocumentManager.getInstance(project).getDocument(file)!!.setText(text)
+        }
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+    }
+
+    @Test
+    fun typingInAComponentKeepsTheScannedSources() {
+        addFileToProject("locales/en/common.json", """{"menu":"Home"}""")
+        val component = addFileToProject("src/Home.tsx", "export const Home = () => t('common:menu');")
+        val all = findAllSources().single()
+        val named = findSources("common").single()
+        val namespaceFile = findNamespaceFiles("common").single()
+
+        edit(component, "export const Home = () => t('common:menu') + 'x';")
+
+        Assertions.assertSame(all, findAllSources().single(), "the scan must survive a keystroke in a component")
+        Assertions.assertSame(named, findSources("common").single(), "the namespace lookup must survive it too")
+        Assertions.assertSame(namespaceFile, findNamespaceFiles("common").single())
+    }
+
+    @Test
+    fun editingATranslationFileDropsTheScannedSources() {
+        val file = addFileToProject("locales/en/common.json", """{"menu":"Home"}""")
+        val named = findSources("common").single()
+
+        edit(file, """{"menu":"Home","title":"Title"}""")
+
+        val after = findSources("common").single()
+        Assertions.assertNotSame(named, after, "an edited translation file must be read again")
+        val text = ReadAction.compute<String?, RuntimeException> { after.tree?.value()?.text }
+        Assertions.assertTrue(text!!.contains("title"), "the new content must be the one served")
+    }
+
+    @Test
+    fun deletingATranslationFileDropsIt() {
+        addFileToProject("locales/en/common.json", """{"menu":"Home"}""")
+        val french = addFileToProject("locales/fr/common.json", """{"menu":"Accueil"}""")
+        Assertions.assertEquals(2, findSources("common").size)
+
+        WriteCommandAction.runWriteCommandAction(project) { french.virtualFile.delete(this) }
+
+        Assertions.assertEquals(1, findSources("common").size)
+        Assertions.assertEquals(1, findAllSources().size)
+    }
+
+    @Test
+    fun renamingATranslationFileMovesItToItsNewNamespace() {
+        val file = addFileToProject("locales/en/common.json", """{"menu":"Home"}""")
+        Assertions.assertEquals(1, findNamespaceFiles("common").size)
+
+        WriteCommandAction.runWriteCommandAction(project) { file.virtualFile.rename(this, "auth.json") }
+
+        Assertions.assertTrue(findNamespaceFiles("common").isEmpty(), "the old namespace must lose the file")
+        Assertions.assertEquals(1, findNamespaceFiles("auth").size, "the new namespace must find it")
+    }
+
+    /** A TS catalog is a JS/TS file: any keystroke may edit it, so its sources are read again. */
+    @Test
+    fun editingATsCatalogIsSeen() {
+        val catalog = addFileToProject(
+            "src/i18n/translations.ts",
+            """
+            export const translations = {
+              en: { common: { cancel: 'Cancel' } },
+            } as const;
+            """.trimIndent()
+        )
+        val before = findAllSources().size
+
+        edit(catalog, """
+            export const translations = {
+              en: { common: { cancel: 'Cancel' } },
+              fr: { common: { cancel: 'Annuler' } },
+            } as const;
+        """.trimIndent())
+
+        Assertions.assertEquals(before + 1, findAllSources().size, "the locale added to the catalog must be found")
     }
 }

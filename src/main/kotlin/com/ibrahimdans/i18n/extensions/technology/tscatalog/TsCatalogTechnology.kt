@@ -100,9 +100,9 @@ class TsCatalogTechnology : Technology {
     }
 
     /**
-     * Called on every key resolution through `LocalizationSourceService.findSources`, which is
-     * itself called once per highlighted element — hence the project-level cache, stamped and
-     * invalidated exactly like the one guarding `findAllSources`.
+     * Reached through `LocalizationSourceService`, which caches the technologies' sources itself
+     * but asks again after every PSI change — hence a cache of its own, stamped like that one with
+     * the project-wide PSI count: a catalog is a JS/TS file, which any keystroke may have edited.
      */
     override fun findSourcesByConfiguration(project: Project): List<LocalizationSource> {
         val config = Settings.getInstance(project).config()
