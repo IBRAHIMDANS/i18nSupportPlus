@@ -63,6 +63,8 @@ internal class ExtractKeyModel(
      * project's default namespaces.
      */
     private val scopeNamespaces: List<String> = emptyList(),
+    /** Where the keys around the text suggest the new one goes: a namespace and a group in it. */
+    private val placement: Pair<String, List<String>>? = null,
 ) {
     private val sourceCache = sourcesByNamespace.toMutableMap()
     private val keyCache = keysByNamespace.toMutableMap()
@@ -71,11 +73,17 @@ internal class ExtractKeyModel(
     val keySeparator: String = if (config.usesFlatKeys()) "" else config.keySeparator
 
     /**
-     * The namespace selected first: the one the `t` in scope reads by default, else a default
-     * namespace of the project, when it has files — else the first.
+     * The namespace selected first: the one the `t` in scope reads by default, else the one the
+     * keys around the text use, else a default namespace of the project, when it has files —
+     * else the first.
      */
     val initialNamespace: String? =
-        (scopeNamespaces.take(1) + config.defaultNamespaces()).firstOrNull { it in namespaces } ?: namespaces.firstOrNull()
+        (scopeNamespaces.take(1) + listOfNotNull(placement?.first) + config.defaultNamespaces())
+            .firstOrNull { it in namespaces } ?: namespaces.firstOrNull()
+
+    /** The group the parent field starts on in [namespace]: where the keys around the text sit. */
+    fun initialParent(namespace: String?): String =
+        placement?.takeIf { it.first == namespace && keySeparator.isNotEmpty() }?.second?.joinToString(keySeparator).orEmpty()
 
     /**
      * The name field's starting point: the text in the naming style the keys of [namespace]
@@ -269,6 +277,8 @@ internal class ExtractKeyModel(
                 .associateWith { offered(viewModel.sourcesFor(listOf(it), caller), callerPath) }
                 .filterValues { it.isNotEmpty() }
             val namespaces = sources.keys.toList()
+            val config = Settings.getInstance(project).config()
+            val around = caller.containingFile?.let { ContextKeys.around(it, config.defaultNamespaces().first()) }.orEmpty()
             return ExtractKeyModel(
                 text = text,
                 existingKeys = existingKeys,
@@ -276,9 +286,10 @@ internal class ExtractKeyModel(
                 sourcesByNamespace = sources,
                 keysByNamespace = namespaces.associateWith { viewModel.existingKeys(it) },
                 referenceLocale = viewModel.localeToCopyFrom(sources.values.flatten()),
-                config = Settings.getInstance(project).config(),
+                config = config,
                 template = template,
                 scopeNamespaces = scopeNamespaces,
+                placement = ContextKeys.placement(around, namespaces),
             )
         }
 

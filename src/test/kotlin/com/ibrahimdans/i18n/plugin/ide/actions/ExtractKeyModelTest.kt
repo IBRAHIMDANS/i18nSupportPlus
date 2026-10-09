@@ -14,6 +14,7 @@ class ExtractKeyModelTest {
         scopeNamespaces: List<String> = emptyList(),
         keys: Map<String, Set<String>> = mapOf("account" to setOf("title")),
         text: String = "Save changes",
+        placement: Pair<String, List<String>>? = null,
     ) =
         ExtractKeyModel(
             text = text,
@@ -25,6 +26,7 @@ class ExtractKeyModelTest {
             config = config,
             template = { "{t($it)}" },
             scopeNamespaces = scopeNamespaces,
+            placement = placement,
         )
 
     @Test
@@ -135,5 +137,16 @@ class ExtractKeyModelTest {
         assertEquals(ExtractKeyModel.KeyStyle.SNAKE, ExtractKeyModel.keyStyle(listOf("a.no_trustee", "b.title")))
         assertEquals(ExtractKeyModel.KeyStyle.KEBAB, ExtractKeyModel.keyStyle(listOf("no-trustee")))
         assertEquals("pleaseConfirmTheAdditionOf", ExtractKeyModel.proposeName("Please confirm the addition of a trustee", ExtractKeyModel.KeyStyle.CAMEL))
+    }
+
+    /** The keys around the text place the new one; the hook in scope still has the last word. */
+    @Test
+    fun theKeysAroundTheTextPlaceTheNewOne() {
+        val around = "account" to listOf("myAccount", "myTrustees")
+        val model = model(placement = around)
+        assertEquals("account", model.initialNamespace)
+        assertEquals("myAccount.myTrustees", model.initialParent("account"))
+        assertEquals("", model.initialParent("common"))
+        assertEquals("common", model(placement = around, scopeNamespaces = listOf("common")).initialNamespace)
     }
 }
