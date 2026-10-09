@@ -25,6 +25,7 @@ class PhpLang: Lang {
         val config = Settings.getInstance(element.project).config()
         val decision = phpRuleDecision(element)
         if (decision == RuleDecision.EXCLUDE) return false
+        if (isLaravelTranslatorCall(element) && LaravelProject.isLaravel(element.project)) return true
         val publishedNames = phpTranslationFunctionNames(element.project, config, translationFunctionNames)
         val functionNames = if (decision == RuleDecision.INCLUDE) publishedNames + listOfNotNull(phpCalleeOf(element)) else publishedNames
         // The annotator receives leaf tokens (e.g. "double quoted string"), but phpArgument()

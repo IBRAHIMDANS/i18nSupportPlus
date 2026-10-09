@@ -32,6 +32,7 @@ internal class PhpReferenceAssistant: ReferenceAssistant {
     }
 
     private fun isPublishedCall(element: PsiElement, config: Config): Boolean {
+        if (isLaravelTranslatorCall(element) && LaravelProject.isLaravel(element.project)) return true
         val technologyNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
         return phpTranslationFunctionNames(element.project, config, technologyNames)
             .any { PhpPatternsExt.phpArgument(it, 0).accepts(element) }

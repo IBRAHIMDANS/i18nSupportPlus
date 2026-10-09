@@ -4,10 +4,13 @@ import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.psi.PsiElement
 import com.intellij.psi.search.FilenameIndex
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
+import com.jetbrains.php.lang.psi.elements.MethodReference
+import com.jetbrains.php.lang.psi.elements.ParameterList
 
 /**
  * Laravel's translation helpers, recognised in PHP once [LaravelProject.isLaravel] says so.
@@ -38,3 +41,24 @@ internal object LaravelProject {
         }
     }
 }
+
+private val TRANSLATOR_METHODS = setOf("get", "choice")
+private val TRANSLATORS = setOf("app('translator')", "app(\"translator\")", "Lang", "\\Lang", "\\Illuminate\\Support\\Facades\\Lang")
+
+/**
+ * True when [element] — a string token or the expression holding it — is the first argument of
+ * Laravel's translator: `app('translator')->get('key')`, `->choice('key', n)`, or the `Lang` facade.
+ *
+ * Blade's `@lang('key')` and `@choice('key', n)` reach the PHP side exactly so: the Blade plugin
+ * injects them as `echo app('translator')->get('key')` and `->choice('key', n)`. The object called
+ * is checked, not only the method: `$request->get('id')` is no translation call.
+ */
+internal fun isLaravelTranslatorCall(element: PsiElement): Boolean {
+    val argument = generateSequence(element) { it.parent }.firstOrNull { it.parent is ParameterList } ?: return false
+    val call = argument.parent.parent as? MethodReference ?: return false
+    if (call.name !in TRANSLATOR_METHODS) return false
+    if (call.parameters.firstOrNull() !== argument) return false
+    val translator = call.classReference?.text?.filterNot { it.isWhitespace() } ?: return false
+    return translator in TRANSLATORS
+}
+
