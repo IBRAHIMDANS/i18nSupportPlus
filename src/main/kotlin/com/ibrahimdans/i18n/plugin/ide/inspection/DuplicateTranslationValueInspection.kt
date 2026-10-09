@@ -38,13 +38,20 @@ class DuplicateTranslationValueInspection : LocalInspectionTool() {
 
     /** Reports every key of [values] — (text, key element) — whose non-blank text another key holds too. */
     private fun reportDuplicates(values: List<Pair<String, PsiElement>>, holder: ProblemsHolder) {
-        values.filter { it.first.isNotBlank() }
-            .groupBy({ it.first }, { it.second })
-            .values.filter { it.size > 1 }
-            .forEach { duplicates -> duplicates.forEach { keyElement -> holder.registerProblem(keyElement, MESSAGE) } }
+        duplicated(values).forEach { keyElement -> holder.registerProblem(keyElement, MESSAGE) }
     }
 
-    private companion object {
-        val MESSAGE: String get() = PluginBundle.message("inspection.duplicate.message")
+    internal companion object {
+        private val MESSAGE: String get() = PluginBundle.message("inspection.duplicate.message")
+
+        /**
+         * The keys of [values] — (text, key) pairs of one locale file — whose non-blank text another
+         * key holds too. The rule the table's *Duplicate values* filter applies as well.
+         */
+        fun <K> duplicated(values: List<Pair<String, K>>): List<K> =
+            values.filter { it.first.isNotBlank() }
+                .groupBy({ it.first }, { it.second })
+                .values.filter { it.size > 1 }
+                .flatten()
     }
 }

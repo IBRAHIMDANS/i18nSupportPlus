@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Tool window] **The table filters the keys holding a duplicate value**: *Duplicate values* in the status filter keeps the keys whose value, in a shown locale, another key of the same namespace holds too — the rule of the *Duplicate translation value* inspection, which flagged them one file at a time. Blank values are left out
+
 ### Performance
 
 - [Highlighting] **The annotator tests whether an element holds a key before reading the settings**: it is asked of every element of every JS/TS file, and for each built a new configuration and split the file path to check the excluded directories and extensions before finding, for nearly all of them, that there was no key to annotate. The exclusions are now checked only for a key
