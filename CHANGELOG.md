@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Tool window] **The table filters the keys holding a duplicate value**: *Duplicate values* in the status filter keeps the keys whose value, in a shown locale, another key of the same namespace holds too — the rule of the *Duplicate translation value* inspection, which flagged them one file at a time. Blank values are left out
+
 ### Performance
 
 - [Inlay hints] **The inlay hints read the configuration once per file, not once per element**: the collector is asked of every PSI element and, for each, allocated the plugin configuration, rebuilt the list of translation function names and tried every language — PHP included, whose check walked up to the file root and built its patterns before testing the one condition only a PHP string can meet. That condition now comes first, and the rest is read when the collector is created. The plugin's share of a highlighting pass while typing fell from about 28 % to 17 % in a profile of the 500-file benchmark

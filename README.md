@@ -249,6 +249,7 @@ Flat table: a **Namespace** column while the rows span several namespaces, the *
 
 - Locale cells are **editable in place**; the value is written straight to the file, and the entry created when the locale lacks it
 - Namespace filter in the dropdown; right-click the header to hide locale columns
+- Status filter: keys missing or empty in a shown locale, unused, or holding a value another key of the same namespace holds too
 - **Scan Orphans** (toolbar) fills the Usage column; keys reached only through a dynamic key (`` t(`status.${kind}`) ``) are told from unused ones
 - Right-click: edit, open file, delete an unused key
 
