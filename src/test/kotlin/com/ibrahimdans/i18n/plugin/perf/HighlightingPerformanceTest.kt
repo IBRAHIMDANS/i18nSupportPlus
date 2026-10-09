@@ -53,6 +53,11 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
  * from 133 to 45 samples in (b)'s window, out of the top of the profile; (b) 0.8–0.9 s on a loaded
  * machine. The plugin's remaining cost in (b) is the per-namespace lookups the keystroke invalidated
  * and `findAllSources`, which the language-less inspections reach on the `.tsx` itself.
+ *
+ * After TASK-PERF-INSPECTION-SCOPE (`TranslationFileScope.sourceOf` rules out a file of no translation
+ * kind before the scan): `findAllSources` left (b)'s profile; samples of the highlighting passes holding
+ * a plugin frame fell from 172 to 93 (40 % to 29 % of the passes). (b) 0.8–1.4 s, still noisy. What the
+ * plugin keeps in (b) is `findSources`, recomputed per namespace after each keystroke.
  */
 @EnabledIfEnvironmentVariable(named = "I18N_PERF", matches = "true")
 class HighlightingPerformanceTest : PlatformBaseTest() {
