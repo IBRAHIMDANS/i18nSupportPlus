@@ -247,6 +247,7 @@ class ExtractI18nIntentionActionTest: ExtractionTestBase() {
     private fun compact(path: String): String =
         FileDocumentManager.getInstance().getDocument(myFixture.findFileInTempDir(path))!!.text.replace(Regex("\\s"), "")
 
+    /** The component holds `t` from `useTranslation`: the call uses it rather than `i18n.t`. */
     @Test
     fun testRootSource2() {
         val tg = JsonTranslationGenerator()
@@ -255,7 +256,7 @@ class ExtractI18nIntentionActionTest: ExtractionTestBase() {
             runTestCase(
                     "simple.${cg.ext()}",
                     cg.generateBlock("\"I want to <caret>move it to translation\""),
-                    cg.generateBlock("{i18n.t('test:ref.value3')}"),
+                    cg.generateBlock("{t('test:ref.value3')}"),
                     "assets/test.${tg.ext()}",
                     tg.generate("ref", arrayOf("section", "key", "Reference in json")),
                     tg.generate("ref", arrayOf("section", "key", "Reference in json"), arrayOf("value3", "I want to move it to translation")),

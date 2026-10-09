@@ -36,6 +36,13 @@ interface TranslationExtractor {
      */
     fun template(element: PsiElement): (argument: String) -> String = {"i18n.t($it)"}
 
+    /**
+     * The namespaces an unqualified key resolves against where [element] stands — those of a
+     * `useTranslation('account')` whose `t` the [template] calls — the first one by default.
+     * Empty when the call resolves against the project's default namespaces.
+     */
+    fun scopeNamespaces(element: PsiElement): List<String> = emptyList()
+
     fun postProcess(editor: Editor, offset: Int) {}
 }
 

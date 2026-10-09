@@ -52,6 +52,12 @@ internal class ExtractKeyModel(
     val referenceLocale: String?,
     private val config: Config,
     private val template: (argument: String) -> String,
+    /**
+     * What an unqualified key resolves against where the text stands, the first by default:
+     * the namespaces of the `useTranslation` whose `t` the [template] calls. Empty for the
+     * project's default namespaces.
+     */
+    private val scopeNamespaces: List<String> = emptyList(),
 ) {
     private val sourceCache = sourcesByNamespace.toMutableMap()
     private val keyCache = keysByNamespace.toMutableMap()
@@ -59,9 +65,12 @@ internal class ExtractKeyModel(
     /** Empty when keys are flat: a dot is then part of the key, not a level. */
     private val keySeparator: String = if (config.usesFlatKeys()) "" else config.keySeparator
 
-    /** The namespace selected first: a default namespace of the project when it has files, else the first. */
+    /**
+     * The namespace selected first: the one the `t` in scope reads by default, else a default
+     * namespace of the project, when it has files — else the first.
+     */
     val initialNamespace: String? =
-        config.defaultNamespaces().firstOrNull { it in namespaces } ?: namespaces.firstOrNull()
+        (scopeNamespaces.take(1) + config.defaultNamespaces()).firstOrNull { it in namespaces } ?: namespaces.firstOrNull()
 
     /** `Save changes` → `save_changes`: the key field's starting point. */
     val proposedKey: String = proposeKey(text)
@@ -92,14 +101,35 @@ internal class ExtractKeyModel(
      * The intention used to insert the key as typed, whatever file the popup then wrote it to:
      * `'ddd'` written to `deposit-box.json` resolved nowhere.
      */
-    fun codeKey(namespace: String?, key: String): String =
-        ExistingKeyFinder.spell(namespace ?: config.defaultNamespaces().first(), path(key), config)
+    fun codeKey(namespace: String?, key: String): String {
+        val resolved = namespace ?: config.defaultNamespaces().first()
+        if (scopeNamespaces.isEmpty() || !qualifies()) return ExistingKeyFinder.spell(resolved, path(key), config)
+        // Under `useTranslation('account')`, an unqualified key reads `account`, not the defaults:
+        // every other namespace, a default one included, is written out.
+        val joined = path(key).joinToString(config.keySeparator)
+        return if (resolved == scopeNamespaces.first()) joined else qualify(resolved, joined)
+    }
+
+    /**
+     * The call pointing at [key], a key that already exists, spelled as [ExistingKeyFinder] found
+     * it: without its namespace when that is a default one — which the `t` of a
+     * `useTranslation('account')` would look up in `account`. Such a key is qualified then.
+     */
+    fun reusePreview(key: String): String {
+        val unqualified = qualifies() && !key.contains(config.nsSeparator)
+        val default = config.defaultNamespaces().first()
+        val spelled = if (unqualified && scopeNamespaces.isNotEmpty() && scopeNamespaces.first() != default) qualify(default, key) else key
+        return template("'$spelled'")
+    }
+
+    /** True when the code writes namespaces with the namespace separator, which [qualify] adds. */
+    private fun qualifies(): Boolean =
+        !config.usesFlatKeys() && !config.firstComponentNs && config.nsSeparator.isNotEmpty()
+
+    private fun qualify(namespace: String, key: String): String = namespace + config.nsSeparator + key
 
     /** The call replacing the text: `{i18n.t('account:save')}`. */
     fun preview(namespace: String?, key: String): String = template("'${codeKey(namespace, key)}'")
-
-    /** The call pointing at [key], a key that already exists, written as found. */
-    fun reusePreview(key: String): String = template("'$key'")
 
     /** A value to write into [source]; when not [overwrite], only where the key is missing. */
     data class Write(val source: LocalizationSource, val value: String, val overwrite: Boolean)
@@ -141,6 +171,7 @@ internal class ExtractKeyModel(
             text: String,
             existingKeys: List<String>,
             template: (String) -> String,
+            scopeNamespaces: List<String> = emptyList(),
         ): ExtractKeyModel {
             val viewModel = DialogViewModel(project)
             val namespaces = viewModel.loadNamespaces()
@@ -154,6 +185,7 @@ internal class ExtractKeyModel(
                 referenceLocale = viewModel.localeToCopyFrom(sources.values.flatten()),
                 config = Settings.getInstance(project).config(),
                 template = template,
+                scopeNamespaces = scopeNamespaces,
             )
         }
 

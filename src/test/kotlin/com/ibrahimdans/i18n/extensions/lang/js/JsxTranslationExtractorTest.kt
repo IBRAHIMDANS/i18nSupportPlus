@@ -134,4 +134,45 @@ class JsxTranslationExtractorTest : PlatformBaseTest() {
     fun testText_i18nJs_writesPercentBraces() {
         Assertions.assertEquals("Hello %{name}, %{count} new", messageUnder("i18n-js"))
     }
+
+    // ── The function the call uses ────────────────────────────────────────────
+
+    private fun templateOf(code: String): String {
+        val text = paragraphText("App.tsx", code)
+        return extractor.template(text.firstChild)("'k'")
+    }
+
+    /** A component holding `t` from `useTranslation` gets `t(…)`: `i18n` is not imported there. */
+    @Test
+    fun testTemplate_usesTheTOfUseTranslation() {
+        val code = "export const App = () => { const { t } = useTranslation('account'); return <p>Save</p>; };"
+        Assertions.assertEquals("{t('k')}", templateOf(code))
+        Assertions.assertEquals(listOf("account"), extractor.scopeNamespaces(paragraphText("App.tsx", code).firstChild))
+    }
+
+    @Test
+    fun testTemplate_aHookOfAnEnclosingFunctionCounts() {
+        val code = "export const App = () => { const { t } = useTranslation(['account', 'common']); const row = () => <p>Save</p>; return row(); };"
+        Assertions.assertEquals("{t('k')}", templateOf(code))
+        Assertions.assertEquals(listOf("account", "common"), extractor.scopeNamespaces(paragraphText("App.tsx", code).firstChild))
+    }
+
+    @Test
+    fun testTemplate_withoutHookKeepsI18nT() {
+        Assertions.assertEquals("{i18n.t('k')}", templateOf("export const App = () => <p>Save</p>;"))
+    }
+
+    /** A `keyPrefix` makes `t` read relative keys; the extracted key is a whole one. */
+    @Test
+    fun testTemplate_aKeyPrefixKeepsI18nT() {
+        val code = "export const App = () => { const { t } = useTranslation('account', { keyPrefix: 'menu' }); return <p>Save</p>; };"
+        Assertions.assertEquals("{i18n.t('k')}", templateOf(code))
+    }
+
+    /** A hook in a sibling component is out of scope. */
+    @Test
+    fun testTemplate_aHookOfAnotherComponentIsIgnored() {
+        val code = "const A = () => { const { t } = useTranslation(); return null; };\nexport const B = () => <p>Save</p>;"
+        Assertions.assertEquals("{i18n.t('k')}", templateOf(code))
+    }
 }
