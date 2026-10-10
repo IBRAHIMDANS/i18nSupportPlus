@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.extensions.lang.js.extractors
 
+import com.intellij.psi.xml.XmlAttributeValue
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.extensions.lang.js.isDirectOrConfiguredCall
 import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
@@ -16,6 +17,10 @@ import com.intellij.psi.PsiRecursiveElementWalkingVisitor
 import com.intellij.psi.util.PsiTreeUtil
 
 internal class JsFoldingProvider: FoldingProvider {
+
+    private companion object {
+        val I18N_KEY_ATTRIBUTE = XmlAttributeKeyExtractor()
+    }
 
     private fun isI18nArgument(element: PsiElement): Boolean {
         if (!JSPatterns.jsArgument("t", 0).accepts(element) &&
@@ -42,10 +47,12 @@ internal class JsFoldingProvider: FoldingProvider {
     }
 
     override fun collectContainers(root: PsiElement): List<PsiElement> {
-        // Direct JS nodes (standard .js/.ts/.jsx/.tsx files)
+        // Direct JS nodes (standard .js/.ts/.jsx/.tsx files), and the `i18nKey` attributes of
+        // react-i18next's `<Trans>`, which no call holds: they used to be left unfolded.
         val direct = PsiTreeUtil
             .findChildrenOfType(root, JSLiteralExpression::class.java)
-            .filter { isI18nArgument(it) && !isInsideSpreadArgument(it) }
+            .filter { isI18nArgument(it) && !isInsideSpreadArgument(it) } +
+            PsiTreeUtil.findChildrenOfType(root, XmlAttributeValue::class.java).filter(I18N_KEY_ATTRIBUTE::canExtract)
 
         if (direct.isNotEmpty()) return direct
 
