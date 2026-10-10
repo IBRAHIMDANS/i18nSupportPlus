@@ -1,0 +1,11 @@
+{
+  "errors": { "timeout": "Timed out", "offline": "Offline" },
+  "status": { "ok": "OK" },
+  "field": { "email": "Email" },
+  "hook": { "title": "Title" },
+  "profile": { "name": "Name" },
+  "wrapped": { "plain": "Plain", "member": "Member", "excluded": "Excluded" },
+  "api": { "rateLimited": "Too many requests" },
+  "shared": { "ok": "OK" },
+  "dead": { "key": "Never used" }
+}
