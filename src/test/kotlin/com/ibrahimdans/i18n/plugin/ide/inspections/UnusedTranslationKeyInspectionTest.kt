@@ -169,4 +169,35 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
         assertFalse("pending" in flagged, "reached through the dynamic head")
         assertTrue("home" in flagged, "nothing reaches it: still reported")
     }
+
+    // A call site naming the key without leaving a reference on it — #408
+
+    private fun unusedIn(path: String): List<String> {
+        myFixture.enableInspections(UnusedTranslationKeyInspection::class.java)
+        myFixture.configureFromExistingVirtualFile(myFixture.findFileInTempDir(path))
+        return myFixture.doHighlighting().filter { it.description == UNUSED_MSG }
+            .map { myFixture.file.text.substring(it.startOffset, it.endOffset).trim('"') }
+    }
+
+    @Test
+    fun testKeyUsedUnderAHookKeyPrefixNotFlagged() {
+        myFixture.addFileToProject("locales/en/common.json", """{"profile": {"name": "Name", "age": "Age"}}""")
+        myFixture.addFileToProject(
+            "src/Profile.tsx",
+            "import { useTranslation } from 'react-i18next';\n" +
+                "export const P = () => { const { t } = useTranslation('common', { keyPrefix: 'profile' }); return t('name'); };"
+        )
+        assertEquals(listOf("age"), unusedIn("locales/en/common.json"))
+    }
+
+    @Test
+    fun testKeyUsedWithAnNsOptionNotFlagged() {
+        myFixture.addFileToProject("locales/en/other.json", """{"label": "Label", "hint": "Hint"}""")
+        myFixture.addFileToProject(
+            "src/Other.tsx",
+            "import { useTranslation } from 'react-i18next';\n" +
+                "export const O = () => { const { t } = useTranslation('common'); return t('label', { ns: 'other' }); };"
+        )
+        assertEquals(listOf("hint"), unusedIn("locales/en/other.json"))
+    }
 }

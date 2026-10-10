@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages
 import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumulator
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
@@ -318,7 +319,7 @@ class TableViewModelTest {
 
     @Test
     fun `a namespaced key is searched under both its forms`() {
-        val query = viewModel.usageQuery("navigation:menu.profile", "-")
+        val query = IndirectKeyUsages.usageQuery("navigation:menu.profile", "-")
 
         assertEquals("menu.profile", query.bareKey)
         assertEquals(listOf("navigation:menu.profile", "menu.profile"), query.words)
@@ -326,7 +327,7 @@ class TableViewModelTest {
 
     @Test
     fun `a key without a namespace is searched once`() {
-        val query = viewModel.usageQuery("menu.profile", "-")
+        val query = IndirectKeyUsages.usageQuery("menu.profile", "-")
 
         assertEquals("menu.profile", query.bareKey)
         assertEquals(listOf("menu.profile"), query.words)
@@ -340,7 +341,7 @@ class TableViewModelTest {
      */
     @Test
     fun `a plural form is searched under the key the sources actually write`() {
-        val query = viewModel.usageQuery("account:trustees.modal.description_other", "-")
+        val query = IndirectKeyUsages.usageQuery("account:trustees.modal.description_other", "-")
 
         assertEquals("trustees.modal.description", query.bareKey)
         assertEquals(
@@ -351,7 +352,7 @@ class TableViewModelTest {
 
     @Test
     fun `a legacy numeric plural form is searched the same way`() {
-        val query = viewModel.usageQuery("cart.item-5", "-")
+        val query = IndirectKeyUsages.usageQuery("cart.item-5", "-")
 
         assertEquals("cart.item", query.bareKey)
         assertEquals(listOf("cart.item"), query.words)

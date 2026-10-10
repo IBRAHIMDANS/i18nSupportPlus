@@ -18,7 +18,8 @@ import com.intellij.util.Processor
 
 /**
  * Where the code uses a key of a translation file: the references found on its declaration, the
- * keys the code builds at runtime that may reach it, and the keys the project keeps. Shared by *Unused translation key* and
+ * call sites naming it without a reference ([IndirectKeyUsages]), the keys the code builds at
+ * runtime that may reach it, and the keys the project keeps. Shared by *Unused translation key* and
  * the usage count shown above each key, so both agree on what "used" means.
  */
 internal object TranslationKeyUsages : KeyComposer<PsiElement> {
@@ -65,6 +66,26 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
                 config.keySeparator,
                 heads,
             )
+        }
+
+    /**
+     * How many call sites use this key without leaving a reference on it: under a hook's key
+     * prefix (`useTranslation('common', { keyPrefix: 'profile' })` + `t('name')`) or with a
+     * `{ ns }` option (`t('label', { ns: 'other' })`). The orphan scan has always counted them;
+     * without this the inspection reported such keys, with a *Delete* quick fix one click away.
+     *
+     * Two word searches and a prefix search per key: callers ask it only of a key [count] left
+     * at zero.
+     */
+    fun indirectCount(element: PsiElement): Int =
+        ReadAction.compute<Int, RuntimeException> {
+            val project = element.project
+            val config = Settings.getInstance(project).config()
+            val key = keyOf(element, config)
+            IndirectKeyUsages.textCount(key, config, config.searchScope(project), PsiSearchHelper.getInstance(project))
+                .takeIf { it > 0 }
+                ?: IndirectKeyUsages.prefixedCounts(project, listOf(key), config)[key]
+                ?: 0
         }
 
     /**
