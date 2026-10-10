@@ -9,6 +9,7 @@ import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vcs.changes.Change
 import com.intellij.openapi.vcs.changes.ChangeListManager
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileFactory
@@ -18,17 +19,26 @@ import com.intellij.psi.PsiManager
 data class TranslationChanges(val changes: List<TranslationChange>, val lagging: List<LaggingLocale>, val referenceLocale: String?)
 
 /**
- * The translations the working copy changes, read from the VCS of the project — any VCS: the
- * platform's change list gives each modified file's content before the change.
+ * The translations a set of VCS changes touches — by default the working copy's, read from the VCS
+ * of the project — any VCS: the platform's change list gives each modified file's content before
+ * the change.
  *
  * Only files the plugin reads as translation sources count. A deleted translation file is left
  * out: there is no source left to say which locale and namespace it held.
  */
 object LocalTranslationChanges {
 
-    /** Needs a read action. */
-    fun collect(project: Project): TranslationChanges {
-        val files = ChangeListManager.getInstance(project).allChanges.mapNotNull { change ->
+    /** The working copy's translation changes. Needs a read action. */
+    fun collect(project: Project): TranslationChanges =
+        collect(project, ChangeListManager.getInstance(project).allChanges)
+
+    /**
+     * The translation changes among [changes], whatever produced them: the working copy, or a
+     * comparison with another branch. Needs a read action, and reads each before-content, which a
+     * VCS may fetch on demand.
+     */
+    fun collect(project: Project, changes: Collection<Change>): TranslationChanges {
+        val files = changes.mapNotNull { change ->
             val virtualFile = change.afterRevision?.file?.virtualFile ?: return@mapNotNull null
             val after = PsiManager.getInstance(project).findFile(virtualFile) ?: return@mapNotNull null
             versionsOf(after, change.beforeRevision?.content)
