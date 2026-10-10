@@ -157,6 +157,7 @@ private fun frameworkOf(extractor: KeyExtractor): String? = when (extractor) {
     is SvelteI18nExtractor -> "svelte-i18n"
     is VueI18nKeypathExtractor, is VueTDirectiveExtractor -> "vue-i18n"
     is LinguiTransKeyExtractor -> "lingui"
+    is XmlAttributeKeyExtractor -> "i18next"
     else -> null
 }
 

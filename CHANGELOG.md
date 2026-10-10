@@ -23,6 +23,7 @@
 
 ### Bug Fixes
 
+- [React] **`<Trans i18nKey="key">` resolves and is checked**: listed among the i18next syntaxes, the attribute carried no reference — no Ctrl+click, in `.jsx` as in `.tsx` — and an unknown key went unreported. It now navigates, is annotated like `t('key')`, follows a module's key template and is left out under a module preset of another framework
 - [Inspections] **Unused-key reports are trustworthy again**: with two locales or more, *Unused translation key* never reported anything, a same-named JSON property counting as a usage, and Code Vision counted one usage per locale (#410). Keys used under a hook's `keyPrefix` or with an `ns` option were reported with a *Delete* quick fix (#408), and a key reached through a dynamic namespace (`` t(`${ns}:status.ok`) ``) was offered for deletion (#409)
 - [Inspections] **"No reference found" instead of "unused"**: the plugin knows no code refers to a key, not that it is unused. Messages, the table's Usage column and the cleanup preview say so, and point to *Keys used outside the code*. Action names are unchanged (#370)
 - [Translations] **A file outside the translations root no longer answers for a namespace**: any `common.json` in the project — a serverless config in a monorepo — answered `t('common:…')` and showed as an extra locale
