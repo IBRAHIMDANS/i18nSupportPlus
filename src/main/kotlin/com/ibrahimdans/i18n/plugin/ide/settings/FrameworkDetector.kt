@@ -22,7 +22,8 @@ object FrameworkDetector {
         "ngx-translate" to listOf("@ngx-translate/core"),
         "transloco" to listOf("@jsverse/transloco", "@ngneat/transloco"),
         "svelte-i18n" to listOf("svelte-i18n"),
-        "i18n-js" to listOf("i18n-js")
+        "i18n-js" to listOf("i18n-js"),
+        "next-intl" to listOf("next-intl")
     )
 
     /** Framework id to the label shown on the wizard's checkbox. */
@@ -34,7 +35,8 @@ object FrameworkDetector {
         "ngx-translate" to "ngx-translate (Angular)",
         "transloco" to "Transloco (Angular)",
         "svelte-i18n" to "svelte-i18n",
-        "i18n-js" to "i18n-js (React Native / Expo)"
+        "i18n-js" to "i18n-js (React Native / Expo)",
+        "next-intl" to "next-intl"
     )
 
     /**

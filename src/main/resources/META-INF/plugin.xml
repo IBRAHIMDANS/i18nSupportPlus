@@ -400,5 +400,6 @@
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.sveltei18n.SvelteI18nTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.tscatalog.TsCatalogTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.i18njs.I18nJsTechnology"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.technology.nextintl.NextIntlTechnology"/>
     </extensions>
 </idea-plugin>

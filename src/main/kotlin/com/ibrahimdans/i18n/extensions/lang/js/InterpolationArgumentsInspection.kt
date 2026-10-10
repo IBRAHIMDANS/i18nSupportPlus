@@ -331,7 +331,7 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
         private val COMPONENT_FRAMEWORKS = mapOf("FormattedMessage" to "react-intl", TRANS to "i18next")
 
         /** The technologies for which `{name}` is a variable rather than text. */
-        internal val SINGLE_BRACE_FRAMEWORKS = setOf("vue-i18n", "lingui", "react-intl", SVELTE_I18N)
+        internal val SINGLE_BRACE_FRAMEWORKS = setOf("vue-i18n", "lingui", "react-intl", "next-intl", SVELTE_I18N)
 
         /**
          * The names of the variables [text] fills from the call's options, in the order they
