@@ -1,0 +1,46 @@
+[
+  {
+    "id": "openai-compatible",
+    "name": "OpenAI-compatible (Ollama, OpenAI, Mistral, Groq, OpenRouter, LM Studio)",
+    "url": "http://localhost:11434/v1/chat/completions",
+    "headers": {
+      "Authorization": "Bearer {apiKey}"
+    },
+    "body": "{\"model\": \"llama3.1\", \"temperature\": 0, \"messages\": [{\"role\": \"system\", \"content\": \"Translate the user's text from {source} to {target}. It is a UI string of an application; context: {context}. Keep every <x id=\\\"N\\\"/> tag exactly as written, and reply with the translation only.\"}, {\"role\": \"user\", \"content\": \"{text}\"}]}",
+    "responsePath": "choices[0].message.content",
+    "local": true,
+    "source": "https://platform.openai.com/docs/api-reference/chat/create ; https://github.com/ollama/ollama/blob/main/docs/openai.md (Ollama serves /v1 locally, no key needed)"
+  },
+  {
+    "id": "deepl",
+    "name": "DeepL",
+    "url": "https://api-free.deepl.com/v2/translate",
+    "headers": {
+      "Authorization": "DeepL-Auth-Key {apiKey}"
+    },
+    "body": "{\"text\": [\"{text}\"], \"source_lang\": \"{source}\", \"target_lang\": \"{target}\", \"tag_handling\": \"xml\", \"context\": \"{context}\"}",
+    "responsePath": "translations[0].text",
+    "source": "https://developers.deepl.com/docs/api-reference/translate (Pro accounts: https://api.deepl.com/v2/translate) ; https://developers.deepl.com/docs/xml-and-html-handling/xml"
+  },
+  {
+    "id": "libretranslate",
+    "name": "LibreTranslate",
+    "url": "http://localhost:5000/translate",
+    "headers": {},
+    "body": "{\"q\": \"{text}\", \"source\": \"{source}\", \"target\": \"{target}\", \"format\": \"html\", \"api_key\": \"{apiKey}\"}",
+    "responsePath": "translatedText",
+    "unescapeHtml": true,
+    "local": true,
+    "source": "https://docs.libretranslate.com/guides/api_usage/ (self-hosted instance)"
+  },
+  {
+    "id": "google-cloud",
+    "name": "Google Cloud Translation",
+    "url": "https://translation.googleapis.com/language/translate/v2?key={apiKey}",
+    "headers": {},
+    "body": "{\"q\": \"{text}\", \"source\": \"{source}\", \"target\": \"{target}\", \"format\": \"html\"}",
+    "responsePath": "data.translations[0].translatedText",
+    "unescapeHtml": true,
+    "source": "https://cloud.google.com/translate/docs/reference/rest/v2/translate"
+  }
+]
