@@ -25,7 +25,8 @@ import com.intellij.psi.util.PsiTreeUtil
  *
  * Counted the way *Unused translation key* decides ([TranslationKeyUsages]): the references found
  * on the property, then — for a key nothing names — whether a key the code builds at runtime
- * (`t(`menu.${'$'}{id}`)`) may reach it, shown as "dynamic usage" rather than "no usages".
+ * (`t(`menu.${'$'}{id}`)`) may reach it, shown as "dynamic usage" rather than "no usages", or
+ * whether the project's keep list declares it used, shown as "kept".
  *
  * One reference search per key: past [MAX_KEYS] keys in a file nothing is shown, rather than
  * slowing the daemon down on a catalogue of thousands of keys. Each search stops past [MAX_USAGES]:
@@ -50,6 +51,7 @@ class TranslationUsagesCodeVisionProvider : DaemonBoundCodeVisionProvider {
             val text = when {
                 count > MAX_USAGES -> PluginBundle.message("codevision.usages.many", MAX_USAGES)
                 count > 0 -> PluginBundle.message("codevision.usages.count", count)
+                TranslationKeyUsages.kept(property.nameElement) -> PluginBundle.message("codevision.usages.kept")
                 TranslationKeyUsages.reachedDynamically(property.nameElement, heads) -> PluginBundle.message("codevision.usages.dynamic")
                 else -> PluginBundle.message("codevision.usages.none")
             }

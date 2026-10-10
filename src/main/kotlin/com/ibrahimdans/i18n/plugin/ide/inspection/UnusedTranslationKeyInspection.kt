@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
@@ -40,7 +41,8 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
     /**
      * Reports the leaf key [declaration] when nothing refers to it: no reference search hit on
      * [declaration], no resolving reference held by [named] — the element carrying the key's
-     * name — and no dynamic key reaching it. The problem sits on [anchor].
+     * name — no dynamic key reaching it, and no rule of the project's [KeepList] keeping it.
+     * The problem sits on [anchor].
      */
     private fun check(
         declaration: PsiElement,
@@ -52,9 +54,11 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
         val hasRefs = ReadAction.compute<Boolean, RuntimeException> {
             TranslationKeyUsages.count(declaration, named, limit = 1) > 0
         }
-        if (!hasRefs && !TranslationKeyUsages.reachedDynamically(named, heads)) {
-            holder.registerProblem(anchor, MESSAGE, DeleteUnusedKeyFix())
+        if (hasRefs || TranslationKeyUsages.kept(named) || TranslationKeyUsages.reachedDynamically(named, heads)) return
+        val key = ReadAction.compute<String, RuntimeException> {
+            TranslationKeyUsages.keyOf(named, Settings.getInstance(named.project).config())
         }
+        holder.registerProblem(anchor, MESSAGE, DeleteUnusedKeyFix(), KeepKeyQuickFix(key))
     }
 
     private companion object {

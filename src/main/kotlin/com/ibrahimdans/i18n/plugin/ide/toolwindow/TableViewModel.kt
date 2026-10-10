@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.inspection.DuplicateTranslationValueInspection
+import com.ibrahimdans.i18n.plugin.ide.inspection.KeepList
 import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumulator
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
@@ -24,6 +25,7 @@ import com.intellij.psi.search.UsageSearchContext
  * Represents a single row in the translation table.
  *
  * @param usageCount Number of usages found in source code.
+ *   -3 = kept by a rule of the project's keep list ([TableViewModel.KEPT_USAGE]),
  *   -2 = reached only through a runtime-built key ([TableViewModel.DYNAMIC_USAGE]),
  *   -1 = not yet scanned, 0 = orphan (unused), ≥1 = used.
  */
@@ -130,7 +132,7 @@ enum class ValueStatus {
  * reported as *Unused* — and *Cleanup unused keys*, which takes its candidates from that very
  * count, offered to delete it. See [DynamicKeyUsages].
  */
-enum class UsageStatus { NOT_SCANNED, ORPHAN, DYNAMIC, USED }
+enum class UsageStatus { NOT_SCANNED, ORPHAN, DYNAMIC, KEPT, USED }
 
 /**
  * View model for the table-based translation view.
@@ -296,6 +298,7 @@ class TableViewModel {
     /** What the Usage column must say about a row whose [TranslationRow.usageCount] is [count]. */
     fun usageStatus(count: Int): UsageStatus = when (count) {
         DYNAMIC_USAGE -> UsageStatus.DYNAMIC
+        KEPT_USAGE -> UsageStatus.KEPT
         in Int.MIN_VALUE..-1 -> UsageStatus.NOT_SCANNED
         0 -> UsageStatus.ORPHAN
         else -> UsageStatus.USED
@@ -508,14 +511,19 @@ class TableViewModel {
         val withPrefixed = if (prefixed.isEmpty()) counted
             else counted.map { row -> prefixed[row.key]?.let { row.copy(usageCount = it) } ?: row }
 
+        // A key the project keeps is used by declaration, whatever the code shows: no search for it.
+        val keepList = KeepList.of(config)
+        val withKept = if (keepList.isEmpty()) withPrefixed
+            else withPrefixed.map { row -> if (row.usageCount == 0 && keepList.matches(row.key)) row.copy(usageCount = KEPT_USAGE) else row }
+
         // Only what the text scan left at zero can be reached dynamically, and asking on
         // behalf of the whole batch is what keeps this to one search per distinct prefix.
-        val orphanKeys = withPrefixed.filter { it.usageCount == 0 }.map { it.key }
+        val orphanKeys = withKept.filter { it.usageCount == 0 }.map { it.key }
         val reached = DynamicKeyUsages.reachedKeys(
             orphanKeys, searchScope, searchHelper, config.nsSeparator, config.keySeparator,
         )
-        if (reached.isEmpty()) return withPrefixed
-        return withPrefixed.map { row ->
+        if (reached.isEmpty()) return withKept
+        return withKept.map { row ->
             if (row.key in reached) row.copy(usageCount = DYNAMIC_USAGE) else row
         }
     }
@@ -613,6 +621,7 @@ class TableViewModel {
          * reading of it goes through [usageStatus].
          */
         internal const val DYNAMIC_USAGE = -2
+        internal const val KEPT_USAGE = -3
 
         /** Namespaces are short words (`common`, `deposit-box`): narrower than a locale value. */
         internal const val NAMESPACE_COLUMN_WIDTH = 120

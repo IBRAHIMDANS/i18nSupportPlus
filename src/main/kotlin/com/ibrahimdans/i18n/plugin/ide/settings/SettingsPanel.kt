@@ -102,6 +102,10 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                     cell(textField(PluginBundle.message("settings.excluded.file.extensions"), settings::excludedFileExtensions, columns = 25))
                         .comment(PluginBundle.message("settings.excluded.file.extensions.comment"))
                 }
+                row(PluginBundle.message("settings.kept.keys")) {
+                    cell(textField(PluginBundle.message("settings.kept.keys"), settings::keptKeys, maxLength = 2000, columns = 25))
+                        .comment(PluginBundle.message("settings.kept.keys.comment"))
+                }
             }
 
             group(PluginBundle.message("settings.group.folding")) {

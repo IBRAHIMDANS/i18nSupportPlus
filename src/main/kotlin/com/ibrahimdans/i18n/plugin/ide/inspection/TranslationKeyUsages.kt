@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.DynamicKeyUsages
 import com.ibrahimdans.i18n.plugin.tree.KeyComposer
@@ -16,8 +17,8 @@ import com.intellij.psi.util.parents
 import com.intellij.util.Processor
 
 /**
- * Where the code uses a key of a translation file: the references found on its declaration, and
- * the keys the code builds at runtime that may reach it. Shared by *Unused translation key* and
+ * Where the code uses a key of a translation file: the references found on its declaration, the
+ * keys the code builds at runtime that may reach it, and the keys the project keeps. Shared by *Unused translation key* and
  * the usage count shown above each key, so both agree on what "used" means.
  */
 internal object TranslationKeyUsages : KeyComposer<PsiElement> {
@@ -56,18 +57,8 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
         ReadAction.compute<Boolean, RuntimeException> {
             val project = element.project
             val config = Settings.getInstance(project).config()
-            val path = pathOf(element)
-            // A scope file (Transloco) is named after its locale: its keys are written `scope.key`.
-            val scope = element.containingFile?.let { file -> Extensions.TECHNOLOGY.extensionList.firstNotNullOfOrNull { it.keyScopeOf(file) } }
-            val key = composeKey(
-                if (scope != null) listOf(scope) + path.drop(1) else path,
-                Separators(config.nsSeparator, config.keySeparator, config.pluralSeparator),
-                config.defaultNamespaces() + Extensions.TECHNOLOGY.extensionList.flatMap { it.cfgNamespaces() },
-                false,
-                config.firstComponentNs || scope != null,
-            )
             DynamicKeyUsages.isReached(
-                key,
+                keyOf(element, config),
                 config.searchScope(project),
                 PsiSearchHelper.getInstance(project),
                 config.nsSeparator,
@@ -75,6 +66,31 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
                 heads,
             )
         }
+
+    /**
+     * True when the project's [KeepList] declares this key used: a key no code names — received
+     * from an API, stored elsewhere — that must never be reported nor offered for deletion.
+     */
+    fun kept(element: PsiElement): Boolean =
+        ReadAction.compute<Boolean, RuntimeException> {
+            val config = Settings.getInstance(element.project).config()
+            val keepList = KeepList.of(config)
+            !keepList.isEmpty() && keepList.matches(keyOf(element, config))
+        }
+
+    /** The full key [element] declares, written the way the code would name it. */
+    fun keyOf(element: PsiElement, config: Config): String {
+        val path = pathOf(element)
+        // A scope file (Transloco) is named after its locale: its keys are written `scope.key`.
+        val scope = element.containingFile?.let { file -> Extensions.TECHNOLOGY.extensionList.firstNotNullOfOrNull { it.keyScopeOf(file) } }
+        return composeKey(
+            if (scope != null) listOf(scope) + path.drop(1) else path,
+            Separators(config.nsSeparator, config.keySeparator, config.pluralSeparator),
+            config.defaultNamespaces() + Extensions.TECHNOLOGY.extensionList.flatMap { it.cfgNamespaces() },
+            false,
+            config.firstComponentNs || scope != null,
+        )
+    }
 
     /**
      * The path of [element] in its file, outermost first, the file's own name at the front —
