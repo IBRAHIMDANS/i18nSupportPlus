@@ -84,4 +84,26 @@ class I18NextTechnologyTest : PlatformBaseTest() {
         val sources = ReadAction.compute<Int, RuntimeException> { technology.findSourcesByConfiguration(project).size }
         Assertions.assertEquals(0, sources)
     }
+
+    // fallbackNS — #368
+
+    private fun fallbacksOf(config: String): List<String> {
+        addFileToProject("src/i18n.ts", config)
+        return ReadAction.compute<List<String>, RuntimeException> { technology.fallbackNamespaces(project) }
+    }
+
+    @Test
+    fun aStringFallbackNsIsRead() = myFixture.runWithConfig(Config(jsConfiguration = "src/i18n.ts")) {
+        Assertions.assertEquals(listOf("common"), fallbacksOf("i18n.init({ ns: ['admin', 'common'], defaultNS: 'admin', fallbackNS: 'common' });"))
+    }
+
+    @Test
+    fun anArrayFallbackNsIsReadInOrder() = myFixture.runWithConfig(Config(jsConfiguration = "src/i18n.ts")) {
+        Assertions.assertEquals(listOf("shared", "common"), fallbacksOf("i18n.init({ fallbackNS: ['shared', 'common'] });"))
+    }
+
+    @Test
+    fun aConfigWithoutFallbackNsHasNone() = myFixture.runWithConfig(Config(jsConfiguration = "src/i18n.ts")) {
+        Assertions.assertEquals(emptyList<String>(), fallbacksOf("i18n.init({ fallbackLng: 'en', fallbackNS: false });"))
+    }
 }

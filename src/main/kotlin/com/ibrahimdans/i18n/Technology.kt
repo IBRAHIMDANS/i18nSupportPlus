@@ -26,4 +26,7 @@ interface Technology {
 
     /** The scope [file] holds, for a translation file of one of [keyScopes]; null otherwise. */
     fun keyScopeOf(file: PsiFile): String? = null
+
+    /** The namespaces the framework's configuration falls back to (i18next's `fallbackNS`), in order. */
+    fun fallbackNamespaces(project: Project): List<String> = emptyList()
 }

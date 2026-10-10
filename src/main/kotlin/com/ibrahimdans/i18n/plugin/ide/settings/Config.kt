@@ -15,6 +15,7 @@ data class Config (
     val keySeparator: String = ".",
     val pluralSeparator: String = "-",
     val defaultNs: String = "translation",
+    val fallbackNs: String = "",
     val firstComponentNs: Boolean = false,
     val jsConfiguration: String = "",
     val foldingEnabled: Boolean = false,
@@ -51,6 +52,10 @@ data class Config (
             .split("[;|,\\s]".toRegex())
             .filter{it.isNotBlank()}
             .take(MAX_DEFAULT_NAMESPACES)
+
+    /** i18next's `fallbackNS` as set in the settings: none by default. */
+    fun fallbackNamespaces(): List<String> =
+        fallbackNs.split("[;|,\\s]".toRegex()).filter { it.isNotBlank() }.take(MAX_DEFAULT_NAMESPACES)
 
     /**
      * True when a key must be looked up as a single literal instead of being split into a

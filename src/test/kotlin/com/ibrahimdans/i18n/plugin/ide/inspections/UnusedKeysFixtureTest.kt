@@ -16,7 +16,6 @@ import com.intellij.psi.util.PsiTreeUtil
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
 /**
@@ -65,6 +64,8 @@ class UnusedKeysFixtureTest : PlatformBaseTest() {
 
     private val single = Config(
         keptKeys = "common:api.*",
+        // The fixture's i18next configuration: `fallbackNS: 'common'` is read from it.
+        jsConfiguration = "src/i18n.ts",
         rules = listOf(
             EditorRuleState(trigger = "translate"),
             EditorRuleState(trigger = "i18n.translate"),
@@ -148,7 +149,6 @@ class UnusedKeysFixtureTest : PlatformBaseTest() {
         assertFalse("common:status.ok" in scanOrphans())
     }
 
-    @Disabled("Gap #368: fallbackNS is not read; t('shared.ok') under useTranslation('admin') falls back to `common`, and `common:shared.ok` is offered for deletion")
     @Test
     fun `scan - a key reached through fallbackNS is never an orphan`() = withSingle {
         assertFalse("common:shared.ok" in scanOrphans())

@@ -215,7 +215,7 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
         val fullKey = RawKeyParser(project).parse(rawKey, keyLiteral) ?: return null
         if (fullKey.isDynamic) return null
 
-        val sources = project.service<LocalizationSourceService>().findSources(fullKey.allNamespaces(), keyLiteral)
+        val sources = project.service<LocalizationSourceService>().findReadSources(fullKey, keyLiteral)
         if (sources.isEmpty()) return null
         val referenceLocale = TranslationFileScope.referenceLocaleFor(keyLiteral.containingFile, sources.first())
         val locale = LocaleMatching.pick(referenceLocale, sources.map { it.localeLabel() }) ?: return null

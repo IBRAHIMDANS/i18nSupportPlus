@@ -3,7 +3,10 @@ package com.ibrahimdans.i18n.extensions.technology.i18next
 import com.ibrahimdans.i18n.*
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.utils.whenMatches
+import com.intellij.lang.javascript.JavascriptLanguage
+import com.intellij.lang.javascript.psi.JSArrayLiteralExpression
 import com.intellij.lang.javascript.psi.JSExpression
+import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.lang.javascript.psi.JSObjectLiteralExpression
 import com.intellij.lang.javascript.psi.JSProperty
 import com.intellij.openapi.application.ReadAction
@@ -13,7 +16,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiReference
@@ -21,7 +23,13 @@ import com.intellij.psi.search.FileTypeIndex
 import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.TextOccurenceProcessor
 import com.intellij.psi.search.UsageSearchContext
+import com.intellij.psi.util.CachedValue
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
+import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.concurrency.AppExecutorUtil
+import com.intellij.util.containers.ContainerUtil
 
 class I18NextTechnology : Technology {
 
@@ -99,6 +107,38 @@ class I18NextTechnology : Technology {
     }
 
     override fun cfgNamespaces(): List<String> = cfgNamespaces
+
+    /**
+     * `fallbackNS` of the i18next configuration files the plugin reads ([configFiles]): a string or
+     * an array of strings, in order. Asked for every key parsed, so the answer is kept until a
+     * JavaScript or TypeScript file changes.
+     */
+    override fun fallbackNamespaces(project: Project): List<String> =
+        fallbackCaches.computeIfAbsent(project) {
+            CachedValuesManager.getManager(project).createCachedValue {
+                val tracker = PsiModificationTracker.getInstance(project).forLanguages { it.isKindOf(JavascriptLanguage) }
+                CachedValueProvider.Result.create(readFallbackNamespaces(project), tracker)
+            }
+        }.value
+
+    /** One cache per project, held by this instance: the configuration files it reads are its own. */
+    private val fallbackCaches = ContainerUtil.createConcurrentWeakMap<Project, CachedValue<List<String>>>()
+
+    private fun readFallbackNamespaces(project: Project): List<String> {
+        val psiManager = PsiManager.getInstance(project)
+        return configFiles(project, Settings.getInstance(project).config())
+            .mapNotNull { psiManager.findFile(it) }
+            .flatMap { file -> PsiTreeUtil.findChildrenOfType(file, JSProperty::class.java).filter { it.name == "fallbackNS" } }
+            .flatMap { property -> fallbackValues(property.value) }
+            .distinct()
+    }
+
+    /** The namespaces `fallbackNS: 'common'` or `fallbackNS: ['common', 'shared']` names. */
+    internal fun fallbackValues(value: JSExpression?): List<String> = when (value) {
+        is JSLiteralExpression -> listOfNotNull(value.stringValue?.takeIf { it.isNotBlank() })
+        is JSArrayLiteralExpression -> value.expressions.flatMap { fallbackValues(it) }
+        else -> emptyList()
+    }
 
     /**
      * The i18next configuration files to read `resources` from.

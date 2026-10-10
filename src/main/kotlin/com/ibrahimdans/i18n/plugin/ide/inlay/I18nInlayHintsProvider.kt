@@ -59,7 +59,7 @@ class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiEleme
                 val rawKey = lang.extractRawKey(element) ?: return
                 val fullKey = RawKeyParser(project).parse(rawKey, element) ?: return
 
-                val sources = project.service<LocalizationSourceService>().findSources(fullKey.allNamespaces(), element)
+                val sources = project.service<LocalizationSourceService>().findReadSources(fullKey, element)
                 // The preview locale is what hints and hover show; left empty, it follows folding.
                 // Matched through LocaleMatching, so `en` finds `en-GB` when there is no plain `en`.
                 val wanted = config.previewLocale.ifBlank { config.foldingPreferredLanguage }

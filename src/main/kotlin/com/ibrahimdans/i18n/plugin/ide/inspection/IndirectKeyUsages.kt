@@ -24,9 +24,16 @@ internal object IndirectKeyUsages {
     /**
      * How many call sites name [key] outright, found by a text search of the key rather than by
      * references: `t('menu.profile')` under `useTranslation('navigation')`, or
-     * `t('label', { ns: 'other' })`, both of which leave no reference on the key itself.
+     * `t('label', { ns: 'other' })`, both of which leave no reference on the key itself. A call under
+     * a hook counts for a key of the [fallbacks] — i18next's `fallbackNS` — too.
      */
-    fun textCount(key: String, config: Config, searchScope: GlobalSearchScope, searchHelper: PsiSearchHelper): Int {
+    fun textCount(
+        key: String,
+        config: Config,
+        searchScope: GlobalSearchScope,
+        searchHelper: PsiSearchHelper,
+        fallbacks: List<String> = emptyList(),
+    ): Int {
         val query = usageQuery(key, config.pluralSeparator)
         val accumulator = ReferencesAccumulator(
             query.bareKey,
@@ -34,6 +41,7 @@ internal object IndirectKeyUsages {
             // A key carrying no namespace lives in a default one, which is also what a
             // call site writing no namespace works under.
             query.namespace?.let { listOf(it) } ?: config.defaultNamespaces(),
+            fallbacks,
         )
         for (word in query.words) {
             searchHelper.processElementsWithWord(accumulator.process(), searchScope, word, UsageSearchContext.ANY, true)
@@ -77,7 +85,7 @@ internal object IndirectKeyUsages {
                         ?.takeIf { it.keyPrefix.isNotEmpty() }
                         ?: return@processElementsWithWord true
                     val path = fullKey.compositeKey.map { it.text }
-                    val namespaces = fullKey.allNamespaces()
+                    val namespaces = fullKey.lookupNamespaces()
                     for ((key, segments) in wanted) {
                         if (path != segments) continue
                         val namespace = KeySpelling.namespaceOf(key)

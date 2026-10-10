@@ -55,12 +55,14 @@ internal class TranslationToCodeReferenceProvider : KeyComposer<PsiElement> {
  * [key] carries no namespace: what the call site writes before the namespace separator is
  * compared with [namespaces] instead, so an accumulator can tell `navigation:menu.profile`
  * from `common:menu.profile`. An empty [namespaces] switches that check off, which is what a
- * caller that cannot know the namespace passes.
+ * caller that cannot know the namespace passes. A call site under a hook also reaches the
+ * [fallbacks] — i18next's `fallbackNS` — once its hook's namespaces lack the key.
  */
 class ReferencesAccumulator(
     private val key: String,
     private val separators: Separators = Separators(":", ".", "."),
     private val namespaces: List<String> = emptyList(),
+    private val fallbacks: List<String> = emptyList(),
 ) {
 
     private val res = synchronizedList(mutableListOf<PsiElement>())
@@ -115,7 +117,7 @@ class ReferencesAccumulator(
         if (namespaces.isEmpty()) return true
         if (text.contains(separators.ns)) return text.substringBefore(separators.ns) in namespaces
         val declared = languages.firstNotNullOfOrNull { it.extractRawKey(entry)?.arguments?.ifEmpty { null } }
-        return declared == null || declared.any { it in namespaces }
+        return declared == null || declared.any { it in namespaces } || fallbacks.any { it in namespaces }
     }
 
     /**

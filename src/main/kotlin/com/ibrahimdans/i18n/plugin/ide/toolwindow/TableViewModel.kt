@@ -10,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.tree.Tree
+import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
@@ -474,7 +475,8 @@ class TableViewModel {
         val searchScope = config.searchScope(project)
         val searchHelper = PsiSearchHelper.getInstance(project)
 
-        val counted = rows.map { row -> row.copy(usageCount = IndirectKeyUsages.textCount(row.key, config, searchScope, searchHelper)) }
+        val fallbacks = FallbackNamespaces.of(project, config)
+        val counted = rows.map { row -> row.copy(usageCount = IndirectKeyUsages.textCount(row.key, config, searchScope, searchHelper, fallbacks)) }
 
         // A key written under a hook's key prefix names only its tail at the call site, which the
         // text scan never matches: count those before anything is declared an orphan.

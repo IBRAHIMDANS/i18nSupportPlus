@@ -78,7 +78,7 @@ abstract class ReferenceContributorBase(private val referenceContributor: Refere
                         val sourceService = element.project.service<LocalizationSourceService>()
                         val pluralSeparator = Settings.getInstance(element.project).config().pluralSeparator
                         sourceService
-                            .findSources(fullKey.allNamespaces(), element)
+                            .findReadSources(fullKey, element)
                             .flatMap { source ->
                                 resolve(fullKey.compositeKey, source, pluralSeparator).map {
                                     ReferenceDescriptor(it, source.host)

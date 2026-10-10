@@ -296,6 +296,7 @@ A monorepo is described as **modules** in the settings (root directory, path tem
 | Key separator | `.` | Separates nested keys (e.g. `parent.child`) |
 | Plural separator | `-` | Separates plural forms |
 | Default namespace | `translation` | Namespace(s) used for keys without a prefix, separated by `;`, `,` or whitespace |
+| Fallback namespaces | _(empty)_ | i18next `fallbackNS`: where a key under `useTranslation(…)` is also looked up, in order, when its own namespace lacks it. Read from the i18next configuration file when the plugin finds one |
 | First component as namespace | `false` | Treat the first key component as the namespace (vue-i18n) |
 | Treat keys as flat | `false` | Look a key up as a single property, without splitting (react-intl / FormatJS) |
 

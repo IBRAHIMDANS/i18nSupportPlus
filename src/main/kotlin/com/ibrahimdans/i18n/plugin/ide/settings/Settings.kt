@@ -21,6 +21,7 @@ class Settings : PersistentStateComponent<Settings> {
     internal var keySeparator = default.keySeparator
     internal var pluralSeparator = default.pluralSeparator
     internal var defaultNs = default.defaultNs
+    internal var fallbackNs = default.fallbackNs
     internal var firstComponentNs = default.firstComponentNs
     internal var jsConfiguration = default.jsConfiguration
     internal var foldingEnabled = default.foldingEnabled
@@ -63,6 +64,7 @@ class Settings : PersistentStateComponent<Settings> {
             keySeparator = keySeparator,
             pluralSeparator = pluralSeparator,
             defaultNs = defaultNs,
+            fallbackNs = fallbackNs,
             firstComponentNs = firstComponentNs,
             jsConfiguration = jsConfiguration,
             foldingEnabled = foldingEnabled,
@@ -94,6 +96,7 @@ class Settings : PersistentStateComponent<Settings> {
         keySeparator = config.keySeparator
         pluralSeparator = config.pluralSeparator
         defaultNs = config.defaultNs
+        fallbackNs = config.fallbackNs
         firstComponentNs = config.firstComponentNs
         jsConfiguration = config.jsConfiguration
         foldingEnabled = config.foldingEnabled
