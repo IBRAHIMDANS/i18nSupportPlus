@@ -72,6 +72,21 @@ class TranslationUsagesCodeVisionProviderTest : PlatformBaseTest() {
         assertEquals("no usages", labels["home"])
     }
 
+    /**
+     * The JSON plugin's name reference of a same-named property — the same key in another locale,
+     * or an unrelated `title` elsewhere — is not a use by the code.
+     */
+    @Test
+    fun aSameNamedPropertyOfAnotherJsonFileIsNotAUsage() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        addFileToProject("locales/en/common.json", """{"menu": {"home": "Home", "about": "About"}}""")
+        addFileToProject("locales/fr/common.json", """{"menu": {"home": "Accueil", "about": "À propos"}}""")
+        addFileToProject("config/site.json", """{"about": "unrelated"}""")
+        addFileToProject("src/App.js", "export const a = (t) => t('common:menu.home');")
+        val labels = labelsOf("locales/en/common.json")
+        assertEquals("1 usage", labels["home"])
+        assertEquals("no usages", labels["about"])
+    }
+
     @Test
     fun aFilePastTheKeyLimitShowsNothing()= myFixture.runWithConfig(Config(defaultNs = "translation")) {
         val keys = (0..TranslationUsagesCodeVisionProvider.MAX_KEYS).joinToString { "\"k$it\": \"v\"" }
