@@ -75,7 +75,7 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
 
         val fullKey = RawKeyParser(project).parse(rawKey, sourceElement) ?: return null
 
-        val sources = project.service<LocalizationSourceService>().findSources(fullKey.allNamespaces(), sourceElement)
+        val sources = project.service<LocalizationSourceService>().findReadSources(fullKey, sourceElement)
         if (sources.isEmpty()) return null
 
         val config = Settings.getInstance(project).config()

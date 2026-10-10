@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.DynamicKeyUsages
 import com.ibrahimdans.i18n.plugin.tree.KeyComposer
 import com.ibrahimdans.i18n.plugin.tree.Separators
+import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.json.psi.JsonProperty
 import com.intellij.openapi.application.ReadAction
@@ -91,7 +92,9 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
             val project = element.project
             val config = Settings.getInstance(project).config()
             val key = keyOf(element, config)
-            IndirectKeyUsages.textCount(key, config, config.searchScope(project), PsiSearchHelper.getInstance(project))
+            IndirectKeyUsages.textCount(
+                key, config, config.searchScope(project), PsiSearchHelper.getInstance(project), FallbackNamespaces.of(project, config),
+            )
                 .takeIf { it > 0 }
                 ?: IndirectKeyUsages.prefixedCounts(project, listOf(key), config)[key]
                 ?: 0

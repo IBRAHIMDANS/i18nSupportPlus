@@ -80,6 +80,10 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                     cell(textField(PluginBundle.message("settings.default.namespace"), settings::defaultNs, maxLength = 1000, columns = 20))
                         .comment(PluginBundle.message("settings.default.namespace.comment"))
                 }
+                row(PluginBundle.message("settings.fallback.namespace")) {
+                    cell(textField(PluginBundle.message("settings.fallback.namespace"), settings::fallbackNs, maxLength = 1000, columns = 20))
+                        .comment(PluginBundle.message("settings.fallback.namespace.comment"))
+                }
             }
 
             group(PluginBundle.message("settings.group.scope")) {

@@ -76,7 +76,7 @@ abstract class CompositeKeyCompletionContributor(private val lang: Lang): Comple
             // allNamespaces, not ns: a key written without one works in the namespaces its hook
             // declares (`useTranslation('auth')`), exactly as the annotator resolves it. Asking for
             // the explicit namespace alone offered the default namespace's keys — or every file's.
-            findCompletions(source, fullKey.allNamespaces(), fullKey.compositeKey.dropLast(1), element)
+            findCompletions(source, fullKey.lookupNamespaces(), fullKey.compositeKey.dropLast(1), element)
         }
 
     /**

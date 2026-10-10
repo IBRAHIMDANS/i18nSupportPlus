@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParser
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
+import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
 import com.intellij.openapi.project.Project
@@ -36,13 +37,25 @@ class RawKeyParser(private val project: Project) {
             .withDummyNormalizer()
             .withTemplateNormalizer()
             .build()
-        return when {
+        val key = when {
             syntax == KeySyntax.NoNamespace -> parser.parse(rawKey, emptyNamespace = true, firstComponentNamespace = false)
             firstComponent -> parser.parse(rawKey, emptyNamespace = true, firstComponentNamespace = true)
             syntax != null -> parser.parse(rawKey)
             config.firstComponentNs -> parser.parse(rawKey, false, true)
             else -> parser.parse(rawKey)?.let { key -> scoped(key, rawKey, parser) ?: key }
         }
+        return key?.let { withFallbacks(it, config) }
+    }
+
+    /**
+     * [key] with i18next's `fallbackNS` attached, when its namespaces come from its hook: under
+     * `useTranslation('admin')`, `t('shared.ok')` is read from `common` too once `admin` lacks it.
+     * A key writing its own namespace, or holding none, is left as it is.
+     */
+    private fun withFallbacks(key: FullKey, config: Config): FullKey {
+        if (key.ns != null || key.namespaces.isNullOrEmpty()) return key
+        val fallbacks = FallbackNamespaces.of(project, config)
+        return if (fallbacks.isEmpty()) key else key.copy(fallbackNamespaces = fallbacks)
     }
 
     /**

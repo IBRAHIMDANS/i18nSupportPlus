@@ -5,6 +5,8 @@ import com.ibrahimdans.i18n.Localization
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.key.FullKey
+import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
@@ -163,6 +165,28 @@ class LocalizationSourceService {
      */
     fun findSources(fileNames: List<String>, caller: PsiElement): List<LocalizationSource> =
         componentSources(fileNames, caller) + projectSources(fileNames, caller)
+
+    /**
+     * The sources to *read* [fullKey] from, for a key written in [caller]'s file: its own namespaces'
+     * ([FullKey.allNamespaces]) — or, only when none of them holds the key, those of the first of
+     * its [FullKey.fallbackNamespaces] that does, as i18next's `fallbackNS` tries them in order.
+     * A key its own namespace holds never reaches the fallback, so its reference stays single and
+     * a hint shows that namespace's value. Writing goes through [findSources] on the own namespaces.
+     */
+    fun findReadSources(fullKey: FullKey, caller: PsiElement): List<LocalizationSource> {
+        val own = findSources(fullKey.allNamespaces(), caller)
+        if (fullKey.fallbackNamespaces.isEmpty()) return own
+        val pluralSeparator = Settings.getInstance(caller.project).config().pluralSeparator
+        fun holdsKey(source: LocalizationSource) =
+            FallbackLookup.resolve(fullKey.compositeKey, source, pluralSeparator).any { it.unresolved.isEmpty() && it.element != null }
+        if (own.any(::holdsKey)) return own
+        return fullKey.fallbackNamespaces.asSequence()
+            .map { findSources(listOf(it), caller) }
+            .firstOrNull { sources -> sources.any(::holdsKey) }
+            ?: own
+    }
+
+    private object FallbackLookup : CompositeKeyResolver<PsiElement>
 
     /**
      * The sources the component holding [caller] declares for itself — vue-i18n's `<i18n>` block —
