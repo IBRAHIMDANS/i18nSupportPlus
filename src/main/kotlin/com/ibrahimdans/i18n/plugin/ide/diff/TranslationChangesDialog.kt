@@ -15,8 +15,15 @@ import javax.swing.table.DefaultTableModel
 /**
  * The translation changes as a table — key, locale, change, before, after — with a switch to the
  * locales left behind the reference, the follow-up a review usually asks for.
+ *
+ * [dialogTitle] says what the changes are compared with: the working copy by default, a branch
+ * when they come from one.
  */
-class TranslationChangesDialog(project: Project, private val found: TranslationChanges) : DialogWrapper(project) {
+class TranslationChangesDialog(
+    project: Project,
+    private val found: TranslationChanges,
+    dialogTitle: String = PluginBundle.message("diff.translation.title"),
+) : DialogWrapper(project) {
 
     private val model = object : DefaultTableModel() {
         override fun isCellEditable(row: Int, column: Int) = false
@@ -24,7 +31,7 @@ class TranslationChangesDialog(project: Project, private val found: TranslationC
     private val laggingOnly = JBCheckBox(PluginBundle.message("diff.translation.lagging.only", found.lagging.size))
 
     init {
-        title = PluginBundle.message("diff.translation.title")
+        title = dialogTitle
         laggingOnly.isEnabled = found.lagging.isNotEmpty()
         laggingOnly.addActionListener { fill() }
         fill()
