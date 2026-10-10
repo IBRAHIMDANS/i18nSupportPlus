@@ -2,9 +2,12 @@ package com.ibrahimdans.i18n.plugin.ide.dialog
 
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.DeleteI18nKeyAction
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.translate.MachineTranslationSettings
+import com.ibrahimdans.i18n.plugin.translate.PluralTranslationPlan
+import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
@@ -404,6 +407,11 @@ class TranslationDialog(
      *
      * One request per empty locale, under a cancellable progress. A locale the engines could not
      * translate stays empty, and the reason shows under the buttons.
+     *
+     * A plural form (`file_few`) follows [PluralTranslationPlan]: a locale whose language has no
+     * such form (`file_one` in Japanese) is left alone, and when no locale holds the form yet its
+     * text comes from the reference locale's `other`, the proposal then flagged for review. An ICU
+     * plural is not translated: its branches depend on the target language.
      */
     internal fun translateEmptyLocales() {
         val provider = machineTranslator(project) ?: return
@@ -411,37 +419,76 @@ class TranslationDialog(
         // The language translated *from* matters more than for a copy: a module's declared
         // reference, then the project's (preview locale, else `en`), the fullest locale last.
         val config = Settings.getInstance(project).config()
+        // A plural form only when its `other` exists somewhere: `steps.one` is otherwise just a key.
+        val plural = pluralFormOf(keyField.text, config.keySeparator, CLDR_SUFFIX_SEPARATOR)
+            ?.takeIf { it.first == PluralCategories.OTHER || otherFormSource(it.second, config) != null }
         val labels = filled.map { it.key.localeLabel() }.toSet()
         val sourceLocale = config.modules.map { it.referenceLocale }.firstOrNull { it in labels }
             ?: ReferenceLocale.of(null, config, labels)
             ?: viewModel.localeToCopyFrom(textAreas.keys)
-        val donor = filled.sortedByDescending { it.key.localeLabel() == sourceLocale }.firstOrNull() ?: return
+        val donor = filled.sortedByDescending { it.key.localeLabel() == sourceLocale }.firstOrNull()
+        val source = donor?.let { it.key.localeLabel() to it.value.text }
+            ?: plural?.let { otherFormSource(it.second, config) }
+            ?: return
         val targets = textAreas.entries.filter { it.value.text.isBlank() }.map { it.key.localeLabel() to it.value }
         if (targets.isEmpty()) return
-        val source = donor.key.localeLabel()
-        val text = donor.value.text
+
+        // What each empty locale is asked for: the source text, or a note saying why not.
+        val notes = mutableListOf<String>()
+        val requests = targets.mapNotNull { (locale, area) ->
+            if (plural == null) return@mapNotNull Triple(locale, area, source.second)
+            val sourceForms = if (donor != null) mapOf(plural.first to source.second) else mapOf(PluralCategories.OTHER to source.second)
+            when (val plan = PluralTranslationPlan.of(sourceForms, locale)) {
+                PluralTranslationPlan.Plan.IcuPlural -> {
+                    notes += PluginBundle.message("dialog.translation.translate.icu.plural", locale); null
+                }
+                is PluralTranslationPlan.Plan.Forms -> {
+                    val form = plan.forms.firstOrNull { it.category == plural.first }
+                    when {
+                        form == null -> { notes += PluginBundle.message("dialog.translation.translate.no.such.form", locale, plural.first); null }
+                        else -> {
+                            if (form.needsReview) notes += PluginBundle.message("dialog.translation.translate.review", locale, plural.first)
+                            Triple(locale, area, form.source)
+                        }
+                    }
+                }
+            }
+        }
         // Read by the engine, not by the user: English whatever the IDE language.
         val context = "A UI string of an application, under the i18n key ${keyField.text}"
         val results = ProgressManager.getInstance().runProcessWithProgressSynchronously<List<Translation>, RuntimeException>(
             {
                 val indicator = ProgressManager.getInstance().progressIndicator
-                targets.map { (locale, _) ->
+                requests.map { (locale, _, text) ->
                     indicator?.checkCanceled()
                     indicator?.text = PluginBundle.message("dialog.translation.translate.progress", locale)
-                    provider.translate(TranslationRequest(listOf(text), source, locale, context), indicator).single()
+                    provider.translate(TranslationRequest(listOf(text), source.first, locale, context), indicator).single()
                 }
             },
             PluginBundle.message("dialog.translation.translate.button"),
             true,
             project
         )
-        val failures = targets.zip(results).mapNotNull { (target, result) ->
+        val failures = requests.zip(results).mapNotNull { (request, result) ->
             when (result) {
-                is Translation.Done -> { target.second.text = result.text; null }
-                is Translation.Failed -> "${target.first}: ${result.reason}"
+                is Translation.Done -> { request.second.text = result.text; null }
+                is Translation.Failed -> "${request.first}: ${result.reason}"
             }
-        }
+        } + notes
         translateStatus.text = failures.joinToString("<br>", "<html>", "</html>").takeIf { failures.isNotEmpty() }.orEmpty()
+    }
+
+    /**
+     * The `other` form of the plural being edited, [otherKey], as the reference locale holds it —
+     * any locale holding it when the reference does not — or null when none does.
+     */
+    private fun otherFormSource(otherKey: String, config: Config): Pair<String, String>? {
+        val values = viewModel.parseKey(otherKey)?.let(viewModel::loadTranslations).orEmpty()
+            .mapNotNull { (source, value) -> value?.takeIf { it.isNotBlank() }?.let { source.localeLabel() to it } }
+            .toMap()
+        val reference = config.modules.map { it.referenceLocale }.firstOrNull { it in values }
+            ?: ReferenceLocale.of(null, config, values.keys)
+        return (values.entries.firstOrNull { it.key == reference } ?: values.entries.firstOrNull())?.toPair()
     }
 
     private fun copyToEmptyLocales() {
@@ -569,6 +616,30 @@ class TranslationDialog(
          * a scripted engine: nothing here reaches the network.
          */
         internal var machineTranslator: (Project) -> TranslationProvider? = { MachineTranslationSettings.getInstance(it).provider() }
+
+        /**
+         * The plural category [key] names and the key of its `other` form, or null for a key that is
+         * not a plural form: `common:file_few` gives `few` and `common:file_other`, a nested
+         * `common:file.few` gives `few` and `common:file.other`.
+         */
+        internal fun pluralFormOf(key: String, keySeparator: String, pluralSeparator: String): Pair<String, String>? {
+            val lastSegment = key.substringAfterLast(keySeparator)
+            val suffix = lastSegment.substringAfterLast(pluralSeparator, "")
+            return when {
+                lastSegment.contains(pluralSeparator) && suffix in PluralCategories.ALL ->
+                    suffix to key.removeSuffix(pluralSeparator + suffix) + pluralSeparator + PluralCategories.OTHER
+                lastSegment in PluralCategories.ALL && key.contains(keySeparator) ->
+                    lastSegment to key.removeSuffix(keySeparator + lastSegment) + keySeparator + PluralCategories.OTHER
+                else -> null
+            }
+        }
+
+        /**
+         * Between a base and its CLDR category in i18next's flat convention (`item_one`), as in
+         * `MissingPluralFormsInspection`. Not [Config.pluralSeparator], which is the older numeric
+         * plurals' (`item-0`, `item-1`).
+         */
+        private const val CLDR_SUFFIX_SEPARATOR = "_"
 
         private val NAMESPACE_REGEX = Regex("[a-zA-Z0-9-]+")
 
