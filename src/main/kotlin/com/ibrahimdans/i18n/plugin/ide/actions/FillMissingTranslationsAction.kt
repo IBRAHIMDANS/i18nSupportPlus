@@ -6,7 +6,6 @@ import com.ibrahimdans.i18n.plugin.ide.dialog.MachineTranslationPreviewDialog
 import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.translate.MachineTranslationSettings
@@ -68,24 +67,7 @@ class FillMissingTranslationsAction : AnAction() {
         val target = Messages.showEditableChooseDialog(
             PluginBundle.message("action.fill.target", source), title, null, targets, targets.first(), null
         )?.takeIf { it in targets } ?: return
-
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, title, true) {
-            override fun run(indicator: ProgressIndicator) {
-                val translations = TranslationDataLoader.loadAllTranslations(project, scope.config)
-                val items = MachineFill.itemsOf(translations, source, target, config.keySeparator)
-                if (items.isEmpty()) {
-                    ApplicationManager.getApplication().invokeLater {
-                        Messages.showInfoMessage(project, PluginBundle.message("action.fill.nothing", target), title)
-                    }
-                    return
-                }
-                val proposals = MachineFill.translate(items, provider, source, target, indicator) ?: return
-                ApplicationManager.getApplication().invokeLater {
-                    val dialog = MachineTranslationPreviewDialog(project, target, proposals)
-                    if (dialog.showAndGet()) MachineFill.write(project, scope.config, target, dialog.accepted())
-                }
-            }
-        })
+        MachineFill.run(project, scope.config, source, target, provider)
     }
 
     companion object {
@@ -97,8 +79,44 @@ class FillMissingTranslationsAction : AnAction() {
 /** The steps of *Fill Missing Translations*, apart from the UI. */
 internal object MachineFill {
 
-    /** At most this many requests at once: an engine's rate limit is easy to reach with a whole module. */
+    /** At most this many provider calls at once: an engine's rate limit is easy to reach with a whole module. */
     const val PARALLEL_REQUESTS = 4
+
+    /**
+     * At most this many keys per provider call. An engine with a batch form sends them in one request,
+     * cut again at its own limit (#438); one without sends them one by one.
+     */
+    const val KEYS_PER_CALL = 50
+
+    /**
+     * *Fill Missing Translations* for [module] from [source] to [target]: translated in the background,
+     * previewed, then written in one command — whether asked from the Tools menu or from a locale
+     * column of the table. [onWritten] runs on the EDT once the values are written.
+     */
+    fun run(project: Project, module: ModuleConfig?, source: String, target: String, provider: TranslationProvider, onWritten: () -> Unit = {}) {
+        val title = PluginBundle.message("action.fill.title")
+        val keySeparator = Settings.getInstance(project).config().keySeparator
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, title, true) {
+            override fun run(indicator: ProgressIndicator) {
+                val translations = TranslationDataLoader.loadAllTranslations(project, module)
+                val items = itemsOf(translations, source, target, keySeparator)
+                if (items.isEmpty()) {
+                    ApplicationManager.getApplication().invokeLater {
+                        Messages.showInfoMessage(project, PluginBundle.message("action.fill.nothing", target), title)
+                    }
+                    return
+                }
+                val proposals = translate(items, provider, source, target, indicator) ?: return
+                ApplicationManager.getApplication().invokeLater {
+                    val dialog = MachineTranslationPreviewDialog(project, target, proposals)
+                    if (dialog.showAndGet()) {
+                        write(project, module, target, dialog.accepted())
+                        onWritten()
+                    }
+                }
+            }
+        })
+    }
 
     /**
      * A key to translate, with its [source] text. [needsReview]: a plural form translated from the
@@ -152,35 +170,43 @@ internal object MachineFill {
     private const val CLDR_SUFFIX_SEPARATOR = "_"
 
     /**
-     * Each item translated, [PARALLEL_REQUESTS] at a time, the key sent as context. Null when the
-     * user cancelled: nothing is then proposed, and nothing written.
+     * Each item translated, [KEYS_PER_CALL] per provider call and [PARALLEL_REQUESTS] calls at a time,
+     * the keys of a call sent as its context. A skipped item is never sent. Null when the user
+     * cancelled: nothing is then proposed, and nothing written.
      */
     fun translate(items: List<Item>, provider: TranslationProvider, source: String, target: String, indicator: ProgressIndicator?): List<Proposal>? {
+        val sent = items.filter { it.skipped == null }
+        val calls = sent.chunked(KEYS_PER_CALL)
         val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("i18n machine translation", PARALLEL_REQUESTS)
         try {
-            val futures: List<Future<Translation>> = items.map { item ->
-                executor.submit<Translation> {
-                    item.skipped?.let { return@submit Translation.Failed(it) }
-                    if (indicator?.isCanceled == true) return@submit Translation.Failed("")
-                    val context = "A UI string of an application, under the i18n key ${item.key}"
-                    provider.translate(TranslationRequest(listOf(item.source), source, target, context), indicator).single()
+            val futures: List<Future<List<Translation>>> = calls.map { call ->
+                executor.submit<List<Translation>> {
+                    if (indicator?.isCanceled == true) return@submit call.map { Translation.Failed("") }
+                    provider.translate(TranslationRequest(call.map { it.source }, source, target, contextOf(call)), indicator)
                 }
             }
-            val results = futures.mapIndexed { index, future ->
-                indicator?.fraction = index.toDouble() / items.size
-                try {
+            val translated = mutableMapOf<Item, Translation>()
+            futures.forEachIndexed { index, future ->
+                indicator?.fraction = index.toDouble() / calls.size
+                val results = try {
                     future.get()
                 } catch (e: ExecutionException) {
                     if (e.cause is ProcessCanceledException) return null
-                    Translation.Failed(e.cause?.message.orEmpty())
+                    calls[index].map { Translation.Failed(e.cause?.message.orEmpty()) }
                 }
+                calls[index].zip(results).forEach { (item, result) -> translated[item] = result }
             }
             if (indicator?.isCanceled == true) return null
-            return items.zip(results) { item, result -> Proposal(item, result) }
+            return items.map { item -> Proposal(item, item.skipped?.let { Translation.Failed(it) } ?: translated.getValue(item)) }
         } finally {
             executor.shutdownNow()
         }
     }
+
+    /** What the engine is told about [call]: UI strings, and their keys in order — a hint to each one's meaning. */
+    internal fun contextOf(call: List<Item>): String =
+        if (call.size == 1) "A UI string of an application, under the i18n key ${call.single().key}"
+        else "UI strings of an application, under the i18n keys, in order: ${call.joinToString(", ") { it.key }}"
 
     /**
      * Writes [accepted] (`key -> value`) into [target]'s files of [module], in one command: one Ctrl+Z
@@ -196,18 +222,9 @@ internal object MachineFill {
         WriteCommandAction.runWriteCommandAction(project, PluginBundle.message("action.fill.command"), null, {
             accepted.forEach { (key, value) ->
                 if (!current[key]?.get(target).isNullOrBlank()) return@forEach
-                val file = sourceFor(key, target, sources) ?: return@forEach
+                val file = translationFileFor(key, target, sources) ?: return@forEach
                 viewModel.saveTranslation(file, synchronizer.buildFullKey(key, config), value)
             }
         })
-    }
-
-    /** [target]'s file for [key]'s namespace, routed as the CSV import routes it. */
-    private fun sourceFor(key: String, target: String, sources: List<LocalizationSource>): LocalizationSource? {
-        val namespace = KeySpelling.namespaceOf(key)
-        return sources.firstOrNull { source ->
-            TranslationDataLoader.extractLocale(source) == target &&
-                (namespace == null || TranslationDataLoader.extractNamespace(source) == namespace)
-        }
     }
 }

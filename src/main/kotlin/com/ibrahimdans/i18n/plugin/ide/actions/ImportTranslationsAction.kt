@@ -115,7 +115,7 @@ class ImportTranslationsAction : AnAction() {
                     TranslationDataLoader.findSources(project, scope.config)
                 }
                 val operations = plan.entries.mapNotNull { entry ->
-                    val source = findSourceFor(entry.key, entry.locale, sources) ?: return@mapNotNull null
+                    val source = translationFileFor(entry.key, entry.locale, sources) ?: return@mapNotNull null
                     Triple(source, synchronizer.buildFullKey(entry.key, config), entry.value)
                 }
 
@@ -136,18 +136,6 @@ class ImportTranslationsAction : AnAction() {
                 }
             }
         })
-    }
-
-    /**
-     * Finds the translation file matching the key's namespace and the target locale
-     * (same routing as the Keys Synchronizer).
-     */
-    private fun findSourceFor(key: String, locale: String, sources: List<LocalizationSource>): LocalizationSource? {
-        val namespace = KeySpelling.namespaceOf(key)
-        return sources.firstOrNull { source ->
-            TranslationDataLoader.extractLocale(source) == locale &&
-                (namespace == null || TranslationDataLoader.extractNamespace(source) == namespace)
-        }
     }
 
     private fun summaryOf(plan: ImportPlan, applied: Boolean): String = buildString {
@@ -228,5 +216,18 @@ private class ImportPreviewDialog(
             panel.add(JBLabel("<html>${notes.joinToString("<br>")}</html>"), BorderLayout.SOUTH)
         }
         return panel
+    }
+}
+
+/**
+ * The translation file of [locale] for [key]'s namespace among [sources] (same routing as the Keys
+ * Synchronizer). Shared by the CSV import and *Fill Missing Translations*, which write a key into a
+ * locale the same way.
+ */
+internal fun translationFileFor(key: String, locale: String, sources: List<LocalizationSource>): LocalizationSource? {
+    val namespace = KeySpelling.namespaceOf(key)
+    return sources.firstOrNull { source ->
+        TranslationDataLoader.extractLocale(source) == locale &&
+            (namespace == null || TranslationDataLoader.extractNamespace(source) == namespace)
     }
 }
