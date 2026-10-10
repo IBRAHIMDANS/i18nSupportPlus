@@ -200,4 +200,21 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
         )
         assertEquals(listOf("hint"), unusedIn("locales/en/other.json"))
     }
+
+    // The JSON plugin's name reference of a same-named property is not a use by the code — #410
+
+    @Test
+    fun testTwoLocalesWithoutCodeReportEveryKey() {
+        myFixture.addFileToProject("locales/en/common.json", """{"menu": {"home": "Home", "about": "About"}}""")
+        myFixture.addFileToProject("locales/fr/common.json", """{"menu": {"home": "Accueil", "about": "À propos"}}""")
+        assertEquals(listOf("home", "about"), unusedIn("locales/en/common.json"))
+    }
+
+    @Test
+    fun testSameNamedPropertyOfAnUnrelatedJsonFileIsNotAUsage() {
+        myFixture.addFileToProject("locales/en/common.json", """{"title": "Title", "home": "Home"}""")
+        myFixture.addFileToProject("config/site.json", """{"title": "unrelated"}""")
+        myFixture.addFileToProject("src/App.js", "export const a = (t) => t('common:home');")
+        assertEquals(listOf("title"), unusedIn("locales/en/common.json"))
+    }
 }

@@ -184,7 +184,6 @@ class UnusedKeysFixtureTest : PlatformBaseTest() {
         assertTrue("common:field.email" in inspectionReports(*TRANSLATION_FILES))
     }
 
-    @Disabled("Gap #410: ReferencesSearch on a JSON property also returns the JSON plugin's JsonPropertyNameReference of every same-named property in any JSON file, so `dead.key` counts as used because admin.json holds a `dead.key` too — and in a project with two locales no key is ever reported")
     @Test
     fun `inspection - true orphans are reported`() = withSingle {
         val missing = TRUE_ORPHANS - inspectionReports(*TRANSLATION_FILES)
@@ -198,7 +197,6 @@ class UnusedKeysFixtureTest : PlatformBaseTest() {
         assertEquals(scanOrphans(), cleanupCandidates())
     }
 
-    @Disabled("Gap #410: the inspection misses the orphans sharing a name with another JSON property")
     @Test
     fun `the inspection reports what the scan offers`() = withSingle {
         assertEquals(scanOrphans(), inspectionReports(*TRANSLATION_FILES))

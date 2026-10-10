@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.DynamicKeyUsages
 import com.ibrahimdans.i18n.plugin.tree.KeyComposer
 import com.ibrahimdans.i18n.plugin.tree.Separators
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
+import com.intellij.json.psi.JsonProperty
 import com.intellij.openapi.application.ReadAction
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -28,10 +29,18 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
      * How many places of the code use the key declared by [declaration], counting no further than
      * [limit]: the references a search finds on [declaration], and the code elements the
      * references held by [named] — the element carrying the key's name — resolve to.
+     *
+     * A reference held by a JSON property is not a use by the code: the JSON plugin gives every
+     * property a name reference that a search on [declaration] finds in *every* same-named
+     * property of *any* JSON file — the other locales of the key, or an unrelated `title`. Counted,
+     * no key of a project with two locales was ever unused.
      */
     fun count(declaration: PsiElement, named: PsiElement, limit: Int = Int.MAX_VALUE): Int {
         val found = linkedSetOf<PsiElement>()
-        ReferencesSearch.search(declaration).forEach(Processor { found += it.element; found.size < limit })
+        ReferencesSearch.search(declaration).forEach(Processor {
+            if (it.element !is JsonProperty) found += it.element
+            found.size < limit
+        })
         for (reference in named.references) {
             if (found.size >= limit) break
             found += (reference as? PsiPolyVariantReference)?.multiResolve(false)?.mapNotNull { it.element }
