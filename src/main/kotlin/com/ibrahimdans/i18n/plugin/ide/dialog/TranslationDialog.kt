@@ -4,7 +4,12 @@ import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.DeleteI18nKeyAction
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
+import com.ibrahimdans.i18n.plugin.translate.MachineTranslationSettings
+import com.ibrahimdans.i18n.plugin.translate.Translation
+import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
+import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ReadAction
@@ -119,6 +124,16 @@ class TranslationDialog(
     private var namespaceCombo: JComboBox<String>? = null
     private var copyButton: JButton? = null
 
+    /** Shown once the project opted in to machine translation and configured an engine. */
+    private val translateButton = JButton(PluginBundle.message("dialog.translation.translate.button")).apply {
+        name = "dialog.translation.translate"
+        isVisible = machineTranslator(project) != null
+        addActionListener { translateEmptyLocales() }
+    }
+
+    /** Why the last machine translation left a locale empty, one line per locale. */
+    private val translateStatus = JBLabel().apply { foreground = JBColor.RED }
+
     /** Keys already defined under the selected namespace; refreshed together with the sources. */
     private var keysInNamespace: Set<String> = emptySet()
 
@@ -166,7 +181,9 @@ class TranslationDialog(
                 }
                     .comment(PluginBundle.message("dialog.translation.copy.comment"))
                     .component
+                cell(translateButton)
             }
+            row("") { cell(translateStatus).align(AlignX.FILL) }
         }
 
         if (mode == Mode.CREATE) {
@@ -360,6 +377,7 @@ class TranslationDialog(
         // Nothing to copy from, or nowhere to copy to: the button would be a no-op.
         copyButton?.isEnabled =
             textAreas.values.any { it.text.isNotBlank() } && textAreas.values.any { it.text.isBlank() }
+        translateButton.isEnabled = copyButton?.isEnabled == true
     }
 
     private fun highlightVariables(textArea: JBTextArea) {
@@ -379,6 +397,53 @@ class TranslationDialog(
      * declares as its reference, or the fullest one when it declares none — see
      * [DialogViewModel.localeToCopyFrom].
      */
+    /**
+     * Fills every locale left empty with the machine translation of the reference locale's value. A
+     * value already there is never replaced, and nothing is
+     * written to the files before *OK*: the proposals stay editable in their fields.
+     *
+     * One request per empty locale, under a cancellable progress. A locale the engines could not
+     * translate stays empty, and the reason shows under the buttons.
+     */
+    internal fun translateEmptyLocales() {
+        val provider = machineTranslator(project) ?: return
+        val filled = textAreas.entries.filter { it.value.text.isNotBlank() }
+        // The language translated *from* matters more than for a copy: a module's declared
+        // reference, then the project's (preview locale, else `en`), the fullest locale last.
+        val config = Settings.getInstance(project).config()
+        val labels = filled.map { it.key.localeLabel() }.toSet()
+        val sourceLocale = config.modules.map { it.referenceLocale }.firstOrNull { it in labels }
+            ?: ReferenceLocale.of(null, config, labels)
+            ?: viewModel.localeToCopyFrom(textAreas.keys)
+        val donor = filled.sortedByDescending { it.key.localeLabel() == sourceLocale }.firstOrNull() ?: return
+        val targets = textAreas.entries.filter { it.value.text.isBlank() }.map { it.key.localeLabel() to it.value }
+        if (targets.isEmpty()) return
+        val source = donor.key.localeLabel()
+        val text = donor.value.text
+        // Read by the engine, not by the user: English whatever the IDE language.
+        val context = "A UI string of an application, under the i18n key ${keyField.text}"
+        val results = ProgressManager.getInstance().runProcessWithProgressSynchronously<List<Translation>, RuntimeException>(
+            {
+                val indicator = ProgressManager.getInstance().progressIndicator
+                targets.map { (locale, _) ->
+                    indicator?.checkCanceled()
+                    indicator?.text = PluginBundle.message("dialog.translation.translate.progress", locale)
+                    provider.translate(TranslationRequest(listOf(text), source, locale, context), indicator).single()
+                }
+            },
+            PluginBundle.message("dialog.translation.translate.button"),
+            true,
+            project
+        )
+        val failures = targets.zip(results).mapNotNull { (target, result) ->
+            when (result) {
+                is Translation.Done -> { target.second.text = result.text; null }
+                is Translation.Failed -> "${target.first}: ${result.reason}"
+            }
+        }
+        translateStatus.text = failures.joinToString("<br>", "<html>", "</html>").takeIf { failures.isNotEmpty() }.orEmpty()
+    }
+
     private fun copyToEmptyLocales() {
         val donorLocale = viewModel.localeToCopyFrom(textAreas.keys)
         val value = textAreas.entries
@@ -487,7 +552,24 @@ class TranslationDialog(
         override fun canClose(inputString: String?): Boolean = isValidNamespace(inputString)
     }
 
+    /** The value shown for [locale], for tests. */
+    internal fun valueOf(locale: String): String? = textAreas.entries.firstOrNull { it.key.localeLabel() == locale }?.value?.text
+
+    internal fun setValue(locale: String, value: String) {
+        textAreas.entries.first { it.key.localeLabel() == locale }.value.text = value
+    }
+
+    internal val translateVisible: Boolean get() = translateButton.isVisible
+
+    internal val translateMessage: String get() = translateStatus.text
+
     companion object {
+        /**
+         * The project's machine translation, or null when it has not opted in. A test swaps it for
+         * a scripted engine: nothing here reaches the network.
+         */
+        internal var machineTranslator: (Project) -> TranslationProvider? = { MachineTranslationSettings.getInstance(it).provider() }
+
         private val NAMESPACE_REGEX = Regex("[a-zA-Z0-9-]+")
 
         private const val TEXT_AREA_ROWS = 3
