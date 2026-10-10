@@ -1,13 +1,18 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileKeys
+import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
 import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.key.FullKey
+import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
-import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
+import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.application.ReadAction
@@ -23,6 +28,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.UsageSearchContext
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.refactoring.rename.RenameHandler
 
 /**
@@ -38,6 +44,10 @@ import com.intellij.refactoring.rename.RenameHandler
  *
  * It used to rewrite the caret's literal and the JSON properties only: every other call site kept
  * the old name and broke, YAML files and plural forms were left behind, and `.` was hard-coded.
+ *
+ * With the caret on an intermediate segment of the key (`button` in `common:button.save`), or on a
+ * property holding other keys in a translation file, the whole level is renamed instead: see
+ * [KeyLevelRename].
  */
 class RenameI18nKeyHandler : RenameHandler {
 
@@ -47,12 +57,15 @@ class RenameI18nKeyHandler : RenameHandler {
     override fun isAvailableOnDataContext(dataContext: DataContext): Boolean {
         val editor = CommonDataKeys.EDITOR.getData(dataContext) ?: return false
         val psiFile = CommonDataKeys.PSI_FILE.getData(dataContext) ?: return false
-        return findI18nReference(editor, psiFile) != null
+        return findI18nReference(editor, psiFile) != null || levelInTranslationFile(editor, psiFile) != null
     }
 
     override fun invoke(project: Project, editor: Editor, file: PsiFile, dataContext: DataContext) {
-        val ref = findI18nReference(editor, file) ?: return
         val config = Settings.getInstance(project).config()
+        val ref = findI18nReference(editor, file)
+        val level = if (ref != null) levelInCode(ref, editor, config) else levelInTranslationFile(editor, file)
+        if (level != null) return renameLevel(project, level)
+        if (ref == null) return
 
         val currentKey = ref.element.text.unQuote()
         val lastSegment = lastSegmentOf(currentKey, config)
@@ -76,7 +89,93 @@ class RenameI18nKeyHandler : RenameHandler {
             project
         )
 
-        WriteCommandAction.runWriteCommandAction(project, PluginBundle.message("action.rename.title"), null, {
+        apply(project, edits, PluginBundle.message("action.rename.title"))
+    }
+
+    override fun invoke(project: Project, elements: Array<out PsiElement>, dataContext: DataContext) {
+        // Not used — rename is always initiated from the editor
+    }
+
+    // --- Level rename ---
+
+    /**
+     * The level under the caret when it sits on an intermediate segment of [ref]'s key — not its
+     * namespace, not its last segment, which the plain rename handles.
+     */
+    private fun levelInCode(ref: I18nReference, editor: Editor, config: Config): KeyLevelRename? {
+        if (config.usesFlatKeys() || config.keySeparator.isEmpty()) return null
+        val literal = ref.element
+        val project = literal.project
+        val fullKey = ReadAction.compute<FullKey?, RuntimeException> {
+            Extensions.LANG.extensionList.firstNotNullOfOrNull { it.extractRawKey(literal) }?.let { RawKeyParser(project).parse(it, literal) }
+        } ?: return null
+        val text = literal.text
+        val quoted = text.length > 1 && text.first() in QUOTES && text.last() == text.first()
+        val key = if (quoted) text.substring(1, text.length - 1) else text
+        val nsPart = if (fullKey.ns != null && config.nsSeparator.isNotEmpty() && key.contains(config.nsSeparator)) key.substringBefore(config.nsSeparator) + config.nsSeparator else ""
+        val caret = editor.caretModel.offset - literal.textRange.startOffset - (if (quoted) 1 else 0) - nsPart.length
+        if (caret < 0) return null
+        val segments = key.removePrefix(nsPart).split(config.keySeparator)
+        var start = 0
+        val writtenIndex = segments.indexOfFirst { segment ->
+            val end = start + segment.length
+            (caret in start..end).also { start = end + config.keySeparator.length }
+        }
+        if (writtenIndex < 0 || writtenIndex == segments.size - 1) return null
+        val path = fullKey.keyPrefix.map { it.text } + segments.take(writtenIndex + 1)
+        val namespaces = fullKey.allNamespaces().ifEmpty { config.defaultNamespaces() }
+        return KeyLevelRename(project, namespaces, path, config, literal)
+    }
+
+    /** The level under the caret in a translation file: a property holding other keys, not a value. */
+    private fun levelInTranslationFile(editor: Editor, file: PsiFile): KeyLevelRename? {
+        val source = TranslationFileScope.sourceOf(file) ?: return null
+        val element = file.findElementAt(editor.caretModel.offset) ?: return null
+        val property = TranslationPsi.propertyOf(element, strict = false) ?: return null
+        val entry = TranslationPsi.entryOf(property) ?: return null
+        if (entry.literal != null || !PsiTreeUtil.isAncestor(entry.keyElement, element, false)) return null
+        val config = Settings.getInstance(file.project).config()
+        val path = TranslationFileKeys.pathOf(property).takeIf { it.isNotEmpty() } ?: return null
+        val namespace = TranslationDataLoader.extractNamespace(source, config.defaultNamespaces().first())
+        return KeyLevelRename(file.project, listOf(namespace), path, config, file)
+    }
+
+    private fun renameLevel(project: Project, level: KeyLevelRename) {
+        val title = PluginBundle.message("action.rename.level.title")
+        val newName = Messages.showInputDialog(
+            project,
+            PluginBundle.message("action.rename.level.prompt", level.path.joinToString(".")),
+            title,
+            Messages.getQuestionIcon(),
+            level.levelName,
+            null
+        )?.trim() ?: return
+        if (newName.isEmpty() || newName == level.levelName) return
+
+        val plan = ProgressManager.getInstance().runProcessWithProgressSynchronously<KeyLevelRename.Plan, RuntimeException>(
+            { ReadAction.compute<KeyLevelRename.Plan, RuntimeException> { level.plan(newName) } },
+            title,
+            true,
+            project
+        )
+        when {
+            plan.conflict -> return Messages.showErrorDialog(project, PluginBundle.message("action.rename.level.conflict", newName, level.levelName), title)
+            plan.files == 0 -> return Messages.showInfoMessage(project, PluginBundle.message("action.rename.level.notFound", level.path.joinToString(".")), title)
+        }
+        val dynamic = if (plan.dynamicUsages.isEmpty()) ""
+            else "\n\n" + PluginBundle.message("action.rename.level.dynamic", plan.dynamicUsages.joinToString("\n") { "  $it" })
+        val confirmed = Messages.showYesNoDialog(
+            project,
+            PluginBundle.message("action.rename.level.confirm", level.levelName, newName, plan.files, plan.callSites) + dynamic,
+            title,
+            Messages.getQuestionIcon()
+        ) == Messages.YES
+        if (!confirmed) return
+        apply(project, plan.edits.map { Edit(it.document, it.range, it.text) }, title)
+    }
+
+    private fun apply(project: Project, edits: List<Edit>, command: String) {
+        WriteCommandAction.runWriteCommandAction(project, command, null, {
             // From the end of each document, so an edit never shifts the ranges still to apply.
             edits.groupBy { it.document }.forEach { (document, documentEdits) ->
                 documentEdits.sortedByDescending { it.range.startOffset }.forEach {
@@ -85,10 +184,6 @@ class RenameI18nKeyHandler : RenameHandler {
                 PsiDocumentManager.getInstance(project).commitDocument(document)
             }
         })
-    }
-
-    override fun invoke(project: Project, elements: Array<out PsiElement>, dataContext: DataContext) {
-        // Not used — rename is always initiated from the editor
     }
 
     // --- Collection (read action) ---
