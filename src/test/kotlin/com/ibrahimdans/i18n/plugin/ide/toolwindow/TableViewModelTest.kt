@@ -388,7 +388,8 @@ class TableViewModelTest {
         // Its own sentinel rather than a count: nothing names the key, yet deleting it breaks
         // a call site. The cleanup already knew; the column used to say "Unused" anyway.
         assertEquals(UsageStatus.DYNAMIC, viewModel.usageStatus(TableViewModel.DYNAMIC_USAGE))
-        assertEquals(UsageStatus.NOT_SCANNED, viewModel.usageStatus(-3), "an unknown negative is not dynamic")
+        assertEquals(UsageStatus.KEPT, viewModel.usageStatus(TableViewModel.KEPT_USAGE))
+        assertEquals(UsageStatus.NOT_SCANNED, viewModel.usageStatus(-4), "an unknown negative is not dynamic")
     }
 
     // ---- columns ----

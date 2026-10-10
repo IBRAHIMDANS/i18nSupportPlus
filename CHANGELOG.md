@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Inspections] **Keys used outside the code can be kept**: a key received from an API (`t(response.errorKey)`), stored in a database or read by a library leaves no trace in the code, so *Unused translation key*, *Scan Orphans* and *Cleanup Unused Keys* reported it with deletion one click away. *Keys used outside the code* in the settings lists the keys to keep — exact keys, prefixes (`errors.`) or globs (`errors.*`, `*.label`), with an optional namespace (`common:errors.*`). A kept key is never reported nor offered for deletion; the table shows it as *Kept* and Code Vision as "kept". *Keep this key* on the inspection adds it to the list. The list is a project setting, stored in `.idea/i18nSettings.xml` (#367)
+
 ## 1.8.0 - 2026-10-09
 
 ### Features

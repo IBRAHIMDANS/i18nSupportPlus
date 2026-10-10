@@ -16,6 +16,8 @@ private val ORPHAN_LABEL = PluginBundle.message("toolwindow.table.usage.orphan")
 private val ORPHAN_TOOLTIP = PluginBundle.message("toolwindow.table.usage.orphan.tooltip")
 private val DYNAMIC_LABEL = PluginBundle.message("toolwindow.table.usage.dynamic")
 private val DYNAMIC_TOOLTIP = PluginBundle.message("toolwindow.table.usage.dynamic.tooltip")
+private val KEPT_LABEL = PluginBundle.message("toolwindow.table.usage.kept")
+private val KEPT_TOOLTIP = PluginBundle.message("toolwindow.table.usage.kept.tooltip")
 private val MISSING_LABEL = PluginBundle.message("toolwindow.table.value.missing")
 private val MISSING_TOOLTIP = PluginBundle.message("toolwindow.table.value.missing.tooltip")
 private val BLANK_LABEL = PluginBundle.message("toolwindow.table.value.blank")
@@ -149,6 +151,13 @@ internal class UsageCellRenderer(private val viewModel: TableViewModel) : Defaul
                 text = DYNAMIC_LABEL
                 icon = AllIcons.General.Information
                 toolTipText = DYNAMIC_TOOLTIP
+                if (!isSelected) foreground = DYNAMIC_FOREGROUND
+            }
+
+            UsageStatus.KEPT -> {
+                text = KEPT_LABEL
+                icon = AllIcons.General.Information
+                toolTipText = KEPT_TOOLTIP
                 if (!isSelected) foreground = DYNAMIC_FOREGROUND
             }
 

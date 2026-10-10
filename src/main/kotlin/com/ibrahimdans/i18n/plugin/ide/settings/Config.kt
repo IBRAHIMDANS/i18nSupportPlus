@@ -32,6 +32,7 @@ data class Config (
     val translationsRoot: String = "",
     val excludedDirectories: String = "",
     val excludedFileExtensions: String = "",
+    val keptKeys: String = "",
     val gutterIconsEnabled: Boolean = true,
     val setupWizardEnabled: Boolean = true,
     val modules: List<ModuleConfig> = emptyList(),

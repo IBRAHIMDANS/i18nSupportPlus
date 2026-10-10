@@ -51,8 +51,17 @@ class TranslationUsagesCodeVisionProviderTest : PlatformBaseTest() {
         assertEquals("dynamic usage", labelsOf("locales/en/common.json")["ok"])
     }
 
+    /** A key the project keeps reads "kept", not "no usages": nothing in the code names it. */
     @Test
-    fun aFilePastTheKeyLimitShowsNothing() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+    fun aKeptKeyIsShownAsSuch() = myFixture.runWithConfig(Config(defaultNs = "translation", keptKeys = "errors.*")) {
+        addFileToProject("locales/en/common.json", """{"errors": {"timeout": "Timed out"}, "menu": {"home": "Home"}}""")
+        val labels = labelsOf("locales/en/common.json")
+        assertEquals("kept (used outside the code)", labels["timeout"])
+        assertEquals("no usages", labels["home"])
+    }
+
+    @Test
+    fun aFilePastTheKeyLimitShowsNothing()= myFixture.runWithConfig(Config(defaultNs = "translation")) {
         val keys = (0..TranslationUsagesCodeVisionProvider.MAX_KEYS).joinToString { "\"k$it\": \"v\"" }
         addFileToProject("locales/en/common.json", "{$keys}")
         assertTrue(labelsOf("locales/en/common.json").isEmpty())
