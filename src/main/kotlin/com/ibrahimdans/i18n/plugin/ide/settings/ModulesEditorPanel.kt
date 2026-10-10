@@ -8,6 +8,8 @@ import com.ibrahimdans.i18n.plugin.ide.settings.ModuleTemplateResolver.TemplateR
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
+import com.ibrahimdans.i18n.plugin.ide.whatsnew.PluginVersion
+import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.dsl.builder.AlignX
@@ -24,7 +26,9 @@ import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.JTextArea
 import com.ibrahimdans.i18n.plugin.parser.KeyTemplate
+import com.intellij.ui.HyperlinkLabel
 import com.intellij.ui.JBColor
+import javax.swing.event.HyperlinkEvent
 
 /**
  * Modules editor: the configured modules on the left, one typed form on the right.
@@ -92,6 +96,8 @@ internal class ModulesEditorPanel(
 
     private val presetCombo = createPresetCombo()
 
+    private val suggestLink = createSuggestLink()
+
     private val browseButton = createBrowseButton()
 
     private val resolutionArea = createResolutionArea()
@@ -129,6 +135,7 @@ internal class ModulesEditorPanel(
     private fun detailForm(): JPanel = panel {
         row(PluginBundle.message("settings.modules.name")) { cell(nameField) }
         row(PluginBundle.message("settings.modules.preset")) { cell(presetCombo) }
+        row("") { cell(suggestLink) }
         row(PluginBundle.message("settings.modules.rootDirectory")) {
             cell(rootField)
             cell(browseButton)
@@ -205,6 +212,16 @@ internal class ModulesEditorPanel(
         keyField.text = layout.keyTemplate
     }
 
+    /** Offers a module's own layout as a new preset, through a pre-filled GitHub issue. */
+    private fun createSuggestLink(): HyperlinkLabel = HyperlinkLabel(PluginBundle.message("settings.modules.preset.suggest")).apply {
+        name = PluginBundle.message("settings.modules.preset.suggest")
+        isVisible = false
+        addHyperlinkListener { event ->
+            if (event.eventType != HyperlinkEvent.EventType.ACTIVATED) return@addHyperlinkListener
+            editor.selected()?.let { PresetSuggestion.url(it, PluginVersion.current) }?.let(BrowserUtil::browse)
+        }
+    }
+
     private fun createBrowseButton(): JButton {
         val button = JButton(PluginBundle.message("settings.modules.browse"))
         button.name = "modules.root.browse"
@@ -265,6 +282,7 @@ internal class ModulesEditorPanel(
         resolutionArea.text = report(editor.selected())
         // The closed combo shows *Custom* once the templates leave the preset's layout.
         presetCombo.repaint()
+        suggestLink.isVisible = editor.selected()?.let(PresetSuggestion::canSuggest) == true
     }
 
     // --- list rendering ---
