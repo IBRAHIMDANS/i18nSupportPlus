@@ -30,6 +30,7 @@ import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.UsageSearchContext
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.refactoring.rename.RenameHandler
+import java.util.Collections
 
 /**
  * Handles Shift+F6 rename refactoring for i18n keys.
@@ -209,6 +210,11 @@ class RenameI18nKeyHandler : RenameHandler {
      * Found by searching the last segment as a word — every way of writing the key contains it —
      * then kept only when the literal's own reference lands on the same translation elements. That
      * check is what keeps `other:button.save`, a different key sharing the word, out of the rename.
+     *
+     * The search hands files to several threads at once, so the processor runs concurrently: the
+     * usages go into a synchronized set, which a plain one cannot survive (adds racing a resize
+     * corrupt it, and reading it back then throws at random). Its order no longer means anything,
+     * which is fine: the edits are applied per document, from the end of the file backwards.
      */
     private fun codeUsages(
         project: Project,
@@ -217,7 +223,7 @@ class RenameI18nKeyHandler : RenameHandler {
         lastSegment: String,
         config: Config,
     ): List<PsiElement> {
-        val usages = linkedSetOf(ref.element)
+        val usages: MutableSet<PsiElement> = Collections.synchronizedSet(linkedSetOf(ref.element))
         val languages = Extensions.LANG.extensionList
         PsiSearchHelper.getInstance(project).processElementsWithWord(
             { element, _ ->
