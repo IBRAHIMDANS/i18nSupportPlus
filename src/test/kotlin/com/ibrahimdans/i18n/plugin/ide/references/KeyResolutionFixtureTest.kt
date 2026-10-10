@@ -10,7 +10,6 @@ import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.openapi.application.ReadAction
 import org.junit.jupiter.api.Assertions
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
 /**
@@ -134,11 +133,6 @@ class KeyResolutionFixtureTest : PlatformBaseTest() {
         Assertions.assertEquals(emptyList<String>(), reported("src/Plural.tsx"))
     }
 
-    /**
-     * Gap: the README lists `<Trans i18nKey="key">` among the i18next syntaxes, yet the attribute
-     * carries no reference — in `.jsx` as in `.tsx` (see `ReferencesTestJs.testTransReference`).
-     */
-    @Disabled("<Trans i18nKey> carries no reference: no Ctrl+click")
     @Test
     fun `the i18nKey of a Trans component`() = withSingle {
         assertResolves("src/Trans.tsx", "\"common:title\"", "Title")
@@ -157,11 +151,6 @@ class KeyResolutionFixtureTest : PlatformBaseTest() {
         Assertions.assertEquals(listOf(PluginBundle.getMessage("annotator.unresolved.ns")), reported("src/MissingNs.tsx"))
     }
 
-    /**
-     * Gap: `XmlAttributeKeyExtractor` reads `i18nKey`, but it is not among the syntax-owned extractors
-     * of `JsxLang`, so `canExtractKey` never accepts the attribute and nothing is annotated.
-     */
-    @Disabled("<Trans i18nKey> is never annotated: an unknown key goes unreported")
     @Test
     fun `an unknown key in a Trans component is reported`() = withSingle {
         Assertions.assertEquals(listOf(PluginBundle.getMessage("annotator.unresolved.key")), reported("src/TransMissing.tsx"))
