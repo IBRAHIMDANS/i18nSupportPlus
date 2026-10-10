@@ -25,8 +25,11 @@ object TranslationEngines {
     /** One entry as written in the file: Gson leaves an absent field null, whatever Kotlin declares. */
     private class Entry(
         val id: String?, val name: String?, val url: String?, val headers: Map<String, String>?,
-        val body: String?, val responsePath: String?, val unescapeHtml: Boolean?, val local: Boolean?
+        val body: String?, val responsePath: String?, val unescapeHtml: Boolean?, val local: Boolean?,
+        val batch: BatchEntry?
     )
+
+    private class BatchEntry(val body: String?, val listPath: String?, val itemField: String?, val jsonText: Boolean?, val maxSize: Int?)
 
     private fun load(): List<EngineConfig> {
         val text = TranslationEngines::class.java.getResourceAsStream(RESOURCE)?.bufferedReader()?.use { it.readText() }
@@ -36,7 +39,10 @@ object TranslationEngines {
             EngineConfig(
                 id = it.id.orEmpty(), name = it.name.orEmpty(), url = it.url.orEmpty(), headers = it.headers.orEmpty(),
                 body = it.body.orEmpty(), responsePath = it.responsePath.orEmpty(),
-                unescapeHtml = it.unescapeHtml == true, local = it.local == true
+                unescapeHtml = it.unescapeHtml == true, local = it.local == true,
+                batch = it.batch?.takeIf { b -> !b.body.isNullOrBlank() && !b.listPath.isNullOrBlank() && (b.maxSize ?: 0) > 1 }?.let { b ->
+                    BatchConfig(b.body!!, b.listPath!!, b.itemField.orEmpty(), b.jsonText == true, b.maxSize!!)
+                }
             )
         }
     }

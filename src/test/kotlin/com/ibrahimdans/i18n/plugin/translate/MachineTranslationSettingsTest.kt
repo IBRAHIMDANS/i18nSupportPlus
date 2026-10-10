@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin.translate
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.util.xmlb.XmlSerializer
 import com.intellij.openapi.util.JDOMUtil
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
@@ -68,6 +69,13 @@ class MachineTranslationSettingsTest {
         assertEquals(mapOf("Authorization" to "Bearer {apiKey}", "X-Team" to "web"), config.headers)
         assertEquals(TranslationEngines.preset("deepl")!!.body, config.body)
         assertNotEquals(EngineState.of(TranslationEngines.preset("deepl")!!).id, deepl.id, "each entry has an id of its own")
+    }
+
+    @Test
+    fun `an entry keeps its preset's batch form while it sends the preset's request`() {
+        Assertions.assertEquals(TranslationEngines.preset("deepl")!!.batch, deepl.copy(url = "https://api.deepl.com/v2/translate").toConfig().batch, "a Pro URL keeps it")
+        Assertions.assertNull(deepl.copy(body = """{"text":["{text}"]}""").toConfig().batch, "a rewritten body drops it")
+        Assertions.assertNull(EngineState.of(TranslationEngines.preset("libretranslate")!!).toConfig().batch, "LibreTranslate has none")
     }
 
     private fun find(root: Component, name: String): Component? {

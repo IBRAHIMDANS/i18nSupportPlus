@@ -35,7 +35,10 @@ data class EngineState(
         headers = headers.lines().mapNotNull { line ->
             line.indexOf(':').takeIf { it > 0 }?.let { line.substring(0, it).trim() to line.substring(it + 1).trim() }
         }.toMap(),
-        body = body, responsePath = responsePath.trim(), unescapeHtml = unescapeHtml, local = local
+        body = body, responsePath = responsePath.trim(), unescapeHtml = unescapeHtml, local = local,
+        // The batch form is the preset's, valid while the entry still sends the preset's request:
+        // a changed URL (DeepL Pro) keeps it, a rewritten body does not.
+        batch = TranslationEngines.preset(preset)?.takeIf { it.body == body && it.responsePath == responsePath.trim() }?.batch
     )
 
     companion object {
