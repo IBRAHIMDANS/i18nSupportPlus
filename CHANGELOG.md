@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+- [Translations] **A file named after a namespace outside the translations root is no longer a source of that namespace**: with a root set, the full scan kept to it but the lookup by name did not, so any `common.json` in the project — a serverless config in a monorepo — answered `t('common:…')`. The gutter listed it as a third locale named `common`, reporting every key of the namespace as partially translated. A file a module template designates still counts wherever it lies, and a root no longer matches a sibling folder sharing its prefix (`locales2/` under `locales`)
+
 ## 1.8.0 - 2026-10-09
 
 ### Features
