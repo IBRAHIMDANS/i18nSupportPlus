@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.9.0 - 2026-10-10
+
 ### Features
 
 - [Translation] **Machine translation of empty locales, opt-in per project**: *Translate Empty Locales* in a key's dialog fills its empty locales from the reference one, through the engines set in *Settings | Tools | i18n Support Plus | Machine Translation* — a local Ollama by default (nothing leaves the machine), any OpenAI-compatible endpoint, DeepL, LibreTranslate or Google. Off until the project opts in; API keys go to the password safe. Variables, tags and ICU syntax are protected, and a translation losing one is refused. A plural form follows the target language's forms: `file_one` is left empty in Japanese, and `file_few`, which English lacks, is translated from `file_other` and flagged for review
