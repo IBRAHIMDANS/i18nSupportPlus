@@ -143,7 +143,6 @@ class UnusedKeysFixtureTest : PlatformBaseTest() {
         assertTrue(reported.isEmpty(), "reported: $reported")
     }
 
-    @Disabled("Gap #409: DynamicKeyUsages only follows the static head of a template literal; t(`\${ns}:status.ok`) has none, so `common:status.ok` is offered for deletion although its path is written in full")
     @Test
     fun `scan - a key under a dynamic namespace is never an orphan`() = withSingle {
         assertFalse("common:status.ok" in scanOrphans())
