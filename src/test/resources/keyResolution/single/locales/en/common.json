@@ -1,0 +1,12 @@
+{
+  "title": "Title",
+  "user": {
+    "name": "User name"
+  },
+  "profile": {
+    "name": "Profile name"
+  },
+  "item_one": "{{count}} item",
+  "item_other": "{{count}} items",
+  "defaultOnly": "Default only"
+}

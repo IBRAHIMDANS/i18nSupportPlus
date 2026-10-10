@@ -29,6 +29,7 @@
 
 ### Tests
 
+- [References] **One fixture project for the hard cases of key resolution**: `KeyResolutionFixtureTest` runs an explicit and a default namespace, nested keys, a hook's namespace and key prefix, an `ns` option, a plural key, unknown keys and namespaces, a dynamic key and a three-module monorepo (each module resolving in its own files, a module key template) through annotation and Ctrl+click. Two gaps are documented as disabled tests: `<Trans i18nKey>` neither navigates nor reports an unknown key
 - [Inspections] **One fixture project for the hard cases of unused keys**: `UnusedKeysFixtureTest` runs template literals, key rules, hook namespaces and prefixes, `fallbackNS`, the keep list and a two-module monorepo through the inspection, *Scan Orphans* and *Cleanup Unused Keys*, asserting both what is reported and what must never be (#369)
 
 ## 1.8.0 - 2026-10-09
