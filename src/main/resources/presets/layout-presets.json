@@ -1,0 +1,32 @@
+{
+  "i18next": {
+    "pathTemplate": "public/locales/{lang}/{ns}.json",
+    "keyTemplate": "{ns}:{key}",
+    "source": "https://github.com/i18next/i18next-http-backend (default loadPath /locales/{{lng}}/{{ns}}.json, served from public/)"
+  },
+  "vue-i18n": {
+    "pathTemplate": "src/locales/{lang}.json",
+    "keyTemplate": "{key}",
+    "source": "https://github.com/intlify/vue-cli-plugin-i18n (default localeDir: locales, under src/)"
+  },
+  "lingui": {
+    "pathTemplate": "locale/{lang}/messages.po",
+    "keyTemplate": "{key}",
+    "source": "https://lingui.dev/ref/conf (default catalogs path <rootDir>/locale/{locale}/messages, po format)"
+  },
+  "react-intl": {
+    "pathTemplate": "lang/{lang}.json",
+    "keyTemplate": "{key}",
+    "source": "https://formatjs.github.io/docs/getting-started/message-extraction (--out-file lang/en.json)"
+  },
+  "ngx-translate": {
+    "pathTemplate": "public/i18n/{lang}.json",
+    "keyTemplate": "{key}",
+    "source": "https://ngx-translate.org/getting-started/translation-files/ (public/i18n since Angular 18)"
+  },
+  "transloco": {
+    "pathTemplate": "src/assets/i18n/{lang}.json",
+    "keyTemplate": "{key}",
+    "source": "https://jsverse.gitbook.io/transloco/getting-started/installation (rootTranslationsPath: src/assets/i18n/)"
+  }
+}
