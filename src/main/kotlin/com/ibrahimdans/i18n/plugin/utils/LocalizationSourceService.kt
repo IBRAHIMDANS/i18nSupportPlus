@@ -397,13 +397,18 @@ class LocalizationSourceService {
      */
     private fun isIncluded(file: VirtualFile, translationsRoot: String, basePath: String): Boolean {
         return if (translationsRoot.isNotBlank()) {
-            val rootPath = "$basePath/$translationsRoot".trimEnd('/')
-            file.path.startsWith(rootPath)
+            isUnderRoot(file, translationsRoot, basePath)
         } else {
             val parent = file.parent?.name ?: return false
             val stem = file.nameWithoutExtension
             looksLikeLocale(parent) || looksLikeLocale(stem)
         }
+    }
+
+    /** True when [file] lies inside basePath/[translationsRoot] — `locales2/` is not under `locales`. */
+    private fun isUnderRoot(file: VirtualFile, translationsRoot: String, basePath: String): Boolean {
+        val rootPath = "$basePath/$translationsRoot".trimEnd('/')
+        return file.path == rootPath || file.path.startsWith("$rootPath/")
     }
 
     private fun findSourcesByConfiguration(project: Project): List<LocalizationSource> {
@@ -427,7 +432,14 @@ class LocalizationSourceService {
                     // Matched on the name first: it is the cheap test, and it discards nearly every file.
                     .filter { file -> localization.matches(localizationType, file, fileNames) && !isExcludedPath(file, project, exclusions) }
                     .mapNotNull { virtualFile ->
-                        sourceOf(project, localization, virtualFile, moduleMatch(config, virtualFile, basePath))
+                        val template = moduleMatch(config, virtualFile, basePath)
+                        // The configured root bounds this lookup as it bounds the full scan: any
+                        // `common.json` in the project — a serverless config, a fixture — used to be
+                        // a source of the `common` namespace, shown as a locale named after the file.
+                        if (template == null && config.translationsRoot.isNotBlank() &&
+                            !isUnderRoot(virtualFile, config.translationsRoot, basePath)
+                        ) return@mapNotNull null
+                        sourceOf(project, localization, virtualFile, template)
                     }
             }
         }

@@ -81,6 +81,25 @@ class LocalizationSourceServiceTest : PlatformBaseTest() {
     }
 
     /**
+     * A `common.json` outside the translations root — a serverless config elsewhere in a monorepo —
+     * was a source of the `common` namespace: the gutter listed it as a third locale named
+     * `common`, next to `en` and `fr`. The fixture's files never lie under a root built on
+     * `project.basePath`, so any configured root puts this file outside it.
+     */
+    @Test
+    fun findSources_byNamespace_ignoresAFileOutsideTheTranslationsRoot() {
+        addFileToProject("poc/serverless/common.json", """{"region":"eu-west-1"}""")
+        fun findCommon() = ReadAction.compute<List<LocalizationSource>, RuntimeException> {
+            project.service<LocalizationSourceService>().findSources(listOf("common"), project)
+        }
+
+        Assertions.assertFalse(findCommon().isEmpty(), "without a root, the file is found by its name")
+        myFixture.runWithConfig(Config(translationsRoot = "public/locales")) {
+            Assertions.assertTrue(findCommon().isEmpty(), "a file outside the root must not be a source")
+        }
+    }
+
+    /**
      * The tool window reaches [LocalizationSourceService.findAllSources] from a pooled thread
      * without holding a read action — `TreeViewPanel`, `TableViewPanel` and `TranslationStatsPanel`
      * all do. Validating the cached scan touches the PSI (`isValid`), so the service has to open
