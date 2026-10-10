@@ -9,6 +9,7 @@ import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.Messages
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import java.awt.BorderLayout
@@ -35,7 +36,16 @@ import com.intellij.ui.JBColor
  */
 internal class ModulesEditorPanel(
     private val settings: Settings,
-    private val project: Project
+    private val project: Project,
+    /** Asked before a preset overwrites templates typed by hand; a test answers it without a dialog. */
+    private val confirmOverwrite: (Component, String) -> Boolean = { parent, label ->
+        Messages.showYesNoDialog(
+            parent,
+            PluginBundle.message("settings.modules.preset.overwrite.message", label),
+            PluginBundle.message("settings.modules.preset.overwrite.title"),
+            null
+        ) == Messages.YES
+    }
 ) : ItemEditorPanel<ModuleConfig>() {
 
     private val nameField = boundTextField(PluginBundle.message("settings.modules.name"), 20) { module, value ->
@@ -165,14 +175,34 @@ internal class ModulesEditorPanel(
                 cellHasFocus: Boolean
             ): Component {
                 val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
-                (component as JLabel).text = presetLabel(value as? String ?: "")
+                val preset = value as? String ?: ""
+                // index -1 is the closed combo, showing the selected module's preset.
+                val custom = index == -1 && editor.selected()?.let(LayoutPresets::isCustom) == true
+                (component as JLabel).text =
+                    if (custom) PluginBundle.message("settings.modules.preset.custom", presetLabel(preset)) else presetLabel(preset)
                 return component
             }
         }
-        combo.addActionListener {
-            mutate { module -> module.copy(preset = combo.selectedItem as? String ?: "") }
-        }
+        combo.addActionListener { choosePreset(combo.selectedItem as? String ?: "") }
         return combo
+    }
+
+    /**
+     * Stores [preset] and fills the templates with its layout: at once when they hold nothing typed
+     * by hand, after confirmation otherwise. Written through the fields, so the resolution report
+     * follows as it does for a manual edit.
+     */
+    private fun choosePreset(preset: String) {
+        if (loading) return
+        val module = editor.selected() ?: return
+        if (module.preset == preset) return
+        mutate { it.copy(preset = preset) }
+        val layout = LayoutPresets.of(preset) ?: return
+        if (LayoutPresets.matches(module, layout)) return
+        if (!LayoutPresets.isReplaceable(module) && !confirmOverwrite(this, presetLabel(preset))) return
+        pathField.text = layout.pathTemplate
+        fileField.text = layout.fileTemplate
+        keyField.text = layout.keyTemplate
     }
 
     private fun createBrowseButton(): JButton {
@@ -233,6 +263,8 @@ internal class ModulesEditorPanel(
         callTemplateProblem.isVisible = callTemplate.isNotEmpty() && !CallTemplate.isValid(callTemplate)
         callTemplateProblem.text = if (callTemplateProblem.isVisible) PluginBundle.message("settings.modules.callTemplate.invalid") else ""
         resolutionArea.text = report(editor.selected())
+        // The closed combo shows *Custom* once the templates leave the preset's layout.
+        presetCombo.repaint()
     }
 
     // --- list rendering ---
@@ -254,7 +286,7 @@ internal class ModulesEditorPanel(
         // Pre-filled with the shape a module is expected to have: an empty row taught nothing.
         return ModuleConfig(
             name = PluginBundle.message("settings.modules.default.name", index),
-            pathTemplate = "{lang}/{ns}.json"
+            pathTemplate = LayoutPresets.NEW_MODULE_PATH_TEMPLATE
         )
     }
 
