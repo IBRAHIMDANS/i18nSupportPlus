@@ -8,16 +8,22 @@ package com.ibrahimdans.i18n.plugin.ide.settings
  */
 object FrameworkDetector {
 
-    /** Framework id to the dependency names that give it away. */
+    /**
+     * Framework id to the dependency names that give it away.
+     *
+     * A Nuxt project depends on `@nuxtjs/i18n`, which bundles `vue-i18n` without the project
+     * declaring it.
+     */
     val FRAMEWORK_KEYS: Map<String, List<String>> = mapOf(
         "i18next" to listOf("i18next", "react-i18next"),
-        "vue-i18n" to listOf("vue-i18n"),
+        "vue-i18n" to listOf("vue-i18n", "@nuxtjs/i18n"),
         "lingui" to listOf("@lingui/core", "@lingui/react", "@lingui/macro", "@lingui/react/macro"),
         "react-intl" to listOf("react-intl", "@formatjs/intl"),
         "ngx-translate" to listOf("@ngx-translate/core"),
         "transloco" to listOf("@jsverse/transloco", "@ngneat/transloco"),
         "svelte-i18n" to listOf("svelte-i18n"),
-        "i18n-js" to listOf("i18n-js")
+        "i18n-js" to listOf("i18n-js"),
+        "next-intl" to listOf("next-intl")
     )
 
     /** Framework id to the label shown on the wizard's checkbox. */
@@ -29,7 +35,8 @@ object FrameworkDetector {
         "ngx-translate" to "ngx-translate (Angular)",
         "transloco" to "Transloco (Angular)",
         "svelte-i18n" to "svelte-i18n",
-        "i18n-js" to "i18n-js (React Native / Expo)"
+        "i18n-js" to "i18n-js (React Native / Expo)",
+        "next-intl" to "next-intl"
     )
 
     /**

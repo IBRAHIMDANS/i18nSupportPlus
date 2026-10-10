@@ -36,6 +36,22 @@ class ModulePresetTest : PlatformBaseTest() {
         assertTrue(annotated("apps/vue/src/B.js", "\$t('common:missing')"), "vue-i18n's \$t is")
     }
 
+    /** react-intl's preset, the one #360 first suggested for next-intl, would drop this `t`. */
+    @Test
+    fun aNextIntlPresetKeepsTheTOfUseTranslations() = myFixture.runWithConfig(
+        Config(modules = listOf(ModuleConfig(name = "web", rootDirectory = "apps/web", preset = "next-intl")))
+    ) {
+        assertTrue(
+            annotated(
+                "apps/web/src/Home.tsx",
+                "import { useTranslations } from 'next-intl';\n" +
+                    "export const Home = () => { const t = useTranslations('Home'); return t('missing'); };"
+            ),
+            "next-intl's t is a call of a next-intl module"
+        )
+        assertFalse(annotated("apps/web/src/B.js", "\$t('common:missing')"), "vue-i18n's \$t is not")
+    }
+
     @Test
     fun outsideThePresetModuleEveryFrameworkApplies() = myFixture.runWithConfig(Config(modules = listOf(vueModule))) {
         assertTrue(annotated("apps/react/src/A.js", "t('common:missing')"))

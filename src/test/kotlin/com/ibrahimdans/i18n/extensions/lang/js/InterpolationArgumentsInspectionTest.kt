@@ -210,6 +210,28 @@ class InterpolationArgumentsInspectionTest : PlatformBaseTest() {
         assertTrue(warnings.single().endsWith(": name"), "$warnings")
     }
 
+    /** next-intl interpolates ICU `{name}`: under its preset, a missing variable is reported. */
+    @Test
+    fun aNextIntlPresetReadsSingleBraces() {
+        var warnings = emptyList<String>()
+        val config = Config(
+            defaultNs = "translation",
+            modules = listOf(ModuleConfig(name = "web", rootDirectory = "src", preset = "next-intl"))
+        )
+        myFixture.runWithConfig(config) {
+            myFixture.enableInspections(InterpolationArgumentsInspection::class.java)
+            myFixture.addFileToProject("en/translation.json", """{"greeting": "Hello {name}"}""")
+            val file = myFixture.addFileToProject(
+                "src/App.tsx",
+                "import { useTranslations } from 'next-intl';\n" +
+                    "export const App = () => { const t = useTranslations(); return t('greeting'); };"
+            )
+            myFixture.configureFromExistingVirtualFile(file.virtualFile)
+            warnings = myFixture.doHighlighting().mapNotNull { it.description }.filter { it.contains("not passed to the call") }
+        }
+        assertTrue(warnings.single().endsWith(": name"), "$warnings")
+    }
+
     /** svelte-i18n reads its variables from `values`, and interpolates ICU `{name}`. */
     @Test
     fun svelteI18nReadsTheValuesObject() {

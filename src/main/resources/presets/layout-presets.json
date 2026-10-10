@@ -24,6 +24,11 @@
     "keyTemplate": "{key}",
     "source": "https://ngx-translate.org/getting-started/translation-files/ (public/i18n since Angular 18)"
   },
+  "next-intl": {
+    "pathTemplate": "messages/{lang}.json",
+    "keyTemplate": "{key}",
+    "source": "https://next-intl.dev/docs/getting-started/app-router (messages/en.json at the project root)"
+  },
   "transloco": {
     "pathTemplate": "src/assets/i18n/{lang}.json",
     "keyTemplate": "{key}",
