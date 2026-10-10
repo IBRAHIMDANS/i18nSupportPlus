@@ -1,12 +1,15 @@
 package com.ibrahimdans.i18n.plugin.ide.dialog
 
 import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.plugin.ide.actions.DeleteI18nKeyAction
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.CommandProcessor
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.InputValidator
@@ -27,6 +30,8 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.NamedColorUtil
 import java.awt.BorderLayout
+import java.awt.event.ActionEvent
+import javax.swing.Action
 import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JComponent
@@ -384,6 +389,37 @@ class TranslationDialog(
             ?.text
             ?: return
         textAreas.values.filter { it.text.isBlank() }.forEach { it.text = value }
+    }
+
+    /**
+     * EDIT only: *Delete*, left of OK / Cancel, removes the key the way *Delete i18n Key* does —
+     * every locale shown, a plural with all its forms, the usages listed before a key still in
+     * use goes. Built here rather than in a property: [init] asks for it before the class's
+     * later properties exist.
+     */
+    override fun createLeftSideActions(): Array<Action> = leftSideActions()
+
+    /** The actions left of OK / Cancel; readable from tests, where a dialog has no buttons to find. */
+    internal fun leftSideActions(): Array<Action> =
+        if (mode != Mode.EDIT) emptyArray()
+        else arrayOf(object : DialogWrapperAction(PluginBundle.message("dialog.translation.delete")) {
+            override fun doAction(e: ActionEvent?) = deleteKey()
+        })
+
+    /**
+     * Deletes the key once the user confirms, then closes with OK: the panels that opened the
+     * dialog reload on OK, as they do after an edit. Cancelled, the dialog stays open.
+     */
+    internal fun deleteKey() {
+        val title = PluginBundle.message("action.delete.key.title")
+        val module = DeleteI18nKeyAction.moduleHolding(sources.filterValues { it != null }.keys, Settings.getInstance(project).config())
+        val plan = ProgressManager.getInstance().runProcessWithProgressSynchronously<DeleteI18nKeyAction.Plan, RuntimeException>(
+            { ReadAction.compute<DeleteI18nKeyAction.Plan, RuntimeException> { DeleteI18nKeyAction.planOf(project, fullKey.source, module) } },
+            title,
+            true,
+            project
+        )
+        if (DeleteI18nKeyAction.confirmAndDelete(project, plan, title)) close(OK_EXIT_CODE)
     }
 
     override fun doOKAction() {
