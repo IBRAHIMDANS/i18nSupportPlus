@@ -39,7 +39,7 @@ A setup wizard auto-configures it on first launch.
 | Framework | Recognised syntaxes | Config-based |
 |-----------|--------------------|:------------:|
 | i18next / react-i18next | `t('ns:key')`, `` t(`key.${suffix}`) ``, `t('key', { ns: 'other' })`, `useTranslation('ns')`, `<Trans i18nKey="key">` | Yes |
-| vue-i18n (Nuxt: `@nuxtjs/i18n`) | `$t('key')`, `$tc('key')`, `$te('key')` | No |
+| vue-i18n (Nuxt: `@nuxtjs/i18n`) | `$t('key')`, `$tc('key')`, `$te('key')`, `<i18n-t keypath="key">`, `v-t="'key'"` | No |
 | next-intl | `const t = useTranslations('Home')` then `t('title')`, read as the key `Home.title` | No |
 | lingui (`@lingui/core`, `@lingui/react`, `@lingui/macro`) | `msg('key')`, `i18n._('key')`, source-based `<Trans>Hello world!</Trans>` | No |
 | react-intl (FormatJS) | `formatMessage({ id: 'key' })`, `<FormattedMessage id="key" />` | No |
@@ -378,7 +378,7 @@ Per-format settings; the first one is the **indentation of the keys generated in
 | Plugin | Required | Enables |
 |--------|:--------:|---------|
 | JavaScript | Yes | Core JS/TS support |
-| Vue.js | No | vue-i18n support (`$t`, `$tc`, `$te`) |
+| Vue.js | No | vue-i18n support (`$t`, `$tc`, `$te`, `<i18n-t keypath>`, `v-t`) |
 | YAML | No | `.yaml`/`.yml` translation files |
 | PHP | No | PHP language support |
 | Localization | No | PO/POT gettext files |
