@@ -137,7 +137,6 @@ class UnusedKeysFixtureTest : PlatformBaseTest() {
         assertTrue(reported.isEmpty(), "reported: $reported")
     }
 
-    @Disabled("Gap #408: the inspection reads only references, and neither a hook's keyPrefix nor a `{ ns }` option leaves one on the key; the scan handles both (countPrefixedUsages, ReferencesAccumulator)")
     @Test
     fun `inspection - keys used through a key prefix or an ns option are never reported`() = withSingle {
         val reported = inspectionReports(*TRANSLATION_FILES).intersect(NEVER_DELETED_INDIRECT)
@@ -200,7 +199,7 @@ class UnusedKeysFixtureTest : PlatformBaseTest() {
         assertEquals(scanOrphans(), cleanupCandidates())
     }
 
-    @Disabled("Gaps #408 and #410: the inspection misses the orphans sharing a name with another JSON property, and reports the keys used through a key prefix or an ns option")
+    @Disabled("Gap #410: the inspection misses the orphans sharing a name with another JSON property")
     @Test
     fun `the inspection reports what the scan offers`() = withSingle {
         assertEquals(scanOrphans(), inspectionReports(*TRANSLATION_FILES))

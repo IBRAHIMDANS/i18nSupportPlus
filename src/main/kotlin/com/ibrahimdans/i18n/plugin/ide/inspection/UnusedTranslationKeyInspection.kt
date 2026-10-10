@@ -41,7 +41,8 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
     /**
      * Reports the leaf key [declaration] when nothing refers to it: no reference search hit on
      * [declaration], no resolving reference held by [named] — the element carrying the key's
-     * name — no dynamic key reaching it, and no rule of the project's [KeepList] keeping it.
+     * name — no call site naming it under a key prefix or an `ns` option, no dynamic key reaching
+     * it, and no rule of the project's [KeepList] keeping it.
      * The problem sits on [anchor].
      */
     private fun check(
@@ -54,7 +55,8 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
         val hasRefs = ReadAction.compute<Boolean, RuntimeException> {
             TranslationKeyUsages.count(declaration, named, limit = 1) > 0
         }
-        if (hasRefs || TranslationKeyUsages.kept(named) || TranslationKeyUsages.reachedDynamically(named, heads)) return
+        if (hasRefs || TranslationKeyUsages.kept(named) || TranslationKeyUsages.indirectCount(named) > 0 ||
+            TranslationKeyUsages.reachedDynamically(named, heads)) return
         val key = ReadAction.compute<String, RuntimeException> {
             TranslationKeyUsages.keyOf(named, Settings.getInstance(named.project).config())
         }

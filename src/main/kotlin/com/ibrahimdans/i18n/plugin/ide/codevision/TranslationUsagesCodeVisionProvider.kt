@@ -24,7 +24,7 @@ import com.intellij.psi.util.PsiTreeUtil
  * never. A click opens the usages, as *Find Usages* on the key does.
  *
  * Counted the way *Unused translation key* decides ([TranslationKeyUsages]): the references found
- * on the property, then — for a key nothing names — whether a key the code builds at runtime
+ * on the property, or the call sites naming it under a key prefix or an `ns` option, then — for a key nothing names — whether a key the code builds at runtime
  * (`t(`menu.${'$'}{id}`)`) may reach it, shown as "dynamic usage" rather than "no usages", or
  * whether the project's keep list declares it used, shown as "kept".
  *
@@ -48,6 +48,8 @@ class TranslationUsagesCodeVisionProvider : DaemonBoundCodeVisionProvider {
         val heads = mutableMapOf<String, Set<String>>()
         return leaves.map { property ->
             val count = TranslationKeyUsages.count(property, property.nameElement, MAX_USAGES + 1)
+                .takeIf { it > 0 }
+                ?: TranslationKeyUsages.indirectCount(property.nameElement)
             val text = when {
                 count > MAX_USAGES -> PluginBundle.message("codevision.usages.many", MAX_USAGES)
                 count > 0 -> PluginBundle.message("codevision.usages.count", count)

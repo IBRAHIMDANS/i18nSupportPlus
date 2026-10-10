@@ -8,6 +8,7 @@
 
 ### Bug Fixes
 
+- [Inspections] **Keys used under a hook's key prefix or with an `ns` option are no longer reported as unused**: `useTranslation('common', { keyPrefix: 'profile' })` then `t('name')`, or `t('label', { ns: 'other' })`, leave no reference on the key, and *Unused translation key* reported both with a *Delete* quick fix, while *Scan Orphans* knew they were used. The inspection and the usage count above each key now search for these call sites the way the scan does, through the same code (#408)
 - [Translations] **A file named after a namespace outside the translations root is no longer a source of that namespace**: with a root set, the full scan kept to it but the lookup by name did not, so any `common.json` in the project — a serverless config in a monorepo — answered `t('common:…')`. The gutter listed it as a third locale named `common`, reporting every key of the namespace as partially translated. A file a module template designates still counts wherever it lies, and a root no longer matches a sibling folder sharing its prefix (`locales2/` under `locales`)
 
 ### Tests

@@ -51,6 +51,18 @@ class TranslationUsagesCodeVisionProviderTest : PlatformBaseTest() {
         assertEquals("dynamic usage", labelsOf("locales/en/common.json")["ok"])
     }
 
+    /** A call under a hook's key prefix names only the key's tail, and leaves no reference on it. */
+    @Test
+    fun aKeyUsedUnderAKeyPrefixIsCounted() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        addFileToProject("locales/en/common.json", """{"profile": {"name": "Name"}}""")
+        addFileToProject(
+            "src/Profile.tsx",
+            "import { useTranslation } from 'react-i18next';\n" +
+                "export const P = () => { const { t } = useTranslation('common', { keyPrefix: 'profile' }); return t('name'); };"
+        )
+        assertEquals("1 usage", labelsOf("locales/en/common.json")["name"])
+    }
+
     /** A key the project keeps reads "kept", not "no usages": nothing in the code names it. */
     @Test
     fun aKeptKeyIsShownAsSuch() = myFixture.runWithConfig(Config(defaultNs = "translation", keptKeys = "errors.*")) {
