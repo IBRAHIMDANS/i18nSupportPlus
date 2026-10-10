@@ -27,7 +27,7 @@ whether a key exists, in which namespace, and whether it's translated everywhere
   sort keys alphabetically.
 - **Stay healthy** — tool window with tree/table views grouped by namespace, coverage
   stats per namespace and locale, Keys Synchronizer (propagate missing keys in bulk),
-  Scan Orphans (find unused keys), CSV export/import, and inspections for empty,
+  Scan Orphans (find keys no code refers to), CSV export/import, and inspections for empty,
   duplicate or inconsistent values.
 
 Works with **i18next, vue-i18n, lingui, react-intl, ngx-translate, Transloco, svelte-i18n & i18n-js**
@@ -199,7 +199,7 @@ Rename i18n keys across all translation files and source code references with **
 | Sync Keys | **Tools > i18n Support Plus**, tool window toolbar | Create in every locale the keys it lacks, with a batch dialog to fill the values |
 | Export Translations to CSV… | **Tools > i18n Support Plus** | One row per key, one column per locale |
 | Import Translations from CSV… | **Tools > i18n Support Plus** | Write values back from a CSV, with a preview of what changes before anything is written |
-| Cleanup Unused Keys… | **Tools > i18n Support Plus** | Scan the code for keys never used and delete the selected ones from every locale |
+| Cleanup Unused Keys… | **Tools > i18n Support Plus** | Find the keys no code refers to and delete the selected ones from every locale. A key used outside the code (API, config, database) cannot be detected: keep it in *Keys used outside the code* |
 
 ### Inspections
 
@@ -254,10 +254,10 @@ Flat table: a **Namespace** column while the rows span several namespaces, the *
 
 - Locale cells are **editable in place**; the value is written straight to the file, and the entry created when the locale lacks it
 - Namespace filter in the dropdown; right-click the header to hide locale columns
-- Status filter: keys missing or empty in a shown locale, unused, or holding a value another key of the same namespace holds too
+- Status filter: keys missing or empty in a shown locale, with no reference found, or holding a value another key of the same namespace holds too
 - **Scan Orphans** (toolbar) fills the Usage column; keys reached only through a dynamic key (`` t(`status.${kind}`) ``) are told from unused ones
 - Keys used outside the code (received from an API, stored elsewhere) can be listed in the settings, *Keys used outside the code* (`errors.*`, `*.label`, `common:status.ok`): they show as *Kept* and are never offered for deletion
-- Right-click: edit, open file, delete an unused key
+- Right-click: edit, open file, delete a key with no reference found
 
 ![Tool Window Table](docs/img/toolwindow-table.png)
 ![Tool Window namespace filter](docs/img/toolwindow-table-namespace-filter.png)
