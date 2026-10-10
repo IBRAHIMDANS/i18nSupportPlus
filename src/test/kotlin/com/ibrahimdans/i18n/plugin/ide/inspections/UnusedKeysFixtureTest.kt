@@ -38,7 +38,7 @@ class UnusedKeysFixtureTest : PlatformBaseTest() {
     override fun getTestDataPath(): String = "src/test/resources/unusedKeys"
 
     private companion object {
-        const val UNUSED_MSG = "Translation key is never used in code"
+        const val UNUSED_MSG = "No reference to this key found in code"
 
         val TRANSLATION_FILES = arrayOf("locales/en/common.json", "locales/en/admin.json", "locales/en/other.json")
 

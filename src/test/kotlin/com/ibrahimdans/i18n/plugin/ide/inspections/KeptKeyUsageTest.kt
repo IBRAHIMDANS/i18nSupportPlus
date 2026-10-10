@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test
 class KeptKeyUsageTest : PlatformBaseTest() {
 
     private companion object {
-        const val UNUSED_MSG = "Translation key is never used in code"
+        const val UNUSED_MSG = "No reference to this key found in code"
         const val CATALOG = """{"errors":{"timeout":"Timed out","offline":"Offline"},"menu":{"home":"Home"}}"""
     }
 

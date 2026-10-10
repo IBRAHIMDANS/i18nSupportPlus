@@ -40,7 +40,7 @@ Sources : `~/Pictures/Screenshots/Screenshot from 2026-09-14 14-4*.png`, rognée
 #### Tool Window — Orphans
 - **Fichier** : `toolwindow-table-orphans.png`
 - **Comment** : onglet **Table**, après **Scan Orphans** (toolbar), clic droit sur une ligne *Unused*
-- **Contenu** : la colonne Usage remplie, le menu contextuel ouvert avec *Delete unused key*
+- **Contenu** : la colonne Usage remplie, le menu contextuel ouvert avec *Delete key with no reference found*
 - **Périmé car** : capture d'avril, sans colonne Namespace ni états *Dynamic*
 
 ### À vérifier

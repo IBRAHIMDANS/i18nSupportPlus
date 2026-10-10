@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test
 class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
 
     private companion object {
-        const val UNUSED_MSG = "Translation key is never used in code"
+        const val UNUSED_MSG = "No reference to this key found in code"
     }
 
     private fun unusedWarnings(content: String, fileName: String = "en.json"): List<String> {
@@ -103,7 +103,7 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
     // whatever its position, or the JSON file is left corrupted ({,"b":…}).
 
     /**
-     * Applies the "Delete unused key" quick fix at the caret and compares the
+     * Applies the "Delete key with no reference found" quick fix at the caret and compares the
      * result ignoring whitespace: the intention infrastructure reformats the
      * modified range (inserting newlines/indent), which is irrelevant here.
      * What must hold is that no dangling comma survives — `{,"b":…}` would
