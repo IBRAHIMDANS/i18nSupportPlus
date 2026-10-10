@@ -154,4 +154,16 @@ class RenameKeyLevelTest : PlatformBaseTest() {
         assertTrue(text("locales/en/common.json").contains("\"button\": {\"store\": \"Save\""), text("locales/en/common.json"))
         assertFalse(text("locales/en/common.json").contains("\"actions\""))
     }
+
+    @Test
+    fun aYamlLevelIsRenamedToo() {
+        addFileToProject("locales/en/common.yml", "button:\n  save: Save\n  cancel: Cancel\n")
+        addFileToProject("src/Explicit.js", "export const b = (t) => t('common:button.cancel');")
+        myFixture.configureByText("First.js", "export const a = (t) => t('common:but<caret>ton.save');")
+
+        renameAtCaret("actions")
+
+        assertTrue(text("locales/en/common.yml").startsWith("actions:\n  save: Save"), text("locales/en/common.yml"))
+        assertTrue(text("src/Explicit.js").contains("t('common:actions.cancel')"), text("src/Explicit.js"))
+    }
 }
