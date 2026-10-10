@@ -31,6 +31,7 @@
 
 ### Tests
 
+- [References] **Every path that reads a key runs the key resolution fixtures**: `KeyResolutionPathsFixtureTest` takes the cases of `KeyResolutionFixtureTest` through the hint, the inlay hint, folding, the gutter icon and completion (a hook's namespace, a key prefix, a module's own keys), in a monorepo checking that no other module's value shows. Two gaps are documented as disabled tests: `<Trans i18nKey>` shows no hint and is not folded
 - [References] **One fixture project for the hard cases of key resolution**: `KeyResolutionFixtureTest` runs an explicit and a default namespace, nested keys, a hook's namespace and key prefix, an `ns` option, a plural key, unknown keys and namespaces, a dynamic key and a three-module monorepo (each module resolving in its own files, a module key template) through annotation and Ctrl+click. Two gaps are documented as disabled tests: `<Trans i18nKey>` neither navigates nor reports an unknown key
 - [Inspections] **One fixture project for the hard cases of unused keys**: `UnusedKeysFixtureTest` runs template literals, key rules, hook namespaces and prefixes, `fallbackNS`, the keep list and a two-module monorepo through the inspection, *Scan Orphans* and *Cleanup Unused Keys*, asserting both what is reported and what must never be (#369)
 
