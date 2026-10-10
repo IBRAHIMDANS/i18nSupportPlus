@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.plugin.factory.CallTemplate
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.dialog.ExtractKeyDialog
@@ -66,7 +67,7 @@ class ExtractI18nIntentionAction : PsiElementBaseIntentionAction(), IntentionAct
         ReadAction.nonBlocking<ExtractKeyModel> {
             ExtractKeyModel.load(
                 project, element, text, ExistingKeyFinder.find(text, element),
-                extractor.call(element), extractor.variables(element), extractor.scopeNamespaces(element)
+                CallTemplate.call(extractor, element), extractor.variables(element), extractor.scopeNamespaces(element)
             )
         }
             .inSmartMode(project)
@@ -131,7 +132,7 @@ class ExtractI18nIntentionAction : PsiElementBaseIntentionAction(), IntentionAct
             return
         }
         val i18nKey = requestResult.key
-        val template = extractor.template(element)
+        val template = CallTemplate.template(extractor, element)
         val range = extractor.textRange(element)
         keyCreator.createKey(project, i18nKey, text, editor) {
             document.replaceString(range.startOffset, range.endOffset, template("'${i18nKey.source}'"))

@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.extensions.lang.js.HardcodedJsxTextInspection
+import com.ibrahimdans.i18n.plugin.factory.CallTemplate
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
@@ -175,7 +176,7 @@ class BatchExtractI18nAction : AnAction() {
         val extractor: TranslationExtractor,
         val marker: RangeMarker
     ) {
-        private val template = extractor.template(candidate.literal)
+        private val template = CallTemplate.template(extractor, candidate.literal)
 
         fun apply(editor: Editor, source: String) {
             if (marker.isValid) {
