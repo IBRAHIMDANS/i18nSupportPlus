@@ -83,6 +83,94 @@ class DynamicKeyUsageTest : PlatformBaseTest() {
         assertEquals(UsageStatus.ORPHAN, statusOf("common:menu.away"))
     }
 
+    @Test
+    fun `a key under a dynamic namespace is reachable in every namespace`() {
+        addFileToProject("locales/en/common.json", """{"status":{"ok":"OK","ko":"KO"}}""")
+        addFileToProject("locales/en/admin.json", """{"status":{"ok":"OK"}}""")
+        addFileToProject(
+            "src/Status.tsx",
+            "export const label = (ns: string) => i18n.t(`\${ns}:status.ok`);"
+        )
+
+        assertEquals(UsageStatus.DYNAMIC, statusOf("common:status.ok"))
+        assertEquals(UsageStatus.DYNAMIC, statusOf("admin:status.ok"))
+        // Its path is written in full: a sibling stays an orphan.
+        assertEquals(UsageStatus.ORPHAN, statusOf("common:status.ko"))
+    }
+
+    @Test
+    fun `a dynamic segment in the middle reaches only the keys with both static ends`() {
+        addFileToProject(
+            "locales/en/common.json",
+            """{"menu":{"home":{"label":"Home","icon":"house"}},"footer":{"home":{"label":"Home"}}}"""
+        )
+        addFileToProject(
+            "src/Menu.tsx",
+            "export const label = (id: string) => i18n.t(`common:menu.\${id}.label`);"
+        )
+
+        assertEquals(UsageStatus.DYNAMIC, statusOf("common:menu.home.label"))
+        assertEquals(UsageStatus.ORPHAN, statusOf("common:menu.home.icon"))
+        assertEquals(UsageStatus.ORPHAN, statusOf("common:footer.home.label"))
+    }
+
+    @Test
+    fun `a template with no static part reaches nothing`() {
+        addFileToProject("locales/en/common.json", """{"status":{"ok":"OK"}}""")
+        addFileToProject(
+            "src/Field.tsx",
+            "export const a = (name: string) => i18n.t(`\${name}`);\n" +
+                "export const b = (ns: string, key: string) => i18n.t(`\${ns}:\${key}`);\n" +
+                "export const c = () => i18n.t('status.ok');"
+        )
+
+        // `status.ok` is named outright, as a static literal, but under no namespace: still
+        // nothing a dynamic literal reaches.
+        assertTrue(statusOf("common:status.ok") != UsageStatus.DYNAMIC)
+    }
+
+    // ── The shape of a literal, without the platform ──────────────────────────
+
+    @Test
+    fun `the shape of a literal is its static head and tail`() {
+        assertEquals(DynamicKeyUsages.Shape("common:status.", ""), DynamicKeyUsages.shapeOf("common:status.\${kind}"))
+        assertEquals(DynamicKeyUsages.Shape("", ":status.ok"), DynamicKeyUsages.shapeOf("\${ns}:status.ok"))
+        assertEquals(DynamicKeyUsages.Shape("menu.", ".label"), DynamicKeyUsages.shapeOf("menu.\${id}.label"))
+        assertEquals(DynamicKeyUsages.Shape("a.", ".c"), DynamicKeyUsages.shapeOf("a.\${x}.b.\${y}.c"))
+    }
+
+    @Test
+    fun `a literal with nothing computed or nothing static has no shape`() {
+        assertEquals(null, DynamicKeyUsages.shapeOf("common:status.ok"))
+        assertEquals(null, DynamicKeyUsages.shapeOf("\${name}"))
+        assertEquals(null, DynamicKeyUsages.shapeOf("\${ns}\${key}"))
+    }
+
+    @Test
+    fun `a shape reaches a key starting with its head and ending with its tail`() {
+        val shape = DynamicKeyUsages.Shape("", ":status.ok")
+        assertTrue(shape.reaches("common:status.ok", "status.ok"))
+        assertTrue(!shape.reaches("common:status.ko", "status.ko"))
+        assertTrue(DynamicKeyUsages.Shape("menu.", ".label").reaches("common:menu.x.label", "menu.x.label"))
+        assertTrue(!DynamicKeyUsages.Shape("menu.", ".label").reaches("common:menu.x.icon", "menu.x.icon"))
+    }
+
+    // ── The words searched, without the platform ──────────────────────────────
+
+    @Test
+    fun `a suffix is dropped one segment at a time, from the namespace on`() {
+        assertEquals(listOf("a.b.c", "b.c"), DynamicKeyUsages.suffixesOf("ns:a.b.c", ":", "."))
+        assertEquals(listOf("status.ok"), DynamicKeyUsages.suffixesOf("common:status.ok", ":", "."))
+        assertTrue(DynamicKeyUsages.suffixesOf("common:title", ":", ".").isEmpty())
+    }
+
+    @Test
+    fun `keys sharing a tail are searched once`() {
+        val words = DynamicKeyUsages.searchWords(listOf("common:status.ok", "admin:status.ok"), ":", ".")
+
+        assertEquals(listOf("common:status", "status.ok", "admin:status"), words)
+    }
+
     // ── The prefixes searched, without the platform ───────────────────────────
 
     @Test
@@ -110,7 +198,10 @@ class DynamicKeyUsageTest : PlatformBaseTest() {
             ":", ".",
         )
 
-        assertEquals(listOf("common:status"), words)
+        assertEquals(
+            listOf("common:status", "status.pending", "status.accepted", "status.declined"),
+            words
+        )
     }
 
     @Test
