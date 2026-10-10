@@ -17,6 +17,10 @@
 - [Extraction] **A module can write its own wrapper's call**: *Call template* (`translate({key})`) replaces the call the intention and *Batch Extract* write for that module's files
 - [Translation dialog] **Delete the edited key**: *Delete* removes it from every locale, plural forms included, with the usual warning when it is still used and a single undo
 
+### Documentation
+
+- [Marketplace] **The plugin description says what the plugin does**: the generic summary is replaced by what sets it apart — the IDEs it runs in, every framework and file format, machine translation, plural forms per language, safe renames with one undo, health checks and custom calls
+
 ### Bug Fixes
 
 - [Inspections] **Unused-key reports are trustworthy again**: with two locales or more, *Unused translation key* never reported anything, a same-named JSON property counting as a usage, and Code Vision counted one usage per locale (#410). Keys used under a hook's `keyPrefix` or with an `ns` option were reported with a *Delete* quick fix (#408), and a key reached through a dynamic namespace (`` t(`${ns}:status.ok`) ``) was offered for deletion (#409)
