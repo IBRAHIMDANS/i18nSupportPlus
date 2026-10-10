@@ -5,7 +5,12 @@ import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
 import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
+import com.ibrahimdans.i18n.plugin.ide.actions.FillMissingTranslationsAction
+import com.ibrahimdans.i18n.plugin.ide.actions.MachineFill
+import com.ibrahimdans.i18n.plugin.ide.dialog.MachineTranslationPreviewDialog
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
+import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.application.ApplicationManager
@@ -616,7 +621,57 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             if (orphanKeys.isEmpty()) toolTipText = PluginBundle.message("toolwindow.table.no.action")
             addActionListener { deleteOrphanKeys(orphanKeys) }
         })
+        fillMenuItem(table.columnAtPoint(e.point))?.let { item ->
+            menu.addSeparator()
+            menu.add(item)
+        }
         menu.show(e.component, e.x, e.y)
+    }
+
+    /**
+     * *Fill Missing Translations in <locale>…* on a locale column, once the project opted in to
+     * machine translation: the module and the locale are the table's and the column's, so neither
+     * is asked again. Null on another column, on the reference locale itself, or without opt-in.
+     */
+    internal fun fillMenuItem(column: Int): JMenuItem? {
+        val target = localeAt(column) ?: return null
+        val provider = FillMissingTranslationsAction.machineTranslator(project) ?: return null
+        val config = Settings.getInstance(project).config()
+        val source = ReferenceLocale.of(moduleConfig, config, locales) ?: return null
+        if (source == target) return null
+        return JMenuItem(PluginBundle.message("toolwindow.table.fill.missing", target)).apply {
+            name = "toolwindow.table.fill.missing"
+            addActionListener { fillMissing(provider, source, target) }
+        }
+    }
+
+    /**
+     * The steps of [FillMissingTranslationsAction] for this table's module and [target]: translate in
+     * the background, preview, write in one command, then reload.
+     */
+    private fun fillMissing(provider: TranslationProvider, source: String, target: String) {
+        val title = PluginBundle.message("action.fill.title")
+        val pluralSeparator = Settings.getInstance(project).config().pluralSeparator
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, title, true) {
+            override fun run(indicator: ProgressIndicator) {
+                val translations = TranslationDataLoader.loadAllTranslations(project, moduleConfig)
+                val items = MachineFill.itemsOf(translations, source, target, pluralSeparator)
+                if (items.isEmpty()) {
+                    ApplicationManager.getApplication().invokeLater {
+                        Messages.showInfoMessage(project, PluginBundle.message("action.fill.nothing", target), title)
+                    }
+                    return
+                }
+                val proposals = MachineFill.translate(items, provider, source, target, indicator) ?: return
+                ApplicationManager.getApplication().invokeLater {
+                    val dialog = MachineTranslationPreviewDialog(project, target, proposals)
+                    if (dialog.showAndGet()) {
+                        MachineFill.write(project, moduleConfig, target, dialog.accepted())
+                        refresh()
+                    }
+                }
+            }
+        })
     }
 
     /**

@@ -1,6 +1,11 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.plugin.ide.actions.FillMissingTranslationsAction
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.translate.Translation
+import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
+import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
+import com.intellij.openapi.progress.ProgressIndicator
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.ui.TestDialog
@@ -246,6 +251,33 @@ class TableViewPanelTest : PlatformBaseTest() {
      * other way round. Getting that backwards produced a table whose key column read `en` and `fr`,
      * with two rows, which is exactly what a row count alone would have failed to catch.
      */
+    @Test
+    fun `a locale column offers to fill its missing translations once the project opted in`() {
+        stubTranslations()
+        val original = FillMissingTranslationsAction.machineTranslator
+        try {
+            val panel = TableViewPanel(project)
+            loadedTable(panel)
+
+            FillMissingTranslationsAction.machineTranslator = { null }
+            assertNull(panel.fillMenuItem(2), "no entry without machine translation")
+
+            FillMissingTranslationsAction.machineTranslator = {
+                object : TranslationProvider {
+                    override fun translate(request: TranslationRequest, indicator: ProgressIndicator?) = emptyList<Translation>()
+                }
+            }
+            val item = panel.fillMenuItem(2)
+            assertNotNull(item, "fr is a target")
+            assertTrue(item!!.text == PluginBundle.message("toolwindow.table.fill.missing", "fr"), item.text)
+            assertNull(panel.fillMenuItem(0), "not on the key column")
+            assertNull(panel.fillMenuItem(1), "not on the reference locale itself")
+            assertNull(panel.fillMenuItem(3), "not on the usage column")
+        } finally {
+            FillMissingTranslationsAction.machineTranslator = original
+        }
+    }
+
     private fun stubTranslations() {
         mockkObject(TranslationDataLoader)
         every { TranslationDataLoader.loadAllTranslations(project, null) } returns mapOf(
