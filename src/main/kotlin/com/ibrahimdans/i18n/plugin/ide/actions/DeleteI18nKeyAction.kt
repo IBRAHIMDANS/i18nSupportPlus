@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileKeys
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
 import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
@@ -67,32 +68,7 @@ class DeleteI18nKeyAction : AnAction() {
             true,
             project
         ) ?: return
-        if (plan.keys.isEmpty()) {
-            Messages.showInfoMessage(project, PluginBundle.message("action.delete.key.notFound", plan.shownKey), title)
-            return
-        }
-        if (!confirmed(project, plan, title)) return
-        val config = Settings.getInstance(project).config()
-        OrphanKeyDeleter(project, plan.module).delete(plan.keys.map { KeysSynchronizer().buildFullKey(it, config) })
-    }
-
-    private fun confirmed(project: Project, plan: Plan, title: String): Boolean {
-        if (plan.usages.isEmpty()) {
-            return Messages.showYesNoDialog(
-                project, PluginBundle.message("action.delete.key.confirm", plan.shownKey), title, Messages.getQuestionIcon()
-            ) == Messages.YES
-        }
-        val shown = plan.usages.take(USAGES_SHOWN).joinToString("\n") { "  $it" }
-        val more = plan.usages.size - USAGES_SHOWN
-        val list = if (more > 0) shown + "\n  " + PluginBundle.message("action.delete.key.used.more", more) else shown
-        return Messages.showYesNoDialog(
-            project,
-            PluginBundle.message("action.delete.key.used", plan.shownKey, plan.usages.size, list),
-            title,
-            PluginBundle.message("action.delete.key.anyway"),
-            Messages.getCancelButton(),
-            Messages.getWarningIcon()
-        ) == Messages.YES
+        confirmAndDelete(project, plan, title)
     }
 
     private fun elementAtCaret(e: AnActionEvent): PsiElement? {
@@ -104,6 +80,41 @@ class DeleteI18nKeyAction : AnAction() {
     internal companion object {
 
         private const val USAGES_SHOWN = 5
+
+        /**
+         * Asks the user, then deletes [plan]: the one flow of the action and of the translation
+         * dialog's *Delete* button. A key still used is deleted only once the user has seen where.
+         * Returns whether anything was deleted.
+         */
+        fun confirmAndDelete(project: Project, plan: Plan, title: String): Boolean {
+            if (plan.keys.isEmpty()) {
+                Messages.showInfoMessage(project, PluginBundle.message("action.delete.key.notFound", plan.shownKey), title)
+                return false
+            }
+            if (!confirmed(project, plan, title)) return false
+            val config = Settings.getInstance(project).config()
+            OrphanKeyDeleter(project, plan.module).delete(plan.keys.map { KeysSynchronizer().buildFullKey(it, config) })
+            return true
+        }
+
+        private fun confirmed(project: Project, plan: Plan, title: String): Boolean {
+            if (plan.usages.isEmpty()) {
+                return Messages.showYesNoDialog(
+                    project, PluginBundle.message("action.delete.key.confirm", plan.shownKey), title, Messages.getQuestionIcon()
+                ) == Messages.YES
+            }
+            val shown = plan.usages.take(USAGES_SHOWN).joinToString("\n") { "  $it" }
+            val more = plan.usages.size - USAGES_SHOWN
+            val list = if (more > 0) shown + "\n  " + PluginBundle.message("action.delete.key.used.more", more) else shown
+            return Messages.showYesNoDialog(
+                project,
+                PluginBundle.message("action.delete.key.used", plan.shownKey, plan.usages.size, list),
+                title,
+                PluginBundle.message("action.delete.key.anyway"),
+                Messages.getCancelButton(),
+                Messages.getWarningIcon()
+            ) == Messages.YES
+        }
 
         /** What deleting the key at [element] involves; needs a read action. */
         fun planOf(element: PsiElement): Plan? {
@@ -125,6 +136,33 @@ class DeleteI18nKeyAction : AnAction() {
             }
             if (keys.isEmpty()) return Plan(shownKey, emptyList(), emptyList(), null)
             return Plan(shownKey, keys, usagesOf(project, keys.toSet(), config), moduleOf(element, config))
+        }
+
+        /**
+         * What deleting [key] — spelled as the table spells it (`common:menu.home`) — involves in
+         * [module], for a caller holding a key rather than an element: the translation dialog.
+         * A plural is a group here too: `item`, `item_one` or `item_other` each take every form
+         * of `item` along. Needs a read action.
+         */
+        fun planOf(project: Project, key: String, module: ModuleConfig?): Plan {
+            val config = Settings.getInstance(project).config()
+            val base = PluralKey.stripSuffix(key, config.pluralSeparator)
+            val keys = TranslationDataLoader.loadAllTranslations(project, module).keys
+                .filter { it == key || PluralKey.stripSuffix(it, config.pluralSeparator) == base }
+                .sorted()
+            if (keys.isEmpty()) return Plan(key, emptyList(), emptyList(), module)
+            return Plan(key, keys, usagesOf(project, keys.toSet(), config), module)
+        }
+
+        /**
+         * The module all of [sources] belong to, or null when they span several or none: the
+         * translation dialog's *Delete* acts on the files it shows, in one module when they all
+         * sit in one.
+         */
+        fun moduleHolding(sources: Collection<LocalizationSource>, config: Config): ModuleConfig? {
+            if (config.modules.isEmpty()) return null
+            return sources.map { ModuleSources.owner(config.modules, TranslationDataLoader.projectPathOf(it)) }
+                .distinct().singleOrNull()
         }
 
         /** The i18n reference of the code literal [element] belongs to, or null. */
