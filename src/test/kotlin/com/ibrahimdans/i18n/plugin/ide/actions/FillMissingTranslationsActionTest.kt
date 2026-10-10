@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.progress.EmptyProgressIndicator
@@ -45,19 +46,69 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
         "common:count" to mapOf("en" to "{n, plural, one {# file} other {# files}}"),
     )
 
+    private val icu = PluginBundle.message("action.fill.icu")
+
     @Test
-    fun `only the keys the target lacks go, plurals left out`() {
-        val items = MachineFill.itemsOf(translations, "en", "fr", "_")
+    fun `only the keys the target lacks go, plural forms by the target's own`() {
+        val items = MachineFill.itemsOf(translations, "en", "fr", ".")
 
         Assertions.assertEquals(
-            listOf(MachineFill.Item("common:cancel", "Cancel"), MachineFill.Item("common:save", "Save {{what}}")),
+            listOf(
+                MachineFill.Item("common:cancel", "Cancel"),
+                MachineFill.Item("common:count", "{n, plural, one {# file} other {# files}}", skipped = icu),
+                MachineFill.Item("common:item_one", "{{count}} item"),
+                MachineFill.Item("common:item_other", "{{count}} items"),
+                MachineFill.Item("common:save", "Save {{what}}"),
+            ),
+            items.filter { it.key.substringAfterLast('_') != "many" },
+            "French gets `one` and `other` from the forms of the same name"
+        )
+    }
+
+    private val plural = mapOf(
+        "files:file_one" to mapOf("en" to "{{count}} file"),
+        "files:file_other" to mapOf("en" to "{{count}} files"),
+    )
+
+    @Test
+    fun `Russian gets four forms, the two English lacks marked for review`() {
+        val items = MachineFill.itemsOf(plural, "en", "ru", ".")
+
+        Assertions.assertEquals(
+            listOf(
+                MachineFill.Item("files:file_few", "{{count}} files", needsReview = true),
+                MachineFill.Item("files:file_many", "{{count}} files", needsReview = true),
+                MachineFill.Item("files:file_one", "{{count}} file"),
+                MachineFill.Item("files:file_other", "{{count}} files"),
+            ),
             items
         )
     }
 
     @Test
+    fun `Japanese gets only other, and a form already there is not asked again`() {
+        Assertions.assertEquals(listOf(MachineFill.Item("files:file_other", "{{count}} files")), MachineFill.itemsOf(plural, "en", "ja", "."))
+
+        val withRussianOne = plural + ("files:file_one" to mapOf("en" to "{{count}} file", "ru" to "{{count}} файл"))
+        Assertions.assertFalse(MachineFill.itemsOf(withRussianOne, "en", "ru", ".").any { it.key == "files:file_one" })
+    }
+
+    @Test
+    fun `a nested group is a plural, a lone category name is an ordinary key`() {
+        val nested = mapOf(
+            "common:steps.one" to mapOf("en" to "One step"),
+            "common:steps.other" to mapOf("en" to "{{count}} steps"),
+            "common:level.one" to mapOf("en" to "Level one"),
+        )
+        val items = MachineFill.itemsOf(nested, "en", "ja", ".")
+
+        Assertions.assertEquals(listOf("common:level.one", "common:steps.other"), items.map { it.key })
+        Assertions.assertFalse(items.first().needsReview)
+    }
+
+    @Test
     fun `each key is translated with itself as context, refusals kept as such`() {
-        val items = MachineFill.itemsOf(translations, "en", "fr", "_")
+        val items = MachineFill.itemsOf(translations, "en", "fr", ".").filter { it.key == "common:cancel" || it.key == "common:save" }
         val proposals = MachineFill.translate(
             items, engine { if ("Cancel" in it) Translation.Failed("quota") else Translation.Done("Enregistrer {{what}}") },
             "en", "fr", EmptyProgressIndicator()
@@ -72,7 +123,16 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
     fun `a cancelled run proposes nothing`() {
         val indicator = EmptyProgressIndicator().apply { cancel() }
 
-        Assertions.assertNull(MachineFill.translate(MachineFill.itemsOf(translations, "en", "fr", "_"), engine { Translation.Done("x") }, "en", "fr", indicator))
+        Assertions.assertNull(MachineFill.translate(MachineFill.itemsOf(translations, "en", "fr", "."), engine { Translation.Done("x") }, "en", "fr", indicator))
+    }
+
+    @Test
+    fun `an ICU plural is never sent and says why`() {
+        val item = MachineFill.Item("common:count", "{n, plural, one {# file} other {# files}}", skipped = icu)
+        val proposals = MachineFill.translate(listOf(item), engine { Translation.Done("x") }, "en", "fr", EmptyProgressIndicator())!!
+
+        Assertions.assertEquals(listOf(Translation.Failed(icu)), proposals.map { it.result })
+        Assertions.assertTrue(requests.isEmpty())
     }
 
     @Test
@@ -80,11 +140,15 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
         val proposals = listOf(
             MachineFill.Proposal(MachineFill.Item("common:save", "Save"), Translation.Done("Enregistrer")),
             MachineFill.Proposal(MachineFill.Item("common:cancel", "Cancel"), Translation.Failed("quota")),
+            MachineFill.Proposal(MachineFill.Item("files:file_few", "{{count}} files", needsReview = true), Translation.Done("{{count}} файла")),
         )
         val dialog = MachineTranslationPreviewDialog(project, "fr", proposals)
         try {
             Assertions.assertEquals(mapOf("common:save" to "Enregistrer"), dialog.accepted())
             Assertions.assertFalse(dialog.model.isCellEditable(1, 0), "a refused proposal cannot be checked")
+            Assertions.assertEquals(false, dialog.model.getValueAt(2, 0), "a form to review comes unchecked")
+            Assertions.assertEquals(PluginBundle.message("action.fill.review"), dialog.model.getValueAt(2, 4))
+            Assertions.assertTrue(dialog.model.isCellEditable(2, 0), "and can be checked once reviewed")
             dialog.model.setValueAt(false, 0, 0)
             Assertions.assertEquals(emptyMap<String, String>(), dialog.accepted())
         } finally {

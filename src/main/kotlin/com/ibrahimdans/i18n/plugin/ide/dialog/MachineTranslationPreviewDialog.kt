@@ -16,7 +16,8 @@ import javax.swing.table.DefaultTableModel
 
 /**
  * The preview of *Fill Missing Translations*: one row per key — keep it or not, key, source text,
- * proposal. A proposal the engine got wrong shows its reason instead, unchecked and locked.
+ * proposal, note. A proposal the engine got wrong, or a key not sent, shows its reason in the note,
+ * unchecked and locked. A plural form translated from `other` comes unchecked, noted for review.
  */
 internal class MachineTranslationPreviewDialog(
     project: Project,
@@ -29,7 +30,8 @@ internal class MachineTranslationPreviewDialog(
             "",
             PluginBundle.message("action.fill.column.key"),
             PluginBundle.message("action.fill.column.source"),
-            PluginBundle.message("action.fill.column.proposal")
+            PluginBundle.message("action.fill.column.proposal"),
+            PluginBundle.message("action.fill.column.note")
         ),
         0
     ) {
@@ -39,11 +41,13 @@ internal class MachineTranslationPreviewDialog(
 
     init {
         proposals.forEach { proposal ->
-            val (accepted, text) = when (val result = proposal.result) {
-                is Translation.Done -> true to result.text
-                is Translation.Failed -> false to PluginBundle.message("action.fill.rejected", result.reason)
+            val row = when (val result = proposal.result) {
+                is Translation.Done ->
+                    if (proposal.item.needsReview) Triple(false, result.text, PluginBundle.message("action.fill.review"))
+                    else Triple(true, result.text, "")
+                is Translation.Failed -> Triple(false, "", PluginBundle.message("action.fill.rejected", result.reason))
             }
-            model.addRow(arrayOf<Any>(accepted, proposal.item.key, proposal.item.source, text))
+            model.addRow(arrayOf<Any>(row.first, proposal.item.key, proposal.item.source, row.second, row.third))
         }
         title = PluginBundle.message("action.fill.preview.title", target, proposals.size)
         setOKButtonText(PluginBundle.message("action.fill.preview.ok"))
@@ -62,9 +66,14 @@ internal class MachineTranslationPreviewDialog(
         table.setShowGrid(false)
         table.columnModel.getColumn(0).maxWidth = 32
         val rejected = proposals.count { it.result is Translation.Failed }
+        val review = proposals.count { it.item.needsReview && it.result is Translation.Done }
         return JPanel(BorderLayout(0, 6)).apply {
             add(JScrollPane(table).apply { preferredSize = Dimension(820, 360) }, BorderLayout.CENTER)
-            if (rejected > 0) add(JBLabel(PluginBundle.message("action.fill.preview.rejected", rejected)), BorderLayout.SOUTH)
+            val notes = listOfNotNull(
+                PluginBundle.message("action.fill.preview.rejected", rejected).takeIf { rejected > 0 },
+                PluginBundle.message("action.fill.preview.review", review).takeIf { review > 0 }
+            )
+            if (notes.isNotEmpty()) add(JBLabel(notes.joinToString("<br>", "<html>", "</html>")), BorderLayout.SOUTH)
         }
     }
 }
