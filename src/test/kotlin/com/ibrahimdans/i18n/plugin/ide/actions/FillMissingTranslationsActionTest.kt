@@ -107,7 +107,7 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `each key is translated with itself as context, refusals kept as such`() {
+    fun `the keys go together, their keys in order as context, refusals kept as such`() {
         val items = MachineFill.itemsOf(translations, "en", "fr", ".").filter { it.key == "common:cancel" || it.key == "common:save" }
         val proposals = MachineFill.translate(
             items, engine { if ("Cancel" in it) Translation.Failed("quota") else Translation.Done("Enregistrer {{what}}") },
@@ -115,8 +115,32 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
         )!!
 
         Assertions.assertEquals(listOf(Translation.Failed("quota"), Translation.Done("Enregistrer {{what}}")), proposals.map { it.result })
-        Assertions.assertEquals(2, requests.size)
-        Assertions.assertTrue(requests.all { r -> r.source == "en" && r.target == "fr" && r.context.endsWith(items.first { it.source == r.texts.single() }.key) })
+        val request = requests.single()
+        Assertions.assertEquals(listOf("Cancel", "Save {{what}}"), request.texts, "one call for both keys")
+        Assertions.assertTrue(request.source == "en" && request.target == "fr")
+        Assertions.assertTrue(request.context.endsWith("common:cancel, common:save"), request.context)
+    }
+
+    @Test
+    fun `a module is cut into calls of at most fifty keys`() {
+        val items = (1..120).map { MachineFill.Item("common:k%03d".format(it), "text $it") }
+        val proposals = MachineFill.translate(items, engine { Translation.Done("FR $it") }, "en", "fr", EmptyProgressIndicator())!!
+
+        Assertions.assertEquals(listOf(50, 50, 20), requests.map { it.texts.size }.sortedDescending())
+        Assertions.assertEquals(items.map { "FR ${it.source}" }, proposals.map { (it.result as Translation.Done).text }, "each key keeps its own translation")
+    }
+
+    @Test
+    fun `a skipped item stays out of the call and keeps its place`() {
+        val items = listOf(
+            MachineFill.Item("common:a", "A"),
+            MachineFill.Item("common:count", "{n, plural, one {# file} other {# files}}", skipped = icu),
+            MachineFill.Item("common:b", "B"),
+        )
+        val proposals = MachineFill.translate(items, engine { Translation.Done("FR $it") }, "en", "fr", EmptyProgressIndicator())!!
+
+        Assertions.assertEquals(listOf(Translation.Done("FR A"), Translation.Failed(icu), Translation.Done("FR B")), proposals.map { it.result })
+        Assertions.assertEquals(listOf("A", "B"), requests.single().texts)
     }
 
     @Test

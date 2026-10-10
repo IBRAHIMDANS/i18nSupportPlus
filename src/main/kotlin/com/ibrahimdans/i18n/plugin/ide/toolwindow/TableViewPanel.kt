@@ -7,7 +7,6 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.actions.FillMissingTranslationsAction
 import com.ibrahimdans.i18n.plugin.ide.actions.MachineFill
-import com.ibrahimdans.i18n.plugin.ide.dialog.MachineTranslationPreviewDialog
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
@@ -641,38 +640,10 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         if (source == target) return null
         return JMenuItem(PluginBundle.message("toolwindow.table.fill.missing", target)).apply {
             name = "toolwindow.table.fill.missing"
-            addActionListener { fillMissing(provider, source, target) }
+            addActionListener { MachineFill.run(project, moduleConfig, source, target, provider, onWritten = ::refresh) }
         }
     }
 
-    /**
-     * The steps of [FillMissingTranslationsAction] for this table's module and [target]: translate in
-     * the background, preview, write in one command, then reload.
-     */
-    private fun fillMissing(provider: TranslationProvider, source: String, target: String) {
-        val title = PluginBundle.message("action.fill.title")
-        val keySeparator = Settings.getInstance(project).config().keySeparator
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, title, true) {
-            override fun run(indicator: ProgressIndicator) {
-                val translations = TranslationDataLoader.loadAllTranslations(project, moduleConfig)
-                val items = MachineFill.itemsOf(translations, source, target, keySeparator)
-                if (items.isEmpty()) {
-                    ApplicationManager.getApplication().invokeLater {
-                        Messages.showInfoMessage(project, PluginBundle.message("action.fill.nothing", target), title)
-                    }
-                    return
-                }
-                val proposals = MachineFill.translate(items, provider, source, target, indicator) ?: return
-                ApplicationManager.getApplication().invokeLater {
-                    val dialog = MachineTranslationPreviewDialog(project, target, proposals)
-                    if (dialog.showAndGet()) {
-                        MachineFill.write(project, moduleConfig, target, dialog.accepted())
-                        refresh()
-                    }
-                }
-            }
-        })
-    }
 
     /**
      * Header menu picking which locale columns are laid out. Six locales in a docked panel
