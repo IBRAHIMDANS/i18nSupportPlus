@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.dialog.MachineTranslationPreviewDialog
+import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
@@ -37,8 +38,8 @@ import java.util.concurrent.Future
  *
  * Nothing is written without the preview, a value already there is never replaced — checked again
  * right before writing — and a proposal the engine got wrong (a variable or tag lost) comes
- * unchecked with its reason. Plural keys are left out: their forms differ by language, which
- * [PluralTranslationPlan] handles.
+ * unchecked with its reason. A plural key is translated by the forms the *target* language has
+ * ([PluralTranslationPlan]): `few` and `many` for Russian, `other` alone for Japanese.
  */
 class FillMissingTranslationsAction : AnAction() {
 
@@ -71,7 +72,7 @@ class FillMissingTranslationsAction : AnAction() {
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, title, true) {
             override fun run(indicator: ProgressIndicator) {
                 val translations = TranslationDataLoader.loadAllTranslations(project, scope.config)
-                val items = MachineFill.itemsOf(translations, source, target, config.pluralSeparator)
+                val items = MachineFill.itemsOf(translations, source, target, config.keySeparator)
                 if (items.isEmpty()) {
                     ApplicationManager.getApplication().invokeLater {
                         Messages.showInfoMessage(project, PluginBundle.message("action.fill.nothing", target), title)
@@ -99,25 +100,56 @@ internal object MachineFill {
     /** At most this many requests at once: an engine's rate limit is easy to reach with a whole module. */
     const val PARALLEL_REQUESTS = 4
 
-    /** A key to translate, with its [source] text. */
-    data class Item(val key: String, val source: String)
+    /**
+     * A key to translate, with its [source] text. [needsReview]: a plural form translated from the
+     * source's `other`, the source having no form of its category. [skipped]: why it is not sent at all.
+     */
+    data class Item(val key: String, val source: String, val needsReview: Boolean = false, val skipped: String? = null)
 
     /** What the engine proposed for [item]. */
     data class Proposal(val item: Item, val result: Translation)
 
     /**
-     * The keys of [translations] (`key -> locale -> value`) whose [target] value is missing or blank
-     * and whose [source] value is not, sorted. Plural forms (`item_one`) and ICU plurals are left out.
+     * What to translate in [translations] (`key -> locale -> value`) from [source] to [target], sorted:
+     * - a plain key whose target value is missing or blank and whose source value is not;
+     * - for a plural group (`file_one` / `file_other`, or `steps.one` / `steps.other` — a key is a
+     *   plural form only when its group has an `other`), each form the target language needs and
+     *   lacks, from the source form of the same category or, marked for review, from `other`;
+     * - an ICU plural (`{count, plural, …}`), as a line saying why it is not translated.
      */
-    fun itemsOf(translations: Map<String, Map<String, String>>, source: String, target: String, pluralSeparator: String): List<Item> =
-        translations.entries
-            .filter { (key, values) ->
-                !values[source].isNullOrBlank() && values[target].isNullOrBlank() &&
-                    key.substringAfterLast(pluralSeparator, "") !in PluralCategories.ALL &&
-                    !PluralTranslationPlan.isIcuPlural(values.getValue(source))
+    fun itemsOf(translations: Map<String, Map<String, String>>, source: String, target: String, keySeparator: String): List<Item> {
+        val items = mutableListOf<Item>()
+        // other key -> category -> key, for the keys reading as plural forms of a group holding an `other`.
+        val groups = mutableMapOf<String, MutableMap<String, String>>()
+        for ((key, values) in translations) {
+            val form = TranslationDialog.pluralFormOf(key, keySeparator, CLDR_SUFFIX_SEPARATOR)
+            if (form != null && form.second in translations) {
+                groups.getOrPut(form.second) { mutableMapOf() }[form.first] = key
+                continue
             }
-            .map { (key, values) -> Item(key, values.getValue(source)) }
-            .sortedBy { it.key }
+            val text = values[source]
+            if (text.isNullOrBlank() || !values[target].isNullOrBlank()) continue
+            items += if (PluralTranslationPlan.isIcuPlural(text)) Item(key, text, skipped = PluginBundle.message("action.fill.icu"))
+            else Item(key, text)
+        }
+        for ((otherKey, forms) in groups) {
+            val sourceForms = forms.mapNotNull { (category, key) -> translations[key]?.get(source)?.let { category to it } }.toMap()
+            val existing = forms.mapNotNull { (category, key) -> translations[key]?.get(target)?.let { category to it } }.toMap()
+            when (val plan = PluralTranslationPlan.of(sourceForms, target, existing)) {
+                PluralTranslationPlan.Plan.IcuPlural ->
+                    if (existing.values.all { it.isBlank() }) {
+                        items += Item(otherKey, sourceForms[PluralCategories.OTHER].orEmpty(), skipped = PluginBundle.message("action.fill.icu"))
+                    }
+                is PluralTranslationPlan.Plan.Forms -> plan.forms.forEach { form ->
+                    items += Item(otherKey.removeSuffix(PluralCategories.OTHER) + form.category, form.source, form.needsReview)
+                }
+            }
+        }
+        return items.sortedBy { it.key }
+    }
+
+    /** Between a base and its CLDR category in i18next's flat convention, as [TranslationDialog] reads it. */
+    private const val CLDR_SUFFIX_SEPARATOR = "_"
 
     /**
      * Each item translated, [PARALLEL_REQUESTS] at a time, the key sent as context. Null when the
@@ -128,6 +160,7 @@ internal object MachineFill {
         try {
             val futures: List<Future<Translation>> = items.map { item ->
                 executor.submit<Translation> {
+                    item.skipped?.let { return@submit Translation.Failed(it) }
                     if (indicator?.isCanceled == true) return@submit Translation.Failed("")
                     val context = "A UI string of an application, under the i18n key ${item.key}"
                     provider.translate(TranslationRequest(listOf(item.source), source, target, context), indicator).single()

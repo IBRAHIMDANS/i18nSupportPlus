@@ -651,11 +651,11 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      */
     private fun fillMissing(provider: TranslationProvider, source: String, target: String) {
         val title = PluginBundle.message("action.fill.title")
-        val pluralSeparator = Settings.getInstance(project).config().pluralSeparator
+        val keySeparator = Settings.getInstance(project).config().keySeparator
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, title, true) {
             override fun run(indicator: ProgressIndicator) {
                 val translations = TranslationDataLoader.loadAllTranslations(project, moduleConfig)
-                val items = MachineFill.itemsOf(translations, source, target, pluralSeparator)
+                val items = MachineFill.itemsOf(translations, source, target, keySeparator)
                 if (items.isEmpty()) {
                     ApplicationManager.getApplication().invokeLater {
                         Messages.showInfoMessage(project, PluginBundle.message("action.fill.nothing", target), title)
