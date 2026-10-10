@@ -22,7 +22,8 @@ import java.util.ResourceBundle
 class ActionDeclarationBundleTest {
 
     private companion object {
-        val PLUGIN_XML = File("src/main/resources/META-INF/plugin.xml")
+        val META_INF = File("src/main/resources/META-INF")
+        val PLUGIN_XML = File(META_INF, "plugin.xml")
 
         /** An `<action>` or `<group>` element, up to the end of its attribute list. */
         val DECLARATION = Regex("""<(action|group)\s((?:[^<>"]|"[^"]*")*?)/?>""")
@@ -30,10 +31,17 @@ class ActionDeclarationBundleTest {
         val TEXT = Regex("""\btext="""")
     }
 
-    /** Ids of the declarations that rely on the bundle for their label, by element name. */
+    /**
+     * Ids of the declarations that rely on the bundle for their label, by element name — in
+     * `plugin.xml` and in the config files of its optional dependencies (`gitConfig.xml` declares
+     * *Compare Translations with Branch*), which label their actions from the same bundle.
+     */
     private fun bundledDeclarations(): List<Pair<String, String>> {
         assertTrue(PLUGIN_XML.isFile, "expected plugin.xml at ${PLUGIN_XML.absolutePath}")
-        val actions = PLUGIN_XML.readText().substringAfter("<actions>").substringBefore("</actions>")
+        val actions = META_INF.listFiles { file -> file.extension == "xml" }.orEmpty()
+            .map { it.readText() }
+            .filter { "<actions>" in it }
+            .joinToString("\n") { it.substringAfter("<actions>").substringBefore("</actions>") }
 
         return DECLARATION.findAll(actions)
             .mapNotNull { match ->
