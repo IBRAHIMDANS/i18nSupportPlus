@@ -43,6 +43,8 @@ open class JsLang : Lang {
          *    [isDirectOrConfiguredCall] rejects qualified calls by design;
          *  - svelte-i18n's `_` / `$_` carry no namespace options, so matching the call
          *    itself is more precise than matching a bare string literal.
+         *  - vue-i18n's `<i18n-t keypath>` and `v-t` directive hold the key in template markup,
+         *    outside any call.
          */
         private val SYNTAX_OWNED_EXTRACTORS: List<KeyExtractor> = listOf(
             REACT_INTL_EXTRACTOR,
@@ -50,6 +52,8 @@ open class JsLang : Lang {
             NgxTranslateExtractor(),
             TranslocoExtractor(),
             SvelteI18nExtractor(),
+            VueI18nKeypathExtractor(),
+            VueTDirectiveExtractor(),
         )
     }
 
@@ -151,6 +155,7 @@ private fun frameworkOf(extractor: KeyExtractor): String? = when (extractor) {
     is NgxTranslateExtractor, is NgxTranslatePipeExtractor -> "ngx-translate"
     is TranslocoExtractor, is TranslocoPipeExtractor -> "transloco"
     is SvelteI18nExtractor -> "svelte-i18n"
+    is VueI18nKeypathExtractor, is VueTDirectiveExtractor -> "vue-i18n"
     is LinguiTransKeyExtractor -> "lingui"
     else -> null
 }
