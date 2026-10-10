@@ -8,6 +8,7 @@ import io.mockk.mockk
 import io.mockk.unmockkAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -141,6 +142,20 @@ class ModulesEditorPanelTest {
         (requireByName(panel, "settings.modules.referenceLocale") as JTextField).text = "fr"
 
         assertEquals("fr", settings.modules[0].referenceLocale)
+    }
+
+    @Test
+    fun testTheCallTemplateIsEditableAndValidated() {
+        val (settings, panel) = panelWith(ModuleConfig(name = "frontend"))
+        val field = requireByName(panel, "settings.modules.callTemplate") as JTextField
+        val problem = requireByName(panel, "settings.modules.callTemplate.invalid")
+
+        field.text = "translate({key})"
+        assertEquals("translate({key})", settings.modules[0].callTemplate)
+        assertFalse(problem.isVisible, "a template holding one {key} is valid")
+
+        field.text = "translate()"
+        assertTrue(problem.isVisible, "a template without {key} must be flagged")
     }
 
     @Test

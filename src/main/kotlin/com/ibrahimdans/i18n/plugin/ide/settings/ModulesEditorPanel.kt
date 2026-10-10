@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.ibrahimdans.i18n.plugin.factory.CallTemplate
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleTemplateResolver.IssueKind
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleTemplateResolver.RootStatus
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleTemplateResolver.TemplateIssue
@@ -68,6 +69,17 @@ internal class ModulesEditorPanel(
             module.copy(referenceLocale = value)
         }
 
+    private val callTemplateField =
+        boundTextField(PluginBundle.message("settings.modules.callTemplate"), 24) { module, value ->
+            module.copy(callTemplate = value)
+        }
+
+    private val callTemplateProblem = JLabel().apply {
+        name = PluginBundle.message("settings.modules.callTemplate.invalid")
+        foreground = JBColor.RED
+        isVisible = false
+    }
+
     private val presetCombo = createPresetCombo()
 
     private val browseButton = createBrowseButton()
@@ -122,6 +134,10 @@ internal class ModulesEditorPanel(
         row(PluginBundle.message("settings.modules.referenceLocale")) {
             cell(referenceLocaleField).comment(PluginBundle.message("settings.modules.referenceLocale.comment"))
         }
+        row(PluginBundle.message("settings.modules.callTemplate")) {
+            cell(callTemplateField).comment(PluginBundle.message("settings.modules.callTemplate.comment"))
+        }
+        row("") { cell(callTemplateProblem) }
         group(PluginBundle.message("settings.modules.resolution")) {
             row { cell(resolutionArea).align(AlignX.FILL) }
         }
@@ -191,6 +207,7 @@ internal class ModulesEditorPanel(
         fileField.text = selected?.fileTemplate ?: ""
         keyField.text = selected?.keyTemplate ?: ""
         referenceLocaleField.text = selected?.referenceLocale ?: ""
+        callTemplateField.text = selected?.callTemplate ?: ""
         presetCombo.model = DefaultComboBoxModel(presetItems(selected?.preset ?: ""))
         presetCombo.selectedItem = selected?.preset ?: ""
         setFormEnabled(selected != null)
@@ -203,6 +220,7 @@ internal class ModulesEditorPanel(
         fileField.isEnabled = enabled
         keyField.isEnabled = enabled
         referenceLocaleField.isEnabled = enabled
+        callTemplateField.isEnabled = enabled
         presetCombo.isEnabled = enabled
         browseButton.isEnabled = enabled
     }
@@ -211,6 +229,9 @@ internal class ModulesEditorPanel(
         val template = editor.selected()?.keyTemplate.orEmpty()
         keyTemplateProblem.isVisible = template.isNotBlank() && KeyTemplate.parse(template) == null
         keyTemplateProblem.text = if (keyTemplateProblem.isVisible) PluginBundle.message("settings.modules.keyTemplate.invalid") else ""
+        val callTemplate = editor.selected()?.callTemplate.orEmpty().trim()
+        callTemplateProblem.isVisible = callTemplate.isNotEmpty() && !CallTemplate.isValid(callTemplate)
+        callTemplateProblem.text = if (callTemplateProblem.isVisible) PluginBundle.message("settings.modules.callTemplate.invalid") else ""
         resolutionArea.text = report(editor.selected())
     }
 
