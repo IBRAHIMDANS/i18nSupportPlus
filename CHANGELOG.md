@@ -5,6 +5,9 @@
 ### Features
 
 - [Inspections] **Keys used outside the code can be kept**: a key received from an API (`t(response.errorKey)`), stored in a database or read by a library leaves no trace in the code, so *Unused translation key*, *Scan Orphans* and *Cleanup Unused Keys* reported it with deletion one click away. *Keys used outside the code* in the settings lists the keys to keep — exact keys, prefixes (`errors.`) or globs (`errors.*`, `*.label`), with an optional namespace (`common:errors.*`). A kept key is never reported nor offered for deletion; the table shows it as *Kept* and Code Vision as "kept". *Keep this key* on the inspection adds it to the list. The list is a project setting, stored in `.idea/i18nSettings.xml` (#367)
+### Bug Fixes
+
+- [Translations] **A file named after a namespace outside the translations root is no longer a source of that namespace**: with a root set, the full scan kept to it but the lookup by name did not, so any `common.json` in the project — a serverless config in a monorepo — answered `t('common:…')`. The gutter listed it as a third locale named `common`, reporting every key of the namespace as partially translated. A file a module template designates still counts wherever it lies, and a root no longer matches a sibling folder sharing its prefix (`locales2/` under `locales`)
 
 ## 1.8.0 - 2026-10-09
 
