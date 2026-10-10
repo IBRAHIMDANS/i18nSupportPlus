@@ -26,6 +26,7 @@
 - [Inspections] **Unused-key reports are trustworthy again**: with two locales or more, *Unused translation key* never reported anything, a same-named JSON property counting as a usage, and Code Vision counted one usage per locale (#410). Keys used under a hook's `keyPrefix` or with an `ns` option were reported with a *Delete* quick fix (#408), and a key reached through a dynamic namespace (`` t(`${ns}:status.ok`) ``) was offered for deletion (#409)
 - [Inspections] **"No reference found" instead of "unused"**: the plugin knows no code refers to a key, not that it is unused. Messages, the table's Usage column and the cleanup preview say so, and point to *Keys used outside the code*. Action names are unchanged (#370)
 - [Translations] **A file outside the translations root no longer answers for a namespace**: any `common.json` in the project — a serverless config in a monorepo — answered `t('common:…')` and showed as an extra locale
+- [Refactoring] **Renaming a key no longer fails at random on a large project**: Shift+F6 collected the key's call sites from the search threads into a set not made for them, which two threads adding at once could corrupt, and the rename then stopped on an `ArrayIndexOutOfBoundsException`
 
 ### Tests
 
