@@ -19,6 +19,7 @@ import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiElement
+import com.intellij.psi.xml.XmlAttributeValue
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.xml.XmlText
@@ -64,14 +65,17 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
         }
     }
 
-    private fun resolveAllTranslations(sourceElement: PsiElement): String? {
-        val project = sourceElement.project
+    private fun resolveAllTranslations(hovered: PsiElement): String? {
+        val project = hovered.project
         val translationFunctionNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
 
-        val rawKey = Extensions.LANG.extensionList
-            .firstOrNull { it.canExtractKey(sourceElement, translationFunctionNames) }
-            ?.extractRawKey(sourceElement)
-            ?: return null
+        // The hovered element is the leaf token. A JS string literal's leaf is a key as it is; an
+        // attribute value's leaf (`<Trans i18nKey="…">`) is not — its key is the XmlAttributeValue above.
+        val candidates = listOfNotNull(hovered, (hovered.parent as? XmlAttributeValue))
+        val (sourceElement, lang) = candidates.firstNotNullOfOrNull { element ->
+            Extensions.LANG.extensionList.firstOrNull { it.canExtractKey(element, translationFunctionNames) }?.let { element to it }
+        } ?: return null
+        val rawKey = lang.extractRawKey(sourceElement) ?: return null
 
         val fullKey = RawKeyParser(project).parse(rawKey, sourceElement) ?: return null
 

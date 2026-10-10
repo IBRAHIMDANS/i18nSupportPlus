@@ -24,7 +24,6 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiRecursiveElementVisitor
 import com.intellij.psi.util.PsiTreeUtil
 import org.junit.jupiter.api.Assertions
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
@@ -67,11 +66,6 @@ class KeyResolutionPathsFixtureTest : PlatformBaseTest() {
             Case("monorepo", "apps/docs/src/Doc.tsx", "'guide.intro'", "Guide intro"),
         )
 
-        val TRANS = cases().single { it.path == "src/Trans.tsx" }
-
-        /** Every case but `<Trans i18nKey>`, which the hint and folding do not read yet — see their gap tests. */
-        @JvmStatic
-        fun callCases() = cases() - TRANS
     }
 
     private val display = Config(defaultNs = "common", pluralSeparator = "_", foldingEnabled = true, foldingPreferredLanguage = "en", foldingMaxLength = 40)
@@ -111,20 +105,9 @@ class KeyResolutionPathsFixtureTest : PlatformBaseTest() {
     })
 
     @ParameterizedTest
-    @MethodSource("callCases")
+    @MethodSource("cases")
     fun `the hint shows the value`(case: Case) = open(case) {
         assertShows(case, "hint", hintOf(case))
-    }
-
-    /**
-     * Gap: `HintProvider.generateDoc` is handed the leaf token under the caret, and
-     * `XmlAttributeKeyExtractor` only accepts the `XmlAttributeValue` above it — a JS string
-     * literal's leaf is accepted as it is, an attribute value's is not.
-     */
-    @Disabled("no hint on <Trans i18nKey>")
-    @Test
-    fun `the hint shows the value of a Trans i18nKey`() = open(TRANS) {
-        assertShows(TRANS, "hint", hintOf(TRANS))
     }
 
     // ── Inlay ─────────────────────────────────────────────────────────────────
@@ -180,16 +163,9 @@ class KeyResolutionPathsFixtureTest : PlatformBaseTest() {
     }
 
     @ParameterizedTest
-    @MethodSource("callCases")
+    @MethodSource("cases")
     fun `folding shows the value`(case: Case) = open(case) {
         assertShows(case, "folding", placeholders())
-    }
-
-    /** Gap: `JsFoldingBuilder` is built on `JsLang`, which lacks `JsxLang`'s `i18nKey` extractor (#443). */
-    @Disabled("<Trans i18nKey> is not folded")
-    @Test
-    fun `folding shows the value of a Trans i18nKey`() = open(TRANS) {
-        assertShows(TRANS, "folding", placeholders())
     }
 
     // ── Gutter ────────────────────────────────────────────────────────────────
