@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.translate
 
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.google.gson.JsonParser
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -120,6 +121,92 @@ class HttpTranslationProviderTest {
 
         assertEquals(listOf(Translation.Done("un"), Translation.Done("deux")), provider.translate(request.copy(texts = listOf("one", "two"))))
         assertEquals(1, second.calls.size, "only the failed text goes to the second engine")
+    }
+
+    private fun deeplAnswer(body: String): HttpTransport.Response {
+        val texts = JsonParser.parseString(body).asJsonObject["text"].asJsonArray.map { it.asString }
+        return ok(texts.joinToString(",", """{"translations":[""", "]}") { """{"text":"FR ${it.replace("\"", "\\\"")}"}""" })
+    }
+
+    @Test
+    fun `several texts go to DeepL in one request, in order`() {
+        val transport = FakeTransport(::deeplAnswer)
+
+        val result = HttpTranslationProvider(preset("deepl"), "k", transport)
+            .translate(request.copy(texts = listOf("one {{n}}", "two", "three")))
+
+        Assertions.assertEquals(listOf(Translation.Done("FR one {{n}}"), Translation.Done("FR two"), Translation.Done("FR three")), result)
+        val sent = JsonParser.parseString(transport.calls.single().third).asJsonObject["text"].asJsonArray.map { it.asString }
+        Assertions.assertEquals(listOf("""one <x id="0"/>""", "two", "three"), sent, "masked, in order")
+    }
+
+    @Test
+    fun `a batch is cut at the preset's size`() {
+        val engine = preset("deepl").let { it.copy(batch = it.batch!!.copy(maxSize = 2)) }
+        val transport = FakeTransport(::deeplAnswer)
+
+        val result = HttpTranslationProvider(engine, "k", transport).translate(request.copy(texts = listOf("a", "b", "c", "d", "e")))
+
+        Assertions.assertEquals(listOf("FR a", "FR b", "FR c", "FR d", "FR e"), result.map { (it as Translation.Done).text })
+        Assertions.assertEquals(listOf(2, 2, 1), transport.calls.map { call ->
+            JsonParser.parseString(call.third).asJsonObject["text"].asJsonArray.size()
+        })
+    }
+
+    @Test
+    fun `an answer short of a translation is retried text by text`() {
+        val transport = FakeTransport { body ->
+            val texts = JsonParser.parseString(body).asJsonObject["text"].asJsonArray
+            if (texts.size() > 1) ok("""{"translations":[{"text":"FR a"}]}""") else deeplAnswer(body)
+        }
+
+        val result = HttpTranslationProvider(preset("deepl"), "k", transport).translate(request.copy(texts = listOf("a", "b")))
+
+        Assertions.assertEquals(listOf(Translation.Done("FR a"), Translation.Done("FR b")), result)
+        Assertions.assertEquals(3, transport.calls.size, "one batch, then one request per text")
+    }
+
+    @Test
+    fun `an HTTP error on a batch fails its texts without retrying`() {
+        val transport = FakeTransport { HttpTransport.Response(429, "") }
+
+        val result = HttpTranslationProvider(preset("deepl"), "k", transport).translate(request.copy(texts = listOf("a", "b")))
+
+        Assertions.assertEquals(List(2) { Translation.Failed(PluginBundle.message("translate.error.rate", "DeepL")) }, result)
+        Assertions.assertEquals(1, transport.calls.size)
+    }
+
+    @Test
+    fun `an LLM answers a batch with a JSON array, fenced or not`() {
+        val transport = FakeTransport { body ->
+            val messages = JsonParser.parseString(body).asJsonObject["messages"].asJsonArray
+            val sent = JsonParser.parseString(messages[1].asJsonObject["content"].asString).asJsonArray.map { it.asString }
+            Assertions.assertEquals(listOf("""Hi <x id="0"/>""", "Bye"), sent, "the array travels as the user message")
+            ok("""{"choices":[{"message":{"content":"```json\n[\"Salut <x id=\\\"0\\\"/>\", \"Au revoir\"]\n```"}}]}""")
+        }
+
+        val result = HttpTranslationProvider(preset("openai-compatible"), "", transport).translate(request.copy(texts = listOf("Hi {{name}}", "Bye")))
+
+        Assertions.assertEquals(listOf(Translation.Done("Salut {{name}}"), Translation.Done("Au revoir")), result)
+    }
+
+    @Test
+    fun `a blank text in a batch is kept and not sent`() {
+        val transport = FakeTransport(::deeplAnswer)
+
+        val result = HttpTranslationProvider(preset("deepl"), "k", transport).translate(request.copy(texts = listOf("a", " ", "b")))
+
+        Assertions.assertEquals(listOf(Translation.Done("FR a"), Translation.Done(" "), Translation.Done("FR b")), result)
+        Assertions.assertEquals(2, JsonParser.parseString(transport.calls.single().third).asJsonObject["text"].asJsonArray.size())
+    }
+
+    @Test
+    fun `an engine without a batch form sends one request per text`() {
+        val transport = FakeTransport { ok("""{"translatedText":"x"}""") }
+
+        HttpTranslationProvider(preset("libretranslate"), "k", transport).translate(request.copy(texts = listOf("a", "b", "c")))
+
+        Assertions.assertEquals(3, transport.calls.size)
     }
 
     @Test

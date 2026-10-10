@@ -9,7 +9,14 @@
     "body": "{\"model\": \"llama3.1\", \"temperature\": 0, \"messages\": [{\"role\": \"system\", \"content\": \"Translate the user's text from {source} to {target}. It is a UI string of an application; context: {context}. Keep every <x id=\\\"N\\\"/> tag exactly as written, and reply with the translation only.\"}, {\"role\": \"user\", \"content\": \"{text}\"}]}",
     "responsePath": "choices[0].message.content",
     "local": true,
-    "source": "https://platform.openai.com/docs/api-reference/chat/create ; https://github.com/ollama/ollama/blob/main/docs/openai.md (Ollama serves /v1 locally, no key needed)"
+    "source": "https://platform.openai.com/docs/api-reference/chat/create ; https://github.com/ollama/ollama/blob/main/docs/openai.md (Ollama serves /v1 locally, no key needed)",
+    "batch": {
+      "body": "{\"model\": \"llama3.1\", \"temperature\": 0, \"messages\": [{\"role\": \"system\", \"content\": \"Translate each string of the JSON array the user sends from {source} to {target}. They are UI strings of an application; context: {context}. Keep every <x id=\\\"N\\\"/> tag exactly as written. Reply with a JSON array of the translations only: same order, same length, nothing else.\"}, {\"role\": \"user\", \"content\": \"{textsJson}\"}]}",
+      "listPath": "choices[0].message.content",
+      "jsonText": true,
+      "maxSize": 20,
+      "source": "No API limit: 20 is our choice, to stay within a small model's context and keep a failed batch cheap"
+    }
   },
   {
     "id": "deepl",
@@ -20,7 +27,14 @@
     },
     "body": "{\"text\": [\"{text}\"], \"source_lang\": \"{source}\", \"target_lang\": \"{target}\", \"tag_handling\": \"xml\", \"context\": \"{context}\"}",
     "responsePath": "translations[0].text",
-    "source": "https://developers.deepl.com/docs/api-reference/translate (Pro accounts: https://api.deepl.com/v2/translate) ; https://developers.deepl.com/docs/xml-and-html-handling/xml"
+    "source": "https://developers.deepl.com/docs/api-reference/translate (Pro accounts: https://api.deepl.com/v2/translate) ; https://developers.deepl.com/docs/xml-and-html-handling/xml",
+    "batch": {
+      "body": "{\"text\": {texts}, \"source_lang\": \"{source}\", \"target_lang\": \"{target}\", \"tag_handling\": \"xml\", \"context\": \"{context}\"}",
+      "listPath": "translations",
+      "itemField": "text",
+      "maxSize": 50,
+      "source": "https://developers.deepl.com/docs/api-reference/translate : no text count limit, request size limit 128 KiB; 50 UI strings stay far below it"
+    }
   },
   {
     "id": "libretranslate",
@@ -41,6 +55,13 @@
     "body": "{\"q\": \"{text}\", \"source\": \"{source}\", \"target\": \"{target}\", \"format\": \"html\"}",
     "responsePath": "data.translations[0].translatedText",
     "unescapeHtml": true,
-    "source": "https://cloud.google.com/translate/docs/reference/rest/v2/translate"
+    "source": "https://cloud.google.com/translate/docs/reference/rest/v2/translate",
+    "batch": {
+      "body": "{\"q\": {texts}, \"source\": \"{source}\", \"target\": \"{target}\", \"format\": \"html\"}",
+      "listPath": "data.translations",
+      "itemField": "translatedText",
+      "maxSize": 128,
+      "source": "https://docs.cloud.google.com/translate/docs/reference/rest/v2/translate : 'The maximum number of strings is 128.'"
+    }
   }
 ]
