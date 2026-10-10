@@ -39,6 +39,8 @@ dependencies {
         // PHP plugin is not bundled in IntelliJ Ultimate 2025.3.3 (build 253.31033)
         plugin("com.jetbrains.php:253.31033.19")
         bundledPlugin("org.jetbrains.plugins.vue")
+        // Git: Compare Translations with Branch, declared in gitConfig.xml only
+        bundledPlugin("Git4Idea")
         // GNU GetText support — available from build 251.x onwards
         plugin("org.jetbrains.plugins.localization:253.28294.218")
         // Svelte is not bundled in IntelliJ Ultimate; without it a .svelte file is PLAIN_TEXT,

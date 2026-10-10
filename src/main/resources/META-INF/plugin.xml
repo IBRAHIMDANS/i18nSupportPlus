@@ -159,6 +159,7 @@
     <depends optional="true" config-file="vueConfig.xml">org.jetbrains.plugins.vue</depends>
     <depends optional="true" config-file="angularConfig.xml">AngularJS</depends>
     <depends optional="true" config-file="plainObjectConfig.xml">org.jetbrains.plugins.localization</depends>
+    <depends optional="true" config-file="gitConfig.xml">Git4Idea</depends>
     <resource-bundle>messages.I18nBundle</resource-bundle>
     <extensionPoints>
         <extensionPoint interface="com.ibrahimdans.i18n.Localization" name="localization" dynamic="true"/>

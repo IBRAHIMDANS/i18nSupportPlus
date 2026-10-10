@@ -1,0 +1,10 @@
+<idea-plugin>
+    <actions>
+        <action id="com.ibrahimdans.i18n.CompareTranslationsWithBranch"
+                class="com.ibrahimdans.i18n.plugin.ide.diff.git.CompareTranslationsWithBranchAction"
+                icon="AllIcons.Actions.Diff">
+            <add-to-group group-id="com.ibrahimdans.i18n.ToolsMenu" anchor="after" relative-to-action="com.ibrahimdans.i18n.ShowTranslationChanges"/>
+            <add-to-group group-id="ChangesViewPopupMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>
