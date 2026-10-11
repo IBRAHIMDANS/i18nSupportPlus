@@ -217,4 +217,59 @@ class HttpTranslationProviderTest {
             assertTrue("{text}" in it.body, "${it.id} never sends the text")
         }
     }
+
+    // ── Language codes ────────────────────────────────────────────────────────
+
+    private fun sentLanguages(engine: EngineConfig, source: String, target: String, sourceField: String, targetField: String): Pair<String, String> {
+        val transport = FakeTransport { ok("""{"translations":[{"text":"x"}],"data":{"translations":[{"translatedText":"x"}]}}""") }
+        TranslationEngines.provider(listOf(engine), { "secret" }, transport).translate(TranslationRequest(listOf("Hello"), source, target))
+        val json = JsonParser.parseString(transport.calls.single().third).asJsonObject
+        return json[sourceField].asString to json[targetField].asString
+    }
+
+    private fun deepl(source: String, target: String) = sentLanguages(preset("deepl"), source, target, "source_lang", "target_lang")
+
+    private fun google(source: String, target: String) = sentLanguages(preset("google-cloud"), source, target, "source", "target")
+
+    @Test
+    fun `DeepL gets an upper-case source without region and a target with its variant`() {
+        assertEquals("FR" to "EN-US", deepl("fr", "en"))
+        assertEquals("EN" to "EN-GB", deepl("en_US", "en-gb"))
+        assertEquals("EN" to "PT-BR", deepl("en", "pt_BR"))
+        assertEquals("EN" to "PT-BR", deepl("en", "pt"))
+        assertEquals("PT" to "PT-PT", deepl("pt-BR", "pt_PT"))
+        assertEquals("EN" to "DE", deepl("en", "de"))
+    }
+
+    @Test
+    fun `DeepL gets Chinese by script and a region it lacks as the language`() {
+        assertEquals("ZH" to "ZH-HANS", deepl("zh_CN", "zh"))
+        assertEquals("EN" to "ZH-HANT", deepl("en", "zh_TW"))
+        assertEquals("EN" to "ZH-HANT", deepl("en", "zh-Hant"))
+        assertEquals("EN" to "FR", deepl("en", "fr_BE"))
+    }
+
+    @Test
+    fun `Google gets BCP-47 codes`() {
+        assertEquals("en" to "zh-CN", google("en", "zh_CN"))
+        assertEquals("pt-BR" to "zh-Hant", google("PT_br", "zh_hant"))
+        assertEquals("en" to "fr", google("en", "fr"))
+    }
+
+    @Test
+    fun `an engine whose body was rewritten keeps the project's labels`() {
+        val custom = preset("deepl").copy(body = preset("deepl").body.replace("\"context\": \"{context}\"", "\"formality\": \"less\""))
+        assertEquals("pt_BR" to "en", sentLanguages(custom, "pt_BR", "en", "source_lang", "target_lang"))
+    }
+
+    @Test
+    fun `DeepL Pro keeps the conversion`() {
+        val pro = preset("deepl").copy(url = "https://api.deepl.com/v2/translate")
+        assertEquals("EN" to "EN-US", sentLanguages(pro, "en", "en", "source_lang", "target_lang"))
+    }
+
+    @Test
+    fun `an LLM gets the project's labels`() {
+        assertEquals(null, TranslationEngines.languageCodes(preset("openai-compatible")))
+    }
 }

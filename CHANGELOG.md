@@ -6,6 +6,10 @@
 
 - [Export] **Export only the missing translations**: *Export Translations* offers *CSV, Missing Only* — the keys at least one locale lacks or leaves empty, with all their values, the reference included. Hand it to a translator; re-importing it writes only the cells they filled
 
+### Bug Fixes
+
+- [Translation] **DeepL and Google get the language codes they document**: the project's locale labels went out as written. DeepL now gets `FR` as source and `EN-US`, `PT-BR` or `ZH-HANT` as target — a region it lacks falls back to the language — and Google `zh-CN`, `pt-BR`. An engine whose request body was rewritten by hand keeps the labels as they are
+
 ## 1.9.0 - 2026-10-10
 
 ### Features
