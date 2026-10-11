@@ -252,8 +252,7 @@ internal class ExtractKeyDialog(
     private fun valueFields(): List<JBTextField> = fields.values + pluralFields.values.flatMap { it.values }
 
     /** The text with its placeholders as the variables are currently named. */
-    private fun currentText(): String =
-        model.variables.zip(variables).fold(model.text) { text, (original, current) -> text.replace(original.placeholder, current.placeholder) }
+    private fun currentText(): String = model.textFor(variables)
 
     /**
      * Follows a variable renamed in its field: its placeholder is renamed in every locale's

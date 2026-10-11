@@ -13,6 +13,9 @@ package com.ibrahimdans.i18n.plugin.ide.settings
  * [callTemplate] is the call written at extraction, `translate({key})`, where `{key}` stands for the
  * call's arguments. Empty, the default, keeps the call of the module's framework. It only writes the
  * call: reading the wrapper back as a translation call is the job of the *Key assistance rules*.
+ *
+ * [writeDefaultValue] makes an extraction write the text extracted in the call, as i18next's default
+ * value: `t('key', 'Text')`, `t('key', { defaultValue: 'Hello {{name}}', name })`. Off by default.
  */
 data class ModuleConfig(
     var name: String = "",
@@ -22,8 +25,9 @@ data class ModuleConfig(
     var rootDirectory: String = "",
     var preset: String = "",
     var referenceLocale: String = "",
-    var callTemplate: String = ""
+    var callTemplate: String = "",
+    var writeDefaultValue: Boolean = false
 ) {
     // Explicit no-arg constructor required by XmlSerializerUtil for List<T> serialization
-    constructor() : this("", "", "", "", "", "", "", "")
+    constructor() : this("", "", "", "", "", "", "", "", false)
 }
