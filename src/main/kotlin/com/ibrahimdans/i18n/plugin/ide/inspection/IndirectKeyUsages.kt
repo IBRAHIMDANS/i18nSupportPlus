@@ -54,7 +54,8 @@ internal object IndirectKeyUsages {
 
     /**
      * Usages of [keys] through a hook key prefix — react-i18next's `keyPrefix`, next-intl's
-     * `useTranslations('Home')` — keyed by the keys found, absent ones left out.
+     * `useTranslations('Home')` and `await getTranslations('Home')` — keyed by the keys found,
+     * absent ones left out.
      *
      * The call site writes only the key's last levels (`t('title')` for `header.title`), so the
      * last segment is searched as a word, and a literal counts only when the key it resolves to —

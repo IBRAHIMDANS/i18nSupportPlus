@@ -7,9 +7,11 @@ import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.lang.javascript.psi.JSArrayLiteralExpression
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSDestructuringElement
+import com.intellij.lang.javascript.psi.JSExpression
 import com.intellij.lang.javascript.psi.JSFunction
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.lang.javascript.psi.JSObjectLiteralExpression
+import com.intellij.lang.javascript.psi.JSParenthesizedExpression
 import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.lang.javascript.psi.JSVariable
 import com.intellij.psi.PsiElement
@@ -21,18 +23,22 @@ import com.intellij.psi.util.PsiTreeUtil
 /**
  * Extracts an i18n key from a string literal passed to a `t` obtained from a translation hook.
  *
- * Two hooks are recognised, and they give the hook's first argument different meanings:
+ * Two families are recognised, and they give the first argument different meanings:
  *  - react-i18next `useTranslation('ns' | ['ns1', 'ns2'], { keyPrefix })`: the argument names the
  *    namespaces, and the `keyPrefix` option is prepended to every key;
- *  - next-intl `useTranslations('Home')`: messages live in one file per locale, and the argument
- *    is the path of the object holding the keys — a key prefix, not a namespace.
+ *  - next-intl `useTranslations('Home')`, and its Server Component twin
+ *    `await getTranslations('Home' | { namespace: 'Home' })`: messages live in one file per locale,
+ *    and the argument is the path of the object holding the keys — a key prefix, not a namespace.
  */
 class ReactUseTranslationHookExtractor: KeyExtractor {
 
     private companion object {
         const val USE_TRANSLATION = "useTranslation"
         const val USE_TRANSLATIONS = "useTranslations"
-        val HOOKS = setOf(USE_TRANSLATION, USE_TRANSLATIONS)
+        const val GET_TRANSLATIONS = "getTranslations"
+        val NEXT_INTL_HOOKS = setOf(USE_TRANSLATIONS, GET_TRANSLATIONS)
+        val HOOKS = NEXT_INTL_HOOKS + USE_TRANSLATION
+        const val AWAIT = "await"
     }
 
     override fun canExtract(element: PsiElement): Boolean {
@@ -46,9 +52,11 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
 
     override fun extract(element: PsiElement): RawKey {
         val hook = resolveHook(element)
-        val isNextIntl = hook?.methodExpression?.text == USE_TRANSLATIONS
+        val isNextIntl = hook?.methodExpression?.text in NEXT_INTL_HOOKS
         val hookArguments = hook?.arguments.orEmpty()
-        val firstArgumentStrings = hookArguments.firstOrNull()?.let(::stringsOf).orEmpty()
+        val firstArgumentStrings = hookArguments.firstOrNull()?.let {
+            if (isNextIntl) listOfNotNull(nextIntlNamespace(it)) else stringsOf(it)
+        }.orEmpty()
 
         val hookNamespaces = if (isNextIntl) emptyList() else firstArgumentStrings
         val prefix = if (isNextIntl) firstArgumentStrings.firstOrNull() else keyPrefixOption(hookArguments.getOrNull(1))
@@ -72,6 +80,32 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
                 .filter { it.isQuotedLiteral }
                 .mapNotNull { it.stringValue }
         else -> emptyList()
+    }
+
+    /**
+     * next-intl's namespace: `useTranslations('Home')` / `getTranslations('Home')`, or the
+     * `namespace` of `getTranslations({ locale, namespace: 'Home' })`.
+     */
+    private fun nextIntlNamespace(argument: PsiElement): String? {
+        val literal = (argument as? JSObjectLiteralExpression)?.findProperty("namespace")?.value ?: argument
+        return (literal as? JSLiteralExpression)?.takeIf { it.isQuotedLiteral }?.stringValue
+    }
+
+    /**
+     * The call behind a variable initializer, seen through `await` and parentheses: next-intl's
+     * `const t = await getTranslations('Home')` initializes `t` from an await expression.
+     */
+    private fun callOf(expression: PsiElement?): JSCallExpression? {
+        if (expression == null) return null
+        return when (expression) {
+            is JSCallExpression -> expression
+            is JSParenthesizedExpression -> callOf(expression.innerExpression)
+            // `await` is the leading keyword of its expression, whatever PSI class the platform
+            // version gives it; the awaited operand is its only expression child.
+            else -> if (expression.firstChild?.text == AWAIT) {
+                callOf(PsiTreeUtil.getChildOfType(expression, JSExpression::class.java))
+            } else null
+        }
     }
 
     /** The `keyPrefix` of react-i18next's options object, when it is a plain string. */
@@ -102,12 +136,13 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
     private fun computeHook(call: JSCallExpression): JSCallExpression? {
         // Primary: follow reference to local definition. react-i18next destructures the hook's
         // result (`const { t } = useTranslation()`); next-intl returns `t` itself
-        // (`const t = useTranslations('Home')`), a plain variable initializer.
+        // (`const t = useTranslations('Home')`, `const t = await getTranslations('Home')`), a plain
+        // variable initializer.
         val definition = resolveTranslationFunctionDefinition(call)
         val viaRef = definition
             ?.let { resolveDestructuringElement(it) }
             ?.let { it.initializer as? JSCallExpression }
-            ?: (definition as? JSVariable)?.initializer as? JSCallExpression
+            ?: callOf((definition as? JSVariable)?.initializer)
         if (viaRef != null && viaRef.methodExpression?.text in HOOKS) return viaRef
 
         // Fallback: scope walk when reference resolution goes to type declarations
@@ -125,10 +160,9 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
             }
             ?.let { return it.initializer as? JSCallExpression }
         return PsiTreeUtil.findChildrenOfType(scope, JSVariable::class.java)
-            .firstOrNull { variable ->
-                variable.name == fnName &&
-                    (variable.initializer as? JSCallExpression)?.methodExpression?.text == USE_TRANSLATIONS
+            .filter { it.name == fnName }
+            .firstNotNullOfOrNull { variable ->
+                callOf(variable.initializer)?.takeIf { it.methodExpression?.text in NEXT_INTL_HOOKS }
             }
-            ?.initializer as? JSCallExpression
     }
 }

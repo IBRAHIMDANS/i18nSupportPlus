@@ -5,6 +5,7 @@
 ### Features
 
 - [Export] **Export only the missing translations**: *Export Translations* offers *CSV, Missing Only* — the keys at least one locale lacks or leaves empty, with all their values, the reference included. Hand it to a translator; re-importing it writes only the cells they filled
+- [next-intl] **Server Components keep their namespace**: under `const t = await getTranslations('Home')` — or `getTranslations({ locale, namespace: 'Home' })` — `t('title')` resolves to `Home.title` like under `useTranslations('Home')`: navigation, completion, hints, and no longer reported as an orphan. Without an argument, `t` works in the default namespace
 - [Translation] **The preview says which engine translated each proposal**: *Fill Missing Translations…* shows an *Engine* column — `Ollama (local)`, or `DeepL` when the local engine did not answer and the next one took over — so a text sent off the machine after a fallback is never a surprise
 - [Translation] **Reorder the machine translation engines**: *Move Up* / *Move Down* in an engine's form change the order they are tried in — the fallback order — instead of deleting and recreating them
 
