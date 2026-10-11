@@ -42,24 +42,41 @@ internal object ExistingKeyFinder {
     fun findAll(texts: Collection<String>, caller: PsiElement): Map<String, List<String>> {
         val wanted = texts.map { it.trim() }.filterTo(mutableSetOf()) { it.isNotEmpty() }
         if (wanted.isEmpty()) return emptyMap()
+        val found = linkedMapOf<String, LinkedHashSet<String>>()
+        referenceEntries(caller).forEach { (key, value) ->
+            val text = value.trim()
+            if (text in wanted) found.getOrPut(text) { linkedSetOf() } += key
+        }
+        return found.mapValues { (_, keys) -> keys.toList() }
+    }
+
+    /**
+     * Every key of the reference locale in the module owning [caller], spelled the way the code writes
+     * it, with its value — in file order. *Internationalize…* reads it to never give a new text the
+     * name of a key holding another one. A key spelled the same in two files keeps its first value.
+     */
+    fun referenceValues(caller: PsiElement): Map<String, String> =
+        referenceEntries(caller).fold(linkedMapOf()) { values, (key, value) -> values.apply { putIfAbsent(key, value) } }
+
+    /** Every `key -> value` of the reference locale in [caller]'s module, a key appearing once per file holding it. */
+    private fun referenceEntries(caller: PsiElement): List<Pair<String, String>> {
         val project = caller.project
         val config = Settings.getInstance(project).config()
         val module = ownerOf(caller, config)
         val sources = ModuleSources.sourcesOf(project, module).filter { it.hasRecognizedLocale() }
-        val locale = ReferenceLocale.of(module, config, sources.map { it.localeLabel() }.distinct()) ?: return emptyMap()
+        val locale = ReferenceLocale.of(module, config, sources.map { it.localeLabel() }.distinct()) ?: return emptyList()
         val defaultNamespace = config.defaultNamespaces().first()
-        val found = linkedMapOf<String, LinkedHashSet<String>>()
+        val entries = mutableListOf<Pair<String, String>>()
         sources
             .filter { it.localeLabel() == locale }
             .forEach { source ->
                 val file = ModuleSources.readableFile(source) ?: return@forEach
                 val namespace = TranslationDataLoader.extractNamespace(source, defaultNamespace)
                 TranslationFileKeys.translationLeaves(file).forEach { (path, value) ->
-                    val text = value.trim()
-                    if (text in wanted) found.getOrPut(text) { linkedSetOf() } += spell(namespace, path, config)
+                    entries += spell(namespace, path, config) to value
                 }
             }
-        return found.mapValues { (_, keys) -> keys.toList() }
+        return entries
     }
 
     /**
