@@ -7,5 +7,6 @@
   "wrapped": { "plain": "Plain", "member": "Member", "excluded": "Excluded" },
   "api": { "rateLimited": "Too many requests" },
   "shared": { "ok": "OK" },
-  "dead": { "key": "Never used" }
+  "dead": { "key": "Never used" },
+  "linked": { "target": "Saved", "user": "Click @:common:linked.target" }
 }
