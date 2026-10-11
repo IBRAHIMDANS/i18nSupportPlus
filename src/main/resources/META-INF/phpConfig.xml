@@ -5,8 +5,11 @@
         <completion.contributor language="PHP" implementationClass="com.ibrahimdans.i18n.extensions.lang.php.PhpCompletionContributor"/>
         <lang.foldingBuilder language="PHP" implementationClass="com.ibrahimdans.i18n.extensions.lang.php.PhpFoldingBuilder"/>
         <lang.documentationProvider language="PHP" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
+        <psi.referenceContributor language="PHP" implementation="com.ibrahimdans.i18n.extensions.localization.php.PhpArrayReferenceContributor"/>
     </extensions>
     <extensions defaultExtensionNs="com.ibrahimdans.i18n">
         <lang implementation="com.ibrahimdans.i18n.extensions.lang.php.PhpLang"/>
+        <localization implementation="com.ibrahimdans.i18n.extensions.localization.php.PhpArrayLocalization"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.localization.php.LaravelTranslationFiles"/>
     </extensions>
 </idea-plugin>
