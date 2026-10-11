@@ -41,6 +41,8 @@ open class JsLang : Lang {
          *  - ngx-translate and Transloco service calls are always qualified
          *    (`translate.instant('key')`, `translocoService.translate('key')`), and
          *    [isDirectOrConfiguredCall] rejects qualified calls by design;
+         *  - Transloco's `t` under `*transloco="let t; read: 'admin'"` takes the `read` prefix the
+         *    generic `t` extraction knows nothing of;
          *  - svelte-i18n's `_` / `$_` carry no namespace options, so matching the call
          *    itself is more precise than matching a bare string literal.
          *  - vue-i18n's `<i18n-t keypath>` and `v-t` directive hold the key in template markup,
@@ -51,6 +53,7 @@ open class JsLang : Lang {
             DefineMessagesExtractor(),
             NgxTranslateExtractor(),
             TranslocoExtractor(),
+            TranslocoReadExtractor(),
             SvelteI18nExtractor(),
             VueI18nKeypathExtractor(),
             VueTDirectiveExtractor(),
@@ -153,7 +156,7 @@ open class JsLang : Lang {
 private fun frameworkOf(extractor: KeyExtractor): String? = when (extractor) {
     is ReactIntlExtractor, is DefineMessagesExtractor, is FormattedMessageExtractor -> "react-intl"
     is NgxTranslateExtractor, is NgxTranslatePipeExtractor -> "ngx-translate"
-    is TranslocoExtractor, is TranslocoPipeExtractor -> "transloco"
+    is TranslocoExtractor, is TranslocoPipeExtractor, is TranslocoReadExtractor -> "transloco"
     is SvelteI18nExtractor -> "svelte-i18n"
     is VueI18nKeypathExtractor, is VueTDirectiveExtractor -> "vue-i18n"
     is LinguiTransKeyExtractor -> "lingui"
