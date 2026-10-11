@@ -11,6 +11,7 @@ import com.ibrahimdans.i18n.plugin.tree.PluralGroup
 import com.ibrahimdans.i18n.plugin.utils.KeyRangesCalculator
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.isQuoted
+import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
@@ -85,7 +86,10 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
             else
                 references.maxByOrNull { v -> v.path.size } ?: return
             if (mostResolvedReference.unresolved.isEmpty()) {
-                if (!allEqual && config.partialTranslationInspectionEnabled) {
+                // A locale not checked for missing keys never makes a key partially translated.
+                val checked = references.filterNot { config.ignoresLocale(it.localizationSource.localeLabel()) }
+                val partial = checked.zipWithNext().any { it.first.path != it.second.path }
+                if (partial && config.partialTranslationInspectionEnabled) {
                     annotationHelper.annotatePartiallyTranslated(fullKey, references)
                 } else {
                     if (mostResolvedReference.element?.isLeaf() ?: false) {
