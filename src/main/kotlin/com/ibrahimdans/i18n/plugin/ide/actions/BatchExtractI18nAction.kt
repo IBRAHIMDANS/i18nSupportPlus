@@ -72,56 +72,12 @@ class BatchExtractI18nAction : AnAction() {
             .submit(AppExecutorUtil.getAppExecutorService())
     }
 
-    /**
-     * [candidates] with the keys already holding their text, the first one proposed instead of a
-     * key derived from the text. Looked up in a single pass; needs a read action, off the EDT.
-     */
-    internal fun withExistingKeys(candidates: List<Candidate>, caller: PsiElement): List<Candidate> {
-        val found = ExistingKeyFinder.findAll(candidates.map { it.originalText }, caller)
-        return candidates.map { candidate ->
-            val keys = found[candidate.originalText].orEmpty()
-            candidate.copy(existingKeys = keys, proposedKey = keys.firstOrNull() ?: candidate.proposedKey)
-        }
-    }
+    /** [ExtractionCandidates.withExistingKeys]. */
+    internal fun withExistingKeys(candidates: List<Candidate>, caller: PsiElement): List<Candidate> =
+        ExtractionCandidates.withExistingKeys(candidates, caller)
 
-    /**
-     * Every string literal of [psiFile] an extractor accepts and has not extracted yet, and every
-     * JSX text *Hardcoded text in JSX* reports — `<p>Save</p>`, `title="Home"` — in file order.
-     *
-     * The candidate is the literal's string *token*, not the [JSLiteralExpression] around it:
-     * that is the element extractors are written for — `JsTranslationExtractor.canExtract` only
-     * accepts `JS:STRING_LITERAL`, and its `textRange` is the token's parent. Handing them the
-     * expression made the action find nothing in a JS or TS file, and would have replaced the
-     * whole enclosing statement had it found something.
-     *
-     * A JSX text is taken by the inspection's rules ([HardcodedJsxTextInspection.hardcodedText]):
-     * once per tag, with its variables (`Hello {name}` becomes `Hello {{name}}`), visible attributes
-     * only. A tag's text used to come up through the tag itself — a JSX tag is a literal expression
-     * — without those rules (`<code>`, `<Trans>`, punctuation alone) and without its attributes.
-     */
-    internal fun collectCandidates(psiFile: PsiFile): List<Candidate> {
-        val extractors = Extensions.LANG.extensionList.map { it.translationExtractor() }
-        val literals = PsiTreeUtil.findChildrenOfType(psiFile, JSLiteralExpression::class.java)
-            // A JSX tag is a literal expression too: taken through its `<`, its text skipped the
-            // inspection's rules. JSX comes from the inspection below instead.
-            .filterNot { it is XmlTag }
-            .mapNotNull { it.firstChild }
-            .filter { literal ->
-                extractors.any { it.canExtract(literal) && !it.isExtracted(literal) }
-            }
-        val jsxTexts = PsiTreeUtil.collectElements(psiFile) { it is XmlText || it is XmlAttributeValue }
-            .mapNotNull { HardcodedJsxTextInspection.hardcodedText(it)?.leaf }
-        return (literals + jsxTexts)
-            .sortedBy { it.textRange.startOffset }
-            // The literals of one concatenation (`'Hello ' + name + '!'`) are one message: replaced once.
-            .distinctBy { literal -> extractors.first { it.canExtract(literal) }.textRange(literal) }
-            .map { literal ->
-                val extractor = extractors.first { it.canExtract(literal) }
-                val text = extractor.text(literal).trim()
-                Candidate(literal = literal, originalText = text, proposedKey = toProposedKey(text))
-            }
-            .filter { it.originalText.isNotEmpty() }
-    }
+    /** [ExtractionCandidates.collect]. */
+    internal fun collectCandidates(psiFile: PsiFile): List<Candidate> = ExtractionCandidates.collect(psiFile)
 
     /**
      * Replaces each of [selected] with its key, creating only the keys that do not exist yet.
@@ -187,7 +143,63 @@ class BatchExtractI18nAction : AnAction() {
         }
     }
 
-    private fun toProposedKey(text: String): String = ExtractKeyModel.proposeKey(text)
+}
+
+/**
+ * The hard-coded texts of a file, as *Batch Extract* offers them and *Internationalize…* plans them.
+ */
+internal object ExtractionCandidates {
+
+    /**
+     * [candidates] with the keys already holding their text, the first one proposed instead of a
+     * key derived from the text. Looked up in a single pass; needs a read action, off the EDT.
+     */
+    fun withExistingKeys(candidates: List<Candidate>, caller: PsiElement): List<Candidate> {
+        val found = ExistingKeyFinder.findAll(candidates.map { it.originalText }, caller)
+        return candidates.map { candidate ->
+            val keys = found[candidate.originalText].orEmpty()
+            candidate.copy(existingKeys = keys, proposedKey = keys.firstOrNull() ?: candidate.proposedKey)
+        }
+    }
+
+    /**
+     * Every string literal of [psiFile] an extractor accepts and has not extracted yet, and every
+     * JSX text *Hardcoded text in JSX* reports — `<p>Save</p>`, `title="Home"` — in file order.
+     *
+     * The candidate is the literal's string *token*, not the [JSLiteralExpression] around it:
+     * that is the element extractors are written for — `JsTranslationExtractor.canExtract` only
+     * accepts `JS:STRING_LITERAL`, and its `textRange` is the token's parent. Handing them the
+     * expression made the action find nothing in a JS or TS file, and would have replaced the
+     * whole enclosing statement had it found something.
+     *
+     * A JSX text is taken by the inspection's rules ([HardcodedJsxTextInspection.hardcodedText]):
+     * once per tag, with its variables (`Hello {name}` becomes `Hello {{name}}`), visible attributes
+     * only. A tag's text used to come up through the tag itself — a JSX tag is a literal expression
+     * — without those rules (`<code>`, `<Trans>`, punctuation alone) and without its attributes.
+     */
+    fun collect(psiFile: PsiFile): List<Candidate> {
+        val extractors = Extensions.LANG.extensionList.map { it.translationExtractor() }
+        val literals = PsiTreeUtil.findChildrenOfType(psiFile, JSLiteralExpression::class.java)
+            // A JSX tag is a literal expression too: taken through its `<`, its text skipped the
+            // inspection's rules. JSX comes from the inspection below instead.
+            .filterNot { it is XmlTag }
+            .mapNotNull { it.firstChild }
+            .filter { literal ->
+                extractors.any { it.canExtract(literal) && !it.isExtracted(literal) }
+            }
+        val jsxTexts = PsiTreeUtil.collectElements(psiFile) { it is XmlText || it is XmlAttributeValue }
+            .mapNotNull { HardcodedJsxTextInspection.hardcodedText(it)?.leaf }
+        return (literals + jsxTexts)
+            .sortedBy { it.textRange.startOffset }
+            // The literals of one concatenation (`'Hello ' + name + '!'`) are one message: replaced once.
+            .distinctBy { literal -> extractors.first { it.canExtract(literal) }.textRange(literal) }
+            .map { literal ->
+                val extractor = extractors.first { it.canExtract(literal) }
+                val text = extractor.text(literal).trim()
+                Candidate(literal = literal, originalText = text, proposedKey = ExtractKeyModel.proposeKey(text))
+            }
+            .filter { it.originalText.isNotEmpty() }
+    }
 }
 
 internal data class Candidate(
