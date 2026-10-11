@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.folding
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.ide.runVue
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import org.junit.jupiter.api.Test
@@ -29,8 +30,28 @@ internal class FoldingTestVue : PlatformBaseTest() {
         myFixture.testFolding("$testDataPath/vue/defaultTestVue.vue")
     }
 
+    /**
+     * vue-i18n's template keys outside `$t` — `<i18n-t keypath>` / `<I18nT>` and `v-t`, as a string
+     * or an object's `path` — fold to their value like `{{ $t('…') }}`, alongside it in one file.
+     */
     @Test
-    fun testVueFoldingDisabled() = myFixture.runWithConfig(Config(foldingPreferredLanguage = "fr")) {
+    fun testVueI18nMarkupKeysFold() = runVue {
+        myFixture.runWithConfig(testConfig) {
+            configureByFiles("assets/ru/test.json", "assets/en/test.json")
+            myFixture.testFolding("$testDataPath/vue/vueI18nMarkup.vue")
+        }
+    }
+
+    @Test
+    fun testVueI18nMarkupKeysFoldInTheDefaultNamespace() = runVue {
+        myFixture.runWithConfig(testConfig) {
+            configureByFiles("assets/ru/translation.json", "assets/en/translation.json")
+            myFixture.testFolding("$testDataPath/vue/vueI18nMarkupDefaultNs.vue")
+        }
+    }
+
+    @Test
+    fun testVueFoldingDisabled()= myFixture.runWithConfig(Config(foldingPreferredLanguage = "fr")) {
         configureByFiles("assets/ru/test.json", "assets/en/test.json")
         myFixture.testFolding("$testDataPath/vue/noFoldingVue.vue")
     }
