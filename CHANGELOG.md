@@ -5,18 +5,20 @@
 ### Features
 
 - [Editor] **Edit a translation from the code**: on a key such as `t('common:menu.home')`, *Edit Translation* (`Ctrl+Alt+Shift+I`, editor context menu) or the *Edit* link of the hint (Ctrl+hover) opens the translation dialog on that key, every locale filled in — no detour through the JSON file or the tool window. A key no file holds yet opens the dialog in creation mode; once *OK* writes, folding, inlay hints and hints show the new value at once
+- [Inspections] **Locales not checked for missing keys**: a locale in progress or abandoned (`de, pt-BR`) no longer fills the project with *missing key* and *partially translated* warnings. It is still shown everywhere, and machine translation can still fill it. `de` covers `de-DE` (#734 on i18n Ally)
+- [Transloco] **The directive's `read` is read**: under `<ng-container *transloco="let t; read: 'admin'">`, `t('title')` is the key `admin.title` — the key `title` of the scope `admin` when `i18n/admin/` holds one, else the global `admin.title`; `read: 'admin.users'` goes one level into the scope. Navigation and completion follow, and the key is no longer reported as unused. The directive closest to the call decides, matched on the name it gives its function (`let t`, `let tr`): an inner `*transloco` without `read` cancels the outer one
+- [Translation] **Fill every locale at once**: *Fill Missing Translations…* offers *All locales* — one preview with a *Locale* column, one write, one Ctrl+Z, instead of a run per locale
 - [Export] **Export only the missing translations**: *Export Translations* offers *CSV, Missing Only* — the keys at least one locale lacks or leaves empty, with all their values, the reference included. Hand it to a translator; re-importing it writes only the cells they filled
 - [Editor] **A translation file shows the reference value of each key**: in `fr/common.json`, `"save": "Enregistrer"` reads `en: Save` as an inlay hint — the reference locale of the file's module, ICU rendered and cut at the folding length. A key the reference lacks reads `missing in en`; the reference file itself shows nothing. JSON and YAML; toggled under *Editor | Inlay Hints* as *i18n reference values*
 - [next-intl] **Server Components keep their namespace**: under `const t = await getTranslations('Home')` — or `getTranslations({ locale, namespace: 'Home' })` — `t('title')` resolves to `Home.title` like under `useTranslations('Home')`: navigation, completion, hints, and no longer reported as an orphan. Without an argument, `t` works in the default namespace
 - [Translation] **The preview says which engine translated each proposal**: *Fill Missing Translations…* shows an *Engine* column — `Ollama (local)`, or `DeepL` when the local engine did not answer and the next one took over — so a text sent off the machine after a fallback is never a surprise
+- [Extraction] **The extraction can write the text as the call's default value**: a module's *Write the default value in the call* (off by default) turns `Save changes` into `t('save', 'Save changes')`, and a message with variables into `t('greeting', { defaultValue: 'Hello {{name}}', name })` — i18next shows it while the key has no translation. JavaScript files of an i18next module, or of a module without preset; other frameworks keep their call, a second argument meaning something else there
 - [Translation] **Reorder the machine translation engines**: *Move Up* / *Move Down* in an engine's form change the order they are tried in — the fallback order — instead of deleting and recreating them
 
 ### Bug Fixes
 
 - [Translation] **DeepL and Google get the language codes they document**: the project's locale labels went out as written. DeepL now gets `FR` as source and `EN-US`, `PT-BR` or `ZH-HANT` as target — a region it lacks falls back to the language — and Google `zh-CN`, `pt-BR`. An engine whose request body was rewritten by hand keeps the labels as they are
-
-### Bug Fixes
-
+- [Folding] **A ternary key is folded**: `t(cond ? 'a' : 'b')` was left unfolded, only a key passed directly to `t` being read. Each branch now folds to its own value — folding the whole call would show only one — and a literal in the condition stays as is. `cond ? t('a') : t('b')` and `const label = t('a')` already folded, as tests now confirm
 - [Settings] **Pasting text into *Folding max length* no longer throws**: typing was already saved as you type, but a paste skips the digit filter and a non-numeric value, or emptying the field, raised an error; it is now ignored and the setting keeps its value
 
 ## 1.9.0 - 2026-10-10

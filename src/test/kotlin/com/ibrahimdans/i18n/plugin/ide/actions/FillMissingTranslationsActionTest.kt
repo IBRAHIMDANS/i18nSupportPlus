@@ -9,6 +9,7 @@ import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.command.undo.UndoManager
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressIndicator
@@ -197,4 +198,59 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
         val undone = myFixture.editor.document.text
         Assertions.assertTrue("Enregistrer" !in undone && "Annuler" !in undone, "one Ctrl+Z undoes it all: $undone")
     }
+
+    @Test
+    fun `three locales share one preview, told apart by a locale column`() = myFixture.runWithConfig(config) {
+        val items = MachineFill.itemsOf(mapOf("common:save" to mapOf("en" to "Save")), "en", "de", ".")
+        val proposals = listOf("de", "fr", "ja").flatMap { locale ->
+            MachineFill.translate(items, engine { Translation.Done("[$locale] $it") }, "en", locale, EmptyProgressIndicator())!!
+        }
+        val dialog = MachineTranslationPreviewDialog(project, "de, fr, ja", proposals)
+        try {
+            Assertions.assertEquals(PluginBundle.message("action.fill.column.locale"), dialog.model.getColumnName(2))
+            Assertions.assertEquals(listOf("de", "fr", "ja"), (0..2).map { dialog.model.getValueAt(it, 2) })
+            Assertions.assertEquals(
+                mapOf("de" to mapOf("common:save" to "[de] Save"), "fr" to mapOf("common:save" to "[fr] Save"), "ja" to mapOf("common:save" to "[ja] Save")),
+                dialog.acceptedByLocale()
+            )
+        } finally {
+            Disposer.dispose(dialog.disposable)
+        }
+    }
+
+    @Test
+    fun `a single locale keeps the preview without a locale column`() = myFixture.runWithConfig(config) {
+        val proposals = listOf(MachineFill.Proposal(MachineFill.Item("common:save", "Save"), Translation.Done("Enregistrer"), "fr"))
+        val dialog = MachineTranslationPreviewDialog(project, "fr", proposals)
+        try {
+            Assertions.assertEquals(6, dialog.model.columnCount)
+            Assertions.assertEquals(mapOf("common:save" to "Enregistrer"), dialog.accepted())
+        } finally {
+            Disposer.dispose(dialog.disposable)
+        }
+    }
+
+    @Test
+    fun `three locales are written in one command, undone by one Ctrl+Z`() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", """{"save": "Save"}""")
+        val files = listOf("de", "fr", "ja").associateWith { addFileToProject("locales/$it/common.json", "{}") }
+        myFixture.openFileInEditor(files.getValue("fr").virtualFile)
+
+        MachineFill.write(project, null, mapOf(
+            "de" to mapOf("common:save" to "Speichern"),
+            "fr" to mapOf("common:save" to "Enregistrer"),
+            "ja" to mapOf("common:save" to "保存"),
+        ))
+
+        val documents = files.mapValues { FileDocumentManager.getInstance().getDocument(it.value.virtualFile)!! }
+        Assertions.assertTrue("Speichern" in documents.getValue("de").text, documents.getValue("de").text)
+        Assertions.assertTrue("Enregistrer" in documents.getValue("fr").text, documents.getValue("fr").text)
+        Assertions.assertTrue("保存" in documents.getValue("ja").text, documents.getValue("ja").text)
+
+        UndoManager.getInstance(project).undo(FileEditorManager.getInstance(project).selectedEditor!!)
+        documents.forEach { (locale, document) ->
+            Assertions.assertTrue("save" !in document.text, "one Ctrl+Z undoes $locale too: ${document.text}")
+        }
+    }
 }
+

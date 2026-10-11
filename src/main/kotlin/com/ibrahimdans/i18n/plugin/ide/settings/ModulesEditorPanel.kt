@@ -94,6 +94,11 @@ internal class ModulesEditorPanel(
         isVisible = false
     }
 
+    private val writeDefaultValueBox =
+        boundCheckBox(PluginBundle.message("settings.modules.writeDefaultValue")) { module, value ->
+            module.copy(writeDefaultValue = value)
+        }
+
     private val presetCombo = createPresetCombo()
 
     private val suggestLink = createSuggestLink()
@@ -155,6 +160,9 @@ internal class ModulesEditorPanel(
             cell(callTemplateField).comment(PluginBundle.message("settings.modules.callTemplate.comment"))
         }
         row("") { cell(callTemplateProblem) }
+        row("") {
+            cell(writeDefaultValueBox).comment(PluginBundle.message("settings.modules.writeDefaultValue.comment"))
+        }
         group(PluginBundle.message("settings.modules.resolution")) {
             row { cell(resolutionArea).align(AlignX.FILL) }
         }
@@ -255,6 +263,7 @@ internal class ModulesEditorPanel(
         keyField.text = selected?.keyTemplate ?: ""
         referenceLocaleField.text = selected?.referenceLocale ?: ""
         callTemplateField.text = selected?.callTemplate ?: ""
+        writeDefaultValueBox.isSelected = selected?.writeDefaultValue ?: false
         presetCombo.model = DefaultComboBoxModel(presetItems(selected?.preset ?: ""))
         presetCombo.selectedItem = selected?.preset ?: ""
         setFormEnabled(selected != null)
@@ -268,6 +277,7 @@ internal class ModulesEditorPanel(
         keyField.isEnabled = enabled
         referenceLocaleField.isEnabled = enabled
         callTemplateField.isEnabled = enabled
+        writeDefaultValueBox.isEnabled = enabled
         presetCombo.isEnabled = enabled
         browseButton.isEnabled = enabled
     }

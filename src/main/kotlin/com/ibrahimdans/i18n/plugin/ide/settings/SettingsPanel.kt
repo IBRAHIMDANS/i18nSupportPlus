@@ -110,6 +110,10 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                     cell(textField(PluginBundle.message("settings.kept.keys"), settings::keptKeys, maxLength = 2000, columns = 25))
                         .comment(PluginBundle.message("settings.kept.keys.comment"))
                 }
+                row(PluginBundle.message("settings.ignored.locales")) {
+                    cell(textField(PluginBundle.message("settings.ignored.locales"), settings::ignoredLocales, columns = 25))
+                        .comment(PluginBundle.message("settings.ignored.locales.comment"))
+                }
             }
 
             group(PluginBundle.message("settings.group.folding")) {

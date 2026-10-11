@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumulator
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
+import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.tree.Separators
@@ -54,8 +55,9 @@ internal object IndirectKeyUsages {
 
     /**
      * Usages of [keys] through a hook key prefix — react-i18next's `keyPrefix`, next-intl's
-     * `useTranslations('Home')` and `await getTranslations('Home')` — keyed by the keys found,
-     * absent ones left out.
+     * `useTranslations('Home')` and `await getTranslations('Home')`, Transloco's `read` — keyed by
+     * the keys found, absent ones left out. A call under a `read` naming a scope ([keyScopeOf])
+     * counts for the scope key, spelled `scope.key`, though its literal writes no prefix.
      *
      * The call site writes only the key's last levels (`t('title')` for `header.title`), so the
      * last segment is searched as a word, and a literal counts only when the key it resolves to —
@@ -68,6 +70,7 @@ internal object IndirectKeyUsages {
         val defaultNamespaces = config.defaultNamespaces()
         val languages = Extensions.LANG.extensionList
         val parser = RawKeyParser(project)
+        val keyScopes = Extensions.TECHNOLOGY.extensionList.flatMapTo(mutableSetOf()) { it.keyScopes(project) }
         val found = mutableMapOf<String, MutableSet<PsiElement>>()
 
         val byWord = keys.groupBy { key ->
@@ -83,10 +86,12 @@ internal object IndirectKeyUsages {
                     val literal = languages.firstNotNullOfOrNull { it.resolveLiteral(element) } ?: return@processElementsWithWord true
                     val fullKey = languages.firstNotNullOfOrNull { it.extractRawKey(literal) }
                         ?.let { parser.parse(it) }
-                        ?.takeIf { it.keyPrefix.isNotEmpty() }
                         ?: return@processElementsWithWord true
-                    val path = fullKey.compositeKey.map { it.text }
-                    val namespaces = fullKey.lookupNamespaces()
+                    val scope = keyScopeOf(fullKey, keyScopes)
+                    if (fullKey.keyPrefix.isEmpty() && scope == null) return@processElementsWithWord true
+                    // A scope key is spelled `admin.title`: the scope is its first segment, not a namespace.
+                    val path = listOfNotNull(scope) + fullKey.compositeKey.map { it.text }
+                    val namespaces = if (scope != null) emptyList() else fullKey.lookupNamespaces()
                     for ((key, segments) in wanted) {
                         if (path != segments) continue
                         val namespace = KeySpelling.namespaceOf(key)
@@ -104,6 +109,14 @@ internal object IndirectKeyUsages {
         }
         return found.mapValues { it.value.size }
     }
+
+    /**
+     * The key scope a call site works in without writing it: Transloco's `t('title')` under
+     * `*transloco="let t; read: 'admin'"`, whose only namespace is the scope `admin`. A key written
+     * with its scope (`admin.title`) carries it as [FullKey.ns] and is left to the text scan.
+     */
+    private fun keyScopeOf(fullKey: FullKey, keyScopes: Set<String>): String? =
+        fullKey.namespaces?.singleOrNull()?.takeIf { fullKey.ns == null && it in keyScopes }
 
     /** What [textCount] searches the sources for, on behalf of one key. */
     data class UsageQuery(val bareKey: String, val words: List<String>, val namespace: String? = null)

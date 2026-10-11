@@ -7,6 +7,8 @@ import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
 import com.ibrahimdans.i18n.plugin.utils.default
 import com.intellij.lang.javascript.patterns.JSPatterns
 import com.intellij.lang.javascript.psi.JSCallExpression
+import com.intellij.lang.javascript.psi.JSConditionalExpression
+import com.intellij.lang.javascript.psi.JSParenthesizedExpression
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.lang.javascript.psi.JSSpreadExpression
 import com.intellij.lang.injection.InjectedLanguageManager
@@ -23,9 +25,32 @@ internal class JsFoldingProvider: FoldingProvider {
     }
 
     private fun isI18nArgument(element: PsiElement): Boolean {
-        if (!JSPatterns.jsArgument("t", 0).accepts(element) &&
-            !JSPatterns.jsArgument("\$t", 0).accepts(element)) return false
+        val argument = ternaryArgument(element) ?: element
+        if (!JSPatterns.jsArgument("t", 0).accepts(argument) &&
+            !JSPatterns.jsArgument("\$t", 0).accepts(argument)) return false
         return isDirectOrConfiguredCall(element)
+    }
+
+    /**
+     * The ternary holding [element] in one of its branches — `t(cond ? 'a' : 'b')`, nested or
+     * parenthesized — or null when [element] is not a branch value (its condition included).
+     * Such keys used to be left unfolded: only a direct first argument was looked at.
+     */
+    private fun ternaryArgument(element: PsiElement): PsiElement? {
+        var current = element
+        var ternary: PsiElement? = null
+        while (true) {
+            val parent = current.parent
+            when (parent) {
+                is JSConditionalExpression -> {
+                    if (parent.condition === current) return null
+                    ternary = parent
+                }
+                is JSParenthesizedExpression -> {}
+                else -> return ternary?.let { current }
+            }
+            current = parent
+        }
     }
 
     private fun isDirectOrConfiguredCall(element: PsiElement): Boolean =
@@ -78,7 +103,9 @@ internal class JsFoldingProvider: FoldingProvider {
     override fun collectLiterals(container: PsiElement): Pair<List<PsiElement>, Int> = Pair(listOf(container), 0)
 
     override fun getFoldingRange(container: PsiElement, offset: Int, psiElement: PsiElement): TextRange {
-        val callExpr = PsiTreeUtil.getParentOfType(psiElement, JSCallExpression::class.java)
+        // A ternary key folds each branch to its own value: the whole call would show only one.
+        val callExpr = if (ternaryArgument(psiElement) != null) null
+            else PsiTreeUtil.getParentOfType(psiElement, JSCallExpression::class.java)
         val sourceElement = callExpr ?: psiElement
 
         // Check if element is in an injected fragment

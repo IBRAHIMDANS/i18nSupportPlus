@@ -40,6 +40,7 @@ class Settings : PersistentStateComponent<Settings> {
     internal var excludedDirectories = default.excludedDirectories
     internal var excludedFileExtensions = default.excludedFileExtensions
     internal var keptKeys = default.keptKeys
+    internal var ignoredLocales = default.ignoredLocales
     internal var gutterIconsEnabled = default.gutterIconsEnabled
     internal var setupWizardEnabled = default.setupWizardEnabled
 
@@ -83,6 +84,7 @@ class Settings : PersistentStateComponent<Settings> {
             excludedDirectories = excludedDirectories,
             excludedFileExtensions = excludedFileExtensions,
             keptKeys = keptKeys,
+            ignoredLocales = ignoredLocales,
             gutterIconsEnabled = gutterIconsEnabled,
             setupWizardEnabled = setupWizardEnabled,
             modules = modules.toList(),
@@ -115,6 +117,7 @@ class Settings : PersistentStateComponent<Settings> {
         excludedDirectories = config.excludedDirectories
         excludedFileExtensions = config.excludedFileExtensions
         keptKeys = config.keptKeys
+        ignoredLocales = config.ignoredLocales
         gutterIconsEnabled = config.gutterIconsEnabled
         setupWizardEnabled = config.setupWizardEnabled
         modules.clear()

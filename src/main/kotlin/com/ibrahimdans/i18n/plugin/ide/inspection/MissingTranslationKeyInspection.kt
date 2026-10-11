@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
+import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
@@ -58,6 +59,7 @@ class MissingTranslationKeyInspection : LocalInspectionTool() {
         if (referenceLeaves.isEmpty()) return
         val root = TranslationPsi.rootOf(file) ?: return
         val source = TranslationFileScope.sourceOf(file) ?: return
+        if (Settings.getInstance(file.project).config().ignoresLocale(source.localeLabel())) return
         val referenceLocale = TranslationFileScope.referenceLocaleFor(file, source)
 
         for (path in missingPaths(referenceLeaves, TranslationFileKeys.translationLeaves(file).keys)) {

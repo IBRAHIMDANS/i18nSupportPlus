@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.ide.settings.rules.EditorRuleState
 import com.ibrahimdans.i18n.plugin.utils.default
 import com.ibrahimdans.i18n.plugin.utils.whenMatches
@@ -34,6 +35,7 @@ data class Config (
     val excludedDirectories: String = "",
     val excludedFileExtensions: String = "",
     val keptKeys: String = "",
+    val ignoredLocales: String = "",
     val gutterIconsEnabled: Boolean = true,
     val setupWizardEnabled: Boolean = true,
     val modules: List<ModuleConfig> = emptyList(),
@@ -56,6 +58,15 @@ data class Config (
     /** i18next's `fallbackNS` as set in the settings: none by default. */
     fun fallbackNamespaces(): List<String> =
         fallbackNs.split("[;|,\\s]".toRegex()).filter { it.isNotBlank() }.take(MAX_DEFAULT_NAMESPACES)
+
+    /**
+     * True when [locale] is one of the locales not checked for missing keys — a translation in
+     * progress, or abandoned. Matched as [LocaleMatching] does: `de` covers `de-DE`, `en-GB` does
+     * not cover `en-US`.
+     */
+    fun ignoresLocale(locale: String): Boolean =
+        ignoredLocales.split("[;|,\\s]".toRegex()).filter { it.isNotBlank() }
+            .any { LocaleMatching.pick(it, listOf(locale)) != null }
 
     /**
      * True when a key must be looked up as a single literal instead of being split into a
