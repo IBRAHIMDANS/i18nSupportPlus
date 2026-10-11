@@ -1,6 +1,5 @@
 package com.ibrahimdans.i18n.plugin.ide.actions.i18nize
 
-import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.ide.actions.Candidate
 import com.ibrahimdans.i18n.plugin.ide.actions.ExistingKeyFinder
 import com.ibrahimdans.i18n.plugin.ide.actions.ExtractionCandidates
@@ -10,8 +9,8 @@ import com.intellij.psi.PsiFile
 /**
  * What *Internationalize…* would extract from a set of files — computed, never written.
  *
- * Each file lists its hard-coded texts the way *Batch Extract* finds them ([ExtractionCandidates]),
- * each with its namespace (the hook's around it, or the default one) and its key: the key already
+ * Each file lists its hard-coded texts ([I18nizeSources]) — the way *Batch Extract* finds them,
+ * or those of a Vue `<template>` — each with its namespace (the hook's around it, or the default one) and its key: the key already
  * holding its text in the reference locale when there is one, else a new one named by [KeyNaming].
  * A file without any text is left out.
  *
@@ -46,13 +45,13 @@ internal data class I18nizePlan(val files: List<FilePlan>) {
             val project = files.firstOrNull()?.project ?: return I18nizePlan(emptyList())
             val config = Settings.getInstance(project).config()
             val defaultNamespace = config.defaultNamespaces().first()
-            val extractors = Extensions.LANG.extensionList.map { it.translationExtractor() }
+            val extractors = I18nizeSources.extractors()
             // One naming per set of reference values, i.e. per module: keys never clash inside a module.
             val namings = mutableMapOf<Map<String, String>, KeyNaming>()
 
             return I18nizePlan(files.mapNotNull { file ->
                 val candidates = ExtractionCandidates.withExistingKeys(
-                    ExtractionCandidates.collect(file).filterNot { TranslatableText.isNeverProposed(it.literal) }, file
+                    I18nizeSources.candidates(file).filterNot { TranslatableText.isNeverProposed(it.literal) }, file
                 )
                 if (candidates.isEmpty()) return@mapNotNull null
                 val existing = ExistingKeyFinder.referenceValues(file)

@@ -133,7 +133,7 @@ internal class I18nizeApply private constructor(
         val file = work.plan.file
         if (!file.isValid) return null
         val document = PsiDocumentManager.getInstance(project).getDocument(file) ?: return null
-        val extractors = Extensions.LANG.extensionList.map { it.translationExtractor() }
+        val extractors = I18nizeSources.extractors()
         val entries = work.entries.filter { it.entry.candidate.literal.isValid }
         val hooks = linkedMapOf<JSFunction, String>()
         val calls = entries.mapNotNull { entryWork ->
