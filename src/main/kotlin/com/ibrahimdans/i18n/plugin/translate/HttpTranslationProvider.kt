@@ -14,8 +14,8 @@ import java.net.SocketTimeoutException
  * How to call one engine, as data: a POST to [url] with [headers] and the JSON [body], the
  * translation read at [responsePath] (`choices[0].message.content`).
  *
- * [url], [headers] and [body] take placeholders: `{text}`, `{source}`, `{target}`, `{context}` and
- * `{apiKey}`. They are replaced by JSON-escaped content *without* quotes, so the template writes the
+ * [url], [headers] and [body] take placeholders: `{text}`, `{source}`, `{target}`, `{context}`,
+ * `{glossary}` (the [glossary] terms of the target locale, as a sentence of an LLM prompt) and `{apiKey}`. They are replaced by JSON-escaped content *without* quotes, so the template writes the
  * quotes itself and a placeholder can sit inside a sentence — an LLM prompt. [unescapeHtml] decodes
  * the entities an engine asked for HTML output returns (`&#39;`, `&amp;`).
  */
@@ -30,8 +30,91 @@ data class EngineConfig(
     /** Runs on the user's machine: nothing leaves it. */
     val local: Boolean = false,
     /** How to send several texts in one request, when the engine can; null sends them one by one. */
-    val batch: BatchConfig? = null
+    val batch: BatchConfig? = null,
+    /** The project's terms: those kept as they are are masked, the others go in `{glossary}`. */
+    val glossary: Glossary = Glossary.EMPTY
 )
+
+/**
+ * The project's terms, so an engine neither translates a product name nor varies a business term.
+ *
+ * - A term without translations is **kept as it is**, for every engine: masked like a variable before
+ *   the text leaves ([protect]) and put back as written. Matched case-sensitively, as a whole word.
+ * - A term with translations, by target locale, is given to the engines whose request holds
+ *   `{glossary}` — an LLM prompt ([prompt]). Others (DeepL, Google, LibreTranslate) do not read it.
+ */
+data class Glossary(val terms: List<Term> = emptyList()) {
+
+    /** [term] and its [translations] by locale (`fr`, `pt_BR`); none means "never translate it". */
+    data class Term(val term: String, val translations: Map<String, String> = emptyMap()) {
+        val kept: Boolean get() = translations.isEmpty()
+
+        /**
+         * The translation for [target], which may come rewritten for its engine (`FR`, `EN-US`):
+         * the locale written alike, else the bare language, else another variant of it.
+         */
+        fun translationFor(target: String): String? {
+            val wanted = normalize(target)
+            val language = wanted.substringBefore('-')
+            val byLocale = translations.entries.filter { it.value.isNotBlank() }.associate { normalize(it.key) to it.value }
+            return byLocale[wanted] ?: byLocale[language] ?: byLocale.entries.firstOrNull { it.key.substringBefore('-') == language }?.value
+        }
+    }
+
+    /** One pattern for every kept term, the longest first, or null when none is kept. */
+    private val keptPattern: Regex? by lazy {
+        terms.filter { it.kept && it.term.isNotBlank() }.map { it.term }.distinct().sortedByDescending { it.length }
+            .takeIf { it.isNotEmpty() }
+            ?.joinToString("|") { term ->
+                val before = if (term.first().isLetterOrDigit()) "(?<![\\p{L}\\p{N}_])" else ""
+                val after = if (term.last().isLetterOrDigit()) "(?![\\p{L}\\p{N}_])" else ""
+                before + Regex.escape(term) + after
+            }
+            ?.let(::Regex)
+    }
+
+    /**
+     * [masked] with each kept term hidden behind one more `<x id="N"/>` tag, a variable the
+     * translation may move. The tags already there are left alone.
+     */
+    fun protect(masked: PlaceholderMask.Masked): PlaceholderMask.Masked {
+        val pattern = keptPattern ?: return masked
+        val tokens = masked.tokens.toMutableList()
+        val out = StringBuilder()
+        fun gap(text: String) {
+            out.append(pattern.replace(text) { match ->
+                "<x id=\"${tokens.size}\"/>".also { tokens += PlaceholderMask.Token(PlaceholderMask.Kind.VARIABLE, match.value) }
+            })
+        }
+        var last = 0
+        for (tag in MASK_TAG.findAll(masked.text)) {
+            gap(masked.text.substring(last, tag.range.first))
+            out.append(tag.value)
+            last = tag.range.last + 1
+        }
+        gap(masked.text.substring(last))
+        return if (tokens.size == masked.tokens.size) masked else PlaceholderMask.Masked(out.toString(), tokens)
+    }
+
+    /**
+     * What `{glossary}` becomes for [target]: a sentence opening with a space, to follow the
+     * prompt's last one — empty when no term has a translation there, leaving the request as it was.
+     */
+    fun prompt(target: String): String {
+        val pairs = terms.filter { !it.kept && it.term.isNotBlank() }.mapNotNull { t -> t.translationFor(target)?.let { t.term to it } }
+        if (pairs.isEmpty()) return ""
+        return " Use this glossary, each term with its translation: " +
+            pairs.joinToString("; ") { (term, translation) -> "\"$term\" → \"$translation\"" } + "."
+    }
+
+    companion object {
+        val EMPTY = Glossary()
+
+        private val MASK_TAG = Regex("""<x id="\d+"/>""")
+
+        private fun normalize(locale: String): String = locale.trim().lowercase().replace('_', '-')
+    }
+}
 
 /**
  * The batch form of an engine: [body] takes `{texts}` — the JSON array of the texts — or
@@ -91,7 +174,7 @@ class HttpTranslationProvider(
     private fun translateBatch(texts: List<String>, request: TranslationRequest, batch: BatchConfig): List<Translation> {
         val sent = texts.withIndex().filter { it.value.isNotBlank() }
         if (sent.size < 2) return texts.map { translateOne(it, request) }
-        val masks = sent.map { PlaceholderMask.mask(it.value) }
+        val masks = sent.map { engine.glossary.protect(PlaceholderMask.mask(it.value)) }
         val array = masks.joinToString(",", "[", "]") { "\"${escapeJson(it.text)}\"" }
         val body = fill(batch.body.replace("{texts}", array).replace("{textsJson}", escapeJson(array)), values(request, ""), ::escapeJson)
         val answers = when (val response = post(fill(engine.url, values(request, ""), ::encodeUrl), body)) {
@@ -109,6 +192,7 @@ class HttpTranslationProvider(
         "source" to request.source,
         "target" to request.target,
         "context" to request.context,
+        "glossary" to engine.glossary.prompt(request.target),
         "apiKey" to apiKey
     )
 
@@ -160,7 +244,7 @@ class HttpTranslationProvider(
 
     private fun translateOne(text: String, request: TranslationRequest): Translation {
         if (text.isBlank()) return Translation.Done(text)
-        val masked = PlaceholderMask.mask(text)
+        val masked = engine.glossary.protect(PlaceholderMask.mask(text))
         val values = values(request, masked.text)
         val body = when (val response = post(fill(engine.url, values, ::encodeUrl), fill(engine.body, values, ::escapeJson))) {
             is Posted.Failed -> return response.failure
@@ -173,7 +257,7 @@ class HttpTranslationProvider(
     private fun failed(key: String, vararg params: Any) = Translation.Failed(PluginBundle.message(key, *params))
 
     companion object {
-        private val PLACEHOLDER = Regex("""\{(text|source|target|context|apiKey)}""")
+        private val PLACEHOLDER = Regex("""\{(text|source|target|context|glossary|apiKey)}""")
         private val FENCE = Regex("""^\s*```\w*\s*|\s*```\s*$""")
         private val PATH_PART = Regex("""([^.\[\]]+)|\[(\d+)]""")
 

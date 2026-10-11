@@ -30,24 +30,71 @@ data class EngineState(
 ) {
     constructor() : this("", "", "", "", "", "", "", false, false)
 
-    fun toConfig(): EngineConfig = EngineConfig(
-        id = id, name = name, url = url.trim(),
-        headers = headers.lines().mapNotNull { line ->
-            line.indexOf(':').takeIf { it > 0 }?.let { line.substring(0, it).trim() to line.substring(it + 1).trim() }
-        }.toMap(),
-        body = body, responsePath = responsePath.trim(), unescapeHtml = unescapeHtml, local = local,
-        // The batch form is the preset's, valid while the entry still sends the preset's request:
-        // a changed URL (DeepL Pro) keeps it, a rewritten body does not.
-        batch = TranslationEngines.preset(preset)?.takeIf { it.body == body && it.responsePath == responsePath.trim() }?.batch
-    )
+    fun toConfig(glossary: Glossary = Glossary.EMPTY): EngineConfig {
+        val presetConfig = TranslationEngines.preset(preset)
+        // An entry saved before its preset's prompt took `{glossary}` sends the preset's prompt of today:
+        // the same request while the glossary is empty, the glossary once there is one.
+        val sent = presetConfig?.body?.takeIf { body == it.replace(GLOSSARY_SLOT, "") } ?: body
+        return EngineConfig(
+            id = id, name = name, url = url.trim(),
+            headers = headers.lines().mapNotNull { line ->
+                line.indexOf(':').takeIf { it > 0 }?.let { line.substring(0, it).trim() to line.substring(it + 1).trim() }
+            }.toMap(),
+            body = sent, responsePath = responsePath.trim(), unescapeHtml = unescapeHtml, local = local,
+            // The batch form is the preset's, valid while the entry still sends the preset's request:
+            // a changed URL (DeepL Pro) keeps it, a rewritten body does not.
+            batch = presetConfig?.takeIf { it.body == sent && it.responsePath == responsePath.trim() }?.batch,
+            glossary = glossary
+        )
+    }
 
     companion object {
+        private const val GLOSSARY_SLOT = "{glossary}"
+
         /** A new entry filled from [preset], with an id of its own. */
         fun of(preset: EngineConfig): EngineState = EngineState(
             id = UUID.randomUUID().toString(), preset = preset.id, name = preset.name, url = preset.url,
             headers = preset.headers.entries.joinToString("\n") { "${it.key}: ${it.value}" },
             body = preset.body, responsePath = preset.responsePath, unescapeHtml = preset.unescapeHtml, local = preset.local
         )
+    }
+}
+
+/**
+ * One term of the project's glossary as stored: [translations] by locale (`fr`, `pt_BR`), none for a
+ * term never translated — a product name. See [Glossary].
+ */
+data class GlossaryTerm(
+    var term: String = "",
+    var translations: MutableMap<String, String> = linkedMapOf()
+) {
+    constructor() : this("", linkedMapOf())
+
+    companion object {
+        /**
+         * The glossary as the settings page writes it, one term per line: `Acme` alone is kept as it
+         * is, `cart = fr: panier; de: Warenkorb` is translated so. A blank line or term is skipped.
+         */
+        fun parse(text: String): MutableList<GlossaryTerm> = text.lines().mapNotNull { line ->
+            val term = line.substringBefore('=').trim().takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            val translations = linkedMapOf<String, String>()
+            if ('=' in line) line.substringAfter('=').split(';').forEach { part ->
+                val locale = part.substringBefore(':', "").trim()
+                val value = part.substringAfter(':', "").trim()
+                if (locale.isNotEmpty() && value.isNotEmpty()) translations[locale] = value
+            }
+            GlossaryTerm(term, translations)
+        }.toMutableList()
+
+        /** [terms] written as [parse] reads them. */
+        fun format(terms: List<GlossaryTerm>): String = terms.joinToString("\n") { term ->
+            if (term.translations.isEmpty()) term.term
+            else term.term + " = " + term.translations.entries.joinToString("; ") { "${it.key}: ${it.value}" }
+        }
+
+        /** [terms] as the engines read them. */
+        fun glossary(terms: List<GlossaryTerm>): Glossary =
+            Glossary(terms.filter { it.term.isNotBlank() }.map { Glossary.Term(it.term.trim(), it.translations.toMap()) })
     }
 }
 
@@ -62,7 +109,9 @@ class MachineTranslationSettings : PersistentStateComponent<MachineTranslationSe
 
     data class Settings(
         var enabled: Boolean = false,
-        var engines: MutableList<EngineState> = mutableListOf()
+        var engines: MutableList<EngineState> = mutableListOf(),
+        /** Terms kept as they are or translated one way, by every engine of the project. */
+        var glossary: MutableList<GlossaryTerm> = mutableListOf()
     )
 
     private var state = Settings()
@@ -75,7 +124,11 @@ class MachineTranslationSettings : PersistentStateComponent<MachineTranslationSe
     }
 
     /** A detached copy, edited by the settings page until *Apply*. */
-    fun copy(): Settings = Settings(state.enabled, state.engines.map { it.copy() }.toMutableList())
+    fun copy(): Settings = Settings(
+        state.enabled,
+        state.engines.map { it.copy() }.toMutableList(),
+        state.glossary.map { it.copy(translations = LinkedHashMap(it.translations)) }.toMutableList()
+    )
 
     /**
      * The engines as one provider, tried in order — null when the project has not opted in or
@@ -83,7 +136,8 @@ class MachineTranslationSettings : PersistentStateComponent<MachineTranslationSe
      */
     fun provider(keys: ApiKeyStore = PasswordSafeApiKeys, transport: HttpTransport = PlatformHttpTransport): TranslationProvider? {
         if (!state.enabled || state.engines.isEmpty()) return null
-        return TranslationEngines.provider(state.engines.map { it.toConfig() }, { keys.get(it.id) }, transport)
+        val glossary = GlossaryTerm.glossary(state.glossary)
+        return TranslationEngines.provider(state.engines.map { it.toConfig(glossary) }, { keys.get(it.id) }, transport)
     }
 
     companion object {
