@@ -36,6 +36,21 @@ docker run --rm -v "$PWD":/data/project -e QODANA_TOKEN jetbrains/qodana-js:2026
 `Annotator` is what reports an unresolved key in the code; it also reports the errors of the
 languages themselves (TypeScript, JSON). Drop it from `include` if those already fail elsewhere.
 
+Checked with `jetbrains/qodana-js:2026.2` on `examples/react-multi-namespace/`, a key removed from
+`fr/common.json` and `t('does.not.exist')` added to `App.tsx`: the plugin is installed from the
+Marketplace, and the run fails on the threshold (exit code 255) with
+
+```
+Annotator                                           Critical               9
+Translation key missing from a locale                   High               3
+Translation variables not passed to the call            High               1
+```
+
+The `Annotator` problems are the plugin's: `Unresolved key` on `App.tsx`, and `Partially translated
+key` / `Unresolved namespace` the example holds on purpose. The log's *Duplicates of problems was
+found. inspectionId: Annotator* lines are Qodana merging the same annotation seen twice; each problem
+is reported once.
+
 ## Headless IDE (`inspect.sh`)
 
 The same inspections, with an IntelliJ IDEA Ultimate or WebStorm installation and the plugin
