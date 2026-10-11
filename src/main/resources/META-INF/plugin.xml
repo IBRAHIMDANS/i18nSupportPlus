@@ -394,6 +394,13 @@
                 icon="AllIcons.Actions.GC">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
         </action>
+        <!-- ctrl alt shift I ("i18n"): free in the IDE keymaps and bundled plugins, T/B/M are the plugin's own. -->
+        <action id="com.ibrahimdans.i18n.EditTranslationAtCaret"
+                class="com.ibrahimdans.i18n.plugin.ide.actions.EditTranslationAtCaretAction"
+                icon="AllIcons.Actions.Edit">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift I"/>
+        </action>
         <!-- Consumed by the tool window toolbar, which resolves it by id; it belongs to no
              group so that the table's own scan button could disappear without the feature
              becoming unreachable from Find Action. -->

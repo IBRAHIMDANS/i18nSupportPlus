@@ -4,6 +4,7 @@
 
 ### Features
 
+- [Editor] **Edit a translation from the code**: on a key such as `t('common:menu.home')`, *Edit Translation* (`Ctrl+Alt+Shift+I`, editor context menu) or the *Edit* link of the hint (Ctrl+hover) opens the translation dialog on that key, every locale filled in — no detour through the JSON file or the tool window. A key no file holds yet opens the dialog in creation mode; once *OK* writes, folding, inlay hints and hints show the new value at once
 - [Export] **Export only the missing translations**: *Export Translations* offers *CSV, Missing Only* — the keys at least one locale lacks or leaves empty, with all their values, the reference included. Hand it to a translator; re-importing it writes only the cells they filled
 - [Editor] **A translation file shows the reference value of each key**: in `fr/common.json`, `"save": "Enregistrer"` reads `en: Save` as an inlay hint — the reference locale of the file's module, ICU rendered and cut at the folding length. A key the reference lacks reads `missing in en`; the reference file itself shows nothing. JSON and YAML; toggled under *Editor | Inlay Hints* as *i18n reference values*
 - [next-intl] **Server Components keep their namespace**: under `const t = await getTranslations('Home')` — or `getTranslations({ locale, namespace: 'Home' })` — `t('title')` resolves to `Home.title` like under `useTranslations('Home')`: navigation, completion, hints, and no longer reported as an orphan. Without an argument, `t` works in the default namespace
