@@ -40,6 +40,7 @@ class PhpArrayLocalization : Localization<StringLiteralExpression> {
             namespaceOf(file)?.let { it in fileNames } == true
     override fun icon(): Icon = PhpFileType.INSTANCE.icon ?: super.icon()
     override fun config(): LocalizationConfig = LocalizationConfigImpl("php")
+    override fun fileNamespace(file: VirtualFile): String? = namespaceOf(file)
 
     companion object {
         private const val PHP_EXTENSION = "php"

@@ -39,6 +39,15 @@ interface Localization <T: PsiElement> {
     fun matches(localizationFileType:LocalizationFileType, file: VirtualFile?, fileNames: List<String>): Boolean
     fun icon(): Icon = AllIcons.FileTypes.Unknown
     fun config(): LocalizationConfig
+
+    /**
+     * The namespace the keys of [file] are written under when this format decides it from the
+     * file's place rather than its name, or null to leave it to the file name (the default).
+     *
+     * Laravel's package overrides need it: `lang/vendor/courier/en/messages.php` holds
+     * `courier::messages`, not `messages`, the namespace of the application's own file.
+     */
+    fun fileNamespace(file: VirtualFile): String? = null
 }
 
 val SOURCE_ROOT = Key<Boolean>("i18n#sourceRoot")
