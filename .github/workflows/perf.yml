@@ -1,0 +1,75 @@
+name: Editor Performance
+
+on:
+  schedule:
+    # Weekly, Monday morning: a regression lands in the week's summary, not in a user's editor.
+    - cron: '0 6 * * 1'
+  # Run by hand on any branch (Actions tab, or `gh workflow run perf.yml --ref <branch>`), e.g. to
+  # check a performance change before merging it.
+  workflow_dispatch:
+
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # HighlightingPerformanceTest is opt-in (I18N_PERF) and holds the thresholds itself: this job only
+  # runs it and publishes the table it writes to build/perf/results.md. A scenario over its ceiling
+  # fails the test, which fails the job; the summary and the failure message both name it.
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6.4.0
+
+      # --rerun: I18N_PERF is no task input, so a cached `test` would replay a run without it.
+      # --max-workers=1 as in ci.yml: the platform fixture is not safe to fork, and a single worker
+      # keeps the build itself from competing with the measures.
+      - name: Run the editor benchmark
+        env:
+          I18N_PERF: 'true'
+        run: |
+          ./gradlew test --rerun \
+            --tests com.ibrahimdans.i18n.plugin.perf.HighlightingPerformanceTest \
+            --no-configuration-cache \
+            --stacktrace \
+            --max-workers=1
+
+      - name: Publish the results
+        if: always()
+        run: |
+          if [ -f build/perf/results.md ]; then
+            cat build/perf/results.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No results: the benchmark failed before measuring any scenario (see the test report)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          {
+            echo
+            echo "Runner: $(nproc) vCPU, load average $(cut -d' ' -f1-3 /proc/loadavg), commit ${GITHUB_SHA::7}."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: perf-results
+          path: build/perf/
+          if-no-files-found: ignore
+
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: perf-test-report
+          path: build/reports/tests/test/

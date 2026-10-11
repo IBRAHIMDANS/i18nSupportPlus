@@ -17,20 +17,57 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
+import java.nio.file.Files
+import java.nio.file.Path
+import kotlin.math.max
+import kotlin.math.roundToLong
 
 /**
  * What one highlighting pass costs on a project of [LargeProjectFixture]'s size — the reference
  * every performance change is compared against.
  *
- * Times are logged (`[perf]` lines in the test's standard output) rather than asserted to the
- * millisecond: a CI machine is too noisy for that. Each scenario only has a ceiling far above the
- * measured cost, as a net against an order-of-magnitude regression.
+ * Times are logged (`[perf]` lines in the test's standard output) and written to
+ * `build/perf/results.md`, one row per scenario: the table the weekly `.github/workflows/perf.yml`
+ * run publishes as its summary. Each scenario fails above its ceiling (see "Ceilings" below), and
+ * the failure message names the scenario.
  *
  * Opt-in: building the 500-file fixture for each scenario takes the class past a minute, too much
  * for every `./gradlew test`. Run it with
  * `I18N_PERF=true ./gradlew test --rerun --tests com.ibrahimdans.i18n.plugin.perf.HighlightingPerformanceTest`
  * (`--rerun`: the variable is no task input, so Gradle would otherwise replay the skipped run),
- * and read the figures in `build/test-results/test/TEST-*HighlightingPerformanceTest.xml`.
+ * and read the figures in `build/perf/results.md`. `I18N_PERF_FACTOR=<x>` replaces the ceiling
+ * factor for one run: `0.1` makes the slow scenarios fail on purpose, to check the net still bites.
+ *
+ * ### Ceilings
+ *
+ * Ceiling = max([CEILING_FACTOR] × reference, [CEILING_FLOOR_MS]). The reference is the upper end of
+ * the calm-machine figures re-measured on 2026-10-11 (TASK-PERF-REMEASURE, local machine, 12 cores),
+ * on the 2026-10-09 reference commit as on main — they live in [Scenario], the single source of the
+ * thresholds (the workflow only publishes what this class writes):
+ *
+ * | Scenario | Re-measured 2026-10-11               | Reference | Ceiling |
+ * |----------|--------------------------------------|-----------|---------|
+ * | (a)      | 4.6–6.0 s                            | 6 000 ms  | 48 s    |
+ * | (b)      | 0.82–0.88 s, 1.5 s under load        | 880 ms    | 7 s     |
+ * | (c)      | 27–50 ms                             | 50 ms     | 400 ms  |
+ * | (d)      | 0–3 ms                               | 3 ms      | 200 ms  |
+ * | (e)      | 0–1 ms                               | 1 ms      | 200 ms  |
+ * | (f)      | 1.6–1.7 s calm, 3.9–4.4 s under load | 1 700 ms  | 13.6 s  |
+ *
+ * Why ×8: load alone doubles the local figures on the same commit, and (f) more than that — 4.4 s
+ * (×2.6) on 2026-10-11, then 8.9 s (×5.25) on the run that introduced these ceilings, load average 14
+ * on 12 cores, (b) at 1.9 s (×2.1) in the same run. A first draft at ×5 failed (f) there for no
+ * regression. A GitHub runner is slower than the reference machine and shares its host, so ×8 keeps
+ * a 50 % margin over the worst figure seen, and the CI retry (one per failed test) asks a spike to
+ * strike twice. It still catches what this net is for: a lost cache or a search per key that
+ * multiplies a pass. A smaller drift stays below it — that one is read in the published table, and
+ * once a few weekly runs show the runner's own spread, the factor can come down to match it.
+ *
+ * Why a floor: (d) and (e) cost a few milliseconds, where a ratio measures timer resolution and GC
+ * pauses. 200 ms ignores that noise and still catches what those scenarios guard: (e) was 290–540 ms
+ * before TASK-PERF-NAMESPACE-CACHE, and a (d) that reaches the file index again costs as much.
+ *
+ * ### History
  *
  * Measured on 2026-10-09 (IU 2025.3.4, local machine, three runs), before any of the TASK-PERF-*
  * changes:
@@ -44,7 +81,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
  * | (e) one pass worth of `findNamespaceFiles` calls | 290–540 ms |
  *
  * (e) is a third to a half of (b), and (d) shows that the project-wide rescan itself is cheap.
- * A change that moves one of these figures updates this table.
+ * A change that moves one of these figures updates the references in [Scenario] and the table above.
  *
  * After TASK-PERF-NAMESPACE-CACHE (cached `findNamespaceFiles`, exclusions built once per scan): (e)
  * 0 ms, since every call after the first is a cache hit. (b) did not move beyond the noise: each
@@ -103,10 +140,9 @@ class HighlightingPerformanceTest : PlatformBaseTest() {
         myFixture.configureByText("Dashboard.tsx", LargeProjectFixture.component())
 
         val elapsed = timed { myFixture.doHighlighting() }
-        log("(a) first highlighting of a ${LargeProjectFixture.KEY_CALLS}-key component", elapsed)
 
         assertAllKeysResolved()
-        assertBelow(FIRST_HIGHLIGHTING_CEILING_MS, elapsed)
+        report(Scenario.FIRST_HIGHLIGHTING, elapsed)
     }
 
     /** (b) A character typed in the component, then the pass it triggers. */
@@ -120,9 +156,8 @@ class HighlightingPerformanceTest : PlatformBaseTest() {
             myFixture.type("x")
             timed { myFixture.doHighlighting() }
         }
-        log("(b) highlighting after typing in the component, median of $RUNS", elapsed)
 
-        assertBelow(TYPING_CEILING_MS, elapsed)
+        report(Scenario.TYPING, elapsed)
     }
 
     /** (c) A character typed in a file the plugin has nothing to do with. */
@@ -135,9 +170,8 @@ class HighlightingPerformanceTest : PlatformBaseTest() {
             myFixture.type("x")
             timed { myFixture.doHighlighting() }
         }
-        log("(c) highlighting after typing in an unrelated Java file, median of $RUNS", elapsed)
 
-        assertBelow(UNRELATED_TYPING_CEILING_MS, elapsed)
+        report(Scenario.UNRELATED_TYPING, elapsed)
     }
 
     /**
@@ -155,9 +189,8 @@ class HighlightingPerformanceTest : PlatformBaseTest() {
             PsiDocumentManager.getInstance(project).commitAllDocuments()
             timed { service.findAllSources(project) }
         }
-        log("(d) findAllSources rescan after an edit, median of $RUNS", elapsed)
 
-        assertBelow(RESCAN_CEILING_MS, elapsed)
+        report(Scenario.RESCAN, elapsed)
     }
 
     /**
@@ -167,15 +200,13 @@ class HighlightingPerformanceTest : PlatformBaseTest() {
     @Test
     fun namespaceFileLookupsOfOnePass() {
         val service = project.service<LocalizationSourceService>()
-        val namespacedKeys = LargeProjectFixture.KEY_CALLS / 2
         assertEquals(LargeProjectFixture.LOCALES.size, service.findNamespaceFiles(listOf("ns1"), project).size)
 
         val elapsed = medianOf(RUNS) {
-            timed { repeat(namespacedKeys) { i -> service.findNamespaceFiles(listOf(LargeProjectFixture.namespace(1 + i % (LargeProjectFixture.NAMESPACES - 1))), project) } }
+            timed { repeat(NAMESPACED_KEYS) { i -> service.findNamespaceFiles(listOf(LargeProjectFixture.namespace(1 + i % (LargeProjectFixture.NAMESPACES - 1))), project) } }
         }
-        log("(e) $namespacedKeys findNamespaceFiles calls (one pass), median of $RUNS", elapsed)
 
-        assertBelow(NAMESPACE_LOOKUPS_CEILING_MS, elapsed)
+        report(Scenario.NAMESPACE_LOOKUPS, elapsed)
     }
 
     /**
@@ -196,9 +227,8 @@ class HighlightingPerformanceTest : PlatformBaseTest() {
             PsiDocumentManager.getInstance(project).commitAllDocuments()
             timed { runReadAction { provider.computeForEditor(myFixture.editor, myFixture.file) } }
         }
-        log("(f) usages code vision after typing in a ${LargeProjectFixture.CATALOG_KEYS}-key JSON file, median of $RUNS", elapsed)
 
-        assertBelow(CODE_VISION_CEILING_MS, elapsed)
+        report(Scenario.CODE_VISION, elapsed)
     }
 
     /** The benchmark is only worth something on the resolved path: a fixture mistake must fail here. */
@@ -216,22 +246,103 @@ class HighlightingPerformanceTest : PlatformBaseTest() {
     private fun medianOf(runs: Int, measure: () -> Long): Long =
         List(runs) { measure() }.sorted()[runs / 2]
 
-    private fun log(scenario: String, elapsedMs: Long) =
-        println("[perf] $scenario: $elapsedMs ms (${LargeProjectFixture.LOCALES.size * LargeProjectFixture.NAMESPACES} translation files)")
+    /**
+     * Logs the time, records it in the results table, then holds it to the scenario's ceiling. The
+     * row is written before the assertion so that a scenario over its ceiling still shows in the table.
+     */
+    private fun report(scenario: Scenario, elapsedMs: Long) {
+        val factor = ceilingFactor()
+        val ceilingMs = scenario.ceilingMs(factor)
+        println("[perf] ${scenario.title}: $elapsedMs ms, ceiling $ceilingMs ms (${LargeProjectFixture.LOCALES.size * LargeProjectFixture.NAMESPACES} translation files)")
+        Results.record(scenario, elapsedMs, ceilingMs, factor)
+        assertTrue(
+            elapsedMs < ceilingMs,
+            "${scenario.title} took $elapsedMs ms, over its ceiling of $ceilingMs ms " +
+                "(max(${factor.format()} × reference ${scenario.referenceMs} ms, floor $CEILING_FLOOR_MS ms))",
+        )
+    }
 
-    private fun assertBelow(ceilingMs: Long, elapsedMs: Long) =
-        assertTrue(elapsedMs < ceilingMs, "took $elapsedMs ms, ceiling $ceilingMs ms")
+    /**
+     * The six scenarios and their references: the only place the thresholds live. A change that moves a
+     * scenario for good updates its reference here and in the class KDoc.
+     */
+    private enum class Scenario(val id: String, val label: String, val referenceMs: Long) {
+        FIRST_HIGHLIGHTING("a", "first highlighting of a ${LargeProjectFixture.KEY_CALLS}-key component", 6_000),
+        TYPING("b", "highlighting after typing in the component, median of $RUNS", 880),
+        UNRELATED_TYPING("c", "highlighting after typing in an unrelated Java file, median of $RUNS", 50),
+        RESCAN("d", "findAllSources rescan after an edit, median of $RUNS", 3),
+        NAMESPACE_LOOKUPS("e", "$NAMESPACED_KEYS findNamespaceFiles calls (one pass), median of $RUNS", 1),
+        CODE_VISION("f", "usages code vision after typing in a ${LargeProjectFixture.CATALOG_KEYS}-key JSON file, median of $RUNS", 1_700);
+
+        val title get() = "($id) $label"
+
+        fun ceilingMs(factor: Double): Long = max((referenceMs * factor).roundToLong(), CEILING_FLOOR_MS)
+    }
+
+    /**
+     * `build/perf/results.md`, rebuilt after each scenario from one row file per scenario. Row files
+     * rather than an in-memory table: the CI retry of a failed test runs in a new JVM, which would
+     * otherwise publish the retried scenario alone. A scenario that never reached its measure (the
+     * fixture failed first) shows as "not measured".
+     */
+    private object Results {
+        private val dir: Path = Path.of("build", "perf")
+        private val rows: Path = dir.resolve("rows")
+
+        fun record(scenario: Scenario, elapsedMs: Long, ceilingMs: Long, factor: Double) {
+            Files.createDirectories(rows)
+            Files.writeString(rows.resolve(scenario.id), "$elapsedMs $ceilingMs")
+            Files.writeString(dir.resolve("results.md"), render(factor))
+        }
+
+        private fun render(factor: Double): String {
+            val measured = Scenario.entries.associateWith { scenario ->
+                rows.resolve(scenario.id).takeIf(Files::exists)?.let { Files.readString(it).trim().split(' ').map(String::toLong) }
+            }
+            val over = measured.filter { (_, row) -> row != null && row[0] >= row[1] }.keys
+            return buildString {
+                appendLine("### Editor performance benchmark")
+                appendLine()
+                appendLine(
+                    "${LargeProjectFixture.LOCALES.size * LargeProjectFixture.NAMESPACES} translation files. " +
+                        "Ceiling = max(${factor.format()} × reference, $CEILING_FLOOR_MS ms); references and their rationale " +
+                        "in the KDoc of `HighlightingPerformanceTest`.",
+                )
+                appendLine()
+                if (over.isNotEmpty()) {
+                    appendLine("**Over the ceiling:** ${over.joinToString(", ") { it.title }}")
+                    appendLine()
+                }
+                appendLine("| Scenario | Time | Ceiling | Reference | Status |")
+                appendLine("|---|---:|---:|---:|---|")
+                measured.forEach { (scenario, row) ->
+                    val status = when {
+                        row == null -> "not measured"
+                        scenario in over -> "**over the ceiling**"
+                        else -> "ok"
+                    }
+                    val time = row?.let { "${it[0]} ms" } ?: "–"
+                    val ceiling = row?.let { "${it[1]} ms" } ?: "${scenario.ceilingMs(factor)} ms"
+                    appendLine("| ${scenario.title} | $time | $ceiling | ${scenario.referenceMs} ms | $status |")
+                }
+            }
+        }
+    }
 
     private companion object {
         const val RUNS = 5
+        const val NAMESPACED_KEYS = LargeProjectFixture.KEY_CALLS / 2
 
-        // About 10x the cost measured on 2026-10-09 (or since lowered by a TASK-PERF-* change), with a 1 s floor for the figures too small to
-        // be stable. A change that makes a scenario much faster lowers its ceiling with it.
-        const val FIRST_HIGHLIGHTING_CEILING_MS = 65_000L
-        const val TYPING_CEILING_MS = 10_000L
-        const val UNRELATED_TYPING_CEILING_MS = 1_000L
-        const val RESCAN_CEILING_MS = 1_000L
-        const val NAMESPACE_LOOKUPS_CEILING_MS = 1_000L
-        const val CODE_VISION_CEILING_MS = 15_000L
+        /** See "Ceilings" in the class KDoc. */
+        const val CEILING_FACTOR = 8.0
+        const val CEILING_FLOOR_MS = 200L
+
+        /** [CEILING_FACTOR], unless `I18N_PERF_FACTOR` replaces it for this run. */
+        fun ceilingFactor(): Double {
+            val override = System.getenv("I18N_PERF_FACTOR") ?: return CEILING_FACTOR
+            return override.toDoubleOrNull()?.takeIf { it > 0 } ?: error("I18N_PERF_FACTOR must be a positive number, got '$override'")
+        }
+
+        fun Double.format(): String = if (this % 1.0 == 0.0) toLong().toString() else toString()
     }
 }
