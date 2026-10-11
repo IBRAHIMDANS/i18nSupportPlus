@@ -88,8 +88,9 @@ internal class JsFoldingProvider: FoldingProvider {
         // vue-i18n's template keys sit in the component's own PSI, not in an injected fragment:
         // `keypath` is a plain attribute, and the Vue plugin parses `v-t`'s value in place. They
         // are kept apart from `direct` so that a template holding them still has its injected
-        // `{{ $t('…') }}` folded.
-        val markup = attributeValues.filter(VUE_I18N_KEYPATH::canExtract) + literals.filter(VUE_T_DIRECTIVE::canExtract)
+        // `{{ $t('…') }}` folded. A bound `:keypath="'…'"` is read on its literal, like `v-t`.
+        val markup = attributeValues.filter(VUE_I18N_KEYPATH::canExtract) +
+            literals.filter { VUE_T_DIRECTIVE.canExtract(it) || VUE_I18N_KEYPATH.canExtract(it) }
 
         if (direct.isNotEmpty()) return direct + markup
 
