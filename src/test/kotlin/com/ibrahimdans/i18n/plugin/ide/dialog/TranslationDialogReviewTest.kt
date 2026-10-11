@@ -1,0 +1,179 @@
+package com.ibrahimdans.i18n.plugin.ide.dialog
+
+import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
+import com.ibrahimdans.i18n.plugin.ide.runWithConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.review.Review
+import com.ibrahimdans.i18n.plugin.review.ReviewHash
+import com.ibrahimdans.i18n.plugin.review.ReviewKey
+import com.ibrahimdans.i18n.plugin.review.ReviewLocation
+import com.ibrahimdans.i18n.plugin.review.ReviewState
+import com.ibrahimdans.i18n.plugin.review.ReviewStore
+import com.ibrahimdans.i18n.plugin.translate.TranslatedBy
+import com.ibrahimdans.i18n.plugin.translate.Translation
+import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
+import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.command.undo.UndoManager
+import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.vfs.VirtualFile
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.Test
+import java.time.Instant
+
+/**
+ * The translation dialog and the review of translations: a locale *Translate* filled and validated
+ * as proposed is marked to review in the command of OK, one retouched is not, and a module keeping
+ * no reviews sees no mark, no link and no folder.
+ *
+ * Assertions are qualified: `BasePlatformTestCase` inherits JUnit 3's reversed `assertEquals(message, …)`.
+ */
+class TranslationDialogReviewTest : PlatformBaseTest() {
+
+    private val config = Config(defaultNs = "translation")
+    private val originalTranslator = TranslationDialog.machineTranslator
+    private val originalRoot = TranslationDialog.reviewRoot
+    private val key = ReviewKey("common", "greeting")
+
+    @AfterEach
+    fun restore() {
+        TranslationDialog.machineTranslator = originalTranslator
+        TranslationDialog.reviewRoot = originalRoot
+    }
+
+    /** `en` holds the key, `fr` lacks it; the engine answers `Bonjour`, from DeepL. */
+    private fun seed(): VirtualFile {
+        addFileToProject("locales/en/common.json", """{"greeting": "Hello"}""")
+        val fr = addFileToProject("locales/fr/common.json", "{}")
+        TranslationDialog.machineTranslator = {
+            object : TranslationProvider {
+                override fun translate(request: TranslationRequest, indicator: ProgressIndicator?): List<Translation> =
+                    listOf(Translation.Done("Bonjour", TranslatedBy("DeepL", local = false)))
+            }
+        }
+        return fr.virtualFile
+    }
+
+    /** A module root of the fixture, standing for the one the dialog resolves; reviews on when [enabled]. */
+    private fun reviewRoot(enabled: Boolean): VirtualFile {
+        val root = myFixture.tempDirFixture.findOrCreateDir("app")
+        if (enabled) WriteAction.runAndWait<RuntimeException> { root.createChildDirectory(this, ReviewLocation.DIRECTORY) }
+        TranslationDialog.reviewRoot = { _, _ -> root.takeIf { store().isEnabled(it) } }
+        return root
+    }
+
+    private fun store(): ReviewStore = ReviewStore.getInstance(project).apply {
+        now = { Instant.parse("2026-10-11T14:02:11Z") }
+        reviewer = { "Alice <alice@example.com>" }
+    }
+
+    private fun withDialog(block: (TranslationDialog) -> Unit) {
+        val dialog = TranslationDialog(project, KeysSynchronizer().buildFullKey("common:greeting", config), Mode.EDIT)
+        try {
+            block(dialog)
+        } finally {
+            Disposer.dispose(dialog.disposable)
+        }
+    }
+
+    private fun frText(fr: VirtualFile): String =
+        FileDocumentManager.getInstance().getDocument(fr)!!.text
+
+    @Test
+    fun `a locale translated then validated as proposed is marked to review, with its engine`() = myFixture.runWithConfig(config) {
+        val fr = seed()
+        val root = reviewRoot(enabled = true)
+
+        withDialog { dialog ->
+            dialog.translateEmptyLocales()
+            dialog.confirm()
+        }
+
+        Assertions.assertTrue("Bonjour" in frText(fr), frText(fr))
+        val review = store().reviews(root, "fr").getValue(key)
+        Assertions.assertEquals(ReviewState.TO_REVIEW, review.state)
+        Assertions.assertEquals(ReviewHash.of("Bonjour"), review.hash)
+        Assertions.assertEquals("machine:DeepL", review.origin)
+        Assertions.assertEquals(emptyMap<ReviewKey, Review>(), store().reviews(root, "en"), "the donor locale is not marked")
+    }
+
+    @Test
+    fun `a proposal retouched by hand is not marked`() = myFixture.runWithConfig(config) {
+        val fr = seed()
+        val root = reviewRoot(enabled = true)
+
+        withDialog { dialog ->
+            dialog.translateEmptyLocales()
+            dialog.setValue("fr", "Bonjour !")
+            dialog.confirm()
+        }
+
+        Assertions.assertTrue("Bonjour !" in frText(fr), frText(fr))
+        Assertions.assertEquals(emptyMap<ReviewKey, Review>(), store().reviews(root, "fr"))
+    }
+
+    @Test
+    fun `a module without reviews gets no mark, no link and no folder`() = myFixture.runWithConfig(config) {
+        val fr = seed()
+        val root = reviewRoot(enabled = false)
+
+        withDialog { dialog ->
+            Assertions.assertNull(dialog.reviewStateOf("fr"), "no mark, no Review… link")
+            Assertions.assertNull(dialog.reviewStateOf("en"))
+            dialog.translateEmptyLocales()
+            dialog.confirm()
+        }
+
+        Assertions.assertTrue("Bonjour" in frText(fr), frText(fr))
+        Assertions.assertNull(root.findChild(ReviewLocation.DIRECTORY), "nothing created for reviews")
+    }
+
+    @Test
+    fun `each locale of a module keeping reviews shows its review state`() = myFixture.runWithConfig(config) {
+        seed()
+        val root = reviewRoot(enabled = true)
+        WriteAction.runAndWait<RuntimeException> {
+            store().mark(root, "en", mapOf(key to "Hello"), Review.machineOrigin("DeepL"))
+        }
+
+        withDialog { dialog ->
+            Assertions.assertEquals(PluginBundle.message("review.state.to.review"), dialog.reviewStateOf("en"))
+            Assertions.assertEquals(PluginBundle.message("review.dialog.state.none"), dialog.reviewStateOf("fr"))
+        }
+    }
+
+    @Test
+    fun `one Ctrl+Z undoes the value and its mark`() = myFixture.runWithConfig(config) {
+        val fr = seed()
+        val root = reviewRoot(enabled = true)
+        myFixture.openFileInEditor(fr)
+
+        withDialog { dialog ->
+            dialog.translateEmptyLocales()
+            dialog.confirm()
+        }
+        Assertions.assertEquals(setOf(key), store().reviews(root, "fr").keys)
+
+        UndoManager.getInstance(project).undo(FileEditorManager.getInstance(project).selectedEditor!!)
+
+        Assertions.assertFalse("Bonjour" in frText(fr), frText(fr))
+        Assertions.assertEquals(emptyMap<ReviewKey, Review>(), store().reviews(root, "fr"), "the mark is undone with the value")
+    }
+
+    @Test
+    fun `only the proposals written exactly as proposed are kept`() {
+        val proposals = mapOf(
+            "fr" to TranslationDialog.MachineProposal("Bonjour", "machine:DeepL"),
+            "es" to TranslationDialog.MachineProposal("Hola", "machine:DeepL"),
+            "de" to TranslationDialog.MachineProposal("Hallo", "machine:DeepL"),
+        )
+        val kept = TranslationDialog.untouchedProposals(proposals, mapOf("fr" to "Bonjour", "es" to "¡Hola!"))
+        Assertions.assertEquals(setOf("fr"), kept.keys, "retouched (es) and not written (de) are left out")
+    }
+}
