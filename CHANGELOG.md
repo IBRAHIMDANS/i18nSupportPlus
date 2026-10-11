@@ -22,6 +22,7 @@
 - [Transloco] **The directive's `read` is read**: under `<ng-container *transloco="let t; read: 'admin'">`, `t('title')` is the key `admin.title`, in the scope `admin` when `i18n/admin/` holds one. The directive closest to the call decides
 - [vue-i18n] **Linked messages are navigable and count as usages**: in `"Click @:common.save"` — or `@.lower:`, `@:{'…'}`, `@:(…)` — the linked key opens on Ctrl+click and shows in Find Usages, an unknown one is reported, and a key only linked is no longer reported as unused. JSON and YAML
 - [vue-i18n] **`<i18n-t keypath>` and `v-t` complete and fold**: `<i18n-t keypath="common:user.<caret>">` offers the keys under `common:user` with their value, and folding replaces the key with its value. A bound `:keypath` holding a constant string (`:keypath="'terms.accept'"`) is read as a key too. react-i18next's `<Trans i18nKey="…">` gets the same prefix-aware completion
+- [Updates] **What's New opens in the IDE**: the update notification's *What's New* button shows, in an editor tab, the notes of the installed version and of every version skipped since the last one announced, instead of the whole CHANGELOG on GitHub. *Help | What's New in i18n Support Plus* reopens them at any time. Without JCEF, the CHANGELOG still opens in the browser
 
 ### Bug Fixes
 

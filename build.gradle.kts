@@ -247,6 +247,40 @@ changelog {
     groups.set(emptyList())
 }
 
+// ── What's New page ───────────────────────────────────────────────────────────
+//
+// Every released version of CHANGELOG.md, rendered to HTML exactly as <change-notes> is, and
+// embedded in the jar for the in-IDE "What's New" page (WhatsNewPage). Each version starts with
+// a `<!-- whats-new-version: X.Y.Z -->` marker line, newest first, as in the file. Unreleased
+// entries are left out: they belong to no version a user can be running. Not capped like
+// <change-notes>: the descriptor limit does not apply to a resource.
+val whatsNewHtml: String = changelog.run {
+    val released = Regex("""\d+\.\d+.*""")
+    getAll().values
+        .filter { released.matches(it.version) }
+        .joinToString("\n") { item ->
+            "<!-- whats-new-version: ${item.version} -->\n" +
+                renderItem(item, org.jetbrains.changelog.Changelog.OutputType.HTML)
+        }
+}
+
+val generateWhatsNew = tasks.register("generateWhatsNew") {
+    val html = whatsNewHtml
+    val output = layout.buildDirectory.dir("generated/whatsNew")
+    inputs.property("html", html)
+    outputs.dir(output)
+    doLast {
+        output.get().file("com/ibrahimdans/i18n/whats-new.html").asFile.apply {
+            parentFile.mkdirs()
+            writeText(html)
+        }
+    }
+}
+
+sourceSets.main {
+    resources.srcDir(generateWhatsNew)
+}
+
 tasks {
     register("printChangelogItem") {
         doLast {

@@ -27,7 +27,8 @@ class ActionLabelResolutionTest : PlatformBaseTest() {
             "com.ibrahimdans.i18n.ToggleFolding",
             "com.ibrahimdans.i18n.BatchExtractI18n",
             "com.ibrahimdans.i18n.SortI18nKeys",
-            "com.ibrahimdans.i18n.MoveI18nKey"
+            "com.ibrahimdans.i18n.MoveI18nKey",
+            "com.ibrahimdans.i18n.ShowWhatsNew"
         )
     }
 

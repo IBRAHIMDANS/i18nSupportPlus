@@ -424,6 +424,10 @@
                 class="com.ibrahimdans.i18n.plugin.review.ui.CleanupReviewsAction">
             <add-to-group group-id="com.ibrahimdans.i18n.ToolsMenu" anchor="after" relative-to-action="com.ibrahimdans.i18n.CleanupUnusedKeys"/>
         </action>
+        <action id="com.ibrahimdans.i18n.ShowWhatsNew"
+                class="com.ibrahimdans.i18n.plugin.ide.whatsnew.ShowWhatsNewAction">
+            <add-to-group group-id="HelpMenu" anchor="last"/>
+        </action>
     </actions>
     <extensions defaultExtensionNs="com.ibrahimdans.i18n">
         <localization implementation="com.ibrahimdans.i18n.extensions.localization.json.JsonLocalization"/>
