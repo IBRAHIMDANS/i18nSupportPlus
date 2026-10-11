@@ -75,6 +75,24 @@ class I18nizeActionTest : PlatformBaseTest() {
     }
 
     @Test
+    fun dataStartsUncheckedAndIsLeftAsIs() = myFixture.runWithConfig(config) {
+        myFixture.addFileToProject("locales/en/common.json", "{}")
+        val links = myFixture.addFileToProject("src/Links.tsx", """
+            export function Links() {
+                const site = 'https://example.com';
+                return <p>Save</p>;
+            }
+        """.trimIndent())
+        val model = modelOf(compute(links.virtualFile))
+
+        Assertions.assertEquals(mapOf("https://example.com" to false, "Save" to true), model.rows.associate { it.text to it.selected })
+        write(model.accepted())
+
+        Assertions.assertTrue("'https://example.com'" in textOf(links), textOf(links))
+        Assertions.assertTrue("{t('links.save')}" in textOf(links), textOf(links))
+    }
+
+    @Test
     fun aFileUncheckedWholeIsLeftOut() = myFixture.runWithConfig(config) {
         myFixture.addFileToProject("locales/en/common.json", "{}")
         val files = components()
