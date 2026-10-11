@@ -32,6 +32,10 @@ object TranslationFileScanner {
      * Dependency and output directories, which hold translation files by the thousand and never
      * the project's own. `node_modules` and `build` were the only two listed, so a `dist`, an
      * `out` or a `vendor` was walked in full before finding nothing worth offering.
+     *
+     * Only consulted while looking for a translation folder: once one is found it is read whole,
+     * so Laravel's `lang/vendor/<package>/` overrides are offered while Composer's `vendor/` is
+     * never entered.
      */
     private val SKIPPED_DIRECTORIES =
         setOf("node_modules", "build", "dist", "out", "target", "vendor", "coverage")

@@ -39,6 +39,28 @@ class TranslationFileScannerTest {
         }
     }
 
+    /**
+     * Laravel puts a project's overrides of a package's translations under `lang/vendor/<package>/`
+     * (`resources/lang/vendor/` before Laravel 9): that `vendor` is the project's own, unlike
+     * Composer's, whose packages' `lang` folders must still not be offered.
+     */
+    @Test
+    fun `laravel package overrides under lang vendor are offered`() {
+        withTempProject { base ->
+            translationFile(base, "lang/vendor/courier/en.json")
+            translationFile(base, "resources/lang/vendor/courier/fr.json")
+            translationFile(base, "vendor/acme/pkg/lang/en.json")
+            translationFile(base, "node_modules/pkg/lang/en.json")
+
+            val found = TranslationFileScanner.scan(base).map { it.replace(File.separatorChar, '/') }
+
+            assertTrue("lang/vendor/courier/en.json" in found, "lang/vendor must be read, got: $found")
+            assertTrue("resources/lang/vendor/courier/fr.json" in found, "resources/lang/vendor must be read, got: $found")
+            assertFalse(found.any { it.startsWith("vendor/") }, "Composer's vendor must not be walked, got: $found")
+            assertFalse(found.any { it.startsWith("node_modules/") }, "node_modules must not be walked, got: $found")
+        }
+    }
+
     @Test
     fun `a recognised folder is read no deeper than the scan allows`() {
         withTempProject { base ->

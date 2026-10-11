@@ -39,6 +39,26 @@ class LocalizationSourceService {
             "storybook-static", ".nuxt", ".output", "coverage", ".cache", "vendor"
         )
 
+        /**
+         * True when [path] crosses one of the [exclusions] directories.
+         *
+         * `vendor` is Composer's dependency folder, but `lang/vendor/<package>/` is also where Laravel
+         * puts a project's own overrides of a package's translations (`resources/lang/vendor/` before
+         * Laravel 9): a `vendor` whose parent is `lang` is the project's, and is kept. Only that one
+         * directory is spared — a `lang` folder inside Composer's `vendor/` stays excluded, since the
+         * `vendor` above it still matches. The files come from the file index, so nothing is walked
+         * to reach this test: it only filters paths.
+         */
+        internal fun isExcludedPath(path: String, exclusions: Set<String>): Boolean {
+            val segments = path.split('/')
+            return segments.indices.any { index ->
+                segments[index] in exclusions && !isLaravelPackageOverrides(segments, index)
+            }
+        }
+
+        private fun isLaravelPackageOverrides(segments: List<String>, index: Int): Boolean =
+            index > 0 && segments[index] == "vendor" && segments[index - 1] == "lang"
+
         // ISO 639-1 (2 letters), their ISO 639-2 equivalents ("fra", "deu"), and the
         // 3-letter languages known to the JDK's CLDR data ("fil", "haw"). The full
         // ISO 639-3 registry is deliberately not used: its ~7900 codes collide with
@@ -98,8 +118,7 @@ class LocalizationSourceService {
      */
     private fun isExcludedPath(file: VirtualFile, project: Project, exclusions: Set<String>): Boolean {
         if (ProjectFileIndex.getInstance(project).isExcluded(file)) return true
-        val segments = file.path.split('/')
-        return segments.any { it in exclusions }
+        return isExcludedPath(file.path, exclusions)
     }
 
     /**
