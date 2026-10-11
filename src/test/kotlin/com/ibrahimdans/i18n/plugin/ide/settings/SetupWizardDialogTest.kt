@@ -292,6 +292,62 @@ class SetupWizardDialogTest : PlatformBaseTest() {
     }
 
     // -----------------------------------------------------------------------
+    // Manifests read by the wizard: package.json and composer.json
+    // -----------------------------------------------------------------------
+
+    private fun detectInProject(vararg manifests: Pair<String, String>): Set<String> {
+        val tempDir = createTempDir("wizard-manifests")
+        try {
+            manifests.forEach { (name, content) -> File(tempDir, name).writeText(content) }
+            return SetupWizardDialog.detectFrameworksIn(tempDir)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `detectFrameworksIn ticks laravel from composer json`() {
+        val detected = detectInProject(
+            "composer.json" to """{"require": {"php": "^8.2", "laravel/framework": "^11.0"}}"""
+        )
+
+        assertEquals(setOf("laravel"), detected)
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `detectFrameworksIn ticks laravel and vue-i18n in a mixed project`() {
+        val detected = detectInProject(
+            "composer.json" to """{"require": {"laravel/framework": "^11.0"}}""",
+            "package.json" to """{"dependencies": {"vue": "^3.4.0", "vue-i18n": "^9.0.0"}}"""
+        )
+
+        assertEquals(setOf("laravel", "vue-i18n"), detected)
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `detectFrameworksIn reads package json alone as before`() {
+        val detected = detectInProject(
+            "package.json" to """{"dependencies": {"react-i18next": "^13.0.0"}}"""
+        )
+
+        assertEquals(setOf("i18next"), detected)
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `detectFrameworksIn ignores a composer json without laravel framework`() {
+        val detected = detectInProject(
+            "composer.json" to """{"require": {"php": "^8.2", "symfony/translation": "^7.0"}}"""
+        )
+
+        assertTrue(detected.isEmpty(), "no framework expected, got: $detected")
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `detectFrameworksIn returns nothing without any manifest`() {
+        assertTrue(detectInProject().isEmpty())
+    }
+
+    // -----------------------------------------------------------------------
     // Frameworks shipped since #151 but missing from the wizard
     // -----------------------------------------------------------------------
 

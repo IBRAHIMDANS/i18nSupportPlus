@@ -352,12 +352,10 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
     // -- Detection logic
 
     /**
-     * Reads package.json at the project root and pre-checks framework checkboxes accordingly.
+     * Reads the manifests at the project root and pre-checks framework checkboxes accordingly.
      */
     private fun detectFrameworks() {
-        val packageJson = File(project.basePath ?: return, "package.json")
-        if (!packageJson.exists()) return
-        for (key in FrameworkDetector.detect(packageJson.readText())) {
+        for (key in detectFrameworksIn(File(project.basePath ?: return))) {
             frameworkCheckboxes[key]?.isSelected = true
         }
     }
@@ -447,8 +445,24 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         }
     }
 
-    private companion object {
+    companion object {
         /** How many of the found files the summary names before falling back to the count. */
-        const val SAMPLE_SIZE = 5
+        private const val SAMPLE_SIZE = 5
+
+        /**
+         * Manifests whose dependencies give the frameworks away: `package.json` for the JS
+         * libraries, `composer.json` for Laravel. [FrameworkDetector] holds one table for both.
+         */
+        private val MANIFESTS = listOf("package.json", "composer.json")
+
+        /**
+         * Frameworks declared by the manifests found directly in [base]. Kept out of the dialog
+         * instance so it runs headlessly in tests.
+         */
+        internal fun detectFrameworksIn(base: File): Set<String> =
+            MANIFESTS
+                .map { File(base, it) }
+                .filter { it.isFile }
+                .flatMapTo(mutableSetOf()) { FrameworkDetector.detect(it.readText()) }
     }
 }
