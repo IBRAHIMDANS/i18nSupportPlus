@@ -1,4 +1,9 @@
 <idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Who signs a review when no name is configured: the repository's user.name / user.email. -->
+        <projectService serviceInterface="com.ibrahimdans.i18n.plugin.review.VcsReviewerIdentity"
+                        serviceImplementation="com.ibrahimdans.i18n.plugin.review.git.GitReviewerIdentity"/>
+    </extensions>
     <actions>
         <action id="com.ibrahimdans.i18n.CompareTranslationsWithBranch"
                 class="com.ibrahimdans.i18n.plugin.ide.diff.git.CompareTranslationsWithBranchAction"
