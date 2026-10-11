@@ -24,6 +24,10 @@
 - [Settings] **Pasting text into *Folding max length* no longer throws**: typing was already saved as you type, but a paste skips the digit filter and a non-numeric value, or emptying the field, raised an error; it is now ignored and the setting keeps its value
 - [Laravel] **Package overrides in `lang/vendor/` are read**: `vendor` is skipped as Composer's dependency folder, which also hid `lang/vendor/<package>/` (and `resources/lang/vendor/`), where Laravel keeps a project's overrides of a package's translations — even in JSON. A `vendor` directly under `lang` is now read; Composer's `vendor/` and `node_modules` stay excluded
 
+### Documentation
+
+- [Docs] **Coming from i18n Ally or Easy I18n?** `docs/COMPARISON.md` compares the plugin with i18n Ally (VS Code and JetBrains) and Easy I18n, feature by feature, each claim sourced and dated — what the others do better included — and maps their settings to the plugin's
+
 ## 1.9.0 - 2026-10-10
 
 ### Features
