@@ -121,6 +121,27 @@ class KeyResolutionFixtureTest : PlatformBaseTest() {
         assertResolves("src/Prefix.tsx", "'name'", "Profile name")
     }
 
+    /** next-intl Server Components: `await getTranslations('ns')` prefixes its `t` like `useTranslations`. */
+    @Test
+    fun `the namespace of an awaited getTranslations`() = withSingle {
+        assertResolves("src/ServerPrefix.tsx", "'name'", "Profile name")
+    }
+
+    @Test
+    fun `the namespace option of getTranslations`() = withSingle {
+        assertResolves("src/ServerNamespaceOption.tsx", "'name'", "User name")
+    }
+
+    @Test
+    fun `the namespace of a getTranslations that is not awaited`() = withSingle {
+        assertResolves("src/ServerNoAwait.tsx", "'name'", "Profile name")
+    }
+
+    @Test
+    fun `a getTranslations without a namespace uses the default one`() = withSingle {
+        assertResolves("src/ServerDefault.tsx", "'defaultOnly'", "Default only")
+    }
+
     @Test
     fun `an ns option on the call`() = withSingle {
         assertResolves("src/NsOption.tsx", "'label'", "Other label")

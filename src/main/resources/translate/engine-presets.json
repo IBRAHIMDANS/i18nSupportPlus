@@ -27,7 +27,8 @@
     },
     "body": "{\"text\": [\"{text}\"], \"source_lang\": \"{source}\", \"target_lang\": \"{target}\", \"tag_handling\": \"xml\", \"context\": \"{context}\"}",
     "responsePath": "translations[0].text",
-    "source": "https://developers.deepl.com/docs/api-reference/translate (Pro accounts: https://api.deepl.com/v2/translate) ; https://developers.deepl.com/docs/xml-and-html-handling/xml",
+    "languageCodes": "deepl",
+    "source": "https://developers.deepl.com/docs/api-reference/translate (Pro accounts: https://api.deepl.com/v2/translate) ; https://developers.deepl.com/docs/xml-and-html-handling/xml ; language codes: https://developers.deepl.com/docs/getting-started/supported-languages (variants such as EN-GB are target only; EN, PT and ZH are unspecified variants)",
     "batch": {
       "body": "{\"text\": {texts}, \"source_lang\": \"{source}\", \"target_lang\": \"{target}\", \"tag_handling\": \"xml\", \"context\": \"{context}\"}",
       "listPath": "translations",
@@ -55,7 +56,8 @@
     "body": "{\"q\": \"{text}\", \"source\": \"{source}\", \"target\": \"{target}\", \"format\": \"html\"}",
     "responsePath": "data.translations[0].translatedText",
     "unescapeHtml": true,
-    "source": "https://cloud.google.com/translate/docs/reference/rest/v2/translate",
+    "languageCodes": "bcp47",
+    "source": "https://cloud.google.com/translate/docs/reference/rest/v2/translate ; language codes: https://docs.cloud.google.com/translate/docs/languages (BCP-47: zh-CN, zh-TW, pt-BR)",
     "batch": {
       "body": "{\"q\": {texts}, \"source\": \"{source}\", \"target\": \"{target}\", \"format\": \"html\"}",
       "listPath": "data.translations",

@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.dialog
 
 import com.ibrahimdans.i18n.plugin.ide.actions.MachineFill
+import com.ibrahimdans.i18n.plugin.translate.TranslatedBy
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
@@ -16,7 +17,7 @@ import javax.swing.table.DefaultTableModel
 
 /**
  * The preview of *Fill Missing Translations*: one row per key — keep it or not, key, source text,
- * proposal, note. A proposal the engine got wrong, or a key not sent, shows its reason in the note,
+ * proposal, note, engine — local or not. A proposal the engine got wrong, or a key not sent, shows its reason in the note,
  * unchecked and locked. A plural form translated from `other` comes unchecked, noted for review.
  */
 internal class MachineTranslationPreviewDialog(
@@ -31,7 +32,8 @@ internal class MachineTranslationPreviewDialog(
             PluginBundle.message("action.fill.column.key"),
             PluginBundle.message("action.fill.column.source"),
             PluginBundle.message("action.fill.column.proposal"),
-            PluginBundle.message("action.fill.column.note")
+            PluginBundle.message("action.fill.column.note"),
+            PluginBundle.message("action.fill.column.engine")
         ),
         0
     ) {
@@ -47,7 +49,8 @@ internal class MachineTranslationPreviewDialog(
                     else Triple(true, result.text, "")
                 is Translation.Failed -> Triple(false, "", PluginBundle.message("action.fill.rejected", result.reason))
             }
-            model.addRow(arrayOf<Any>(row.first, proposal.item.key, proposal.item.source, row.second, row.third))
+            val engine = (proposal.result as? Translation.Done)?.engine?.let { engineLabel(it) }.orEmpty()
+            model.addRow(arrayOf<Any>(row.first, proposal.item.key, proposal.item.source, row.second, row.third, engine))
         }
         title = PluginBundle.message("action.fill.preview.title", target, proposals.size)
         setOKButtonText(PluginBundle.message("action.fill.preview.ok"))
@@ -75,5 +78,11 @@ internal class MachineTranslationPreviewDialog(
             )
             if (notes.isNotEmpty()) add(JBLabel(notes.joinToString("<br>", "<html>", "</html>")), BorderLayout.SOUTH)
         }
+    }
+
+    internal companion object {
+        /** `DeepL`, or `Ollama (local)` for an engine on the user's machine: after a fallback, where each text went. */
+        fun engineLabel(engine: TranslatedBy): String =
+            if (engine.local) PluginBundle.message("action.fill.engine.local", engine.name) else engine.name
     }
 }
