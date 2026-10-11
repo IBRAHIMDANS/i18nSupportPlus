@@ -23,7 +23,8 @@ import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 
 /**
- * The *Machine Translation* form: the opt-in, then the engines tried in order, one typed form each.
+ * The *Machine Translation* form: the opt-in, then the engines tried in order, one typed form each,
+ * then the project's glossary, shared by every engine.
  *
  * It edits [settings], a detached copy the configurable applies, and collects the API keys typed in
  * [keys] — written to the password safe on *Apply* only. [test] translates a sample with the selected
@@ -91,6 +92,22 @@ internal class MachineTranslationPanel(
         addActionListener { moveSelected(1) }
     }
 
+    /** The glossary, one term per line ([GlossaryTerm.parse]); the copy follows as it is typed. */
+    val glossaryArea = JTextArea(GlossaryTerm.format(settings.glossary), 4, 46).apply {
+        name = PluginBundle.message("settings.translate.glossary")
+        document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent?) = glossaryTyped()
+            override fun removeUpdate(e: DocumentEvent?) = glossaryTyped()
+            override fun changedUpdate(e: DocumentEvent?) = glossaryTyped()
+        })
+    }
+
+    private val glossaryForm = panel {
+        row(PluginBundle.message("settings.translate.glossary")) {
+            scrollCell(glossaryArea).align(AlignX.FILL).comment(PluginBundle.message("settings.translate.glossary.comment"))
+        }
+    }
+
     init {
         editor = ListEditorPanel(
             items = settings.engines,
@@ -110,6 +127,7 @@ internal class MachineTranslationPanel(
         }
         add(top, BorderLayout.NORTH)
         add(editor, BorderLayout.CENTER)
+        add(glossaryForm, BorderLayout.SOUTH)
         bind(null)
         editor.selectFirst()
         refresh()
@@ -124,7 +142,7 @@ internal class MachineTranslationPanel(
         row(PluginBundle.message("settings.translate.apiKey")) { cell(keyField) }
         row(PluginBundle.message("settings.translate.headers")) { cell(headersArea).align(AlignX.FILL) }
         row(PluginBundle.message("settings.translate.body")) {
-            cell(bodyArea).align(AlignX.FILL).comment(PluginBundle.message("settings.translate.body.comment"))
+            cell(bodyArea).align(AlignX.FILL).comment(PluginBundle.message("settings.translate.body.glossaryComment"))
         }
         row(PluginBundle.message("settings.translate.responsePath")) { cell(pathField) }
         row("") { cell(unescapeBox) }
@@ -151,6 +169,13 @@ internal class MachineTranslationPanel(
         val filled = EngineState.of(preset).copy(id = selected.id)
         mutate { filled }
         bind(filled)
+    }
+
+    private fun glossaryTyped() {
+        // The list is replaced in place: the configurable compares the copy it handed over.
+        val terms = GlossaryTerm.parse(glossaryArea.text)
+        settings.glossary.clear()
+        settings.glossary.addAll(terms)
     }
 
     private fun keyTyped() {
@@ -205,12 +230,13 @@ internal class MachineTranslationPanel(
         val engine = editor.selected() ?: return
         testResult.foreground = JBColor.foreground()
         testResult.text = PluginBundle.message("settings.translate.test.running")
-        test(engine.toConfig(), String(keyField.password)) { message -> testResult.text = message }
+        test(engine.toConfig(GlossaryTerm.glossary(settings.glossary)), String(keyField.password)) { message -> testResult.text = message }
     }
 
     private fun refresh() {
         warning.isVisible = enabledBox.isSelected
         editor.isEnabled = enabledBox.isSelected
+        glossaryArea.isEnabled = enabledBox.isSelected
     }
 
     override fun onItemChanged() {
