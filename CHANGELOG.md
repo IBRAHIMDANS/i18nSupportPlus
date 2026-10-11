@@ -4,6 +4,7 @@
 
 ### Features
 
+- [Editor] **Edit a translation from the code**: on a key such as `t('common:menu.home')`, *Edit Translation* (`Ctrl+Alt+Shift+I`, editor context menu) or the *Edit* link of the hint (Ctrl+hover) opens the translation dialog on that key, every locale filled in — no detour through the JSON file or the tool window. A key no file holds yet opens the dialog in creation mode; once *OK* writes, folding, inlay hints and hints show the new value at once
 - [Inspections] **Locales not checked for missing keys**: a locale in progress or abandoned (`de, pt-BR`) no longer fills the project with *missing key* and *partially translated* warnings. It is still shown everywhere, and machine translation can still fill it. `de` covers `de-DE` (#734 on i18n Ally)
 - [Transloco] **The directive's `read` is read**: under `<ng-container *transloco="let t; read: 'admin'">`, `t('title')` is the key `admin.title` — the key `title` of the scope `admin` when `i18n/admin/` holds one, else the global `admin.title`; `read: 'admin.users'` goes one level into the scope. Navigation and completion follow, and the key is no longer reported as unused. The directive closest to the call decides, matched on the name it gives its function (`let t`, `let tr`): an inner `*transloco` without `read` cancels the outer one
 - [Translation] **Fill every locale at once**: *Fill Missing Translations…* offers *All locales* — one preview with a *Locale* column, one write, one Ctrl+Z, instead of a run per locale

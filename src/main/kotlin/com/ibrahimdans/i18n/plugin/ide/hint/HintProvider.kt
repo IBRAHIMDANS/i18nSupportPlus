@@ -1,8 +1,8 @@
 package com.ibrahimdans.i18n.plugin.ide.hint
 
-import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.plugin.ide.actions.EditTranslationAtCaretAction
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.tree.PluralGroup
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
@@ -18,18 +18,22 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.psi.PsiElement
-import com.intellij.psi.xml.XmlAttributeValue
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.xml.XmlText
 
 private const val MAX_TRANSLATION_LENGTH = 60
 
+/** Prefix of the *Edit* link: `i18n-edit:<offset>:<file url>`, the literal the hint was shown for. */
+internal const val EDIT_LINK_PREFIX = "i18n-edit:"
+
 /**
  * Shows all available translations (grouped by language folder) as a hint on Ctrl+hover.
  * Each locale is displayed in a table row. Missing translations are shown as "—".
- * Clicking a "→" link navigates to the translation file.
+ * Clicking a "→" link navigates to the translation file; the *Edit* link below the table opens
+ * the translation dialog on the key, as [EditTranslationAtCaretAction] does.
  */
 class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
 
@@ -53,6 +57,10 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
         context: PsiElement?
     ): PsiElement? {
         val project = psiManager.project
+        if (link.startsWith(EDIT_LINK_PREFIX)) {
+            openEditDialog(psiManager, link.removePrefix(EDIT_LINK_PREFIX))
+            return null
+        }
         val basePath = project.basePath ?: return null
         val virtualFile = LocalFileSystem.getInstance().findFileByPath("$basePath/$link") ?: return null
         // navigate(true) must run on the EDT — schedule it regardless of the calling thread
@@ -65,19 +73,26 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
         }
     }
 
+    /**
+     * Opens the translation dialog on the literal [target] points to (`<offset>:<file url>`). The
+     * dialog is modal: it waits for the next EDT turn, out of the link handling.
+     */
+    private fun openEditDialog(psiManager: PsiManager, target: String) {
+        val offset = target.substringBefore(':').toIntOrNull() ?: return
+        val virtualFile = VirtualFileManager.getInstance().findFileByUrl(target.substringAfter(':')) ?: return
+        val project = psiManager.project
+        ApplicationManager.getApplication().invokeLater {
+            if (project.isDisposed) return@invokeLater
+            val element = ReadAction.compute<PsiElement?, RuntimeException> {
+                psiManager.findFile(virtualFile)?.findElementAt(offset)
+            } ?: return@invokeLater
+            EditTranslationAtCaretAction.edit(project, element)
+        }
+    }
+
     private fun resolveAllTranslations(hovered: PsiElement): String? {
         val project = hovered.project
-        val translationFunctionNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
-
-        // The hovered element is the leaf token. A JS string literal's leaf is a key as it is; an
-        // attribute value's leaf (`<Trans i18nKey="…">`) is not — its key is the XmlAttributeValue above.
-        val candidates = listOfNotNull(hovered, (hovered.parent as? XmlAttributeValue))
-        val (sourceElement, lang) = candidates.firstNotNullOfOrNull { element ->
-            Extensions.LANG.extensionList.firstOrNull { it.canExtractKey(element, translationFunctionNames) }?.let { element to it }
-        } ?: return null
-        val rawKey = lang.extractRawKey(sourceElement) ?: return null
-
-        val fullKey = RawKeyParser(project).parse(rawKey, sourceElement) ?: return null
+        val (sourceElement, fullKey) = EditTranslationAtCaretAction.keyAt(hovered) ?: return null
 
         val sources = project.service<LocalizationSourceService>().findReadSources(fullKey, sourceElement)
         if (sources.isEmpty()) return null
@@ -111,6 +126,14 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
 
         if (rows.isEmpty()) return null
 
-        return "<table cellspacing='0' cellpadding='2'>${rows.joinToString("")}</table>"
+        return "<table cellspacing='0' cellpadding='2'>${rows.joinToString("")}</table>" + editLink(sourceElement)
+    }
+
+    /** The *Edit* link to the literal [sourceElement], or nothing for a literal in no file on disk. */
+    private fun editLink(sourceElement: PsiElement): String {
+        val url = sourceElement.containingFile?.virtualFile?.url ?: return ""
+        val href = StringUtil.escapeXmlEntities("$EDIT_LINK_PREFIX${sourceElement.textRange.startOffset}:$url")
+        val label = StringUtil.escapeXmlEntities(PluginBundle.message("hint.edit.link"))
+        return "<div style='padding-top:4px'><a href='psi_element://$href'>$label</a></div>"
     }
 }
