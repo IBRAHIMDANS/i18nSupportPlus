@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.utils
 
+import com.ibrahimdans.i18n.extensions.localization.php.PhpTranslationPsi
 import com.ibrahimdans.i18n.extensions.localization.yaml.YamlTranslationPsi
 import com.intellij.json.psi.JsonElementGenerator
 import com.intellij.json.psi.JsonFile
@@ -41,7 +42,12 @@ object TranslationPsi {
     /** The id of the YAML language — registered by the YAML plugin only. */
     private const val YAML_LANGUAGE = "yaml"
 
+    /** The id of the PHP language — registered by the PHP plugin only. */
+    private const val PHP_LANGUAGE = "PHP"
+
     fun isYaml(element: PsiElement): Boolean = element.language.id == YAML_LANGUAGE
+
+    fun isPhp(element: PsiElement): Boolean = element.language.id == PHP_LANGUAGE
 
     /** [element] read as a key-value of a translation file, or null when it is none. */
     fun entryOf(element: PsiElement): TranslationEntry? = when {
@@ -115,6 +121,7 @@ object TranslationPsi {
     fun readValue(element: PsiElement): String? = when {
         element is JsonStringLiteral -> element.value
         isYaml(element) -> YamlTranslationPsi.readValue(element) ?: element.text
+        isPhp(element) -> PhpTranslationPsi.readValue(element) ?: element.text
         else -> element.text
     }
 
@@ -123,6 +130,8 @@ object TranslationPsi {
         when {
             element is JsonStringLiteral -> element.replace(JsonElementGenerator(project).createStringLiteral(newValue))
             isYaml(element) -> YamlTranslationPsi.replaceValue(element, newValue, project)
+            // A Laravel translation file's value: edited from the tool window like any other.
+            isPhp(element) -> PhpTranslationPsi.replaceValue(element, newValue, project)
         }
     }
 }

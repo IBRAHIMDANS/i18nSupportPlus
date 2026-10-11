@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.Localization
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
@@ -7,6 +8,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
@@ -44,10 +46,31 @@ internal object KeySpelling {
     fun child(config: Config, path: String, segment: String): String =
         if (path.isEmpty()) segment else path + (levelSeparator(config) ?: config.keySeparator) + segment
 
-    /** The namespace [key] is prefixed with, or null. */
+    /**
+     * Laravel's separator inside a package's namespace (`courier::messages`), which a loaded key
+     * spells `courier::messages:welcome`.
+     */
+    private const val PACKAGE_SEPARATOR = "::"
+
+    /**
+     * The namespace [key] is prefixed with, or null.
+     *
+     * Cut at the first `:`, except for a package namespace (`courier::messages:welcome`), whose
+     * own `::` is not the end of the namespace: only that exact shape — `::` between two non-empty
+     * names, followed by this spelling's `:` — is read whole, so an i18next `ns:key` is unchanged.
+     */
     fun namespaceOf(key: String): String? {
+        packageNamespaceOf(key)?.let { return it }
         val index = key.indexOf(NAMESPACE_SEPARATOR)
         return if (index > 0) key.substring(0, index) else null
+    }
+
+    private fun packageNamespaceOf(key: String): String? {
+        val packageEnd = key.indexOf(PACKAGE_SEPARATOR)
+        if (packageEnd <= 0 || key.indexOf(NAMESPACE_SEPARATOR) != packageEnd) return null
+        val fileStart = packageEnd + PACKAGE_SEPARATOR.length
+        val end = key.indexOf(NAMESPACE_SEPARATOR, fileStart)
+        return if (end > fileStart) key.substring(0, end) else null
     }
 
     /** [key] without its namespace prefix. */
@@ -187,8 +210,28 @@ object TranslationDataLoader {
         defaultNamespace: String = Config().defaultNs,
     ): String =
         source.namespace
+            ?: fileNamespace(source)
             ?: if (source.isLocaleNamedFile()) defaultNamespace
             else source.name.substringBeforeLast('.')
+
+    /**
+     * The namespace [source]'s format reads from the file's place ([Localization.fileNamespace]):
+     * a Laravel package override (`lang/vendor/courier/en/messages.php`) is `courier::messages`,
+     * apart from the application's `messages`. Null for every format that leaves it to the name.
+     *
+     * Asked of the [Localization] rather than of the technologies' key scopes: those also name
+     * the scope of a Transloco file, which the tool window has always shown under its default
+     * namespace. A source without a tree is not asked: it has no file to read.
+     */
+    private fun fileNamespace(source: LocalizationSource): String? {
+        // Read untyped: a tree's value is a PsiElement only by contract, which a test double need not keep.
+        val tree: Tree<*> = source.tree ?: return null
+        val element = tree.value() as? PsiElement ?: return null
+        return ReadAction.compute<String?, RuntimeException> {
+            val file = element.containingFile?.originalFile?.virtualFile ?: return@compute null
+            source.localization.fileNamespace(file)
+        }
+    }
 
     /**
      * Recursively collects leaf values from a translation tree.
@@ -206,13 +249,8 @@ object TranslationDataLoader {
         locale: String,
         result: MutableMap<String, MutableMap<String, String>>
     ) {
-        val children = tree.findChildren("")
-        for (child in children) {
-            val childName = extractNodeName(child)
-            if (childName.isNullOrEmpty()) continue
-
+        for ((childName, valueTree) in namedChildren(tree)) {
             val fullPath = KeySpelling.child(config, prefix, childName)
-            val valueTree = tree.findChild(childName)
             if (valueTree == null || valueTree.isLeaf()) {
                 val value = if (valueTree != null) extractLeafValue(valueTree) else ""
                 result.getOrPut("$nsPrefix$fullPath") { mutableMapOf() }[locale] = value
@@ -220,6 +258,23 @@ object TranslationDataLoader {
                 collectLeaves(config, valueTree, fullPath, nsPrefix, locale, result)
             }
         }
+    }
+
+    /**
+     * The children of [tree] as (name, value node), the value being null when the key holds none.
+     *
+     * JSON and YAML key nodes are named here, as they always were. A format whose key nodes this
+     * loader cannot read — a PHP array's `StringLiteralExpression`, the PHP plugin being optional —
+     * names its children itself through [Tree.entries]: without that, a Laravel project's keys
+     * were all skipped and the tool window showed none.
+     */
+    private fun namedChildren(tree: Tree<PsiElement>): List<Pair<String, Tree<PsiElement>?>> {
+        val children = tree.findChildren("")
+        val named = children.mapNotNull { child ->
+            extractNodeName(child)?.takeIf { it.isNotEmpty() }?.let { it to tree.findChild(it) }
+        }
+        if (named.isNotEmpty() || children.isEmpty()) return named
+        return tree.entries()?.filter { (name, _) -> name.isNotEmpty() } ?: emptyList()
     }
 
     /**
@@ -253,6 +308,8 @@ object TranslationDataLoader {
         if (psi is JsonProperty) {
             return psi.value?.text?.removeSurrounding("\"") ?: ""
         }
+        // A PHP string's escapes read back, so that an edit does not escape them a second time.
+        if (TranslationPsi.isPhp(psi)) return TranslationPsi.readValue(psi) ?: ""
         // Try YAMLKeyValue via reflection to avoid hard dependency on YAML plugin
         try {
             val klass = Class.forName("org.jetbrains.yaml.psi.YAMLKeyValue")
