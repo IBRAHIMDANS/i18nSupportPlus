@@ -87,7 +87,7 @@ installs on **builds 241 to 242 only, i.e. 2024.1 and 2024.2**. It cannot be ins
 | Value checks | Empty, duplicate, placeholders, ICU, markup, copied from reference, punctuation, length | Duplicate filter | — | — |
 | CSV / XLIFF export and import | Yes, with preview | — | — | — |
 | Translation changes of a branch | Compare with a Git branch | — | — | — |
-| Review: approve, request changes, comment | Per key and locale in the table, stored in `.i18n-reviews/`; machine translations marked to review | — | — | Approve, request changes, comment, suggest a value, from the editor, side panel and Editor UI; stored in `.vscode/i18n-ally-reviews.yml` ([wiki](https://github.com/lokalise/i18n-ally/wiki/Review-&-Collaboration-System), [source](https://github.com/lokalise/i18n-ally/blob/main/src/core/types.ts)) |
+| Review: approve, request changes, comment | Per key and locale in the table and the key dialog, stored in `.i18n-reviews/`; machine translations marked to review; reviews follow renamed, moved and deleted keys | — | — | Approve, request changes, comment, suggest a value, from the editor, side panel and Editor UI; stored in `.vscode/i18n-ally-reviews.yml` ([wiki](https://github.com/lokalise/i18n-ally/wiki/Review-&-Collaboration-System), [source](https://github.com/lokalise/i18n-ally/blob/main/src/core/types.ts)) |
 | Checks in CI | Inspections in Qodana or a headless IDE, ready-made configuration | — | — | — |
 
 ### Machine translation
@@ -107,7 +107,7 @@ installs on **builds 241 to 242 only, i.e. 2024.1 and 2024.2**. It cannot be ins
 - **i18n Ally runs in VS Code.** If your team uses VS Code, I18n Support Plus is not an option: it is a JetBrains plugin.
 - **i18n Ally reviews from the editor**: approvals, requested changes, comments and suggested values in the gutter, the side panel and its Editor UI,
   stored in the repository ([wiki](https://github.com/lokalise/i18n-ally/wiki/Review-&-Collaboration-System)).
-  I18n Support Plus reviews from the tool window table only.
+  I18n Support Plus reviews from the tool window table and the key dialog, not from the code editor.
 - **i18n Ally has a full-screen Editor UI** for one key across every locale
   ([wiki](https://github.com/lokalise/i18n-ally/wiki/Editor-UI)).
 - **i18n Ally covers more frameworks**: Flutter, Rails, Ember, Polyglot, SAP UI5, Chrome extensions and a custom
