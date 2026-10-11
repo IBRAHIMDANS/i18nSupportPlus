@@ -367,6 +367,12 @@
             <add-to-group group-id="CodeMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift B"/>
         </action>
+        <!-- Files and folders of the Project view, or the file of the editor: hidden elsewhere by its update(). -->
+        <action id="com.ibrahimdans.i18n.Internationalize"
+                class="com.ibrahimdans.i18n.plugin.ide.actions.i18nize.I18nizeAction">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
         <!-- No default shortcut: ctrl alt shift T/B/M are taken; the status bar widget is the click path. -->
         <action id="com.ibrahimdans.i18n.SwitchPreviewLocale"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.SwitchPreviewLocaleAction">
