@@ -33,8 +33,8 @@ installs on **builds 241 to 242 only, i.e. 2024.1 and 2024.2**. It cannot be ins
 |---|---|---|---|---|
 | Editor | WebStorm, IntelliJ IDEA Ultimate, PhpStorm 2025.1+ (needs the bundled JavaScript plugin) | Any IntelliJ-based IDE 2025.2+ | IntelliJ-based IDEs 2024.1–2024.2 | VS Code |
 | Code languages | JS, TS, JSX, TSX, Vue SFC, Angular templates, Svelte, PHP, Blade | HTML/XML, JS(X), TS(X), Vue, Svelte, PHP, Ruby, Rust, Go, Dart, Python, Kotlin, Java ([Marketplace](https://plugins.jetbrains.com/plugin/16316-easy-i18n)) | JS, TS, React, Vue, PHP, Blade, Twig ([Marketplace](https://plugins.jetbrains.com/plugin/17212-i18n-ally)) | Per framework, including Flutter, Rails and Ember ([wiki](https://github.com/lokalise/i18n-ally/wiki/Supported-Frameworks)) |
-| Translation files | JSON, JSON5, YAML, PO/POT, TS/JS catalogues | JSON, JSON5, YAML, Properties | JSON, JS/TS, PHP, PO/POT, XLIFF 1/2, YAML | JSON, YAML, JSON5; INI, properties, POT and read-only JS/TS/PHP when enabled ([wiki](https://github.com/lokalise/i18n-ally/wiki/Locale-Formats)) |
-| Laravel PHP array files (`lang/en/*.php`) | Not yet: calls and JSON files only | Preset reads `resources/lang/{locale}.json` ([presets](https://marhali.github.io/easy-i18n/configuration/presets/)) | Yes | Read-only |
+| Translation files | JSON, JSON5, YAML, PO/POT, TS/JS catalogues, Laravel PHP arrays <sup>next</sup> | JSON, JSON5, YAML, Properties | JSON, JS/TS, PHP, PO/POT, XLIFF 1/2, YAML | JSON, YAML, JSON5; INI, properties, POT and read-only JS/TS/PHP when enabled ([wiki](https://github.com/lokalise/i18n-ally/wiki/Locale-Formats)) |
+| Laravel PHP array files (`lang/en/*.php`) | Yes, read and written, the file name as namespace; package keys (`package::file.key`) not yet <sup>next</sup> | Preset reads `resources/lang/{locale}.json` ([presets](https://marhali.github.io/easy-i18n/configuration/presets/)) | Yes | Read-only |
 | Monorepo, one configuration per app | Modules (root, path template, key template, preset) | Modules, since 5.0 ([migration](https://marhali.github.io/easy-i18n/migration/v5/)) | — | Multi-root workspaces |
 | Setup | Wizard and per-framework presets | Per-framework presets | Automatic for Vue, Nuxt, Laravel, Symfony, Yii, CodeIgniter, CakePHP | Framework detected from `package.json` |
 
@@ -47,7 +47,7 @@ installs on **builds 241 to 242 only, i.e. 2024.1 and 2024.2**. It cannot be ins
 | `keyPrefix` of `useTranslation` | Yes | — | — | Open request ([#719](https://github.com/lokalise/i18n-ally/issues/719)) |
 | i18next `fallbackNS` | Yes, read from the i18next config | — | — | — |
 | i18next v4 plurals (`key_one`, `key_other`) | Resolved; forms a language lacks are reported (CLDR) | — | — | Suffixes count as usages ([source](https://github.com/lokalise/i18n-ally/blob/main/src/frameworks/react-i18next.ts)); [#688](https://github.com/lokalise/i18n-ally/issues/688) open |
-| vue-i18n `<i18n-t keypath>`, `v-t` | Resolved, navigable, checked; no completion yet | — | — | — |
+| vue-i18n `<i18n-t keypath>`, `v-t` | Resolved, navigable, checked; completion and folding <sup>next</sup> | — | — | — |
 | vue-i18n linked messages `@:key` | Yes <sup>next</sup> | — | — | Yes |
 | next-intl `useTranslations` / `getTranslations` | Yes (`getTranslations` <sup>next</sup>) | — | — | next-intl listed in its [source](https://github.com/lokalise/i18n-ally/tree/main/src/frameworks) |
 | Transloco | Service, pipe, structural directive (`read` <sup>next</sup>), scopes | Preset: service and attribute directive | — | Yes |
@@ -110,7 +110,8 @@ installs on **builds 241 to 242 only, i.e. 2024.1 and 2024.2**. It cannot be ins
 - **Easy I18n works outside JavaScript**: Java, Kotlin, Python, Go, Rust, Ruby, Dart, with a Spring Boot preset and
   `.properties` files, in any IntelliJ-based IDE including those without the JavaScript plugin.
   I18n Support Plus needs WebStorm, IntelliJ IDEA Ultimate or PhpStorm.
-- **i18n Ally for JetBrains reads Laravel PHP array files, XLIFF and Twig.** I18n Support Plus does not yet.
+- **i18n Ally for JetBrains reads XLIFF translation files and Twig templates.** I18n Support Plus exports and
+  imports XLIFF but does not read it as a translation source, and does not read Twig.
 
 ## Migrate
 
