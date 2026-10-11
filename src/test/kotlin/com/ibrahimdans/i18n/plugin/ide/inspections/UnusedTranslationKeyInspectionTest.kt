@@ -2,6 +2,8 @@ package com.ibrahimdans.i18n.plugin.ide.inspections
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection
+import com.ibrahimdans.i18n.plugin.ide.runWithConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -41,6 +43,25 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
     fun testJsonLeafStringFlagged() {
         val warnings = unusedWarnings("""{"greeting": "Hello!"}""")
         assertTrue(warnings.isNotEmpty())
+    }
+
+    // A JSON file that is not a translation file: its keys are configuration, never unused keys.
+    // A headless run (Qodana, inspect.sh) inspects every file of the project, not only the open ones.
+
+    @Test
+    fun testConfigurationJsonNotFlagged() {
+        assertTrue(unusedWarnings("""{"name": "app", "scripts": {"build": "vite build"}}""", "package.json").isEmpty())
+        assertTrue(unusedWarnings("""{"compilerOptions": {"strict": "true"}}""", "tsconfig.json").isEmpty())
+    }
+
+    /**
+     * A project saying where its translations are: a JSON file elsewhere is not one. (The file under
+     * the root cannot be checked here: the fixture's VFS paths do not start with the project's
+     * `basePath`, so no file is ever under a configured `translationsRoot` in a light test.)
+     */
+    @Test
+    fun testJsonOutsideTheConfiguredRootNotFlagged() = myFixture.runWithConfig(Config(translationsRoot = "locales")) {
+        assertTrue(unusedWarningsFromFile("""{"title": "Hello"}""", "fixtures/data.json").isEmpty())
     }
 
     // JSON — object-valued properties are skipped (only leaves are leaf strings)

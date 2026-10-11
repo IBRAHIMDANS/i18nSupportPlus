@@ -14,6 +14,7 @@ import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
+import com.intellij.psi.PsiFile
 
 class UnusedTranslationKeyInspection : LocalInspectionTool() {
 
@@ -22,6 +23,7 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
 
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
         if (DumbService.isDumb(holder.project)) return PsiElementVisitor.EMPTY_VISITOR
+        if (!mayHoldTranslations(holder.file)) return PsiElementVisitor.EMPTY_VISITOR
 
         // One cache for the whole file: its properties share their prefixes almost entirely,
         // so the dynamic-head search runs a handful of times rather than once per key.
@@ -63,8 +65,29 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
         holder.registerProblem(anchor, MESSAGE, DeleteUnusedKeyFix(), KeepKeyQuickFix(key))
     }
 
+    /**
+     * Whether [file] may be a translation file: a source the plugin reads, or — in a project that
+     * does not say where its translations are — any JSON or YAML file but a tool's configuration.
+     *
+     * The other translation inspections require a source ([TranslationFileScope.sourceOf]); this one
+     * also checks the files a namespace names (`test.json` for `t('test:greeting')`) with no locale
+     * in their path. It used to check every file, which a headless run — Qodana, `inspect.sh` — made
+     * plain: every key of `package.json` and `tsconfig.json` reported as an unused translation.
+     */
+    private fun mayHoldTranslations(file: PsiFile): Boolean {
+        if (TranslationFileScope.sourceOf(file) != null) return true
+        if (TOOL_CONFIGURATION.matches(file.name)) return false
+        val config = Settings.getInstance(file.project).config()
+        return config.translationsRoot.isBlank() && config.modules.isEmpty()
+    }
+
     private companion object {
         val MESSAGE: String get() = PluginBundle.message("inspection.unused.message")
+
+        /** The configuration files of the JavaScript and PHP tools, which hold keys that are not translations. */
+        val TOOL_CONFIGURATION = Regex(
+            """(package(-lock)?|composer|[tj]sconfig(\..+)?|.+\.config|\.?(eslintrc|prettierrc|babelrc|stylelintrc)(\..+)?|angular|nx|lerna|turbo|vercel|renovate)\.(json|ya?ml)"""
+        )
     }
 }
 

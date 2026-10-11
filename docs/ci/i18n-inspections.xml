@@ -1,0 +1,10 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="i18n-ci" />
+    <inspection_tool class="I18nMissingKey" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="I18nUnusedKey" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
+    <inspection_tool class="I18nPlaceholderConsistency" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="I18nInterpolationArguments" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="Annotator" enabled="true" level="ERROR" enabled_by_default="true" />
+  </profile>
+</component>

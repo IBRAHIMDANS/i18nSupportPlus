@@ -1,0 +1,27 @@
+# GitHub Actions workflow running Qodana with i18n Support Plus on every pull request.
+# Copy to `.github/workflows/qodana.yml`, with `docs/ci/qodana.yaml` as `qodana.yaml` at the root,
+# and save your Qodana Cloud project token as the `QODANA_TOKEN` repository secret.
+name: Qodana
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  qodana:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: JetBrains/qodana-action@v2026.2
+        env:
+          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
+        with:
+          args: --linter,qodana-js
+          pr-mode: false

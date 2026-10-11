@@ -224,6 +224,10 @@ Enabled under **Settings > Editor > Inspections > i18n Support Plus**:
 | ICU message format validation | Unbalanced braces, a `plural` block without `one`/`other`, … |
 | Unused translation key | A key of a translation file no code refers to, unless the settings keep it (*Keys used outside the code*); quick fixes: delete it, or keep it |
 
+### Continuous Integration
+
+The inspections also run without an editor, in [Qodana](https://www.jetbrains.com/qodana/) or a headless IDE: a pull request adding a key without its translation, or dropping one from a locale, fails the build. Ready-to-copy `qodana.yaml`, GitHub workflow and inspection profile: [docs/ci](docs/ci/README.md).
+
 ### Wildcard Traversal
 
 Intermediate `*` wildcards in composite key resolution allow matching any segment at a given position. For example, `a.*.b` matches `a.foo.b`, `a.bar.b`, etc. Useful with dynamic keys where the middle segment varies.
