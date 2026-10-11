@@ -213,6 +213,14 @@
             group="OTHER_GROUP"
             bundle="messages.I18nBundle"
             nameKey="inlay.hints.name"/>
+        <!-- The reference locale's value after each value of a JSON translation file. Declared on JSON
+             only: JSON5 is a dialect of it and inherits the provider. YAML is in ymlConfig.xml. -->
+        <codeInsight.declarativeInlayProvider language="JSON"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.ReferenceValueInlayHintsProvider"
+            providerId="i18n.reference.value.inlay"
+            group="OTHER_GROUP"
+            bundle="messages.I18nBundle"
+            nameKey="inlay.reference.name"/>
         <!-- Declared on JavaScript only: JSX, TypeScript and TSX are dialects of it and inherit the
              provider. One declaration per dialect made a .tsx collect the same marker several times. -->
         <codeInsight.lineMarkerProvider language="JavaScript" implementationClass="com.ibrahimdans.i18n.plugin.ide.I18nGutterIconProvider"/>

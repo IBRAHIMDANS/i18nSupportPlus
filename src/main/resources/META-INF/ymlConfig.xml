@@ -1,6 +1,12 @@
 <idea-plugin>
     <extensions defaultExtensionNs="com.intellij">
         <psi.referenceContributor language="yaml" implementation="com.ibrahimdans.i18n.extensions.localization.yaml.YamlReferenceContributor"/>
+        <codeInsight.declarativeInlayProvider language="yaml"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.ReferenceValueInlayHintsProvider"
+            providerId="i18n.reference.value.inlay"
+            group="OTHER_GROUP"
+            bundle="messages.I18nBundle"
+            nameKey="inlay.reference.name"/>
     </extensions>
     <extensions defaultExtensionNs="com.ibrahimdans.i18n">
         <localization implementation="com.ibrahimdans.i18n.extensions.localization.yaml.YamlLocalization"/>

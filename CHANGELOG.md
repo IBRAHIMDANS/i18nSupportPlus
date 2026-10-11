@@ -5,6 +5,7 @@
 ### Features
 
 - [Export] **Export only the missing translations**: *Export Translations* offers *CSV, Missing Only* — the keys at least one locale lacks or leaves empty, with all their values, the reference included. Hand it to a translator; re-importing it writes only the cells they filled
+- [Editor] **A translation file shows the reference value of each key**: in `fr/common.json`, `"save": "Enregistrer"` reads `en: Save` as an inlay hint — the reference locale of the file's module, ICU rendered and cut at the folding length. A key the reference lacks reads `missing in en`; the reference file itself shows nothing. JSON and YAML; toggled under *Editor | Inlay Hints* as *i18n reference values*
 
 ## 1.9.0 - 2026-10-10
 
