@@ -44,6 +44,7 @@
 
 ### Documentation
 
+- [CI] **The Qodana configuration is checked in Qodana itself**: `docs/ci/qodana.yaml` run with Qodana for JS 2026.2 on the example project installs the plugin from the Marketplace and reports the missing key, the unresolved key and the variable not passed; [docs/ci](docs/ci/README.md) shows the output
 - [Docs] **Coming from i18n Ally or Easy I18n?** `docs/COMPARISON.md` compares the plugin with i18n Ally (VS Code and JetBrains) and Easy I18n, feature by feature, each claim sourced and dated — what the others do better included — and maps their settings to the plugin's
 
 ## 1.9.0 - 2026-10-10
