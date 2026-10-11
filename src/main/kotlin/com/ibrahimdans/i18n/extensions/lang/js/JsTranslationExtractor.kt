@@ -28,9 +28,13 @@ internal class JsTranslationExtractor: TranslationExtractor {
     override fun canExtract(element: PsiElement): Boolean {
         val jsLang = Language.findLanguageByID("JavaScript") ?: return false
         if (!element.containingFile.language.isKindOf(jsLang)) return false
-        return "JS:STRING_LITERAL" == element.type() ||
-            (element.node?.elementType == JSTokenTypes.STRING_TEMPLATE_PART && element.parent is JSStringTemplateExpression)
+        return isStringToken(element)
     }
+
+    /** A string literal's token, or a piece of text of a template literal. */
+    internal fun isStringToken(element: PsiElement): Boolean =
+        "JS:STRING_LITERAL" == element.type() ||
+            (element.node?.elementType == JSTokenTypes.STRING_TEMPLATE_PART && element.parent is JSStringTemplateExpression)
     override fun isExtracted(element: PsiElement): Boolean {
         if (!JSPatterns.jsArgument("t", 0).accepts(element.parent)) return false
         return isDirectOrConfiguredCall(element)

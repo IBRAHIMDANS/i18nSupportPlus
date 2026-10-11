@@ -81,7 +81,7 @@ class I18nizeVueTest : PlatformBaseTest() {
         myFixture.addFileToProject("locales/en/common.json", "{}")
         val profile = component(
             """<div><p>{{ ${'$'}t('done') }}</p><p>Born {{ format(date) }}</p><code>npm install</code><a href="/home" title="Home">Go</a></div>""",
-            "<script setup>\nconst label = 'Not from the template'\n</script>\n<style>.a { content: 'x' }</style>"
+            "<script>\nconst label = 'Not from the template'\n</script>\n<style>.a { content: 'x' }</style>"
         )
 
         Assertions.assertEquals(listOf("Home", "Go"), planOf(profile).texts())

@@ -147,7 +147,8 @@ internal class I18nizeApply private constructor(
             CodeEdit(extractor.textRange(literal), call)
         }
         // The literals of one message share a range (`'Hello ' + name`): replaced once.
-        return FileEdits(document, entries, calls.distinctBy { it.range } + HookInsertion.edits(file, hooks))
+        val vueHooks = VueHookInsertion.edits(entries.map { it.entry.candidate.literal })
+        return FileEdits(document, entries, calls.distinctBy { it.range } + HookInsertion.edits(file, hooks) + vueHooks)
     }
 
     /**
