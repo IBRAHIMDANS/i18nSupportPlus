@@ -40,8 +40,7 @@ class I18nizePlanTest : PlatformBaseTest() {
             export function Account() { const { t } = useTranslation('account'); return <p>Delete account</p>; }
         """.trimIndent())
 
-        // The hook's own 'account' is a candidate too, as Batch Extract finds it: left to TASK-I18NIZE-FILTERS.
-        val entry = planOf(file).files.single().entries.single { it.candidate.originalText == "Delete account" }
+        val entry = planOf(file).files.single().entries.single()
         Assertions.assertEquals("account", entry.namespace)
         Assertions.assertEquals("account:account.delete_account", entry.key)
     }
@@ -81,5 +80,68 @@ class I18nizePlanTest : PlatformBaseTest() {
         val plan = planOf(empty, menu)
         Assertions.assertEquals(listOf(menu), plan.files.map { it.file })
         Assertions.assertTrue(planOf(empty).files.isEmpty())
+    }
+
+    private fun I18nizePlan.texts(): List<String> = files.flatMap { file -> file.entries.map { it.candidate.originalText } }
+
+    @Test
+    fun aHookOrTranslationCallArgumentIsNeverPlanned() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", "{}")
+        val file = addFileToProject("src/Account.tsx", """
+            'use client';
+            import { useTranslation } from 'react-i18next';
+            import { useTranslations, getTranslations } from 'next-intl';
+            export function Account() {
+                const { t } = useTranslation('account');
+                const many = useTranslation(['account', 'common']);
+                const prefixed = useTranslation('account', { keyPrefix: 'form' });
+                const next = useTranslations('Account');
+                const fixed = i18n.getFixedT('fr', 'account');
+                const label = t('title', { ns: 'account' });
+                return <p>Delete account</p>;
+            }
+            export async function Page() { const t = await getTranslations('Page'); return null; }
+        """.trimIndent())
+
+        Assertions.assertEquals(listOf("Delete account"), planOf(file).texts())
+    }
+
+    @Test
+    fun aTechnicalAttributeIsNeverPlannedButAnAriaLabelIs() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", "{}")
+        val file = addFileToProject("src/Menu.tsx", """
+            export const Menu = () => <nav className={'menu'} id={'main-menu'} data-testid={'menu'} aria-labelledby={'title'}>
+                <a href={'/home'} target={'_blank'} rel={'noopener'} aria-label={'Go home'} onClick={() => alert('Opened')}>Home</a>
+                <input type={'text'} name={'q'} aria-description={'Search the site'} />
+            </nav>;
+        """.trimIndent())
+
+        Assertions.assertEquals(listOf("Go home", "Opened", "Home", "Search the site"), planOf(file).texts())
+    }
+
+    @Test
+    fun dataIsPlannedUncheckedWithItsReasonAndAMessageChecked() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", "{}")
+        val file = addFileToProject("src/Links.tsx", """
+            export function Links() {
+                const site = 'https://example.com';
+                const mode = 'darkMode';
+                const date = '2024-01-31';
+                return <div><button>OK</button><p>Save</p><span>42</span></div>;
+            }
+        """.trimIndent())
+
+        val entries = planOf(file).files.single().entries.associate { it.candidate.originalText to it.uncheckedReason }
+        Assertions.assertEquals(
+            mapOf(
+                "https://example.com" to TranslatableText.Reason.URL,
+                "darkMode" to TranslatableText.Reason.IDENTIFIER,
+                "2024-01-31" to TranslatableText.Reason.DATE,
+                "OK" to null,
+                "Save" to null,
+            ),
+            entries
+        )
+        Assertions.assertEquals(listOf(false, false, false, true, true), planOf(file).files.single().entries.map { it.checkedByDefault })
     }
 }

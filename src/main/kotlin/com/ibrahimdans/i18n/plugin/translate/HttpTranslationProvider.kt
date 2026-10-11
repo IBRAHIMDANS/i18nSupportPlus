@@ -1,14 +1,21 @@
 package com.ibrahimdans.i18n.plugin.translate
 
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.google.gson.JsonArray
 import com.google.gson.JsonElement
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.util.io.HttpRequests
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
+import java.security.MessageDigest
 
 /**
  * How to call one engine, as data: a POST to [url] with [headers] and the JSON [body], the
@@ -32,7 +39,14 @@ data class EngineConfig(
     /** How to send several texts in one request, when the engine can; null sends them one by one. */
     val batch: BatchConfig? = null,
     /** The project's terms: those kept as they are are masked, the others go in `{glossary}`. */
-    val glossary: Glossary = Glossary.EMPTY
+    val glossary: Glossary = Glossary.EMPTY,
+    /**
+     * The engine's own glossary API the translated terms go to, named by its preset: `deepl`
+     * ([DeeplGlossary]). Null for the others, which read them from `{glossary}` or not at all.
+     */
+    val nativeGlossary: String? = null,
+    /** Where the id of that glossary is kept between sessions: the engine's entry in the settings. */
+    val remoteGlossary: RemoteGlossaryStore? = null
 )
 
 /**
@@ -41,7 +55,7 @@ data class EngineConfig(
  * - A term without translations is **kept as it is**, for every engine: masked like a variable before
  *   the text leaves ([protect]) and put back as written. Matched case-sensitively, as a whole word.
  * - A term with translations, by target locale, is given to the engines whose request holds
- *   `{glossary}` — an LLM prompt ([prompt]). Others (DeepL, Google, LibreTranslate) do not read it.
+ *   `{glossary}` — an LLM prompt ([prompt]), and to DeepL as a glossary of its own ([DeeplGlossary]). Google and LibreTranslate do not read it.
  */
 data class Glossary(val terms: List<Term> = emptyList()) {
 
@@ -136,6 +150,13 @@ fun interface HttpTransport {
     data class Response(val status: Int, val body: String)
 
     fun post(url: String, headers: Map<String, String>, body: String): Response
+
+    /**
+     * Another verb — `GET`, `PUT` — for what an engine needs besides translating: a DeepL glossary.
+     * A transport that only knows [post] refuses the others as a network error.
+     */
+    fun request(method: String, url: String, headers: Map<String, String>, body: String?): Response =
+        if (method == "POST") post(url, headers, body.orEmpty()) else throw IOException("HTTP $method is not supported here")
 }
 
 /**
@@ -152,36 +173,88 @@ class HttpTranslationProvider(
     private val transport: HttpTransport = PlatformHttpTransport
 ) : TranslationProvider {
 
+    /**
+     * Says the engine's glossary could not be used: the translation went on without it. A balloon by
+     * default; not a constructor parameter, which would take the transport's trailing lambda.
+     */
+    internal var glossaryWarnings: (String) -> Unit = { DeeplGlossary.warnUser(it) }
+
+    private val deepl: DeeplGlossary? = engine.takeIf { it.nativeGlossary == DeeplGlossary.KIND }
+        ?.let { DeeplGlossary.of(it, it.remoteGlossary ?: InMemoryGlossaryStore(), transport, ::headers) { message -> glossaryWarnings(message) } }
+
     override fun translate(request: TranslationRequest, indicator: ProgressIndicator?): List<Translation> {
+        val glossary = deepl?.let { PairGlossary(it, request.source, request.target) }
         val batch = engine.batch
         if (batch == null || request.texts.size < 2) {
             return request.texts.map { text ->
                 indicator?.checkCanceled()
-                translateOne(text, request)
+                translateOne(text, request, glossary)
             }
         }
         return request.texts.chunked(batch.maxSize.coerceAtLeast(1)).flatMap { chunk ->
             indicator?.checkCanceled()
-            translateBatch(chunk, request, batch)
+            translateBatch(chunk, request, batch, glossary)
         }
     }
+
+    /**
+     * The engine's glossary for one request's language pair, looked up when the first text goes out —
+     * never when every text is blank. A glossary the engine no longer knows is recreated once.
+     */
+    private class PairGlossary(private val deepl: DeeplGlossary, private val source: String, private val target: String) {
+        private var resolved = false
+        private var recreated = false
+        private var id: String? = null
+
+        fun id(): String? {
+            if (!resolved) {
+                resolved = true
+                id = deepl.idFor(source, target)
+            }
+            return id
+        }
+
+        /** [gone] was answered 404: the id to try instead, or null to send without a glossary. */
+        fun replace(gone: String): String? {
+            deepl.forget(gone)
+            id = if (recreated) null.also { deepl.warnLost() } else deepl.idFor(source, target)
+            recreated = true
+            return id
+        }
+    }
+
+    /**
+     * [body] posted with the glossary of [glossary] when there is one, else as it is. A 404 means the
+     * glossary was deleted on the engine's side: it is recreated, and the text goes without one if
+     * that fails too — a glossary never costs a translation.
+     */
+    private fun send(url: String, body: String, glossary: PairGlossary?): Posted {
+        var id = glossary?.id() ?: return post(url, body)
+        while (true) {
+            val posted = post(url, DeeplGlossary.withId(body, id))
+            if ((posted as? Posted.Failed)?.status != 404) return posted
+            id = glossary.replace(id) ?: return post(url, body)
+        }
+    }
+
+    private fun headers(): Map<String, String> = engine.headers.mapValues { fill(it.value, mapOf("apiKey" to apiKey)) { v -> v } }
 
     /**
      * [texts] in one request. An answer that cannot be read, or that does not hold exactly one
      * translation per text, is retried text by text: a shifted list would put each translation under
      * the wrong key. An HTTP or network error is the same for every text, so it is not retried.
      */
-    private fun translateBatch(texts: List<String>, request: TranslationRequest, batch: BatchConfig): List<Translation> {
+    private fun translateBatch(texts: List<String>, request: TranslationRequest, batch: BatchConfig, glossary: PairGlossary?): List<Translation> {
         val sent = texts.withIndex().filter { it.value.isNotBlank() }
-        if (sent.size < 2) return texts.map { translateOne(it, request) }
+        if (sent.size < 2) return texts.map { translateOne(it, request, glossary) }
         val masks = sent.map { engine.glossary.protect(PlaceholderMask.mask(it.value)) }
         val array = masks.joinToString(",", "[", "]") { "\"${escapeJson(it.text)}\"" }
         val body = fill(batch.body.replace("{texts}", array).replace("{textsJson}", escapeJson(array)), values(request, ""), ::escapeJson)
-        val answers = when (val response = post(fill(engine.url, values(request, ""), ::encodeUrl), body)) {
+        val answers = when (val response = send(fill(engine.url, values(request, ""), ::encodeUrl), body, glossary)) {
             is Posted.Failed -> return texts.map { if (it.isBlank()) Translation.Done(it) else response.failure }
             is Posted.Answered -> readList(response.body, batch)
         }
-        if (answers == null || answers.size != sent.size) return texts.map { translateOne(it, request) }
+        if (answers == null || answers.size != sent.size) return texts.map { translateOne(it, request, glossary) }
         val results = MutableList<Translation>(texts.size) { Translation.Done(texts[it]) }
         sent.forEachIndexed { i, (index, _) -> results[index] = restore(answers[i], masks[i]) }
         return results
@@ -199,12 +272,13 @@ class HttpTranslationProvider(
     /** What one POST gave: an answer to read, or the failure every text it carried gets. */
     private sealed interface Posted {
         data class Answered(val body: String) : Posted
-        data class Failed(val failure: Translation.Failed) : Posted
+        /** [status] is the HTTP one, 0 for a network error. */
+        data class Failed(val failure: Translation.Failed, val status: Int = 0) : Posted
     }
 
     private fun post(url: String, body: String): Posted {
         val response = try {
-            transport.post(url, engine.headers.mapValues { fill(it.value, mapOf("apiKey" to apiKey)) { v -> v } }, body)
+            transport.post(url, headers(), body)
         } catch (e: ProcessCanceledException) {
             throw e
         } catch (e: SocketTimeoutException) {
@@ -214,9 +288,9 @@ class HttpTranslationProvider(
         }
         return when (response.status) {
             in 200..299 -> Posted.Answered(response.body)
-            401, 403 -> Posted.Failed(failed("translate.error.key", engine.name))
-            429 -> Posted.Failed(failed("translate.error.rate", engine.name))
-            else -> Posted.Failed(failed("translate.error.status", engine.name, response.status, response.body.take(200)))
+            401, 403 -> Posted.Failed(failed("translate.error.key", engine.name), response.status)
+            429 -> Posted.Failed(failed("translate.error.rate", engine.name), response.status)
+            else -> Posted.Failed(failed("translate.error.status", engine.name, response.status, response.body.take(200)), response.status)
         }
     }
 
@@ -242,11 +316,11 @@ class HttpTranslationProvider(
         }
     }
 
-    private fun translateOne(text: String, request: TranslationRequest): Translation {
+    private fun translateOne(text: String, request: TranslationRequest, glossary: PairGlossary?): Translation {
         if (text.isBlank()) return Translation.Done(text)
         val masked = engine.glossary.protect(PlaceholderMask.mask(text))
         val values = values(request, masked.text)
-        val body = when (val response = post(fill(engine.url, values, ::encodeUrl), fill(engine.body, values, ::escapeJson))) {
+        val body = when (val response = send(fill(engine.url, values, ::encodeUrl), fill(engine.body, values, ::escapeJson), glossary)) {
             is Posted.Failed -> return response.failure
             is Posted.Answered -> response.body
         }
@@ -310,20 +384,231 @@ class HttpTranslationProvider(
     }
 }
 
+/**
+ * Where an engine keeps its glossary on the engine's side: its [glossaryId], empty before the first
+ * one, and what each language pair holds there — `en>fr` to a digest of the entries sent.
+ */
+interface RemoteGlossaryStore {
+    var glossaryId: String
+    var glossaryDictionaries: MutableMap<String, String>
+}
+
+/** A glossary remembered for the life of one provider only — the *Test* of an engine, a test. */
+class InMemoryGlossaryStore(
+    override var glossaryId: String = "",
+    override var glossaryDictionaries: MutableMap<String, String> = linkedMapOf()
+) : RemoteGlossaryStore
+
+/**
+ * The project glossary's translated terms as a DeepL glossary, so DeepL uses them instead of ignoring
+ * them. Kept terms need none: they are masked before the text leaves, for every engine.
+ *
+ * Created the first time a language pair holding a translated term is translated, not on *Apply*:
+ * translating already runs off the EDT with the API key at hand, while *Apply* runs on the EDT, and a
+ * network error there would block saving the settings. One glossary per engine entry, named after its
+ * id and found again by that name when its id is lost; one dictionary per pair, replaced (`PUT`) only
+ * when its entries changed.
+ *
+ * Nothing here costs a translation: a refusal — quota (456), a pair DeepL has no glossary for, a
+ * network error — is reported once through [warn], and the texts go without a glossary.
+ *
+ * API: https://developers.deepl.com/api-reference/multilingual-glossaries (v3; `glossary_id` in
+ * `/v2/translate` needs `source_lang`; glossary languages have no variant: `EN` serves `EN-US`).
+ */
+class DeeplGlossary private constructor(
+    private val engine: EngineConfig,
+    private val endpoint: String,
+    private val store: RemoteGlossaryStore,
+    private val transport: HttpTransport,
+    private val headers: () -> Map<String, String>,
+    private val warn: (String) -> Unit
+) {
+
+    private class Refused(val status: Int, val detail: String) : Exception(detail)
+
+    /** The pairs that failed during this provider's life: not asked again. */
+    private val refused = mutableSetOf<String>()
+
+    private val name: String get() = "$NAME_PREFIX${engine.id}"
+
+    /**
+     * The id of the glossary to send from [source] to [target] (DeepL codes: `EN`, `EN-US`), created or
+     * updated as needed — null when no term has a translation there, or when DeepL refused it.
+     */
+    fun idFor(source: String, target: String): String? {
+        if (source.isBlank() || target.isBlank()) return null
+        val entries = entries(target).takeIf { it.isNotEmpty() } ?: return null
+        val from = language(source)
+        val to = language(target)
+        if (from == to) return null
+        val pair = "$from>$to"
+        synchronized(store) {
+            if (pair in refused) return null
+            return try {
+                ensure(pair, from, to, entries)
+            } catch (e: ProcessCanceledException) {
+                throw e
+            } catch (e: Refused) {
+                refused += pair
+                warn(when (e.status) {
+                    456 -> PluginBundle.message("translate.glossary.quota", engine.name)
+                    else -> PluginBundle.message("translate.glossary.refused", engine.name, e.status, e.detail.take(200))
+                })
+                null
+            } catch (e: IOException) {
+                refused += pair
+                warn(PluginBundle.message("translate.glossary.refused", engine.name, 0, e.message.orEmpty()))
+                null
+            }
+        }
+    }
+
+    /** [id] is unknown to DeepL: deleted there, or another account's. The next [idFor] makes a new one. */
+    fun forget(id: String) = synchronized(store) {
+        if (store.glossaryId == id) {
+            store.glossaryId = ""
+            store.glossaryDictionaries = linkedMapOf()
+        }
+    }
+
+    fun warnLost() = warn(PluginBundle.message("translate.glossary.lost", engine.name))
+
+    private fun ensure(pair: String, from: String, to: String, entries: String): String {
+        val digest = digest(entries)
+        val dictionary = dictionary(from, to, entries)
+        if (store.glossaryId.isEmpty()) {
+            val found = findByName()
+            if (found == null) return create(pair, digest, dictionary)
+            store.glossaryId = found
+            store.glossaryDictionaries = linkedMapOf()
+        }
+        val id = store.glossaryId
+        if (store.glossaryDictionaries[pair] == digest) return id
+        val response = call("PUT", "$endpoint/${encode(id)}/dictionaries", dictionary.toString())
+        if (response.status == 404) {
+            forget(id)
+            return create(pair, digest, dictionary)
+        }
+        expectSuccess(response)
+        store.glossaryDictionaries[pair] = digest
+        return id
+    }
+
+    private fun create(pair: String, digest: String, dictionary: JsonObject): String {
+        val body = JsonObject().apply {
+            addProperty("name", name)
+            add("dictionaries", JsonArray().apply { add(dictionary) })
+        }
+        val response = expectSuccess(call("POST", endpoint, body.toString()))
+        val id = HttpTranslationProvider.read(response.body, "glossary_id")
+            ?: throw Refused(response.status, response.body)
+        store.glossaryId = id
+        store.glossaryDictionaries = linkedMapOf(pair to digest)
+        return id
+    }
+
+    /** The glossary this entry made before its id was lost — settings applied from an older copy. */
+    private fun findByName(): String? {
+        val response = expectSuccess(call("GET", endpoint, null))
+        val list = HttpTranslationProvider.node(response.body, "glossaries")?.takeIf { it.isJsonArray } ?: return null
+        return list.asJsonArray.mapNotNull { it.takeIf { e -> e.isJsonObject }?.asJsonObject }
+            .firstOrNull { it["name"]?.takeIf { n -> n.isJsonPrimitive }?.asString == name }
+            ?.get("glossary_id")?.takeIf { it.isJsonPrimitive }?.asString
+    }
+
+    private fun call(method: String, url: String, body: String?): HttpTransport.Response =
+        transport.request(method, url, headers(), body)
+
+    private fun expectSuccess(response: HttpTransport.Response): HttpTransport.Response =
+        response.takeIf { it.status in 200..299 } ?: throw Refused(response.status, response.body)
+
+    /** The terms translated into [target], one `term<TAB>translation` per line; DeepL refuses tabs and line breaks inside. */
+    private fun entries(target: String): String =
+        engine.glossary.terms.asSequence()
+            .filter { !it.kept && it.term.isNotBlank() }
+            .mapNotNull { term -> term.translationFor(target)?.let { term.term.trim() to it.trim() } }
+            .filter { (term, translation) -> translation.isNotEmpty() && listOf(term, translation).none { UNFIT.containsMatchIn(it) } }
+            .distinctBy { it.first }
+            .joinToString("\n") { (term, translation) -> "$term\t$translation" }
+
+    private fun dictionary(from: String, to: String, entries: String) = JsonObject().apply {
+        addProperty("source_lang", from)
+        addProperty("target_lang", to)
+        addProperty("entries", entries)
+        addProperty("entries_format", "tsv")
+    }
+
+    companion object {
+        const val KIND = "deepl"
+
+        private const val NAME_PREFIX = "i18n Support Plus "
+        private val TRANSLATE_PATH = Regex("""/v2/translate/?$""")
+        private val UNFIT = Regex("""[\t\n\r]""")
+        private val LOG = Logger.getInstance(DeeplGlossary::class.java)
+
+        /** [engine]'s glossary, or null when its URL is not DeepL's `…/v2/translate` — a gateway in front. */
+        fun of(
+            engine: EngineConfig,
+            store: RemoteGlossaryStore,
+            transport: HttpTransport,
+            headers: () -> Map<String, String>,
+            warn: (String) -> Unit
+        ): DeeplGlossary? {
+            val url = engine.url.substringBefore('?')
+            if (!TRANSLATE_PATH.containsMatchIn(url)) return null
+            return DeeplGlossary(engine, TRANSLATE_PATH.replace(url, "/v3/glossaries"), store, transport, headers, warn)
+        }
+
+        /** [body], a JSON object, with `"glossary_id"` added last. */
+        fun withId(body: String, id: String): String {
+            val trimmed = body.trimEnd()
+            if (!trimmed.endsWith("}")) return body
+            return trimmed.dropLast(1).trimEnd() + ", \"glossary_id\": \"" + HttpTranslationProvider.escapeJson(id) + "\"}"
+        }
+
+        /** A balloon of the plugin's group, and the log. */
+        fun warnUser(message: String) {
+            LOG.warn(message)
+            if (ApplicationManager.getApplication() == null) return
+            NotificationGroupManager.getInstance().getNotificationGroup("i18n Support Plus")
+                ?.createNotification(message, NotificationType.WARNING)
+                ?.notify(null)
+        }
+
+        /** DeepL glossaries pair languages without variant, in lower case: `EN-US` → `en`. */
+        private fun language(code: String): String = code.trim().substringBefore('-').substringBefore('_').lowercase()
+
+        private fun digest(entries: String): String =
+            MessageDigest.getInstance("SHA-256").digest(entries.toByteArray(Charsets.UTF_8))
+                .take(8).joinToString("") { "%02x".format(it) }
+
+        private fun encode(value: String): String = java.net.URLEncoder.encode(value, Charsets.UTF_8)
+    }
+}
+
 /** The platform's HTTP client: the IDE's proxy settings apply. */
 object PlatformHttpTransport : HttpTransport {
 
     private const val CONNECT_TIMEOUT_MS = 10_000
     private const val READ_TIMEOUT_MS = 60_000
+    private const val JSON = "application/json"
 
     override fun post(url: String, headers: Map<String, String>, body: String): HttpTransport.Response =
-        HttpRequests.post(url, "application/json")
+        request("POST", url, headers, body)
+
+    override fun request(method: String, url: String, headers: Map<String, String>, body: String?): HttpTransport.Response =
+        when (method) {
+            "POST" -> HttpRequests.post(url, JSON)
+            "PUT" -> HttpRequests.put(url, JSON)
+            "GET" -> HttpRequests.request(url)
+            else -> throw IOException("HTTP $method is not supported here")
+        }
             .tuner { connection -> headers.forEach { (name, value) -> connection.setRequestProperty(name, value) } }
             .connectTimeout(CONNECT_TIMEOUT_MS)
             .readTimeout(READ_TIMEOUT_MS)
             .throwStatusCodeException(false)
             .connect { request ->
-                request.write(body)
+                if (body != null) request.write(body)
                 val connection = request.connection as HttpURLConnection
                 val status = connection.responseCode
                 val text = if (status in 200..299) request.readString()
