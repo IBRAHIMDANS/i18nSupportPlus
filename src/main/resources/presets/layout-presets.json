@@ -33,5 +33,10 @@
     "pathTemplate": "src/assets/i18n/{lang}.json",
     "keyTemplate": "{key}",
     "source": "https://jsverse.gitbook.io/transloco/getting-started/installation (rootTranslationsPath: src/assets/i18n/)"
+  },
+  "laravel": {
+    "pathTemplate": "lang/{lang}/{ns}.php",
+    "keyTemplate": "{ns}.{key}",
+    "source": "https://laravel.com/docs/localization (lang/en/messages.php at the project root since Laravel 9, keys written messages.welcome)"
   }
 }
