@@ -11,8 +11,8 @@ import org.junit.jupiter.api.Assumptions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
+import org.openqa.selenium.Keys
 import java.awt.GraphicsEnvironment
 import java.util.concurrent.DelayQueue
 import javax.swing.JFrame
@@ -106,21 +106,23 @@ class SettingsPanelTest {
     }
 
     /**
-     * Disabled: typing into the int field does not reach the setting. After `sendKeys("\b\b17")`
-     * the field is expected to hold 17 and `foldingMaxLength` still reads 20, its default.
-     *
-     * The helper it uses was broken too and is fixed here — it compared against `keys.toInt()` on
-     * a string containing backspaces, so this case threw NumberFormatException rather than failing
-     * on the value. That is why it was commented out. With the helper corrected the real gap shows.
-     *
-     * Not a general binding failure: `testFoldingPreferredLanguage` drives the string field the
-     * same way and passes, so it is specific to the int field — either the component ignores the
-     * backspaces or its binding does not commit on keystrokes.
+     * Was disabled: `sendKeys("\b\b17")` left the setting at 20. Not a bug of the field — of the
+     * test. Marathon types "\b" as a character (KEY_TYPED 0x08), not as the Backspace key, so the
+     * digits-only filter dropped it, nothing was erased and the two-digit limit refused "17". In the
+     * IDE, Backspace deletes on KEY_PRESSED, before any filter. The field is cleared like the string
+     * fields are.
      */
-    @Disabled
     @Test
     fun testFoldingMaxLength() {
-        checkIntProperty("\b\b17", PluginBundle.getMessage("settings.folding.maxLength"), Settings::foldingMaxLength)
+        checkIntProperty("17", PluginBundle.getMessage("settings.folding.maxLength"), Settings::foldingMaxLength)
+    }
+
+    /** The Backspace key, unlike the "\b" character, erases the field before the digits are typed. */
+    @Test
+    fun testFoldingMaxLengthTypedOverWithBackspace() = runWithSettings(Settings()) { settings ->
+        val field = driver.findElementByName(PluginBundle.getMessage("settings.folding.maxLength"))
+        field.sendKeys(Keys.END, Keys.BACK_SPACE, Keys.BACK_SPACE, "17")
+        assertEquals(17, settings.foldingMaxLength)
     }
 
     private fun checkIntProperty(keys: String, message: String, property: KMutableProperty1<Settings, Int>) = runWithSettings(Settings()) {
@@ -129,12 +131,9 @@ class SettingsPanelTest {
             assertNotNull(cb)
             val text = cb.text
             assertEquals(text.toInt(), property.get(settings))
+            cb.clear()
             cb.sendKeys(keys)
-            // `keys` carries the backspaces that clear the field before typing, so it is not a
-            // number: "\b\b17" typed over "20" leaves 17. Comparing against keys.toInt() threw
-            // NumberFormatException every time — which is why this case was commented out rather
-            // than failing. Only the digits describe the expected value.
-            assertEquals(keys.filter { it.isDigit() }.toInt(), property.get(settings))
+            assertEquals(keys.toInt(), property.get(settings))
     }
 
     private fun checkStringProperty(keys: String, message: String, property: KMutableProperty1<Settings, String>) = runWithSettings(Settings()) {
