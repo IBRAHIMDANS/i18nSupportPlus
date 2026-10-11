@@ -18,6 +18,7 @@
 - [vue-i18n] **Linked messages are navigable and count as usages**: in `"Click @:common.save"` — or `@.lower:common.save`, `@:{'common.save'}`, v8's `@:(common.save)` — the linked key opens its translation on Ctrl+click and shows up in Find Usages, an unknown one is reported as an unresolved key, and a key only linked is no longer reported as unused nor offered by *Cleanup Unused Keys*. JSON and YAML, in a `vue-i18n` module or one without a preset
 - [Translation] **Reorder the machine translation engines**: *Move Up* / *Move Down* in an engine's form change the order they are tried in — the fallback order — instead of deleting and recreating them
 - [vue-i18n] **`<i18n-t keypath>` and `v-t` complete and fold**: `<i18n-t keypath="common:user.<caret>">` (or `<I18nT>`) offers the keys under `common:user`, with their value — it listed only the root keys whatever was typed — and `v-t="'…'"` or `v-t="{ path: '…' }"` are now covered by tests. With folding on, the key is replaced by its value like `{{ $t('…') }}`, in a template that holds both. react-i18next's `<Trans i18nKey="…">` gets the same prefix-aware completion
+- [vue-i18n] **A bound `:keypath` holding a constant string is read as a key**: `<i18n-t :keypath="'terms.accept'">` — or `v-bind:keypath`, `"…"`, a template literal without interpolation — resolves, navigates, completes and reports an unknown key like `keypath="terms.accept"`. An expression (`:keypath="key"`, `'terms.' + name`) stays out
 
 ### Bug Fixes
 

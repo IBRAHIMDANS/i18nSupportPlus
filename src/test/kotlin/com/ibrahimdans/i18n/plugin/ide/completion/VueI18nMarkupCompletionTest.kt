@@ -18,7 +18,7 @@ internal class VueI18nMarkupCompletionTest : PlatformBaseTest() {
     private val json = JsonTranslationGenerator()
 
     @ParameterizedTest
-    @ValueSource(strings = ["keypath", "keypathPascal", "directive", "directiveObject"])
+    @ValueSource(strings = ["keypath", "keypathPascal", "directive", "directiveObject", "boundKeypath"])
     fun `a namespaced template key is completed`(form: String) = runVue {
         myFixture.addFileToProject("assets/test.json", json.generateContent("ref", "section", "key", "Reference"))
         myFixture.testCompletion("$form.vue", "$form.after.vue")
