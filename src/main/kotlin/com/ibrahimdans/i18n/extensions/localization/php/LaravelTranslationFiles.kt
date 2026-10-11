@@ -25,6 +25,9 @@ class LaravelTranslationFiles : Technology {
     override fun initialize(project: Project) {}
     override fun cfgNamespaces(): List<String> = emptyList()
 
+    /** The `laravel` preset of a module: its layout is the one this technology reads. */
+    override fun frameworkId(): String = "laravel"
+
     override fun keyScopes(project: Project): Set<String> =
         if (LaravelProject.isLaravel(project)) scopeFiles(project).values.toSet() else emptySet()
 

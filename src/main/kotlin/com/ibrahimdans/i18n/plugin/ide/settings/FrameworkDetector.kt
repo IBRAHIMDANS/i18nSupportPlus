@@ -1,7 +1,8 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
 /**
- * Maps `package.json` dependencies to the i18n frameworks the setup wizard knows about.
+ * Maps the dependencies of a manifest — `package.json`, or `composer.json` for Laravel — to the i18n
+ * frameworks the setup wizard knows about.
  *
  * Deliberately free of any UI dependency: the wizard itself cannot be instantiated in a
  * headless test, so keeping the detection here is what makes it directly testable.
@@ -13,6 +14,9 @@ object FrameworkDetector {
      *
      * A Nuxt project depends on `@nuxtjs/i18n`, which bundles `vue-i18n` without the project
      * declaring it.
+     *
+     * Laravel is a Composer package: `laravel/framework` is matched in `composer.json`. Composer names
+     * are `vendor/package`, which no npm dependency spells unscoped, so one table serves both manifests.
      */
     val FRAMEWORK_KEYS: Map<String, List<String>> = mapOf(
         "i18next" to listOf("i18next", "react-i18next"),
@@ -23,7 +27,8 @@ object FrameworkDetector {
         "transloco" to listOf("@jsverse/transloco", "@ngneat/transloco"),
         "svelte-i18n" to listOf("svelte-i18n"),
         "i18n-js" to listOf("i18n-js"),
-        "next-intl" to listOf("next-intl")
+        "next-intl" to listOf("next-intl"),
+        "laravel" to listOf("laravel/framework")
     )
 
     /** Framework id to the label shown on the wizard's checkbox. */
@@ -36,11 +41,13 @@ object FrameworkDetector {
         "transloco" to "Transloco (Angular)",
         "svelte-i18n" to "svelte-i18n",
         "i18n-js" to "i18n-js (React Native / Expo)",
-        "next-intl" to "next-intl"
+        "next-intl" to "next-intl",
+        "laravel" to "Laravel (PHP)"
     )
 
     /**
-     * Returns the frameworks whose dependencies appear in [packageJsonContent].
+     * Returns the frameworks whose dependencies appear in [packageJsonContent], the text of a
+     * `package.json` or of a `composer.json`.
      *
      * Matching is textual on the *quoted* dependency name, so a longer package sharing a
      * prefix — `react-intl-universal` against `react-intl` — never counts as a match.
