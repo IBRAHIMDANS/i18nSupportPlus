@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.10.0 - 2026-10-11
+
 ### Features
 
 - [Extraction] **Internationalize a file or a folder in one go**: right-click files or folders in the Project view, or in the editor, and choose *Internationalize…*. Every hard-coded text of their JS/TS files and Vue components is found in the background, then previewed per file — a check box, an editable key, an existing key reused when it holds the same text — and *Apply* writes values, missing files, calls and `useTranslation` hooks in one command: a single Ctrl+Z undoes it all. In a `.vue` file, the `<template>` texts become `$t` calls (`:placeholder="$t('…')"`, `Hello {{ user.name }}!` → `Hello {name}!`), and the `<script>` strings become `t('…')` with `useI18n()` added to `<script setup>`, or `this.$t('…')` in the Options API. Strings that are code by their place (hook arguments, imports, `className`, `href`, `defineProps`…) are never offered; URLs, paths, colours, dates and numbers start unchecked, the reason shown. When machine translation is enabled, the new keys are also translated into the other locales and previewed before being written in the same command
