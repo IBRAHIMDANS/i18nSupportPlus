@@ -4,9 +4,12 @@ import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
+import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParser
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
 import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
+import com.ibrahimdans.i18n.plugin.utils.KeyElement
+import com.ibrahimdans.i18n.plugin.utils.KeyElementType
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
 import com.intellij.openapi.project.Project
@@ -37,7 +40,9 @@ class RawKeyParser(private val project: Project) {
             .withDummyNormalizer()
             .withTemplateNormalizer()
             .build()
+        val packaged = if (syntax == KeySyntax.NoNamespace) null else packageScoped(rawKey, parser, config.keySeparator)
         val key = when {
+            packaged != null -> packaged
             syntax == KeySyntax.NoNamespace -> parser.parse(rawKey, emptyNamespace = true, firstComponentNamespace = false)
             firstComponent -> parser.parse(rawKey, emptyNamespace = true, firstComponentNamespace = true)
             syntax != null -> parser.parse(rawKey)
@@ -70,6 +75,30 @@ class RawKeyParser(private val project: Project) {
         return parser.parse(rawKey, emptyNamespace = true, firstComponentNamespace = true)
     }
 
+    /**
+     * [rawKey] read with a package scope as its namespace, when its text starts with one followed by
+     * the key separator: Laravel writes the key `welcome` of a package's `messages` file
+     * `courier::messages.welcome`, and declares `courier::messages` a key scope. The tokenizer splits
+     * on every character of the namespace separator, so `::` cannot be read by it: the scope is cut
+     * off first, the rest is parsed as a key without namespace.
+     *
+     * Asked only of a key holding `::` — which no other syntax parses — and answered only for a
+     * scope a technology declares, so any other key keeps its reading.
+     */
+    private fun packageScoped(rawKey: RawKey, parser: KeyParser, keySeparator: String): FullKey? {
+        if (rawKey.keyPrefix.isNotEmpty() || keySeparator.isEmpty()) return null
+        val first = rawKey.keyElements.firstOrNull()?.takeIf { it.type == KeyElementType.LITERAL } ?: return null
+        if (!first.text.contains(PACKAGE_SEPARATOR)) return null
+        val scope = Extensions.TECHNOLOGY.extensionList.asSequence()
+            .flatMap { it.keyScopes(project) }
+            .filter { PACKAGE_SEPARATOR in it && first.text.startsWith(it + keySeparator) }
+            .maxByOrNull { it.length } ?: return null
+        val rest = KeyElement.literal(first.text.substring(scope.length + keySeparator.length))
+        val key = parser.parse(rawKey.copy(keyElements = listOf(rest) + rawKey.keyElements.drop(1)), emptyNamespace = true)
+            ?: return null
+        return key.copy(source = scope + keySeparator + key.source, ns = Literal(scope))
+    }
+
     /** The key syntax of the module holding [caller]'s file, or null to use the project settings. */
     private fun keySyntaxOf(config: Config, caller: PsiElement): KeySyntax? {
         if (config.modules.isEmpty()) return null
@@ -79,5 +108,10 @@ class RawKeyParser(private val project: Project) {
         val file = caller.hostVirtualFile() ?: return null
         val module = ModuleSources.owner(config.modules, ModuleSources.FilePath.of(file, project.basePath ?: "")) ?: return null
         return KeyTemplate.parse(module.keyTemplate)
+    }
+
+    private companion object {
+        /** Laravel's separator between a package and its file: `courier::messages.welcome`. */
+        const val PACKAGE_SEPARATOR = "::"
     }
 }

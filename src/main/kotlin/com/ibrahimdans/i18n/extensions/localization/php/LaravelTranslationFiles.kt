@@ -16,6 +16,9 @@ import com.jetbrains.php.lang.psi.PhpFile
  * segment names one is read with it as its namespace — any other key is parsed as before — and the
  * keys of the file are searched for in the code under that spelling.
  *
+ * A package's override (`lang/vendor/courier/en/messages.php`) declares `courier::messages`, the
+ * namespace Laravel reads `__('courier::messages.welcome')` from.
+ *
  * Only in a Laravel project ([LaravelProject.isLaravel]); declares no call and no source of its own.
  */
 class LaravelTranslationFiles : Technology {
@@ -48,7 +51,7 @@ class LaravelTranslationFiles : Technology {
             .filter { it.localization is PhpArrayLocalization && it.tree != null }
             .mapNotNull { source ->
                 val file = source.tree?.value()?.containingFile?.virtualFile ?: return@mapNotNull null
-                file.takeIf(PhpArrayLocalization::isInLocaleDirectory)?.let { it to it.nameWithoutExtension }
+                PhpArrayLocalization.namespaceOf(file)?.let { file to it }
             }
             .toMap()
         cache = sources to scopes
