@@ -11,7 +11,6 @@ import org.junit.jupiter.api.Assumptions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import java.awt.GraphicsEnvironment
 import java.util.concurrent.DelayQueue
@@ -106,21 +105,14 @@ class SettingsPanelTest {
     }
 
     /**
-     * Disabled: typing into the int field does not reach the setting. After `sendKeys("\b\b17")`
-     * the field is expected to hold 17 and `foldingMaxLength` still reads 20, its default.
-     *
-     * The helper it uses was broken too and is fixed here — it compared against `keys.toInt()` on
-     * a string containing backspaces, so this case threw NumberFormatException rather than failing
-     * on the value. That is why it was commented out. With the helper corrected the real gap shows.
-     *
-     * Not a general binding failure: `testFoldingPreferredLanguage` drives the string field the
-     * same way and passes, so it is specific to the int field — either the component ignores the
-     * backspaces or its binding does not commit on keystrokes.
+     * Was disabled because the setting stayed at 20. The field was fine: the panel is built off the
+     * EDT here, so the caret stays at 0 and the backspaces the test sent deleted nothing; the 2-digit
+     * limit then swallowed "17". Clearing the field first, as the text fields do, needs the empty
+     * text to be ignored instead of failing `toInt()`.
      */
-    @Disabled
     @Test
     fun testFoldingMaxLength() {
-        checkIntProperty("\b\b17", PluginBundle.getMessage("settings.folding.maxLength"), Settings::foldingMaxLength)
+        checkIntProperty("17", PluginBundle.getMessage("settings.folding.maxLength"), Settings::foldingMaxLength)
     }
 
     private fun checkIntProperty(keys: String, message: String, property: KMutableProperty1<Settings, Int>) = runWithSettings(Settings()) {
@@ -129,12 +121,9 @@ class SettingsPanelTest {
             assertNotNull(cb)
             val text = cb.text
             assertEquals(text.toInt(), property.get(settings))
+            cb.clear()
             cb.sendKeys(keys)
-            // `keys` carries the backspaces that clear the field before typing, so it is not a
-            // number: "\b\b17" typed over "20" leaves 17. Comparing against keys.toInt() threw
-            // NumberFormatException every time — which is why this case was commented out rather
-            // than failing. Only the digits describe the expected value.
-            assertEquals(keys.filter { it.isDigit() }.toInt(), property.get(settings))
+            assertEquals(keys.toInt(), property.get(settings))
     }
 
     private fun checkStringProperty(keys: String, message: String, property: KMutableProperty1<Settings, String>) = runWithSettings(Settings()) {
