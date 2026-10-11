@@ -6,6 +6,10 @@
 
 - [Export] **Export only the missing translations**: *Export Translations* offers *CSV, Missing Only* — the keys at least one locale lacks or leaves empty, with all their values, the reference included. Hand it to a translator; re-importing it writes only the cells they filled
 
+### Bug Fixes
+
+- [Settings] **Pasting text into *Folding max length* no longer throws**: typing was already saved as you type, but a paste skips the digit filter and a non-numeric value raised an error; it is now ignored and the setting keeps its value
+
 ## 1.9.0 - 2026-10-10
 
 ### Features

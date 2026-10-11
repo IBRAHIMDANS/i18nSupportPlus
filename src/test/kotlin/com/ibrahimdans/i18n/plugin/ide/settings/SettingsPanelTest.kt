@@ -6,12 +6,12 @@ import io.mockk.mockk
 import io.mockk.unmockkAll
 import net.sourceforge.marathon.javadriver.JavaDriver
 import net.sourceforge.marathon.javadriver.JavaProfile
+import org.openqa.selenium.Keys
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assumptions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import java.awt.GraphicsEnvironment
 import java.util.concurrent.DelayQueue
@@ -106,21 +106,16 @@ class SettingsPanelTest {
     }
 
     /**
-     * Disabled: typing into the int field does not reach the setting. After `sendKeys("\b\b17")`
-     * the field is expected to hold 17 and `foldingMaxLength` still reads 20, its default.
+     * Two backspaces then "17", typed over the default "20".
      *
-     * The helper it uses was broken too and is fixed here — it compared against `keys.toInt()` on
-     * a string containing backspaces, so this case threw NumberFormatException rather than failing
-     * on the value. That is why it was commented out. With the helper corrected the real gap shows.
-     *
-     * Not a general binding failure: `testFoldingPreferredLanguage` drives the string field the
-     * same way and passes, so it is specific to the int field — either the component ignores the
-     * backspaces or its binding does not commit on keystrokes.
+     * Was disabled because the setting stayed at 20. The field was fine: the test sent a raw
+     * `'\b'`, which Marathon has no keyboard mapping for, so it only dispatched a KEY_TYPED event
+     * with no VK_BACK_SPACE press. Nothing was deleted, and the 2-digit limit then swallowed "1"
+     * and "7". [Keys.BACK_SPACE] is the key Marathon actually presses.
      */
-    @Disabled
     @Test
     fun testFoldingMaxLength() {
-        checkIntProperty("\b\b17", PluginBundle.getMessage("settings.folding.maxLength"), Settings::foldingMaxLength)
+        checkIntProperty(Keys.BACK_SPACE.toString().repeat(2) + "17", PluginBundle.getMessage("settings.folding.maxLength"), Settings::foldingMaxLength)
     }
 
     private fun checkIntProperty(keys: String, message: String, property: KMutableProperty1<Settings, Int>) = runWithSettings(Settings()) {
@@ -131,9 +126,7 @@ class SettingsPanelTest {
             assertEquals(text.toInt(), property.get(settings))
             cb.sendKeys(keys)
             // `keys` carries the backspaces that clear the field before typing, so it is not a
-            // number: "\b\b17" typed over "20" leaves 17. Comparing against keys.toInt() threw
-            // NumberFormatException every time — which is why this case was commented out rather
-            // than failing. Only the digits describe the expected value.
+            // number: only the digits describe the expected value.
             assertEquals(keys.filter { it.isDigit() }.toInt(), property.get(settings))
     }
 
