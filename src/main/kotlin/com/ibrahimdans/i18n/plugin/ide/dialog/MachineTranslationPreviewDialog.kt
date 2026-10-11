@@ -19,6 +19,7 @@ import javax.swing.table.DefaultTableModel
  * The preview of *Fill Missing Translations*: one row per key — keep it or not, key, source text,
  * proposal, note, engine — local or not. A proposal the engine got wrong, or a key not sent, shows its reason in the note,
  * unchecked and locked. A plural form translated from `other` comes unchecked, noted for review.
+ * Filling several locales at once adds a *Locale* column after the key.
  */
 internal class MachineTranslationPreviewDialog(
     project: Project,
@@ -26,15 +27,19 @@ internal class MachineTranslationPreviewDialog(
     private val proposals: List<MachineFill.Proposal>,
 ) : DialogWrapper(project) {
 
+    /** Several target locales in one preview: each row says which one it fills. */
+    private val severalLocales = proposals.map { it.locale }.distinct().size > 1
+
     internal val model = object : DefaultTableModel(
-        arrayOf(
+        listOfNotNull(
             "",
             PluginBundle.message("action.fill.column.key"),
+            PluginBundle.message("action.fill.column.locale").takeIf { severalLocales },
             PluginBundle.message("action.fill.column.source"),
             PluginBundle.message("action.fill.column.proposal"),
             PluginBundle.message("action.fill.column.note"),
             PluginBundle.message("action.fill.column.engine")
-        ),
+        ).toTypedArray(),
         0
     ) {
         override fun getColumnClass(column: Int): Class<*> = if (column == 0) java.lang.Boolean::class.java else String::class.java
@@ -50,19 +55,25 @@ internal class MachineTranslationPreviewDialog(
                 is Translation.Failed -> Triple(false, "", PluginBundle.message("action.fill.rejected", result.reason))
             }
             val engine = (proposal.result as? Translation.Done)?.engine?.let { engineLabel(it) }.orEmpty()
-            model.addRow(arrayOf<Any>(row.first, proposal.item.key, proposal.item.source, row.second, row.third, engine))
+            model.addRow(listOfNotNull<Any>(
+                row.first, proposal.item.key, proposal.locale.takeIf { severalLocales }, proposal.item.source, row.second, row.third, engine
+            ).toTypedArray())
         }
         title = PluginBundle.message("action.fill.preview.title", target, proposals.size)
         setOKButtonText(PluginBundle.message("action.fill.preview.ok"))
         init()
     }
 
-    /** The checked proposals, `key -> translation`. */
-    fun accepted(): Map<String, String> =
+    /** The checked proposals, `key -> translation`, of a single target locale. */
+    fun accepted(): Map<String, String> = acceptedByLocale().values.fold(emptyMap()) { all, keys -> all + keys }
+
+    /** The checked proposals, `locale -> key -> translation`. */
+    fun acceptedByLocale(): Map<String, Map<String, String>> =
         proposals.indices
             .filter { model.getValueAt(it, 0) == true }
-            .mapNotNull { row -> (proposals[row].result as? Translation.Done)?.let { proposals[row].item.key to it.text } }
-            .toMap()
+            .mapNotNull { row -> (proposals[row].result as? Translation.Done)?.let { proposals[row] to it.text } }
+            .groupBy({ it.first.locale }, { it.first.item.key to it.second })
+            .mapValues { it.value.toMap() }
 
     override fun createCenterPanel(): JComponent {
         val table = JBTable(model)
