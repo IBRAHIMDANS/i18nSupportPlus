@@ -29,6 +29,8 @@
     "body": "{\"text\": [\"{text}\"], \"source_lang\": \"{source}\", \"target_lang\": \"{target}\", \"tag_handling\": \"xml\", \"context\": \"{context}\"}",
     "responsePath": "translations[0].text",
     "languageCodes": "deepl",
+    "nativeGlossary": "deepl",
+    "nativeGlossarySource": "https://developers.deepl.com/api-reference/multilingual-glossaries : the translated terms go to a v3 glossary (POST /v3/glossaries, PUT /v3/glossaries/{id}/dictionaries per language pair), its glossary_id added to the request of a pair that has a dictionary",
     "source": "https://developers.deepl.com/docs/api-reference/translate (Pro accounts: https://api.deepl.com/v2/translate) ; https://developers.deepl.com/docs/xml-and-html-handling/xml ; language codes: https://developers.deepl.com/docs/getting-started/supported-languages (variants such as EN-GB are target only; EN, PT and ZH are unspecified variants)",
     "batch": {
       "body": "{\"text\": {texts}, \"source_lang\": \"{source}\", \"target_lang\": \"{target}\", \"tag_handling\": \"xml\", \"context\": \"{context}\"}",

@@ -16,6 +16,9 @@ import java.util.UUID
  * constructor for XML serialization, its headers one `Name: value` per line. [id] is unique per
  * entry — two OpenAI-compatible engines can coexist — and names its API key in [ApiKeyStore].
  * The key itself is never stored here: this file lives in `.idea/`, often versioned.
+ *
+ * [glossaryId] and [glossaryDictionaries] are the glossary the engine keeps on its side (DeepL), written
+ * when a translation creates or updates it — see [DeeplGlossary].
  */
 data class EngineState(
     var id: String = "",
@@ -26,8 +29,10 @@ data class EngineState(
     var body: String = "",
     var responsePath: String = "",
     var unescapeHtml: Boolean = false,
-    var local: Boolean = false
-) {
+    var local: Boolean = false,
+    override var glossaryId: String = "",
+    override var glossaryDictionaries: MutableMap<String, String> = linkedMapOf()
+) : RemoteGlossaryStore {
     constructor() : this("", "", "", "", "", "", "", false, false)
 
     fun toConfig(glossary: Glossary = Glossary.EMPTY): EngineConfig {
@@ -44,7 +49,10 @@ data class EngineState(
             // The batch form is the preset's, valid while the entry still sends the preset's request:
             // a changed URL (DeepL Pro) keeps it, a rewritten body does not.
             batch = presetConfig?.takeIf { it.body == sent && it.responsePath == responsePath.trim() }?.batch,
-            glossary = glossary
+            glossary = glossary,
+            // Same rule for the engine's own glossary: its API stands beside the preset's request.
+            nativeGlossary = presetConfig?.takeIf { it.body == sent && it.responsePath == responsePath.trim() }?.nativeGlossary,
+            remoteGlossary = this
         )
     }
 
@@ -126,7 +134,7 @@ class MachineTranslationSettings : PersistentStateComponent<MachineTranslationSe
     /** A detached copy, edited by the settings page until *Apply*. */
     fun copy(): Settings = Settings(
         state.enabled,
-        state.engines.map { it.copy() }.toMutableList(),
+        state.engines.map { it.copy(glossaryDictionaries = LinkedHashMap(it.glossaryDictionaries)) }.toMutableList(),
         state.glossary.map { it.copy(translations = LinkedHashMap(it.translations)) }.toMutableList()
     )
 
