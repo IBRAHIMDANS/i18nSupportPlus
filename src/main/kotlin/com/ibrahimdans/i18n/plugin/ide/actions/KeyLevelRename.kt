@@ -7,6 +7,8 @@ import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
+import com.ibrahimdans.i18n.plugin.review.ReviewMigration
+import com.ibrahimdans.i18n.plugin.review.ReviewMove
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
@@ -41,6 +43,8 @@ import com.intellij.psi.util.PsiTreeUtil
  *
  * Keys built at runtime (`` t(`button.${action}`) ``) cannot be rewritten: they are listed in the
  * confirmation. A level whose new name already exists next to it is refused rather than merged.
+ *
+ * The reviews of every key under the level follow it ([Plan.reviews]), per locale and module.
  */
 internal class KeyLevelRename(
     private val project: Project,
@@ -53,8 +57,18 @@ internal class KeyLevelRename(
     /** One text replacement, gathered under a read action and applied in the write action. */
     data class Edit(val document: Document, val range: TextRange, val text: String)
 
-    /** What renaming the level to a new name does, or why it cannot. */
-    data class Plan(val edits: List<Edit>, val files: Int, val callSites: Int, val dynamicUsages: List<String>, val conflict: Boolean)
+    /**
+     * What renaming the level to a new name does, or why it cannot. [reviews] moves the reviews of
+     * the keys under the level, to be applied in the same command as [edits].
+     */
+    data class Plan(
+        val edits: List<Edit>,
+        val files: Int,
+        val callSites: Int,
+        val dynamicUsages: List<String>,
+        val conflict: Boolean,
+        val reviews: List<ReviewMove> = emptyList(),
+    )
 
     val levelName: String get() = path.last()
 
@@ -71,7 +85,8 @@ internal class KeyLevelRename(
         if (conflict || levelNodes.isEmpty()) return Plan(emptyList(), levelNodes.size, 0, emptyList(), conflict)
         val fileEdits = levelNodes.mapNotNull { renamedProperty(it, newName) }
         val found = codeEdits(newName)
-        return Plan((fileEdits + found.edits).distinct(), fileEdits.size, found.edits.size, found.dynamic, false)
+        val reviews = levelNodes.mapNotNull { node -> ReviewMigration.moveOf(node) { it.dropLast(1) + newName } }.distinct()
+        return Plan((fileEdits + found.edits).distinct(), fileEdits.size, found.edits.size, found.dynamic, false, reviews)
     }
 
     private fun nodeAt(source: LocalizationSource, keyPath: List<String>): PsiElement? {

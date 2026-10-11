@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
+import com.ibrahimdans.i18n.plugin.review.ReviewMigration
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
 import com.ibrahimdans.i18n.plugin.utils.unQuote
@@ -16,6 +17,7 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.command.UndoConfirmationPolicy
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.Document
@@ -46,7 +48,8 @@ import javax.swing.JPanel
  *  4. Deletes the entry from the source files
  *  5. Rewrites all code references with an explicit `targetNs:` prefix
  *
- * The whole operation runs under a single WriteCommandAction (one undo step).
+ * The whole operation runs under a single WriteCommandAction (one undo step), the reviews of the
+ * moved key included: they follow it to `targetNs:` ([ReviewMigration]), approval kept.
  *
  * The source namespace is derived from the *resolved* translation files (not the literal text),
  * so keys whose namespace comes from a `useTranslation('ns')` hook are handled correctly.
@@ -140,9 +143,12 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
             collectCodeUsages(sourceLeaves, resolved.sourceCodeElement)
         }
 
-        WriteCommandAction.runWriteCommandAction(project, PluginBundle.message("action.move.title"), null, {
-            execute(project, sourceLeaves, codeUsages, resolved.compositeKey, targetNs)
-        })
+        // Global and without confirmation: the review file it may rewrite has no editor.
+        WriteCommandAction.writeCommandAction(project)
+            .withName(PluginBundle.message("action.move.title"))
+            .withGlobalUndo()
+            .withUndoConfirmationPolicy(UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION)
+            .run<RuntimeException> { execute(project, sourceLeaves, codeUsages, resolved.compositeKey, targetNs) }
     }
 
     // --- Core (testable; must be called inside a write action) ---
@@ -160,6 +166,9 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
         compositeKey: List<Literal>,
         targetNs: String,
     ) {
+        // 0. Where the reviews of the source entries live, read before the PSI changes.
+        val reviews = sourceLeaves.mapNotNull { ReviewMigration.moveOf(it, namespace = targetNs) }
+
         // 1. Copy into the target namespace, one sibling file per source locale (created if missing).
         sourceLeaves.forEach { leaf -> insertIntoTarget(project, leaf, compositeKey, targetNs) }
 
@@ -179,6 +188,9 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
                 elements.sortedByDescending { it.textRange.startOffset }
                     .forEach { rewriteCodeUsage(doc, it, keyPath, newKey) }
             }
+
+        // 4. The reviews follow the key to its new namespace, in each locale.
+        ReviewMigration.move(project, reviews)
     }
 
     // --- Read-phase collection ---

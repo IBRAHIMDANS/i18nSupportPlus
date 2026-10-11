@@ -1,6 +1,8 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.plugin.review.ReviewMigration
+import com.ibrahimdans.i18n.plugin.review.ReviewSpot
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
@@ -16,6 +18,7 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.command.UndoConfirmationPolicy
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.progress.ProgressIndicator
@@ -127,22 +130,27 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
 
     /**
      * Deletes every locale's property for each of [keys], in one
-     * WriteCommandAction — a single undo restores the whole cleanup.
+     * WriteCommandAction — a single undo restores the whole cleanup, the
+     * reviews of the deleted keys included ([ReviewMigration]).
      * Pure of any UI (testable); returns the number of deleted locale entries.
      */
     internal fun deleteKeys(project: Project, keys: List<String>): Int {
-        val properties = ReadAction.compute<List<PsiElement>, RuntimeException> {
+        val (properties, reviews) = ReadAction.compute<Pair<List<PsiElement>, List<ReviewSpot>>, RuntimeException> {
             // One source load for the whole batch, not one per key.
             val sources = project.service<LocalizationSourceService>().findAllSources(project)
             val config = Settings.getInstance(project).config()
-            keys.flatMap { leafProperties(sources, it, config) }
+            val found = keys.flatMap { leafProperties(sources, it, config) }
+            found to ReviewMigration.spotsOf(found)
         }
         ApplicationManager.getApplication().invokeAndWait {
-            WriteCommandAction.runWriteCommandAction(
-                project, PluginBundle.message("action.cleanup.command"), null,
-            {
-                properties.forEach { if (it.isValid) deletePropertyAndSeparator(it) }
-            })
+            WriteCommandAction.writeCommandAction(project)
+                .withName(PluginBundle.message("action.cleanup.command"))
+                .withGlobalUndo()
+                .withUndoConfirmationPolicy(UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION)
+                .run<RuntimeException> {
+                    properties.forEach { if (it.isValid) deletePropertyAndSeparator(it) }
+                    ReviewMigration.remove(project, reviews)
+                }
         }
         return properties.size
     }

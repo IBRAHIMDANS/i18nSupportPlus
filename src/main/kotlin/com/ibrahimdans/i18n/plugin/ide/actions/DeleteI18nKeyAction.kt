@@ -36,7 +36,8 @@ import com.intellij.psi.search.UsageSearchContext
  * translation file, and the table only deletes keys a scan found unused. A key still used in the
  * code is deleted only once the user has seen where — the calls stay in place and will point to a
  * missing key, which the annotator then reports. The deletion goes through [OrphanKeyDeleter],
- * the table's: one command, so one Ctrl+Z restores every locale.
+ * the table's: one command, so one Ctrl+Z restores every locale — and the reviews of the key,
+ * which it deletes with it.
  *
  * A plural is deleted as a group: from the code, `t('item')` resolves to `item_one` and
  * `item_other`; in a translation file, the caret on one form takes its sibling forms along.
