@@ -310,4 +310,37 @@ class LocalizationSourceServiceTest : PlatformBaseTest() {
 
         Assertions.assertEquals(before + 1, findAllSources().size, "the locale added to the catalog must be found")
     }
+
+    /**
+     * `vendor` is excluded for Composer, which also hid Laravel's `lang/vendor/<package>/` — the
+     * folder where a project overrides a package's translations — even in JSON.
+     */
+    @Test
+    fun findAllSources_readsLaravelPackageOverridesButNotComposerVendor() {
+        addFileToProject("lang/vendor/courier/en.json", """{"sent":"Sent"}""")
+        addFileToProject("resources/lang/vendor/courier/fr.json", """{"sent":"Envoyé"}""")
+        addFileToProject("vendor/acme/pkg/lang/en.json", """{"pkg":"Package"}""")
+        addFileToProject("node_modules/pkg/lang/en.json", """{"pkg":"Package"}""")
+
+        val paths = findAllSources().map { it.displayPath }
+
+        Assertions.assertTrue(paths.any { "lang/vendor/courier/en.json" in it }, "lang/vendor must be read, got: $paths")
+        Assertions.assertTrue(paths.any { "resources/lang/vendor/courier/fr.json" in it }, "resources/lang/vendor must be read, got: $paths")
+        Assertions.assertFalse(paths.any { "vendor/acme" in it }, "Composer's vendor must stay excluded, got: $paths")
+        Assertions.assertFalse(paths.any { "node_modules" in it }, "node_modules must stay excluded, got: $paths")
+    }
+
+    @Test
+    fun isExcludedPath_sparesOnlyAVendorDirectlyUnderLang() {
+        val exclusions = setOf("vendor", "node_modules")
+        fun excluded(path: String) = LocalizationSourceService.isExcludedPath(path, exclusions)
+
+        Assertions.assertFalse(excluded("/app/lang/vendor/courier/en.json"))
+        Assertions.assertFalse(excluded("/app/resources/lang/vendor/courier/en.json"))
+        Assertions.assertTrue(excluded("/app/vendor/acme/pkg/lang/en.json"))
+        Assertions.assertTrue(excluded("/app/vendor/acme/pkg/lang/vendor/x/en.json"), "a lang/vendor inside Composer's vendor")
+        Assertions.assertTrue(excluded("/app/lang/vendor/node_modules/en.json"))
+        Assertions.assertTrue(excluded("/app/node_modules/pkg/lang/en.json"))
+        Assertions.assertTrue(excluded("/app/locales/vendor/en.json"), "only a lang parent spares vendor")
+    }
 }
