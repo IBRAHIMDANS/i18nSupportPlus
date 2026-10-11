@@ -153,7 +153,7 @@ class HttpTranslationProvider(
     private fun restore(raw: String, masked: PlaceholderMask.Masked): Translation {
         val translated = if (engine.unescapeHtml) unescapeHtml(raw.trim()) else raw.trim()
         return when (val restored = PlaceholderMask.unmask(translated, masked)) {
-            is PlaceholderMask.Unmasked.Restored -> Translation.Done(restored.text)
+            is PlaceholderMask.Unmasked.Restored -> Translation.Done(restored.text, TranslatedBy(engine.name, engine.local))
             is PlaceholderMask.Unmasked.Rejected -> failed("translate.error.placeholders", engine.name)
         }
     }

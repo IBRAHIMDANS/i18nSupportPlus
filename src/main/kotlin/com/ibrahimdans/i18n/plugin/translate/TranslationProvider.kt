@@ -13,9 +13,24 @@ data class TranslationRequest(
     val context: String = ""
 )
 
+/** The engine a translation comes from: its [name], and whether it runs on the user's machine. */
+data class TranslatedBy(val name: String, val local: Boolean)
+
 /** The outcome for one text: its translation, or a reason readable by the user. */
 sealed interface Translation {
-    data class Done(val text: String) : Translation
+
+    /**
+     * [text] as translated by [engine] — null for a text no engine saw, a blank one kept as is.
+     *
+     * Two translations are equal on their [text] alone: the engine says where a proposal comes
+     * from, not what it is.
+     */
+    class Done(val text: String, val engine: TranslatedBy? = null) : Translation {
+        override fun equals(other: Any?): Boolean = other is Done && other.text == text
+        override fun hashCode(): Int = text.hashCode()
+        override fun toString(): String = "Done(text=$text, engine=$engine)"
+    }
+
     data class Failed(val reason: String) : Translation
 }
 
