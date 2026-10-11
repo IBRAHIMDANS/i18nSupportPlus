@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.Localization
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.factory.CallTemplate
+import com.ibrahimdans.i18n.plugin.ide.actions.MachineFill
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleTemplateResolver
@@ -12,6 +13,8 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
 import com.ibrahimdans.i18n.plugin.parser.RawKey
+import com.ibrahimdans.i18n.plugin.review.ReviewKey
+import com.ibrahimdans.i18n.plugin.review.ReviewLocation
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
@@ -63,11 +66,12 @@ internal class I18nizeApply private constructor(
     /** What [write] did: the calls written in the code, the translation files created, the values kept. */
     data class Outcome(val replaced: Int, val createdFiles: List<String>, val keptValues: Int)
 
-    private class FileWork(val plan: I18nizePlan.FilePlan, val entries: List<EntryWork>)
+    private class FileWork(val plan: I18nizePlan.FilePlan, val entries: List<EntryWork>, val module: ModuleConfig?)
 
     private class EntryWork(val entry: I18nizePlan.Entry, val fullKey: FullKey, val values: List<ValueWork>)
 
-    private data class ValueWork(val target: Target, val value: String)
+    /** [value] for [target]; [locale] is the translation's, as the caller named it — null for the reference value. */
+    private data class ValueWork(val target: Target, val value: String, val locale: String? = null)
 
     /** Where a value goes: a file found, or one to create at [path] under [base]. */
     private sealed interface Target {
@@ -79,12 +83,20 @@ internal class I18nizeApply private constructor(
      * Writes the values, creates the missing files, replaces the texts by their calls and gives the
      * React components that need it their `useTranslation` hook — in one command named [commandName].
      * A text changed since [prepare] (its element gone) is left alone, value included.
+     *
+     * With [reviewOrigins] — `locale -> key -> machine:<engine>`, the translations a machine made —
+     * each of those values actually written is marked to review in the same command, under its
+     * module's root, reviews turned on there first. The reference value, the text of the code, never is.
      */
-    fun write(commandName: String = PluginBundle.message("action.batch.extract.title")): Outcome {
+    fun write(
+        commandName: String = PluginBundle.message("action.batch.extract.title"),
+        reviewOrigins: Map<String, Map<String, String>>? = null
+    ): Outcome {
         var replaced = 0
         var kept = 0
         val created = mutableListOf<String>()
         val project = project ?: return Outcome(0, emptyList(), 0)
+        val marks = ReviewMarking(project)
         val codeFiles = files.map { it.plan.file }.filter { it.isValid }
         WriteCommandAction.writeCommandAction(project, *codeFiles.toTypedArray())
             .withName(commandName)
@@ -94,10 +106,10 @@ internal class I18nizeApply private constructor(
                 val documents = PsiDocumentManager.getInstance(project)
                 documents.commitAllDocuments()
                 // Computed on the code as it is, before anything moves; applied last.
-                val code = files.mapNotNull { codeEdits(project, it) }
+                val code = files.mapNotNull { work -> codeEdits(project, work)?.let { it to work.module } }
                 val createdSources = mutableMapOf<String, LocalizationSource>()
-                code.flatMap { it.entries }.forEach { entry ->
-                    entry.values.forEach values@{ (target, value) ->
+                code.flatMap { (edits, module) -> edits.entries.map { it to module } }.forEach { (entry, module) ->
+                    entry.values.forEach values@{ (target, value, locale) ->
                         val source = when (target) {
                             is Target.Existing -> target.source
                             is Target.Missing -> {
@@ -108,6 +120,7 @@ internal class I18nizeApply private constructor(
                                     // A file just created holds the value it was created for.
                                     if (fresh) {
                                         created += target.path
+                                        if (locale != null) marks.written(module, locale, entry.entry, value)
                                         return@values
                                     }
                                     source
@@ -115,9 +128,11 @@ internal class I18nizeApply private constructor(
                             }
                         }
                         if (!writeValue(source, entry.fullKey, value)) kept++
+                        else if (locale != null) marks.written(module, locale, entry.entry, value)
                     }
                 }
-                code.forEach { edits ->
+                if (reviewOrigins != null) marks.mark(reviewOrigins)
+                code.forEach { (edits, _) ->
                     apply(edits.document, edits.edits)
                     documents.commitDocument(edits.document)
                     replaced += edits.entries.size
@@ -194,6 +209,26 @@ internal class I18nizeApply private constructor(
 
     private object Resolver : CompositeKeyResolver<PsiElement>
 
+    /** The translations [write] wrote, by module root, to mark for review once written. */
+    private class ReviewMarking(private val project: Project) {
+        private class Written(val values: MutableMap<String, MutableMap<String, String>> = mutableMapOf(), val keys: MutableMap<String, ReviewKey> = mutableMapOf())
+
+        private val roots = linkedMapOf<VirtualFile, Written>()
+
+        /** [entry]'s [value] written in [locale], in the files of [module]. */
+        fun written(module: ModuleConfig?, locale: String, entry: I18nizePlan.Entry, value: String) {
+            val root = ReviewLocation.rootOf(project, module) ?: return
+            val written = roots.getOrPut(root) { Written() }
+            written.values.getOrPut(locale) { mutableMapOf() }[entry.key] = value
+            written.keys[entry.key] = ReviewKey.fromSpelling(entry.key, entry.namespace)
+        }
+
+        /** Each value written that [origins] (`locale -> key -> origin`) knows, marked to review. */
+        fun mark(origins: Map<String, Map<String, String>>) = roots.forEach { (root, written) ->
+            MachineFill.markWritten(project, root, written.values, origins) { written.keys.getValue(it) }
+        }
+    }
+
     companion object {
 
         /**
@@ -235,10 +270,10 @@ internal class I18nizeApply private constructor(
                         .filterKeys { LocaleMatching.pick(it, listOf(reference)) == null }
                         .mapNotNull { (locale, values) ->
                             val value = values[entry.key] ?: return@mapNotNull null
-                            locator.target(sources, locale, entry.namespace)?.let { ValueWork(it, value) }
+                            locator.target(sources, locale, entry.namespace)?.let { ValueWork(it, value, locale) }
                         }
                     EntryWork(entry, fullKey, listOf(ValueWork(referenceTarget, entry.candidate.originalText)) + others)
-                })
+                }, module)
             }
             return I18nizeApply(project, files.filter { it.entries.isNotEmpty() }, skipped)
         }

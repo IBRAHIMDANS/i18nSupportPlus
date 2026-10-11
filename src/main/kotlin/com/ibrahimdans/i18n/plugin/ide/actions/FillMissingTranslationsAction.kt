@@ -7,6 +7,10 @@ import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.review.Review
+import com.ibrahimdans.i18n.plugin.review.ReviewKey
+import com.ibrahimdans.i18n.plugin.review.ReviewLocation
+import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.translate.MachineTranslationSettings
 import com.ibrahimdans.i18n.plugin.translate.PluralTranslationPlan
@@ -20,6 +24,7 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.command.UndoConfirmationPolicy
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
@@ -27,6 +32,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.concurrency.AppExecutorUtil
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Future
@@ -122,9 +128,11 @@ internal object MachineFill {
                     return
                 }
                 ApplicationManager.getApplication().invokeLater {
-                    val dialog = MachineTranslationPreviewDialog(project, label, proposals)
+                    val reviewRoot = ReviewLocation.rootOf(project, module)
+                    val dialog = MachineTranslationPreviewDialog(project, label, proposals, listOfNotNull(reviewRoot))
                     if (dialog.showAndGet()) {
-                        write(project, module, dialog.acceptedByLocale())
+                        val marks = reviewRoot?.let { root -> dialog.reviewOrigins()?.let { ReviewMarks(root, it) } }
+                        write(project, module, dialog.acceptedByLocale(), marks)
                         onWritten()
                     }
                 }
@@ -222,6 +230,18 @@ internal object MachineFill {
         if (call.size == 1) "A UI string of an application, under the i18n key ${call.single().key}"
         else "UI strings of an application, under the i18n keys, in order: ${call.joinToString(", ") { it.key }}"
 
+    /** Where a translation by the machine comes from, as a review records it: `machine:<engine>`. */
+    fun originOf(result: Translation.Done): String = Review.machineOrigin(result.engine?.name ?: UNKNOWN_ENGINE)
+
+    /** The engine named for a text no engine saw — a blank one kept as is. */
+    private const val UNKNOWN_ENGINE = "unknown"
+
+    /**
+     * The values a write is to mark for review, under [root] (the module's, see [ReviewLocation]):
+     * the origin of each one, `locale -> key -> machine:<engine>`.
+     */
+    data class ReviewMarks(val root: VirtualFile, val origins: Map<String, Map<String, String>>)
+
     /**
      * Writes [accepted] (`key -> value`) into [target]'s files of [module], in one command: one Ctrl+Z
      * undoes it all. A value filled since the preview opened is left as it is.
@@ -229,22 +249,57 @@ internal object MachineFill {
     fun write(project: Project, module: ModuleConfig?, target: String, accepted: Map<String, String>) =
         write(project, module, mapOf(target to accepted))
 
-    /** [accepted] (`locale -> key -> value`) written in one command, whatever the number of locales. */
-    fun write(project: Project, module: ModuleConfig?, accepted: Map<String, Map<String, String>>) {
+    /**
+     * [accepted] (`locale -> key -> value`) written in one command, whatever the number of locales.
+     * With [marks], each value written — not one filled since the preview, left as it is — is marked
+     * to review in the same command, reviews turned on under the root first: one Ctrl+Z undoes the
+     * values and their marks.
+     */
+    fun write(project: Project, module: ModuleConfig?, accepted: Map<String, Map<String, String>>, marks: ReviewMarks? = null) {
         if (accepted.values.all { it.isEmpty() }) return
         val config = Settings.getInstance(project).config()
         val synchronizer = KeysSynchronizer()
         val sources = ReadAction.compute<List<LocalizationSource>, RuntimeException> { TranslationDataLoader.findSources(project, module) }
         val current = TranslationDataLoader.loadAllTranslations(project, module)
         val viewModel = DialogViewModel(project)
-        WriteCommandAction.runWriteCommandAction(project, PluginBundle.message("action.fill.command"), null, {
-            accepted.forEach { (target, values) ->
-                values.forEach { (key, value) ->
-                    if (!current[key]?.get(target).isNullOrBlank()) return@forEach
-                    val file = translationFileFor(key, target, sources) ?: return@forEach
-                    viewModel.saveTranslation(file, synchronizer.buildFullKey(key, config), value)
+        WriteCommandAction.writeCommandAction(project)
+            .withName(PluginBundle.message("action.fill.command"))
+            .withGlobalUndo()
+            .withUndoConfirmationPolicy(UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION)
+            .run<RuntimeException> {
+                val written = accepted.mapValues { (target, values) ->
+                    values.filter { (key, value) ->
+                        if (!current[key]?.get(target).isNullOrBlank()) return@filter false
+                        val file = translationFileFor(key, target, sources) ?: return@filter false
+                        viewModel.saveTranslation(file, synchronizer.buildFullKey(key, config), value)
+                        true
+                    }
+                }
+                if (marks != null) {
+                    val defaultNamespace = config.defaultNamespaces().first()
+                    markWritten(project, marks.root, written, marks.origins) { ReviewKey.fromSpelling(it, defaultNamespace) }
                 }
             }
-        })
+    }
+
+    /**
+     * Under [root], [written] (`locale -> key -> value`) marked to review with its origin in [origins]
+     * (`locale -> key -> machine:<engine>`); a key without one is not marked. Reviews are turned on
+     * under [root] when anything is to be marked. In the caller's write command, for its undo.
+     */
+    fun markWritten(
+        project: Project, root: VirtualFile, written: Map<String, Map<String, String>>,
+        origins: Map<String, Map<String, String>>, keyOf: (String) -> ReviewKey
+    ) {
+        val toMark = written.mapValues { (locale, values) -> values.filterKeys { origins[locale]?.containsKey(it) == true } }
+            .filterValues { it.isNotEmpty() }
+        if (toMark.isEmpty()) return
+        val store = ReviewStore.getInstance(project)
+        store.enable(root)
+        toMark.forEach { (locale, values) ->
+            values.entries.groupBy { origins.getValue(locale).getValue(it.key) }.forEach { (origin, entries) ->
+                store.mark(root, locale, entries.associate { keyOf(it.key) to it.value }, origin)
+            }
+        }
     }
 }
