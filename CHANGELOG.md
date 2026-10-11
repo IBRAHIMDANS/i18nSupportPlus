@@ -13,6 +13,7 @@
 ### Bug Fixes
 
 - [Translation] **DeepL and Google get the language codes they document**: the project's locale labels went out as written. DeepL now gets `FR` as source and `EN-US`, `PT-BR` or `ZH-HANT` as target — a region it lacks falls back to the language — and Google `zh-CN`, `pt-BR`. An engine whose request body was rewritten by hand keeps the labels as they are
+- [Folding] **A ternary key is folded**: `t(cond ? 'a' : 'b')` was left unfolded, only a key passed directly to `t` being read. Each branch now folds to its own value — folding the whole call would show only one — and a literal in the condition stays as is. `cond ? t('a') : t('b')` and `const label = t('a')` already folded, as tests now confirm
 - [Settings] **Pasting text into *Folding max length* no longer throws**: typing was already saved as you type, but a paste skips the digit filter and a non-numeric value, or emptying the field, raised an error; it is now ignored and the setting keeps its value
 
 ## 1.9.0 - 2026-10-10
