@@ -7,11 +7,15 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import java.awt.BorderLayout
+import java.awt.Component
+import java.awt.Container
 import javax.swing.DefaultComboBoxModel
+import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JComboBox
 import javax.swing.JLabel
+import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.JPasswordField
 import javax.swing.JTextArea
@@ -76,6 +80,17 @@ internal class MachineTranslationPanel(
 
     val testResult = JLabel(" ").apply { name = "translate.test.result" }
 
+    // In the form rather than under the list: ListEditorPanel is shared with the module settings.
+    private val upButton = JButton(PluginBundle.message("settings.translate.moveUp")).apply {
+        name = "translate.moveUp"
+        addActionListener { moveSelected(-1) }
+    }
+
+    private val downButton = JButton(PluginBundle.message("settings.translate.moveDown")).apply {
+        name = "translate.moveDown"
+        addActionListener { moveSelected(1) }
+    }
+
     init {
         editor = ListEditorPanel(
             items = settings.engines,
@@ -101,6 +116,7 @@ internal class MachineTranslationPanel(
     }
 
     private fun detailForm(): JPanel = panel {
+        row(PluginBundle.message("settings.translate.order")) { cell(upButton); cell(downButton) }
         row(PluginBundle.message("settings.translate.preset")) { cell(presetCombo) }
         row(PluginBundle.message("settings.translate.name")) { cell(nameField) }
         row(PluginBundle.message("settings.translate.url")) { cell(urlField) }
@@ -155,6 +171,34 @@ internal class MachineTranslationPanel(
         localNote.isVisible = selected?.local == true
         listOf(presetCombo, nameField, urlField, headersArea, bodyArea, pathField, unescapeBox, keyField, testButton)
             .forEach { it.isEnabled = selected != null }
+        val index = selected?.let { settings.engines.indexOf(it) } ?: -1
+        upButton.isEnabled = index > 0
+        downButton.isEnabled = index >= 0 && index < settings.engines.size - 1
+    }
+
+    /**
+     * Moves the selected engine [offset] places in the fallback order. The engines are swapped, not
+     * edited, in the copy the configurable compares; the list shows the same model, found by name.
+     */
+    private fun moveSelected(offset: Int) {
+        val engine = editor.selected() ?: return
+        val from = settings.engines.indexOf(engine)
+        val to = from + offset
+        if (from < 0 || to !in settings.engines.indices) return
+        settings.engines[from] = settings.engines[to].also { settings.engines[to] = engine }
+        @Suppress("UNCHECKED_CAST")
+        val list = find(editor, "translate.engines") as? JList<EngineState> ?: return
+        (list.model as? DefaultListModel<EngineState>)?.let { model ->
+            model.set(from, settings.engines[from])
+            model.set(to, engine)
+        }
+        list.selectedIndex = to
+        bind(engine)
+    }
+
+    private fun find(root: Component, name: String): Component? {
+        if (root.name == name) return root
+        return (root as? Container)?.components?.firstNotNullOfOrNull { find(it, name) }
     }
 
     private fun runTest() {

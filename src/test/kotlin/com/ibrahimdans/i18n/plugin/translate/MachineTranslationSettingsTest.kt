@@ -127,4 +127,36 @@ class MachineTranslationSettingsTest {
         assertEquals(PluginBundle.message("translate.error.key", deepl.name), failed)
         assertTrue(done.isNotBlank())
     }
+
+    private fun engines(vararg ids: String) = ids.map { EngineState.of(TranslationEngines.preset(it)!!) }.toMutableList()
+
+    @Test
+    fun `Move Down and Move Up change the fallback order of the copy`() {
+        val copy = MachineTranslationSettings.Settings(enabled = true, engines = engines("openai-compatible", "deepl", "google-cloud"))
+        val panel = MachineTranslationPanel(copy, { "" }) { _, _, _ -> }
+        val list = find(panel, "translate.engines") as javax.swing.JList<*>
+
+        (find(panel, "translate.moveDown") as JButton).doClick()
+        assertEquals(listOf("deepl", "openai-compatible", "google-cloud"), copy.engines.map { it.preset })
+        assertEquals(1, list.selectedIndex, "the moved engine stays selected")
+        assertEquals(copy.engines[0], list.model.getElementAt(0), "the list shows the new order")
+
+        (find(panel, "translate.moveUp") as JButton).doClick()
+        assertEquals(listOf("openai-compatible", "deepl", "google-cloud"), copy.engines.map { it.preset })
+    }
+
+    @Test
+    fun `the first engine cannot move up nor the last one down`() {
+        val copy = MachineTranslationSettings.Settings(enabled = true, engines = engines("openai-compatible", "deepl"))
+        val panel = MachineTranslationPanel(copy, { "" }) { _, _, _ -> }
+        val up = find(panel, "translate.moveUp") as JButton
+        val down = find(panel, "translate.moveDown") as JButton
+
+        assertFalse(up.isEnabled)
+        down.doClick()
+        assertFalse(down.isEnabled)
+        down.doClick()
+        assertEquals(listOf("deepl", "openai-compatible"), copy.engines.map { it.preset })
+    }
 }
+
