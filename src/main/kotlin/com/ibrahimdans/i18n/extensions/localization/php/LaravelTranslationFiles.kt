@@ -19,6 +19,11 @@ import com.jetbrains.php.lang.psi.PhpFile
  * A package's override (`lang/vendor/courier/en/messages.php`) declares `courier::messages`, the
  * namespace Laravel reads `__('courier::messages.welcome')` from.
  *
+ * A package without an override declares nothing, by choice: `__('mailer::messages.welcome')` is
+ * not read as a key, so it is neither resolved nor reported. The package ships its translations
+ * under Composer's `vendor/` and registers them at runtime (`loadTranslationsFrom()`): the project
+ * holds no file to check such a key against, and reporting it would flag every working call.
+ *
  * Only in a Laravel project ([LaravelProject.isLaravel]); declares no call and no source of its own.
  */
 class LaravelTranslationFiles : Technology {
