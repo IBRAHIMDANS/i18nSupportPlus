@@ -214,7 +214,9 @@ class HttpTranslationProvider(
             return id
         }
 
-        /** [gone] was answered 404: the id to try instead, or null to send without a glossary. */
+        fun exists(id: String): Boolean = deepl.exists(id)
+
+        /** [gone] is unknown to DeepL: the id to try instead, or null to send without a glossary. */
         fun replace(gone: String): String? {
             deepl.forget(gone)
             id = if (recreated) null.also { deepl.warnLost() } else deepl.idFor(source, target)
@@ -224,15 +226,18 @@ class HttpTranslationProvider(
     }
 
     /**
-     * [body] posted with the glossary of [glossary] when there is one, else as it is. A 404 means the
-     * glossary was deleted on the engine's side: it is recreated, and the text goes without one if
-     * that fails too — a glossary never costs a translation.
+     * [body] posted with the glossary of [glossary] when there is one, else as it is. A glossary
+     * deleted on the engine's side is recreated, and the text goes without one if that fails too — a
+     * glossary never costs a translation. DeepL answers 404 for an unknown id, but 500 for a few minutes
+     * after a glossary is deleted: a 5xx is checked against the glossary itself before being taken as an outage.
      */
     private fun send(url: String, body: String, glossary: PairGlossary?): Posted {
         var id = glossary?.id() ?: return post(url, body)
         while (true) {
             val posted = post(url, DeeplGlossary.withId(body, id))
-            if ((posted as? Posted.Failed)?.status != 404) return posted
+            val status = (posted as? Posted.Failed)?.status ?: return posted
+            val gone = status == 404 || (status >= 500 && !glossary.exists(id))
+            if (!gone) return posted
             id = glossary.replace(id) ?: return post(url, body)
         }
     }
@@ -414,6 +419,11 @@ class InMemoryGlossaryStore(
  *
  * API: https://developers.deepl.com/api-reference/multilingual-glossaries (v3; `glossary_id` in
  * `/v2/translate` needs `source_lang`; glossary languages have no variant: `EN` serves `EN-US`).
+ * Checked against the Free API: `POST` answers 201 with `glossary_id`; `PUT …/dictionaries` answers
+ * 200, adds a pair as well as replacing one, and reaches translations only a few minutes later; a
+ * Free account refused a second glossary with 456; `/v2/translate` answers 404 for an unknown id,
+ * but 500 for a few minutes after the glossary is deleted, while its `GET /v3/glossaries/{id}` is
+ * already a 404.
  */
 class DeeplGlossary private constructor(
     private val engine: EngineConfig,
@@ -469,6 +479,18 @@ class DeeplGlossary private constructor(
             store.glossaryId = ""
             store.glossaryDictionaries = linkedMapOf()
         }
+    }
+
+    /**
+     * Whether DeepL still has glossary [id]: false only on its 404. Any other answer, a network error
+     * included, says nothing about the glossary, so it is taken as still there.
+     */
+    fun exists(id: String): Boolean = try {
+        call("GET", "$endpoint/${encode(id)}", null).status != 404
+    } catch (e: ProcessCanceledException) {
+        throw e
+    } catch (e: IOException) {
+        true
     }
 
     fun warnLost() = warn(PluginBundle.message("translate.glossary.lost", engine.name))

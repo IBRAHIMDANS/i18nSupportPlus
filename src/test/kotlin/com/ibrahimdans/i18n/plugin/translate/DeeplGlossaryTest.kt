@@ -18,14 +18,26 @@ class DeeplGlossaryTest {
         val json get() = body?.let { JsonParser.parseString(it).asJsonObject }
     }
 
-    /** DeepL as far as these tests need it: [glossaries] by id, and what each request answers. */
+    /**
+     * DeepL as far as these tests need it: [glossaries] by id, and what each request answers — the
+     * statuses and bodies the Free API gave on 2026-10-11. A just [delete]d glossary makes `/v2/translate`
+     * answer 500, not 404, for a few minutes; an unknown id is a 404 there.
+     */
     private class FakeDeepl(
         val glossaries: MutableMap<String, String> = linkedMapOf(),
         var createStatus: Int = 201,
         val translateStatus: (Call) -> Int = { 200 }
     ) : HttpTransport {
         val calls = mutableListOf<Call>()
+        private val deleted = mutableSetOf<String>()
         private var next = 0
+
+        fun delete(id: String) {
+            glossaries.remove(id)
+            deleted += id
+        }
+
+        fun deleteAll() = glossaries.keys.toList().forEach(::delete)
 
         override fun post(url: String, headers: Map<String, String>, body: String) = request("POST", url, headers, body)
 
@@ -33,32 +45,48 @@ class DeeplGlossaryTest {
             val call = Call(method, url, body)
             calls += call
             val path = url.substringAfter("deepl.com")
+            val glossaryPath = path.removePrefix("/v3/glossaries/").takeIf { it != path }
             return when {
                 path == "/v2/translate" -> {
                     val status = translateStatus(call)
                     val id = call.json?.get("glossary_id")?.asString
-                    if (id != null && id !in glossaries) HttpTransport.Response(404, """{"message":"Glossary not found"}""")
-                    else if (status != 200) HttpTransport.Response(status, "")
-                    else HttpTransport.Response(200, """{"translations":[{"text":"Votre panier"}]}""")
+                    when {
+                        id != null && id in deleted -> HttpTransport.Response(500, """{"message":"Internal server error."}""")
+                        id != null && id !in glossaries ->
+                            HttpTransport.Response(404, """{"message":"Bad request. Reason: Glossary $id not found"}""")
+                        status != 200 -> HttpTransport.Response(status, """{"message":"Internal server error."}""")
+                        else -> HttpTransport.Response(200, """{"translations":[{"text":"Votre panier","detected_source_language":"EN"}]}""")
+                    }
                 }
                 path == "/v3/glossaries" && method == "GET" ->
-                    HttpTransport.Response(200, """{"glossaries":[${glossaries.entries.joinToString(",") { """{"glossary_id":"${it.key}","name":"${it.value}"}""" }}]}""")
+                    HttpTransport.Response(200, """{"glossaries":[${glossaries.entries.joinToString(",") { glossary(it.key, it.value) }}]}""")
                 path == "/v3/glossaries" && method == "POST" -> {
-                    if (createStatus != 201) return HttpTransport.Response(createStatus, "Quota exceeded")
+                    if (createStatus != 201) return HttpTransport.Response(createStatus, """{"message":"Quota exceeded"}""")
                     val id = "g${++next}"
                     glossaries[id] = call.json!!["name"].asString
-                    HttpTransport.Response(201, """{"glossary_id":"$id","name":"${glossaries[id]}"}""")
+                    HttpTransport.Response(201, glossary(id, glossaries.getValue(id)))
                 }
-                method == "PUT" && path.endsWith("/dictionaries") -> {
-                    val id = path.removePrefix("/v3/glossaries/").substringBefore('/')
-                    if (id in glossaries) HttpTransport.Response(200, "{}") else HttpTransport.Response(404, "")
+                glossaryPath != null && method == "GET" && '/' !in glossaryPath ->
+                    glossaries[glossaryPath]?.let { HttpTransport.Response(200, glossary(glossaryPath, it)) } ?: NOT_FOUND
+                glossaryPath != null && method == "PUT" && glossaryPath.endsWith("/dictionaries") -> {
+                    val id = glossaryPath.substringBefore('/')
+                    val sent = call.json!!
+                    if (id !in glossaries) NOT_FOUND
+                    else HttpTransport.Response(200, """{"source_lang":"${sent["source_lang"].asString}","target_lang":"${sent["target_lang"].asString}","entry_count":1}""")
                 }
                 else -> HttpTransport.Response(500, "unexpected $method $url")
             }
         }
 
+        private fun glossary(id: String, name: String) =
+            """{"glossary_id":"$id","name":"$name","dictionaries":[{"source_lang":"en","target_lang":"fr","entry_count":1}],"creation_time":"2026-10-11T09:09:13.44614Z"}"""
+
         fun glossaryCalls() = calls.filter { "/v3/glossaries" in it.url }
         fun translations() = calls.filter { it.url.endsWith("/v2/translate") }
+
+        companion object {
+            val NOT_FOUND = HttpTransport.Response(404, """{"message":"Glossary not found"}""")
+        }
     }
 
     private val glossary = Glossary(listOf(
@@ -129,12 +157,45 @@ class DeeplGlossaryTest {
     fun `a glossary deleted on DeepL's side is recreated`() {
         val transport = FakeDeepl()
         translate(transport)
-        transport.glossaries.clear()
+        transport.deleteAll()
+        transport.calls.clear()
 
         assertEquals(listOf(Translation.Done("Votre panier")), translate(transport))
 
-        assertEquals(listOf("g1", "g2"), transport.translations().drop(1).map { it.json!!["glossary_id"].asString })
+        assertEquals(listOf("g1", "g2"), transport.translations().map { it.json!!["glossary_id"].asString })
+        assertEquals(
+            listOf("GET https://api-free.deepl.com/v3/glossaries/g1", "GET https://api-free.deepl.com/v3/glossaries", "POST https://api-free.deepl.com/v3/glossaries"),
+            transport.glossaryCalls().map { "${it.method} ${it.url}" },
+            "DeepL answers 500 just after a glossary is deleted: its absence is checked before recreating it"
+        )
         assertEquals("g2", store.glossaryId)
+        assertTrue(warnings.isEmpty())
+    }
+
+    @Test
+    fun `an id DeepL never knew is replaced`() {
+        val transport = FakeDeepl()
+        translate(transport)
+        transport.glossaries.clear()
+        transport.calls.clear()
+
+        assertEquals(listOf(Translation.Done("Votre panier")), translate(transport))
+
+        assertEquals(listOf("g1", "g2"), transport.translations().map { it.json!!["glossary_id"].asString })
+        assertEquals(listOf("GET", "POST"), transport.glossaryCalls().map { it.method }, "a 404 needs no check")
+        assertTrue(warnings.isEmpty())
+    }
+
+    @Test
+    fun `a server error with a glossary still there is reported, not taken for a deleted glossary`() {
+        val transport = FakeDeepl(translateStatus = { 503 })
+
+        val result = translate(transport)
+
+        assertTrue(result.single() is Translation.Failed)
+        assertEquals(1, transport.translations().size, "no retry")
+        assertEquals("GET https://api-free.deepl.com/v3/glossaries/g1", transport.glossaryCalls().last().let { "${it.method} ${it.url}" })
+        assertEquals("g1", store.glossaryId)
         assertTrue(warnings.isEmpty())
     }
 
@@ -168,7 +229,7 @@ class DeeplGlossaryTest {
     fun `a glossary that cannot be recreated leaves the text translated without it`() {
         val transport = FakeDeepl()
         translate(transport)
-        transport.glossaries.clear()
+        transport.deleteAll()
         transport.createStatus = 456
 
         assertEquals(listOf(Translation.Done("Votre panier")), translate(transport))
