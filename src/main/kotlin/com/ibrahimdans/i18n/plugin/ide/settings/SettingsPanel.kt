@@ -209,7 +209,8 @@ class SettingsPanel(val settings: Settings, val project: Project) {
     private fun numberField(label: String, property: KMutableProperty0<Int>): JTextField {
         val control = JTextField(property.get().toString(), 4)
         control.name = label
-        addLimitationsAndHandlers(control, 2, { if (it.isNotBlank()) property.set(it.toInt()) }, {('0'..'9').contains(it)})
+        // The key filter only covers typing: a paste can still bring non-digits, which must not throw.
+        addLimitationsAndHandlers(control, 2, { text -> text.trim().toIntOrNull()?.let(property::set) }, {('0'..'9').contains(it)})
         return control
     }
 }

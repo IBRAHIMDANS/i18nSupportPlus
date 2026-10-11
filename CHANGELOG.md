@@ -6,6 +6,16 @@
 
 - [Export] **Export only the missing translations**: *Export Translations* offers *CSV, Missing Only* — the keys at least one locale lacks or leaves empty, with all their values, the reference included. Hand it to a translator; re-importing it writes only the cells they filled
 - [next-intl] **Server Components keep their namespace**: under `const t = await getTranslations('Home')` — or `getTranslations({ locale, namespace: 'Home' })` — `t('title')` resolves to `Home.title` like under `useTranslations('Home')`: navigation, completion, hints, and no longer reported as an orphan. Without an argument, `t` works in the default namespace
+- [Translation] **The preview says which engine translated each proposal**: *Fill Missing Translations…* shows an *Engine* column — `Ollama (local)`, or `DeepL` when the local engine did not answer and the next one took over — so a text sent off the machine after a fallback is never a surprise
+- [Translation] **Reorder the machine translation engines**: *Move Up* / *Move Down* in an engine's form change the order they are tried in — the fallback order — instead of deleting and recreating them
+
+### Bug Fixes
+
+- [Translation] **DeepL and Google get the language codes they document**: the project's locale labels went out as written. DeepL now gets `FR` as source and `EN-US`, `PT-BR` or `ZH-HANT` as target — a region it lacks falls back to the language — and Google `zh-CN`, `pt-BR`. An engine whose request body was rewritten by hand keeps the labels as they are
+
+### Bug Fixes
+
+- [Settings] **Pasting text into *Folding max length* no longer throws**: typing was already saved as you type, but a paste skips the digit filter and a non-numeric value, or emptying the field, raised an error; it is now ignored and the setting keeps its value
 
 ## 1.9.0 - 2026-10-10
 
