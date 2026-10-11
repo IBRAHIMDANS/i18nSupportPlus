@@ -6,7 +6,6 @@ import io.mockk.mockk
 import io.mockk.unmockkAll
 import net.sourceforge.marathon.javadriver.JavaDriver
 import net.sourceforge.marathon.javadriver.JavaProfile
-import org.openqa.selenium.Keys
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assumptions
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -106,16 +105,14 @@ class SettingsPanelTest {
     }
 
     /**
-     * Two backspaces then "17", typed over the default "20".
-     *
-     * Was disabled because the setting stayed at 20. The field was fine: the test sent a raw
-     * `'\b'`, which Marathon has no keyboard mapping for, so it only dispatched a KEY_TYPED event
-     * with no VK_BACK_SPACE press. Nothing was deleted, and the 2-digit limit then swallowed "1"
-     * and "7". [Keys.BACK_SPACE] is the key Marathon actually presses.
+     * Was disabled because the setting stayed at 20. The field was fine: the panel is built off the
+     * EDT here, so the caret stays at 0 and the backspaces the test sent deleted nothing; the 2-digit
+     * limit then swallowed "17". Clearing the field first, as the text fields do, needs the empty
+     * text to be ignored instead of failing `toInt()`.
      */
     @Test
     fun testFoldingMaxLength() {
-        checkIntProperty(Keys.BACK_SPACE.toString().repeat(2) + "17", PluginBundle.getMessage("settings.folding.maxLength"), Settings::foldingMaxLength)
+        checkIntProperty("17", PluginBundle.getMessage("settings.folding.maxLength"), Settings::foldingMaxLength)
     }
 
     private fun checkIntProperty(keys: String, message: String, property: KMutableProperty1<Settings, Int>) = runWithSettings(Settings()) {
@@ -124,10 +121,9 @@ class SettingsPanelTest {
             assertNotNull(cb)
             val text = cb.text
             assertEquals(text.toInt(), property.get(settings))
+            cb.clear()
             cb.sendKeys(keys)
-            // `keys` carries the backspaces that clear the field before typing, so it is not a
-            // number: only the digits describe the expected value.
-            assertEquals(keys.filter { it.isDigit() }.toInt(), property.get(settings))
+            assertEquals(keys.toInt(), property.get(settings))
     }
 
     private fun checkStringProperty(keys: String, message: String, property: KMutableProperty1<Settings, String>) = runWithSettings(Settings()) {
