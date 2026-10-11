@@ -38,7 +38,8 @@ internal class I18nizePreviewModel(
 ) {
 
     inner class Row(val file: PsiFile, val entry: I18nizePlan.Entry) {
-        var selected: Boolean = true
+        /** Data the plan flags (a URL, an identifier, a date…) starts unchecked. */
+        var selected: Boolean = entry.checkedByDefault
         var key: String = entry.key
 
         val text: String get() = entry.candidate.originalText
@@ -150,7 +151,7 @@ internal class I18nizePreviewDialog(project: Project, private val model: I18nize
                 val path = file.virtualFile?.presentableUrl ?: file.name
                 collapsibleGroup(PluginBundle.message("action.i18nize.preview.file", file.name, rows.size)) {
                     row {
-                        val all = JBCheckBox(PluginBundle.message("action.i18nize.preview.all"), true)
+                        val all = JBCheckBox(PluginBundle.message("action.i18nize.preview.all"), rows.any { it.selected })
                         all.toolTipText = path
                         all.addActionListener {
                             rows.forEach { row -> row.selected = all.isSelected; rowBoxes[row]?.isSelected = all.isSelected }
@@ -171,7 +172,7 @@ internal class I18nizePreviewDialog(project: Project, private val model: I18nize
 
     private fun com.intellij.ui.dsl.builder.Panel.textRow(row: I18nizePreviewModel.Row) {
         row {
-            val box = JBCheckBox(row.text.take(TEXT_WIDTH).let { if (it.length < row.text.length) "$it…" else it }, true).apply {
+            val box = JBCheckBox(row.text.take(TEXT_WIDTH).let { if (it.length < row.text.length) "$it…" else it }, row.selected).apply {
                 toolTipText = row.text
                 addActionListener {
                     row.selected = isSelected
@@ -203,7 +204,7 @@ internal class I18nizePreviewDialog(project: Project, private val model: I18nize
         model.rows.forEach { row ->
             val status = row.status()
             statuses[row]?.apply {
-                text = statusText(row, status)
+                text = reasonText(row) ?: statusText(row, status)
                 icon = when {
                     !row.selected -> null
                     status.isError -> AllIcons.General.Error
@@ -234,6 +235,21 @@ internal class I18nizePreviewDialog(project: Project, private val model: I18nize
             model.rows.firstOrNull { it !== row && it.selected && it.key.trim() == row.key.trim() && it.text != row.text }?.text.orEmpty()
         )
     }
+
+    /** Why an unchecked text was offered unchecked: shown instead of what its key would do. */
+    private fun reasonText(row: I18nizePreviewModel.Row): String? =
+        row.entry.uncheckedReason?.takeIf { !row.selected }?.let { reason ->
+            when (reason) {
+                TranslatableText.Reason.URL -> PluginBundle.message("action.i18nize.reason.url")
+                TranslatableText.Reason.PATH -> PluginBundle.message("action.i18nize.reason.path")
+                TranslatableText.Reason.IDENTIFIER -> PluginBundle.message("action.i18nize.reason.identifier")
+                TranslatableText.Reason.CSS_CLASS -> PluginBundle.message("action.i18nize.reason.css_class")
+                TranslatableText.Reason.COLOR -> PluginBundle.message("action.i18nize.reason.color")
+                TranslatableText.Reason.DATE -> PluginBundle.message("action.i18nize.reason.date")
+                TranslatableText.Reason.NUMBER -> PluginBundle.message("action.i18nize.reason.number")
+                TranslatableText.Reason.SYMBOLS -> PluginBundle.message("action.i18nize.reason.symbols")
+            }
+        }
 
     override fun doValidate(): ValidationInfo? {
         val row = model.firstError() ?: return null
