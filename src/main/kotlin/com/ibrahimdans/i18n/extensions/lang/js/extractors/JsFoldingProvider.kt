@@ -22,6 +22,10 @@ internal class JsFoldingProvider: FoldingProvider {
 
     private companion object {
         val I18N_KEY_ATTRIBUTE = XmlAttributeKeyExtractor()
+
+        /** vue-i18n's template keys outside any call: `<i18n-t keypath>` and the `v-t` directive. */
+        val VUE_I18N_KEYPATH = VueI18nKeypathExtractor()
+        val VUE_T_DIRECTIVE = VueTDirectiveExtractor()
     }
 
     private fun isI18nArgument(element: PsiElement): Boolean {
@@ -72,16 +76,28 @@ internal class JsFoldingProvider: FoldingProvider {
     }
 
     override fun collectContainers(root: PsiElement): List<PsiElement> {
+        // Each node type is walked once: a JS file is folded on every pass.
+        val literals = PsiTreeUtil.findChildrenOfType(root, JSLiteralExpression::class.java)
+        val attributeValues = PsiTreeUtil.findChildrenOfType(root, XmlAttributeValue::class.java)
+
         // Direct JS nodes (standard .js/.ts/.jsx/.tsx files), and the `i18nKey` attributes of
         // react-i18next's `<Trans>`, which no call holds: they used to be left unfolded.
-        val direct = PsiTreeUtil
-            .findChildrenOfType(root, JSLiteralExpression::class.java)
-            .filter { isI18nArgument(it) && !isInsideSpreadArgument(it) } +
-            PsiTreeUtil.findChildrenOfType(root, XmlAttributeValue::class.java).filter(I18N_KEY_ATTRIBUTE::canExtract)
+        val direct = literals.filter { isI18nArgument(it) && !isInsideSpreadArgument(it) } +
+            attributeValues.filter(I18N_KEY_ATTRIBUTE::canExtract)
 
-        if (direct.isNotEmpty()) return direct
+        // vue-i18n's template keys sit in the component's own PSI, not in an injected fragment:
+        // `keypath` is a plain attribute, and the Vue plugin parses `v-t`'s value in place. They
+        // are kept apart from `direct` so that a template holding them still has its injected
+        // `{{ $t('…') }}` folded.
+        val markup = attributeValues.filter(VUE_I18N_KEYPATH::canExtract) + literals.filter(VUE_T_DIRECTIVE::canExtract)
 
-        // Injected language fragments (Vue <template>, etc.)
+        if (direct.isNotEmpty()) return direct + markup
+
+        return markup + injectedContainers(root)
+    }
+
+    /** The translation calls of the language fragments injected under [root] (Vue `<template>`, etc.). */
+    private fun injectedContainers(root: PsiElement): List<PsiElement> {
         val result = mutableListOf<PsiElement>()
         val manager = InjectedLanguageManager.getInstance(root.project)
         root.accept(object : PsiRecursiveElementWalkingVisitor() {
