@@ -30,6 +30,12 @@ class VueI18nMarkupKeysTest : PlatformBaseTest() {
         const val KEYPATH_PASCAL = """<I18nT keypath="%s" tag="p"></I18nT>"""
         const val DIRECTIVE = """<p v-t="'%s'"></p>"""
         const val DIRECTIVE_OBJECT = """<p v-t="{ path: '%s', args: { name } }"></p>"""
+
+        /** A bound `keypath` whose expression is a constant string (issue: `:keypath` was ignored). */
+        const val BOUND_KEYPATH = """<i18n-t :keypath="'%s'" tag="p"><b>x</b></i18n-t>"""
+        const val BOUND_KEYPATH_LONG = """<I18nT v-bind:keypath="'%s'"></I18nT>"""
+        const val BOUND_KEYPATH_DOUBLE_QUOTED = """<i18n-t :keypath='"%s"'></i18n-t>"""
+        const val BOUND_KEYPATH_TEMPLATE = """<i18n-t :keypath="`%s`"></i18n-t>"""
     }
 
     private fun seed() = addFileToProject("assets/test.json", json.generateContent("ref", "section", "key", "Reference in json"))
@@ -37,7 +43,7 @@ class VueI18nMarkupKeysTest : PlatformBaseTest() {
     private fun component(markup: String) = "<template>\n  $markup\n</template>\n"
 
     @ParameterizedTest
-    @ValueSource(strings = [KEYPATH, KEYPATH_PASCAL, DIRECTIVE, DIRECTIVE_OBJECT])
+    @ValueSource(strings = [KEYPATH, KEYPATH_PASCAL, DIRECTIVE, DIRECTIVE_OBJECT, BOUND_KEYPATH, BOUND_KEYPATH_LONG, BOUND_KEYPATH_DOUBLE_QUOTED, BOUND_KEYPATH_TEMPLATE])
     fun `a template key resolves to its translation`(form: String) = runVue {
         seed()
         myFixture.configureByText("Markup.vue", component(form.format(KEY)))
@@ -53,7 +59,7 @@ class VueI18nMarkupKeysTest : PlatformBaseTest() {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = [KEYPATH, KEYPATH_PASCAL, DIRECTIVE, DIRECTIVE_OBJECT])
+    @ValueSource(strings = [KEYPATH, KEYPATH_PASCAL, DIRECTIVE, DIRECTIVE_OBJECT, BOUND_KEYPATH, BOUND_KEYPATH_LONG, BOUND_KEYPATH_DOUBLE_QUOTED, BOUND_KEYPATH_TEMPLATE])
     fun `an unknown template key is reported`(form: String) = runVue {
         seed()
         myFixture.configureByText("Markup.vue", component(form.format(MISSING)))
@@ -80,5 +86,26 @@ class VueI18nMarkupKeysTest : PlatformBaseTest() {
         val reported = myFixture.doHighlighting().mapNotNull { it.description }
 
         Assertions.assertFalse(reported.contains(unresolved), "an args value, another tag's keypath or tag were read as keys: $reported")
+    }
+
+    @Test
+    fun `a bound keypath that is not a constant string stays out`() = runVue {
+        seed()
+        myFixture.configureByText(
+            "Bound.vue",
+            component(
+                """<i18n-t :keypath="missing" tag="p"></i18n-t>
+                  |  <i18n-t :keypath="'test:nope.' + missing"></i18n-t>
+                  |  <i18n-t :keypath="`test:nope.${'$'}{missing}`"></i18n-t>
+                  |  <i18n-t :keypath="ok ? 'test:nope.a' : 'test:nope.b'"></i18n-t>
+                  |  <my-comp :keypath="'test:nope.other'"></my-comp>
+                  |  <i18n-t :tag="'test:nope.tag'" keypath="test:ref.section.key"></i18n-t>""".trimMargin()
+            )
+        )
+
+        val unresolved = PluginBundle.getMessage("annotator.unresolved.key")
+        val reported = myFixture.doHighlighting().mapNotNull { it.description }
+
+        Assertions.assertFalse(reported.contains(unresolved), "a non-constant bound keypath, another tag's or attribute's string was read as a key: $reported")
     }
 }
