@@ -64,10 +64,12 @@ class FillMissingTranslationsAction : AnAction() {
             Messages.showInfoMessage(project, PluginBundle.message("action.fill.noTarget", source), title)
             return
         }
-        val target = Messages.showEditableChooseDialog(
-            PluginBundle.message("action.fill.target", source), title, null, targets, targets.first(), null
-        )?.takeIf { it in targets } ?: return
-        MachineFill.run(project, scope.config, source, target, provider)
+        val all = PluginBundle.message("action.fill.target.all")
+        val choices = if (targets.size > 1) arrayOf(all) + targets else targets
+        val chosen = Messages.showEditableChooseDialog(
+            PluginBundle.message("action.fill.target", source), title, null, choices, choices.first(), null
+        )?.takeIf { it in choices } ?: return
+        MachineFill.run(project, scope.config, source, if (chosen == all) targets.toList() else listOf(chosen), provider)
     }
 
     companion object {
@@ -93,24 +95,36 @@ internal object MachineFill {
      * previewed, then written in one command — whether asked from the Tools menu or from a locale
      * column of the table. [onWritten] runs on the EDT once the values are written.
      */
-    fun run(project: Project, module: ModuleConfig?, source: String, target: String, provider: TranslationProvider, onWritten: () -> Unit = {}) {
+    fun run(project: Project, module: ModuleConfig?, source: String, target: String, provider: TranslationProvider, onWritten: () -> Unit = {}) =
+        run(project, module, source, listOf(target), provider, onWritten)
+
+    /**
+     * The same for every locale of [targets] at once: one preview, a *Locale* column telling them
+     * apart, and one command writing them all.
+     */
+    fun run(project: Project, module: ModuleConfig?, source: String, targets: List<String>, provider: TranslationProvider, onWritten: () -> Unit = {}) {
         val title = PluginBundle.message("action.fill.title")
         val keySeparator = Settings.getInstance(project).config().keySeparator
+        val label = targets.joinToString(", ")
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, title, true) {
             override fun run(indicator: ProgressIndicator) {
                 val translations = TranslationDataLoader.loadAllTranslations(project, module)
-                val items = itemsOf(translations, source, target, keySeparator)
-                if (items.isEmpty()) {
+                val proposals = mutableListOf<Proposal>()
+                for (target in targets) {
+                    indicator.text = PluginBundle.message("action.fill.progress.locale", target)
+                    val items = itemsOf(translations, source, target, keySeparator)
+                    if (items.isNotEmpty()) proposals += translate(items, provider, source, target, indicator) ?: return
+                }
+                if (proposals.isEmpty()) {
                     ApplicationManager.getApplication().invokeLater {
-                        Messages.showInfoMessage(project, PluginBundle.message("action.fill.nothing", target), title)
+                        Messages.showInfoMessage(project, PluginBundle.message("action.fill.nothing", label), title)
                     }
                     return
                 }
-                val proposals = translate(items, provider, source, target, indicator) ?: return
                 ApplicationManager.getApplication().invokeLater {
-                    val dialog = MachineTranslationPreviewDialog(project, target, proposals)
+                    val dialog = MachineTranslationPreviewDialog(project, label, proposals)
                     if (dialog.showAndGet()) {
-                        write(project, module, target, dialog.accepted())
+                        write(project, module, dialog.acceptedByLocale())
                         onWritten()
                     }
                 }
@@ -124,8 +138,8 @@ internal object MachineFill {
      */
     data class Item(val key: String, val source: String, val needsReview: Boolean = false, val skipped: String? = null)
 
-    /** What the engine proposed for [item]. */
-    data class Proposal(val item: Item, val result: Translation)
+    /** What the engine proposed for [item], in the [locale] it fills. */
+    data class Proposal(val item: Item, val result: Translation, val locale: String = "")
 
     /**
      * What to translate in [translations] (`key -> locale -> value`) from [source] to [target], sorted:
@@ -197,7 +211,7 @@ internal object MachineFill {
                 calls[index].zip(results).forEach { (item, result) -> translated[item] = result }
             }
             if (indicator?.isCanceled == true) return null
-            return items.map { item -> Proposal(item, item.skipped?.let { Translation.Failed(it) } ?: translated.getValue(item)) }
+            return items.map { item -> Proposal(item, item.skipped?.let { Translation.Failed(it) } ?: translated.getValue(item), target) }
         } finally {
             executor.shutdownNow()
         }
@@ -212,18 +226,24 @@ internal object MachineFill {
      * Writes [accepted] (`key -> value`) into [target]'s files of [module], in one command: one Ctrl+Z
      * undoes it all. A value filled since the preview opened is left as it is.
      */
-    fun write(project: Project, module: ModuleConfig?, target: String, accepted: Map<String, String>) {
-        if (accepted.isEmpty()) return
+    fun write(project: Project, module: ModuleConfig?, target: String, accepted: Map<String, String>) =
+        write(project, module, mapOf(target to accepted))
+
+    /** [accepted] (`locale -> key -> value`) written in one command, whatever the number of locales. */
+    fun write(project: Project, module: ModuleConfig?, accepted: Map<String, Map<String, String>>) {
+        if (accepted.values.all { it.isEmpty() }) return
         val config = Settings.getInstance(project).config()
         val synchronizer = KeysSynchronizer()
         val sources = ReadAction.compute<List<LocalizationSource>, RuntimeException> { TranslationDataLoader.findSources(project, module) }
         val current = TranslationDataLoader.loadAllTranslations(project, module)
         val viewModel = DialogViewModel(project)
         WriteCommandAction.runWriteCommandAction(project, PluginBundle.message("action.fill.command"), null, {
-            accepted.forEach { (key, value) ->
-                if (!current[key]?.get(target).isNullOrBlank()) return@forEach
-                val file = translationFileFor(key, target, sources) ?: return@forEach
-                viewModel.saveTranslation(file, synchronizer.buildFullKey(key, config), value)
+            accepted.forEach { (target, values) ->
+                values.forEach { (key, value) ->
+                    if (!current[key]?.get(target).isNullOrBlank()) return@forEach
+                    val file = translationFileFor(key, target, sources) ?: return@forEach
+                    viewModel.saveTranslation(file, synchronizer.buildFullKey(key, config), value)
+                }
             }
         })
     }

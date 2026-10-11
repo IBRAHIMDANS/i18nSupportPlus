@@ -14,7 +14,9 @@ import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.pathToRoot
+import com.intellij.lang.Language
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import java.text.Normalizer
@@ -77,6 +79,11 @@ internal class ExtractKeyModel(
     private val scopeNamespaces: List<String> = emptyList(),
     /** Where the keys around the text suggest the new one goes: a namespace and a group in it. */
     private val placement: Pair<String, List<String>>? = null,
+    /**
+     * Whether the call carries the text as i18next's default value — `t('key', 'Text')` — as the
+     * module holding the text asks: see [writesDefaultValue].
+     */
+    private val writesDefaultValue: Boolean = false,
 ) {
     private val sourceCache = sourcesByNamespace.toMutableMap()
     private val keyCache = keysByNamespace.toMutableMap()
@@ -196,7 +203,7 @@ internal class ExtractKeyModel(
         val unqualified = qualifies() && !key.contains(config.nsSeparator)
         val default = config.defaultNamespaces().first()
         val spelled = if (unqualified && scopeNamespaces.isNotEmpty() && scopeNamespaces.first() != default) qualify(default, key) else key
-        return call("'$spelled'", variables)
+        return callWith("'$spelled'", variables)
     }
 
     /** True when the code writes namespaces with the namespace separator, which [qualify] adds. */
@@ -207,7 +214,24 @@ internal class ExtractKeyModel(
 
     /** The call replacing the text, with [variables] as named: `{t('account:greeting', { name: user.name })}`. */
     fun preview(namespace: String?, key: String, variables: List<MessageVariable> = this.variables): String =
-        call("'${codeKey(namespace, key)}'", variables)
+        callWith("'${codeKey(namespace, key)}'", variables)
+
+    /** The text with its placeholders as [variables] name them: `Hello {{name}}` → `Hello {{userName}}`. */
+    fun textFor(variables: List<MessageVariable>): String =
+        this.variables.zip(variables).fold(text) { text, (original, current) -> text.replace(original.placeholder, current.placeholder) }
+
+    /**
+     * The [call] for [argument], with the text as default value when [writesDefaultValue]: a
+     * second argument without variables, `t('key', 'Text')`; i18next's `defaultValue` option
+     * otherwise, `t('key', { defaultValue: 'Hello {{name}}', name })` — the form every i18next
+     * version reads, where a string followed by options depends on the version's overloads.
+     */
+    private fun callWith(argument: String, variables: List<MessageVariable>): String {
+        if (!writesDefaultValue) return call(argument, variables)
+        val value = quote(textFor(variables))
+        if (variables.isEmpty()) return call("$argument, $value", variables)
+        return call(argument, listOf(MessageVariable(DEFAULT_VALUE, value, "")) + variables)
+    }
 
     /**
      * Why the [variables] as named cannot be written — a name that is not an identifier, or two
@@ -278,6 +302,33 @@ internal class ExtractKeyModel(
         if (keySeparator.isEmpty()) listOf(key.trim()) else key.trim().split(keySeparator)
 
     companion object {
+        /** i18next's option holding the value shown while the key has no translation. */
+        private const val DEFAULT_VALUE = "defaultValue"
+
+        /** The presets whose call reads a default value the i18next way; none set counts as i18next. */
+        private val DEFAULT_VALUE_PRESETS = setOf("", "i18next")
+
+        /** [text] as a single-quoted JavaScript string. */
+        internal fun quote(text: String): String =
+            "'" + text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r") + "'"
+
+        /**
+         * Whether an extraction at [caller] writes the default value: the module holding its file
+         * asks for it, follows i18next — another framework reads a second argument otherwise
+         * (vue-i18n a locale, Laravel replacements) — and the code is JavaScript.
+         */
+        internal fun writesDefaultValue(project: Project, caller: PsiElement, config: Config): Boolean {
+            if (config.modules.none { it.writeDefaultValue }) return false
+            val file = caller.hostVirtualFile() ?: return false
+            val module = ModuleSources.owner(config.modules, ModuleSources.FilePath.of(file, project.basePath ?: "")) ?: return false
+            val javaScript = Language.findLanguageByID(JAVASCRIPT) ?: return false
+            // The file's language: a JSX text is an XML token of a JavaScript file.
+            val language = caller.containingFile?.language ?: return false
+            return module.writeDefaultValue && module.preset.trim() in DEFAULT_VALUE_PRESETS && language.isKindOf(javaScript)
+        }
+
+        private const val JAVASCRIPT = "JavaScript"
+
         private val IDENTIFIER = Regex("[A-Za-z_$][A-Za-z0-9_$]*")
 
         /** The variable i18next chooses plural forms on, and how it suffixes them: `item_one`. */
@@ -353,6 +404,7 @@ internal class ExtractKeyModel(
                 variables = variables,
                 scopeNamespaces = scopeNamespaces,
                 placement = ContextKeys.placement(around, namespaces),
+                writesDefaultValue = writesDefaultValue(project, caller, config),
             )
         }
 
