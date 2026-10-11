@@ -1,0 +1,9 @@
+<html>
+<body>
+<p>Reports, in a locale file, every key of the reference locale's file for the same namespace that this file lacks.</p>
+<p>Example: <code>en/common.json</code> holds <code>user.name</code>, <code>fr/common.json</code> does not: the French UI shows the key or the fallback.</p>
+<p>The reference file itself is never reported. Plural forms are compared as a group, so <code>ja</code> holding <code>item_other</code> alone is complete. The quick fix adds the key with an empty value.</p>
+<!-- tooltip end -->
+<p>Runs in the editor and headless, in Qodana or <code>inspect.sh</code>.</p>
+</body>
+</html>

@@ -1,0 +1,9 @@
+<html>
+<body>
+<p>Reports a translation key that no code refers to.</p>
+<p>Example: <code>"legacy_title": "Old title"</code> in <code>en/common.json</code>, with no <code>t('legacy_title')</code> anywhere.</p>
+<p>Keys reached by a key prefix, an <code>ns</code> option, a runtime-built key (<code>t(`status.${kind}`)</code>) or a keep rule are not reported. Off by default: a key used only by code the plugin cannot read would be reported.</p>
+<!-- tooltip end -->
+<p>Runs in the editor and headless, in Qodana or <code>inspect.sh</code>.</p>
+</body>
+</html>

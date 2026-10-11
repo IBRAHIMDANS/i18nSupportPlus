@@ -1,0 +1,37 @@
+# Qodana configuration checking translations with i18n Support Plus.
+# Copy to the root of your project as `qodana.yaml`.
+version: "1.0"
+
+# Qodana for JS (WebStorm, image `jetbrains/qodana-js:2026.2`). An Ultimate linter: it needs a Qodana Cloud project token (QODANA_TOKEN).
+linter: qodana-js
+
+# i18n Support Plus, installed from JetBrains Marketplace at each run.
+plugins:
+  - id: com.ibrahimdans.i18n
+
+profile:
+  name: qodana.starter
+
+# The plugin's inspections, whatever the profile says.
+include:
+  # Translation files
+  - name: I18nMissingKey              # a key of the reference locale missing from another locale
+  - name: I18nPlaceholderConsistency  # `{{name}}` in one locale, not in another
+  - name: I18nMissingPluralForms      # `item_few` missing from `ru`
+  - name: I18nMarkupConsistency       # `<1>…</1>` lost in a translation
+  - name: I18nIcuFormat               # an ICU plural without `other`
+  # Code
+  - name: I18nInterpolationArguments  # `t('greeting')` without the `name` its message needs
+  # Unresolved keys and namespaces in the code (`t('common:does.not.exist')`) are reported by the
+  # plugin's annotator: Qodana runs annotators through the `Annotator` inspection, which also
+  # reports the errors of the languages themselves (TypeScript, JSON…).
+  - name: Annotator
+  # Opt-in: noisier on some projects.
+  # - name: I18nUnusedKey             # a key no code refers to
+  # - name: I18nUntranslatedValue     # a value copied from the reference locale
+  # - name: I18nEmptyValue
+
+# The plugin reads its settings from `.idea/i18nSettings.xml`: commit it, or the run uses the defaults.
+
+# Fail the job on any new problem; raise it while you clean up an existing project.
+failThreshold: 0
