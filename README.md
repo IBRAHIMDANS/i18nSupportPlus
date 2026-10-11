@@ -38,6 +38,8 @@ Works with **i18next, vue-i18n, lingui, react-intl, ngx-translate, Transloco, sv
 across JS/TS/JSX/TSX, Vue SFC and PHP, with JSON, YAML and PO/POT files.
 A setup wizard auto-configures it on first launch.
 
+**Coming from i18n Ally or Easy I18n?** See the [feature-by-feature comparison](docs/COMPARISON.md) and how to carry your settings over.
+
 ## Supported Frameworks
 
 | Framework | Recognised syntaxes | Config-based |
