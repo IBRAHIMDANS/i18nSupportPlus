@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.waitForAsyncWork
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.TestDialogManager.setTestInputDialog
@@ -9,6 +10,8 @@ import com.intellij.openapi.ui.TestInputDialog
 import com.intellij.psi.PsiManager
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -237,5 +240,40 @@ class BatchExtractI18nActionTest : ExtractionTestBase() {
     fun aConcatenationIsOneCandidate() {
         val candidates = candidatesOf("export const greeting = (user) => 'Hello ' + user.name + '!';")
         assertEquals(listOf("Hello {{name}}!"), candidates.map { it.originalText })
+    }
+
+    /** A hook's namespace and a `{ ns }` option are code: extracting them breaks the call, so they are not offered. */
+    @Test
+    fun aHookNamespaceIsNotACandidate() = myFixture.runWithConfig(config("json")) {
+        val candidates = candidatesIn(
+            "Account.tsx",
+            """
+                import { useTranslation } from 'react-i18next';
+                export function Account() {
+                    const { t } = useTranslation('account');
+                    const options = { ns: 'x' };
+                    return <p>Save</p>;
+                }
+            """
+        )
+        assertEquals(listOf("Save"), candidates.map { it.originalText })
+    }
+
+    /** A URL is offered, unchecked, with the reason; a message is checked. */
+    @Test
+    fun aUrlStartsUncheckedWithItsReason() = myFixture.runWithConfig(config("json")) {
+        val candidates = candidatesOf(
+            """
+                export const home = 'https://example.com';
+                export const label = 'Save';
+            """
+        )
+        assertEquals(listOf("https://example.com", "Save"), candidates.map { it.originalText })
+        val (url, save) = candidates
+
+        assertFalse(isCheckedByDefault(url))
+        assertEquals(PluginBundle.message("action.i18nize.reason.url"), uncheckedReasonText(url))
+        assertTrue(isCheckedByDefault(save))
+        assertNull(uncheckedReasonText(save))
     }
 }

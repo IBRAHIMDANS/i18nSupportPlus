@@ -259,18 +259,7 @@ internal class I18nizePreviewDialog(
 
     /** Why an unchecked text was offered unchecked: shown instead of what its key would do. */
     private fun reasonText(row: I18nizePreviewModel.Row): String? =
-        row.entry.uncheckedReason?.takeIf { !row.selected }?.let { reason ->
-            when (reason) {
-                TranslatableText.Reason.URL -> PluginBundle.message("action.i18nize.reason.url")
-                TranslatableText.Reason.PATH -> PluginBundle.message("action.i18nize.reason.path")
-                TranslatableText.Reason.IDENTIFIER -> PluginBundle.message("action.i18nize.reason.identifier")
-                TranslatableText.Reason.CSS_CLASS -> PluginBundle.message("action.i18nize.reason.css_class")
-                TranslatableText.Reason.COLOR -> PluginBundle.message("action.i18nize.reason.color")
-                TranslatableText.Reason.DATE -> PluginBundle.message("action.i18nize.reason.date")
-                TranslatableText.Reason.NUMBER -> PluginBundle.message("action.i18nize.reason.number")
-                TranslatableText.Reason.SYMBOLS -> PluginBundle.message("action.i18nize.reason.symbols")
-            }
-        }
+        row.entry.uncheckedReason?.takeIf { !row.selected }?.message()
 
     override fun doValidate(): ValidationInfo? {
         val row = model.firstError() ?: return null

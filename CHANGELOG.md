@@ -32,6 +32,7 @@
 - [Folding] **A ternary key is folded**: `t(cond ? 'a' : 'b')` was left unfolded, only a key passed directly to `t` being read. Each branch now folds to its own value — folding the whole call would show only one — and a literal in the condition stays as is. `cond ? t('a') : t('b')` and `const label = t('a')` already folded, as tests now confirm
 - [Settings] **Pasting text into *Folding max length* no longer throws**: typing was already saved as you type, but a paste skips the digit filter and a non-numeric value, or emptying the field, raised an error; it is now ignored and the setting keeps its value
 - [Laravel] **Package overrides in `lang/vendor/` are read**: `vendor` is skipped as Composer's dependency folder, which also hid `lang/vendor/<package>/` (and `resources/lang/vendor/`), where Laravel keeps a project's overrides of a package's translations — even in JSON. A `vendor` directly under `lang` is now read; Composer's `vendor/` and `node_modules` stay excluded
+- [Extract] **Batch Extract no longer offers code strings and leaves data texts unchecked**: it listed the namespace of `useTranslation('account')`, a `{ ns: 'x' }` option or an import, and checked a URL like a message. It now applies the same rules as *Internationalize…*: strings that are code by their place are left out, and a URL, path, identifier, CSS class, colour, date, number or symbols-only text starts unchecked with the reason next to it
 
 ### Documentation
 

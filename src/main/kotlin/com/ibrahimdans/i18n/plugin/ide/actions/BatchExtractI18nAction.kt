@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.extensions.lang.js.HardcodedJsxTextInspection
 import com.ibrahimdans.i18n.plugin.factory.CallTemplate
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
+import com.ibrahimdans.i18n.plugin.ide.actions.i18nize.TranslatableText
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
 import com.ibrahimdans.i18n.plugin.parser.RawKey
@@ -30,6 +31,7 @@ import com.intellij.psi.xml.XmlText
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.concurrency.AppExecutorUtil
+import com.intellij.util.ui.UIUtil
 import java.awt.Dimension
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -76,8 +78,13 @@ class BatchExtractI18nAction : AnAction() {
     internal fun withExistingKeys(candidates: List<Candidate>, caller: PsiElement): List<Candidate> =
         ExtractionCandidates.withExistingKeys(candidates, caller)
 
-    /** [ExtractionCandidates.collect]. */
-    internal fun collectCandidates(psiFile: PsiFile): List<Candidate> = ExtractionCandidates.collect(psiFile)
+    /**
+     * [ExtractionCandidates.collect], without the strings that are code by their place — a hook's
+     * namespace (`useTranslation('account')`), `{ ns: 'x' }`, an import ([TranslatableText.isNeverProposed]).
+     * Filtered here and not in [ExtractionCandidates.collect], which *Internationalize…* filters itself.
+     */
+    internal fun collectCandidates(psiFile: PsiFile): List<Candidate> =
+        ExtractionCandidates.collect(psiFile).filterNot { TranslatableText.isNeverProposed(it.literal) }
 
     /**
      * Replaces each of [selected] with its key, creating only the keys that do not exist yet.
@@ -210,6 +217,17 @@ internal data class Candidate(
     val existingKeys: List<String> = emptyList()
 )
 
+/**
+ * Whether *Batch Extract* checks [candidate] at first: only a text reading as a message is — a URL,
+ * an identifier, a colour is offered unchecked ([TranslatableText.uncheckedReason]).
+ */
+internal fun isCheckedByDefault(candidate: Candidate): Boolean =
+    TranslatableText.uncheckedReason(candidate.originalText) == null
+
+/** Why [candidate] is offered unchecked, as the dialog shows it; null for a message. */
+internal fun uncheckedReasonText(candidate: Candidate): String? =
+    TranslatableText.uncheckedReason(candidate.originalText)?.message()
+
 private class BatchExtractDialog(
     project: Project,
     private val candidates: List<Candidate>
@@ -246,10 +264,13 @@ private class BatchExtractDialog(
             gc.gridx = 3
             gc.weightx = 0.0
             content.add(row.existingLabel, gc)
+
+            gc.gridx = 4
+            content.add(row.reasonLabel, gc)
         }
 
         val scroll = JBScrollPane(content)
-        scroll.preferredSize = Dimension(680, minOf(400, rows.size * 34 + 20))
+        scroll.preferredSize = Dimension(820, minOf(400, rows.size * 34 + 20))
         return scroll
     }
 
@@ -259,8 +280,15 @@ private class BatchExtractDialog(
             .filter { (_, key) -> key.isNotEmpty() }
 
     private inner class Row(val candidate: Candidate) {
-        val checkBox = JBCheckBox("", true)
+        val checkBox = JBCheckBox("", isCheckedByDefault(candidate))
         val keyField = JTextField(candidate.proposedKey, 30)
+
+        /** Why the row starts unchecked; hidden once the user checks it, as in the *Internationalize…* preview. */
+        val reasonLabel = JLabel(uncheckedReasonText(candidate).orEmpty()).apply {
+            foreground = UIUtil.getContextHelpForeground()
+            isVisible = !checkBox.isSelected
+            checkBox.addItemListener { isVisible = !checkBox.isSelected }
+        }
 
         /** Says the proposed key exists, and which others hold the same text. */
         val existingLabel = JLabel(
