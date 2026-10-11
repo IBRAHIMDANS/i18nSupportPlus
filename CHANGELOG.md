@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Translation] **The preview says which engine translated each proposal**: an *Engine* column in *Fill Missing Translations*, marked *(local)* for an engine on the machine — after a fallback, a text sent to DeepL is told apart from one the local Ollama translated
+
 ## 1.9.0 - 2026-10-10
 
 ### Features

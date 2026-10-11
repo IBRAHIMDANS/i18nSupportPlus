@@ -16,7 +16,7 @@ import javax.swing.table.DefaultTableModel
 
 /**
  * The preview of *Fill Missing Translations*: one row per key — keep it or not, key, source text,
- * proposal, note. A proposal the engine got wrong, or a key not sent, shows its reason in the note,
+ * proposal, the engine that made it (and whether it is local), note. A proposal the engine got wrong, or a key not sent, shows its reason in the note,
  * unchecked and locked. A plural form translated from `other` comes unchecked, noted for review.
  */
 internal class MachineTranslationPreviewDialog(
@@ -31,6 +31,7 @@ internal class MachineTranslationPreviewDialog(
             PluginBundle.message("action.fill.column.key"),
             PluginBundle.message("action.fill.column.source"),
             PluginBundle.message("action.fill.column.proposal"),
+            PluginBundle.message("action.fill.column.engine"),
             PluginBundle.message("action.fill.column.note")
         ),
         0
@@ -47,7 +48,7 @@ internal class MachineTranslationPreviewDialog(
                     else Triple(true, result.text, "")
                 is Translation.Failed -> Triple(false, "", PluginBundle.message("action.fill.rejected", result.reason))
             }
-            model.addRow(arrayOf<Any>(row.first, proposal.item.key, proposal.item.source, row.second, row.third))
+            model.addRow(arrayOf<Any>(row.first, proposal.item.key, proposal.item.source, row.second, engineOf(proposal.result), row.third))
         }
         title = PluginBundle.message("action.fill.preview.title", target, proposals.size)
         setOKButtonText(PluginBundle.message("action.fill.preview.ok"))
@@ -74,6 +75,15 @@ internal class MachineTranslationPreviewDialog(
                 PluginBundle.message("action.fill.preview.review", review).takeIf { review > 0 }
             )
             if (notes.isNotEmpty()) add(JBLabel(notes.joinToString("<br>", "<html>", "</html>")), BorderLayout.SOUTH)
+        }
+    }
+
+    companion object {
+        /** Who translated [result]: the engine's name, marked when it runs locally; blank when none did. */
+        fun engineOf(result: Translation): String {
+            val done = result as? Translation.Done ?: return ""
+            if (done.engine.isBlank()) return ""
+            return if (done.local) PluginBundle.message("action.fill.engine.local", done.engine) else done.engine
         }
     }
 }

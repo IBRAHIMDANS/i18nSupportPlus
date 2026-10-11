@@ -69,7 +69,12 @@ class HttpTranslationProvider(
     private val transport: HttpTransport = PlatformHttpTransport
 ) : TranslationProvider {
 
-    override fun translate(request: TranslationRequest, indicator: ProgressIndicator?): List<Translation> {
+    override fun translate(request: TranslationRequest, indicator: ProgressIndicator?): List<Translation> =
+        request.texts.zip(translateAll(request, indicator)) { text, result ->
+            if (result is Translation.Done && text.isNotBlank()) result.by(engine.name, engine.local) else result
+        }
+
+    private fun translateAll(request: TranslationRequest, indicator: ProgressIndicator?): List<Translation> {
         val batch = engine.batch
         if (batch == null || request.texts.size < 2) {
             return request.texts.map { text ->

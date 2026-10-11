@@ -171,7 +171,7 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
             Assertions.assertEquals(mapOf("common:save" to "Enregistrer"), dialog.accepted())
             Assertions.assertFalse(dialog.model.isCellEditable(1, 0), "a refused proposal cannot be checked")
             Assertions.assertEquals(false, dialog.model.getValueAt(2, 0), "a form to review comes unchecked")
-            Assertions.assertEquals(PluginBundle.message("action.fill.review"), dialog.model.getValueAt(2, 4))
+            Assertions.assertEquals(PluginBundle.message("action.fill.review"), dialog.model.getValueAt(2, 5))
             Assertions.assertTrue(dialog.model.isCellEditable(2, 0), "and can be checked once reviewed")
             dialog.model.setValueAt(false, 0, 0)
             Assertions.assertEquals(emptyMap<String, String>(), dialog.accepted())

@@ -15,7 +15,20 @@ data class TranslationRequest(
 
 /** The outcome for one text: its translation, or a reason readable by the user. */
 sealed interface Translation {
-    data class Done(val text: String) : Translation
+    /**
+     * [text] as translated by [engine] — blank when no engine was asked, an empty text say — which runs
+     * on the user's machine when [local]: after a fallback, the preview tells DeepL from the local Ollama.
+     *
+     * Two are equal when they hold the same [text]: the engine says where a translation comes from, not
+     * what it is.
+     */
+    class Done(val text: String, val engine: String = "", val local: Boolean = false) : Translation {
+        fun by(engine: String, local: Boolean): Done = Done(text, engine, local)
+
+        override fun equals(other: Any?): Boolean = other is Done && other.text == text
+        override fun hashCode(): Int = text.hashCode()
+        override fun toString(): String = if (engine.isEmpty()) "Done($text)" else "Done($text, by $engine${if (local) ", local" else ""})"
+    }
     data class Failed(val reason: String) : Translation
 }
 
