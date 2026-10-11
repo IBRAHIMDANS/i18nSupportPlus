@@ -42,14 +42,17 @@ class PhpArrayLocalizationTest : PlatformBaseTest() {
         addFileToProject("lang/en/messages.php", messagesContent)
     }
 
+    // Each call writes a file of its own: a test may ask several times.
+    private var calls = 0
+
     private fun resolvedValue(code: String): String? {
-        myFixture.configureFromExistingVirtualFile(addFileToProject("app/Http/Controllers/HomeController.php", code).virtualFile)
+        myFixture.configureFromExistingVirtualFile(addFileToProject("app/Http/Controllers/Home${calls++}Controller.php", code).virtualFile)
         val element = myFixture.file.findElementAt(myFixture.caretOffset)?.parent ?: return null
         return element.references.firstOrNull()?.resolve()?.text?.unQuote()
     }
 
     private fun unresolvedKeys(code: String): List<String> {
-        myFixture.configureFromExistingVirtualFile(addFileToProject("resources/views/home.php", code).virtualFile)
+        myFixture.configureFromExistingVirtualFile(addFileToProject("resources/views/home${calls++}.php", code).virtualFile)
         return myFixture.doHighlighting().filter { it.description == unresolved }
             .map { myFixture.file.text.substring(it.startOffset, it.endOffset) }.distinct()
     }
@@ -154,10 +157,110 @@ class PhpArrayLocalizationTest : PlatformBaseTest() {
     fun aPackageOverrideIsNoFileOfTheApplication() {
         val app = addFileToProject("lang/en/messages.php", messages).virtualFile
         val vendor = addFileToProject("lang/vendor/courier/en/messages.php", messages).virtualFile
+        val legacy = addFileToProject("resources/lang/vendor/courier/fr/messages.php", messages).virtualFile
+        val composer = addFileToProject("vendor/acme/en/messages.php", messages).virtualFile
         val code = addFileToProject("app/Models/User.php", "<?php class User {}").virtualFile
         assertTrue(PhpArrayLocalization.isInLocaleDirectory(app))
         assertFalse(PhpArrayLocalization.isInLocaleDirectory(vendor))
         assertFalse(PhpArrayLocalization.isInLocaleDirectory(code))
+        // A package override is a file of the package's namespace, not of the application's.
+        assertEquals("messages", PhpArrayLocalization.namespaceOf(app))
+        assertEquals("courier::messages", PhpArrayLocalization.namespaceOf(vendor))
+        assertEquals("courier::messages", PhpArrayLocalization.namespaceOf(legacy))
+        assertNull(PhpArrayLocalization.namespaceOf(composer))
+        assertNull(PhpArrayLocalization.namespaceOf(code))
+    }
+
+    private val courier = """
+        <?php
+
+        return [
+            'welcome' => 'Welcome from Courier',
+            'sent' => ['ok' => 'Sent'],
+        ];
+    """.trimIndent()
+
+    private fun laravelProjectWithPackage(root: String = "lang") {
+        laravelProject()
+        addFileToProject("$root/vendor/courier/en/messages.php", courier)
+    }
+
+    @Test
+    fun aPackageKeyResolvesInThePackageOverride() {
+        laravelProjectWithPackage()
+        assertEquals("Welcome from Courier", resolvedValue("<?php echo __('courier::messages.wel<caret>come');"))
+        assertEquals("Sent", resolvedValue("<?php echo trans('courier::messages.sent.o<caret>k');"))
+        // The application's own file keeps its keys.
+        assertEquals("Welcome", resolvedValue("<?php echo __('messages.wel<caret>come');"))
+    }
+
+    @Test
+    fun aPackageKeyResolvesUnderResourcesLangToo() {
+        laravelProjectWithPackage("resources/lang")
+        assertEquals("Welcome from Courier", resolvedValue("<?php echo trans_choice('courier::messages.wel<caret>come', 1);"))
+    }
+
+    @Test
+    fun anUnknownPackageKeyIsReported() {
+        laravelProjectWithPackage()
+        assertEquals(
+            listOf("zzMissing"),
+            unresolvedKeys("<?php echo __('courier::messages.welcome'); echo __('courier::messages.sent.ok'); echo __('courier::messages.zzMissing');")
+        )
+        // A key of the package only is not one of the application's file.
+        assertEquals(listOf("sent.ok"), unresolvedKeys("<?php echo __('messages.sent.ok');"))
+    }
+
+    @Test
+    fun theKeysOfAPackageFileAreCompleted() {
+        laravelProjectWithPackage()
+        myFixture.configureFromExistingVirtualFile(
+            addFileToProject("resources/views/package.php", "<?php echo __('courier::messages.<caret>');").virtualFile
+        )
+        myFixture.complete(CompletionType.BASIC, 1)
+        val offered = myFixture.lookupElementStrings.orEmpty()
+        assertTrue(offered.containsAll(listOf("courier::messages.welcome", "courier::messages.sent")), "the package's keys must be offered: $offered")
+        assertFalse("courier::messages.auth" in offered, "the application's keys are not the package's: $offered")
+    }
+
+    @Test
+    fun aKeyOfAPackageFileLeadsToTheCodeUsingIt() {
+        laravelProjectWithPackage()
+        addFileToProject("resources/views/welcome.php", "<?php echo __('courier::messages.welcome'); echo __('messages.welcome');")
+        myFixture.configureFromExistingVirtualFile(myFixture.findFileInTempDir("lang/vendor/courier/en/messages.php"))
+        val element = myFixture.file.findElementAt(myFixture.file.text.indexOf("'welcome'") + 2)?.parent
+        assertNotNull(element)
+        val references = element!!.references
+        assertEquals(1, references.size, "the key must be searched for in the code")
+        assertEquals("courier::messages.welcome", references[0].resolve()?.text?.unQuote())
+    }
+
+    @Test
+    fun aPackageKeyIsParsedWithThePackageFileAsItsNamespace() {
+        laravelProjectWithPackage()
+        val parser = RawKeyParser(project)
+        val packaged = parser.parse(RawKey(listOf(KeyElement.literal("courier::messages.sent.ok"))))!!
+        assertEquals("courier::messages", packaged.ns?.text)
+        assertEquals(listOf("sent", "ok"), packaged.compositeKey.map { it.text })
+        assertEquals("courier::messages.sent.ok", packaged.source)
+
+        val own = parser.parse(RawKey(listOf(KeyElement.literal("messages.welcome"))))!!
+        assertEquals("messages", own.ns?.text)
+        assertEquals(listOf("welcome"), own.compositeKey.map { it.text })
+
+        val phrase = parser.parse(RawKey(listOf(KeyElement.literal("Welcome to our app"))))!!
+        assertNull(phrase.ns)
+        assertEquals(listOf("Welcome to our app"), phrase.compositeKey.map { it.text })
+
+        // A package no override declares keeps the reading it had.
+        assertNull(parser.parse(RawKey(listOf(KeyElement.literal("mailer::messages.welcome")))))
+    }
+
+    @Test
+    fun aJsonPhraseStillResolvesNextToAPackage() {
+        laravelProjectWithPackage()
+        addFileToProject("lang/en.json", """{"Welcome to our app": "Welcome!"}""")
+        assertEquals("Welcome!", resolvedValue("<?php echo __('Welcome to our <caret>app');"))
     }
 
     @Test

@@ -27,10 +27,10 @@ class PhpArrayReferenceAssistant : TranslationReferenceAssistant<StringLiteralEx
     override fun references(element: StringLiteralExpression): List<PsiReference> {
         val file = element.containingFile ?: return emptyList()
         val virtualFile = file.originalFile.virtualFile ?: return emptyList()
-        if (!PhpArrayLocalization.isInLocaleDirectory(virtualFile)) return emptyList()
+        val namespace = PhpArrayLocalization.namespaceOf(virtualFile) ?: return emptyList()
         val path = PhpArrays.pathOf(element) ?: return emptyList()
         if (TranslationFileScope.sourceOf(file)?.localization !is PhpArrayLocalization) return emptyList()
-        return provider.getReferences(element, element.valueRange, listOf(virtualFile.nameWithoutExtension) + path)
+        return provider.getReferences(element, element.valueRange, listOf(namespace) + path)
     }
 }
 
