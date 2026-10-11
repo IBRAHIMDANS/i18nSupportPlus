@@ -201,4 +201,67 @@ class KeyResolutionFixtureTest : PlatformBaseTest() {
     fun `a module's key template`() = withMonorepo {
         assertResolves("apps/docs/src/Doc.tsx", "'guide.intro'", "Guide intro")
     }
+
+    // ── Why a key is reported (the tooltip) ───────────────────────────────────
+
+    /** The tooltip of the one unresolved key or namespace reported in [path], tags and entities removed. */
+    private fun tooltip(path: String): String {
+        myFixture.configureFromExistingVirtualFile(myFixture.findFileInTempDir(path))
+        val reported = myFixture.doHighlighting().filter { it.description in problems }
+        Assertions.assertEquals(1, reported.size, "one problem in $path, got ${reported.map { it.description }}")
+        return reported.single().toolTip.orEmpty()
+            .replace("<br/>", "\n").replace(Regex("<[^>]+>"), "")
+            .replace("&#39;", "'").replace("&apos;", "'").replace("&quot;", "\"").replace("&amp;", "&")
+    }
+
+    private fun assertSays(tooltip: String, vararg parts: String) =
+        parts.forEach { Assertions.assertTrue(it in tooltip, "\"$it\" missing from the tooltip:\n$tooltip") }
+
+    @Test
+    fun `the tooltip of a namespace without a file`() = withSingle {
+        assertSays(
+            tooltip("src/MissingNs.tsx"),
+            "Unresolved namespace",
+            "Namespace 'ghost', written in the key",
+            "No file for namespace 'ghost' in the project",
+        )
+    }
+
+    @Test
+    fun `the tooltip of a missing segment`() = withSingle {
+        val tooltip = tooltip("src/NestedMissing.tsx")
+        assertSays(tooltip, "Unresolved key", "Namespace 'common', written in the key", "locales/en/common.json", "'user' exists, 'age' does not")
+    }
+
+    @Test
+    fun `the tooltip of a missing first segment`() = withSingle {
+        assertSays(tooltip("src/MissingKey.tsx"), "'nope' does not exist at the top of these files")
+    }
+
+    @Test
+    fun `the tooltip of a namespace whose file lies in another module`() = withMonorepo {
+        assertSays(
+            tooltip("apps/web/src/OtherModuleNs.tsx"),
+            "Namespace 'settings', written in the key, in module 'web'",
+            "No file for namespace 'settings' in module 'web', only outside it:",
+            "apps/admin/locales/en/settings.json",
+        )
+    }
+
+    @Test
+    fun `the tooltip of a key looked up in its own module only`() = withMonorepo {
+        val tooltip = tooltip("apps/web/src/Foreign.tsx")
+        assertSays(tooltip, "in module 'web'", "apps/web/locales/en/common.json", "'adminOnly' does not exist")
+        Assertions.assertFalse("apps/admin" in tooltip, "another module's file was listed:\n$tooltip")
+    }
+
+    @Test
+    fun `the tooltip of a key read by its module's key template`() = withMonorepo {
+        assertSays(
+            tooltip("apps/docs/src/DocMissing.tsx"),
+            "Namespace 'guide', read by the key template {ns}.{key}, in module 'docs'",
+            "apps/docs/locales/en/guide.json",
+            "'outro' does not exist",
+        )
+    }
 }
