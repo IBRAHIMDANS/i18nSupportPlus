@@ -1,0 +1,127 @@
+package com.ibrahimdans.i18n.plugin.review
+
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonArray
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+
+/**
+ * Reads and writes a review file, `.i18n-reviews/<locale>.json`:
+ *
+ * ```json
+ * {
+ *   "version": 1,
+ *   "reviews": {
+ *     "common:cart.title": {
+ *       "status": "approved",
+ *       "hash": "sha256:3f2a9c0e1b7d4a55",
+ *       "by": "Alice Martin <alice@example.com>",
+ *       "at": "2026-10-11T14:02:11Z",
+ *       "origin": "machine:DeepL",
+ *       "thread": [
+ *         { "id": "r1", "kind": "approve", "by": "…", "at": "…", "text": "" }
+ *       ]
+ *     }
+ *   }
+ * }
+ * ```
+ *
+ * The output is deterministic so that the file merges well in Git: keys sorted, fields in a fixed
+ * order, two-space indentation, one property per line, a final `\n`. Two reviews of distant keys never
+ * touch the same lines. HTML characters are written as they are (`Alice <alice@…>`, `« Panier »`).
+ */
+object ReviewCodec {
+
+    /** The format this version writes; a file of a later one is left alone. */
+    const val VERSION = 1
+
+    /**
+     * A file as read: its reviews, and whether it could be read at all. An unreadable file — a merge
+     * conflict left in it, a format of a later version — reads as no review, and must never be
+     * overwritten: [ReviewStore] refuses to write over it rather than lose every review it holds.
+     */
+    data class Decoded(val reviews: Map<ReviewKey, Review>, val readable: Boolean)
+
+    private val gson = GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create()
+
+    /** The reviews [text] holds; none, and no exception, when it is absent, blank or unreadable. */
+    fun read(text: String?): Map<ReviewKey, Review> = decode(text).reviews
+
+    fun decode(text: String?): Decoded {
+        if (text.isNullOrBlank()) return Decoded(emptyMap(), readable = true)
+        return try {
+            val root = JsonParser.parseString(text).asJsonObject
+            val version = root.get("version")?.takeIf { it.isJsonPrimitive }?.asInt ?: VERSION
+            if (version > VERSION) return Decoded(emptyMap(), readable = false)
+            val reviews = root.get("reviews")?.takeIf { it.isJsonObject }?.asJsonObject
+                ?: return Decoded(emptyMap(), readable = true)
+            Decoded(
+                reviews.entrySet().mapNotNull { (stored, value) ->
+                    val key = ReviewKey.parse(stored) ?: return@mapNotNull null
+                    val review = readReview(value) ?: return@mapNotNull null
+                    key to review
+                }.toMap(),
+                readable = true
+            )
+        } catch (_: RuntimeException) {
+            // JsonSyntaxException, IllegalStateException (not an object), NumberFormatException…
+            Decoded(emptyMap(), readable = false)
+        }
+    }
+
+    /** [reviews] as a review file, ready to be written as is. */
+    fun write(reviews: Map<ReviewKey, Review>): String {
+        val entries = JsonObject()
+        reviews.entries.sortedWith(compareBy(ReviewKey.ORDER) { it.key }).forEach { (key, review) ->
+            entries.add(key.stored, writeReview(review))
+        }
+        val root = JsonObject()
+        root.addProperty("version", VERSION)
+        root.add("reviews", entries)
+        return gson.toJson(root) + "\n"
+    }
+
+    /** An entry of the file, or null when it lacks what a review must hold (a hand edit gone wrong). */
+    private fun readReview(element: JsonElement): Review? {
+        if (!element.isJsonObject) return null
+        val json = element.asJsonObject
+        val state = ReviewState.of(json.string("status")) ?: return null
+        val hash = json.string("hash") ?: return null
+        val thread = json.get("thread")?.takeIf { it.isJsonArray }?.asJsonArray
+            ?.mapNotNull { readEvent(it) }.orEmpty()
+        return Review(
+            state, hash, json.string("by").orEmpty(), json.string("at").orEmpty(),
+            json.string("origin") ?: Review.ORIGIN_MANUAL, thread
+        )
+    }
+
+    private fun readEvent(element: JsonElement): ReviewEvent? {
+        if (!element.isJsonObject) return null
+        val json = element.asJsonObject
+        return ReviewEvent(
+            json.string("id") ?: return null, ReviewEventKind.of(json.string("kind")),
+            json.string("by").orEmpty(), json.string("at").orEmpty(), json.string("text").orEmpty()
+        )
+    }
+
+    private fun writeReview(review: Review): JsonObject = JsonObject().apply {
+        addProperty("status", review.state.id)
+        addProperty("hash", review.hash)
+        addProperty("by", review.by)
+        addProperty("at", review.at)
+        addProperty("origin", review.origin)
+        add("thread", JsonArray().apply { review.thread.forEach { add(writeEvent(it)) } })
+    }
+
+    private fun writeEvent(event: ReviewEvent): JsonObject = JsonObject().apply {
+        addProperty("id", event.id)
+        addProperty("kind", event.kind.id)
+        addProperty("by", event.by)
+        addProperty("at", event.at)
+        addProperty("text", event.text)
+    }
+
+    private fun JsonObject.string(name: String): String? =
+        get(name)?.takeIf { it.isJsonPrimitive }?.asString
+}

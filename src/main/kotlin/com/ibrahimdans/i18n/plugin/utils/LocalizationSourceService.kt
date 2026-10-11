@@ -34,9 +34,11 @@ class LocalizationSourceService {
         private val COMPOSED_SOURCES_CACHE =
             Key.create<SoftReference<ComposedSources>>("i18n.localization.composedSources")
 
+        // `.i18n-reviews` (ReviewLocation.DIRECTORY) holds the review files, `fr.json` one per locale:
+        // read as sources, each would be taken for a translation of its locale.
         private val DEFAULT_EXCLUDED_DIRS = setOf(
             "node_modules", "build", "dist", ".next", "out",
-            "storybook-static", ".nuxt", ".output", "coverage", ".cache", "vendor"
+            "storybook-static", ".nuxt", ".output", "coverage", ".cache", "vendor", ".i18n-reviews"
         )
 
         /**

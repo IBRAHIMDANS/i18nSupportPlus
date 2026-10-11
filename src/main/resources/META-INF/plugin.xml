@@ -194,6 +194,10 @@
         <projectConfigurable parentId="preference.i18nPlugin" id="preference.i18nPlugin.machineTranslation"
                              instance="com.ibrahimdans.i18n.plugin.translate.MachineTranslationConfigurable"
                              bundle="messages.I18nBundle" key="settings.translate.title"/>
+        <!-- Application level: the name reviews are signed with belongs to the person, never to the project. -->
+        <applicationConfigurable parentId="preference.i18nPlugin" id="preference.i18nPlugin.reviews"
+                                 instance="com.ibrahimdans.i18n.plugin.review.ReviewerConfigurable"
+                                 bundle="messages.I18nBundle" key="settings.reviews.title"/>
         <intentionAction>
             <className>com.ibrahimdans.i18n.plugin.ide.actions.ExtractI18nIntentionAction</className>
         </intentionAction>
