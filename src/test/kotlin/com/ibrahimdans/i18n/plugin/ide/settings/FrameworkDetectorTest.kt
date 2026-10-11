@@ -43,4 +43,27 @@ class FrameworkDetectorTest {
     fun `a project with no i18n dependency detects nothing`() {
         assertTrue(FrameworkDetector.detect(packageJson("react", "vue")).isEmpty())
     }
+
+    private fun composerJson(vararg packages: String): String =
+        packages.joinToString(",\n", "{\n  \"require\": {\n", "\n  }\n}") { "    \"$it\": \"^11.0\"" }
+
+    @Test
+    fun `a composer json requiring laravel framework is a Laravel project`() {
+        assertEquals(setOf("laravel"), FrameworkDetector.detect(composerJson("php", "laravel/framework", "laravel/tinker")))
+    }
+
+    /** Laravel's satellites, or its translation component alone, do not bring the framework's layout. */
+    @Test
+    fun `a composer json without laravel framework detects nothing`() {
+        assertTrue(FrameworkDetector.detect(composerJson("php", "symfony/translation")).isEmpty())
+        assertTrue(FrameworkDetector.detect(composerJson("laravel/tinker", "illuminate/translation")).isEmpty())
+    }
+
+    @Test
+    fun `the Laravel preset fills the documented layout`() {
+        val layout = LayoutPresets.of("laravel")!!
+        assertEquals("lang/{lang}/{ns}.php", layout.pathTemplate)
+        assertEquals("{ns}.{key}", layout.keyTemplate)
+        assertTrue("laravel" in FrameworkDetector.LABELS, "offered by the wizard and by the module presets")
+    }
 }
