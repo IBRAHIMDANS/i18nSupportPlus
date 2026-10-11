@@ -1,15 +1,20 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.review.ReviewMigration
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
+import com.intellij.codeInsight.intention.preview.IntentionPreviewInfo
 import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.LocalQuickFix
 import com.intellij.codeInspection.ProblemDescriptor
 import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.json.psi.JsonProperty
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.command.UndoConfirmationPolicy
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
@@ -91,16 +96,70 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
     }
 }
 
+/**
+ * Deletes the unused key and its review in that file's locale ([ReviewMigration]) in one command,
+ * so one Ctrl+Z restores both. A module without `.i18n-reviews/` has no review file touched.
+ * Other locales keep their key, so they keep their review.
+ */
 private class DeleteUnusedKeyFix : LocalQuickFix {
 
     override fun getName(): String = PluginBundle.message("inspection.unused.fix.name")
     override fun getFamilyName(): String = getName()
 
+    /**
+     * The preview deletes the property in the file's copy and nothing else: applied to the copy,
+     * [applyFix] would rewrite the real review file, which [ReviewMigration] finds from the original.
+     */
+    override fun generatePreview(project: Project, previewDescriptor: ProblemDescriptor): IntentionPreviewInfo {
+        deletePropertyAndSeparator(targetOf(previewDescriptor.psiElement ?: return IntentionPreviewInfo.EMPTY))
+        return IntentionPreviewInfo.DIFF
+    }
+
+    // The write action is opened here: global or not depends on the key having a review.
+    override fun startInWriteAction(): Boolean = false
+
+    /**
+     * Without a review, deletes the key in the command the platform opened for the quick fix, as it
+     * always did.
+     *
+     * With one, the key and its review go in a command of their own, global and undone without a
+     * confirmation, like the tool window's deletions: one Ctrl+Z restores both. That command cannot
+     * nest in the platform's: a nested command keeps the outer one's confirmation policy (the
+     * default), and a command touching two files is global, so that Ctrl+Z would ask "Undo …?".
+     * It therefore runs right after the platform's command ends, which is left empty.
+     */
     override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
-        val parent = descriptor.psiElement.parent
-        val target = if (parent != null && TranslationPsi.nameOf(parent) != null) parent else descriptor.psiElement
-        // Removes the separating comma too: a bare JsonProperty.delete()
-        // leaves `{,"b":…}` behind and corrupts the file.
-        deletePropertyAndSeparator(target)
+        val target = targetOf(descriptor.psiElement ?: return)
+        // Before the deletion: the review's key is rebuilt from the property's PSI.
+        val reviews = ReviewMigration.spotsOf(listOf(target))
+        if (reviews.isEmpty()) {
+            WriteCommandAction.runWriteCommandAction(project, getName(), null, { delete(target) }, target.containingFile)
+            return
+        }
+        ApplicationManager.getApplication().invokeLater({
+            if (!target.isValid) return@invokeLater
+            WriteCommandAction.writeCommandAction(project, target.containingFile)
+                .withName(getName())
+                .withGlobalUndo()
+                .withUndoConfirmationPolicy(UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION)
+                .run<RuntimeException> {
+                    delete(target)
+                    ReviewMigration.remove(project, reviews)
+                }
+        }, project.disposed)
+    }
+
+    /**
+     * Removes the separating comma too: a bare JsonProperty.delete()
+     * leaves `{,"b":…}` behind and corrupts the file.
+     */
+    private fun delete(target: PsiElement) {
+        if (target.isValid) deletePropertyAndSeparator(target)
+    }
+
+    /** The property holding the reported key name, or the reported element itself (a YAML key-value). */
+    private fun targetOf(element: PsiElement): PsiElement {
+        val parent = element.parent
+        return if (parent != null && TranslationPsi.nameOf(parent) != null) parent else element
     }
 }
