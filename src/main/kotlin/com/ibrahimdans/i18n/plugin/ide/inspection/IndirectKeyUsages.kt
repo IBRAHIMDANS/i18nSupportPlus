@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.plugin.ide.references.translation.LinkedMessages
 import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumulator
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
@@ -44,13 +45,22 @@ internal object IndirectKeyUsages {
             query.namespace?.let { listOf(it) } ?: config.defaultNamespaces(),
             fallbacks,
         )
+        val process = accumulator.process()
+        // The same words find the translation values linking to the key (`"@:menu.profile"`).
+        val linked = mutableSetOf<PsiElement>()
         for (word in query.words) {
-            searchHelper.processElementsWithWord(accumulator.process(), searchScope, word, UsageSearchContext.ANY, true)
+            searchHelper.processElementsWithWord(
+                { element, offset ->
+                    if (element !in linked && linksTo(element, key, config)) linked += element
+                    process(element, offset)
+                },
+                searchScope, word, UsageSearchContext.ANY, true
+            )
         }
         // Distinct, because the same call site is reported once per word searched: a key
         // carrying a namespace matches both `navigation:menu.profile` and `menu.profile`,
         // and counting it twice inflated every usage of every prefixed key.
-        return accumulator.entries().distinct().size
+        return accumulator.entries().distinct().size + linked.size
     }
 
     /**
@@ -117,6 +127,17 @@ internal object IndirectKeyUsages {
      */
     private fun keyScopeOf(fullKey: FullKey, keyScopes: Set<String>): String? =
         fullKey.namespaces?.singleOrNull()?.takeIf { fullKey.ns == null && it in keyScopes }
+
+    /**
+     * True when [element] is a translation value whose vue-i18n linked message names [key]:
+     * `"Click @:common.save"` uses `common.save`, though no code does. Each link is resolved the way
+     * its reference is ([LinkedMessages]), so a link counts only for the key it actually reaches —
+     * and never in a module whose preset names another framework.
+     */
+    private fun linksTo(element: PsiElement, key: String, config: Config): Boolean =
+        LinkedMessages.linksOf(element).any { link ->
+            LinkedMessages.targetsOf(element, link.key).any { TranslationKeyUsages.keyOf(it, config) == key }
+        }
 
     /** What [textCount] searches the sources for, on behalf of one key. */
     data class UsageQuery(val bareKey: String, val words: List<String>, val namespace: String? = null)

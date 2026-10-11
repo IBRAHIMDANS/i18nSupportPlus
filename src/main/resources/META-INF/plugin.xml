@@ -182,6 +182,9 @@
         <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.lang.js.JsxReferenceContributor"/>
         <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.localization.js.TsLocalizationReferenceContributor"/>
         <psi.referenceContributor language="JSON" implementation="com.ibrahimdans.i18n.extensions.localization.json.JsonReferenceContributor"/>
+        <!-- vue-i18n's linked messages (`@:key`) in a translation value: navigation and unknown keys -->
+        <psi.referenceContributor language="JSON" implementation="com.ibrahimdans.i18n.plugin.ide.references.translation.LinkedMessageReferenceContributor"/>
+        <annotator language="JSON" implementationClass="com.ibrahimdans.i18n.plugin.ide.references.translation.LinkedMessageAnnotator"/>
         <!-- One completion contributor for every JS dialect: contributors are inherited, so JSX,
              TypeScript and TSX get it through JavaScript. A declaration per dialect ran it twice
              in a .tsx file. -->

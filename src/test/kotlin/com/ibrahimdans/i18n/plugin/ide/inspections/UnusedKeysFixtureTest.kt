@@ -50,6 +50,7 @@ class UnusedKeysFixtureTest : PlatformBaseTest() {
             "common:wrapped.plain",     // translate('…'), declared by a key assistance rule
             "common:wrapped.member",    // i18n.translate('…'), declared by a rule
             "common:api.rateLimited",   // kept by the project's keep list
+            "common:linked.target",     // "@:common:linked.target", a vue-i18n linked message
         )
 
         /** Used through a hook's key prefix or an explicit `ns` option. */
@@ -169,6 +170,14 @@ class UnusedKeysFixtureTest : PlatformBaseTest() {
     @Test
     fun `the keep list is what protects a key received from an API`() = withSingle(single.copy(keptKeys = "")) {
         assertTrue("common:api.rateLimited" in scanOrphans())
+    }
+
+    /** A link read in a module whose preset names another framework is no usage: `@:` means nothing there. */
+    @Test
+    fun `a key only linked from a module of another framework is an orphan`() = withSingle(
+        single.copy(modules = listOf(ModuleConfig(name = "app", rootDirectory = "src", preset = "i18next")))
+    ) {
+        assertTrue("common:linked.target" in scanOrphans())
     }
 
     // ── Keys that must be reported ────────────────────────────────────────────

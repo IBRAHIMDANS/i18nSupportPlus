@@ -1,6 +1,8 @@
 <idea-plugin>
     <extensions defaultExtensionNs="com.intellij">
         <psi.referenceContributor language="yaml" implementation="com.ibrahimdans.i18n.extensions.localization.yaml.YamlReferenceContributor"/>
+        <psi.referenceContributor language="yaml" implementation="com.ibrahimdans.i18n.plugin.ide.references.translation.LinkedMessageReferenceContributor"/>
+        <annotator language="yaml" implementationClass="com.ibrahimdans.i18n.plugin.ide.references.translation.LinkedMessageAnnotator"/>
         <codeInsight.declarativeInlayProvider language="yaml"
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.ReferenceValueInlayHintsProvider"
             providerId="i18n.reference.value.inlay"
