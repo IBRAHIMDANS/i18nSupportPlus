@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.actions.i18nize
 
 import com.ibrahimdans.i18n.extensions.lang.js.HardcodedTextRules
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.lang.javascript.psi.JSArgumentList
 import com.intellij.lang.javascript.psi.JSArrayLiteralExpression
 import com.intellij.lang.javascript.psi.JSCallExpression
@@ -30,7 +31,21 @@ import com.intellij.psi.xml.XmlTag
 internal object TranslatableText {
 
     /** Why a text is offered unchecked; the preview shows it next to the text. */
-    enum class Reason { URL, PATH, IDENTIFIER, CSS_CLASS, COLOR, DATE, NUMBER, SYMBOLS }
+    enum class Reason {
+        URL, PATH, IDENTIFIER, CSS_CLASS, COLOR, DATE, NUMBER, SYMBOLS;
+
+        /** One literal key per value, as `PluginBundleTest` requires. */
+        fun message(): String = when (this) {
+            URL -> PluginBundle.message("action.i18nize.reason.url")
+            PATH -> PluginBundle.message("action.i18nize.reason.path")
+            IDENTIFIER -> PluginBundle.message("action.i18nize.reason.identifier")
+            CSS_CLASS -> PluginBundle.message("action.i18nize.reason.css_class")
+            COLOR -> PluginBundle.message("action.i18nize.reason.color")
+            DATE -> PluginBundle.message("action.i18nize.reason.date")
+            NUMBER -> PluginBundle.message("action.i18nize.reason.number")
+            SYMBOLS -> PluginBundle.message("action.i18nize.reason.symbols")
+        }
+    }
 
     /**
      * Calls whose arguments are never messages: translation hooks, whose strings are namespaces

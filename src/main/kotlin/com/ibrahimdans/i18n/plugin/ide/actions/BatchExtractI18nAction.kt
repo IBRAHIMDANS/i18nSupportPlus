@@ -226,19 +226,7 @@ internal fun isCheckedByDefault(candidate: Candidate): Boolean =
 
 /** Why [candidate] is offered unchecked, as the dialog shows it; null for a message. */
 internal fun uncheckedReasonText(candidate: Candidate): String? =
-    TranslatableText.uncheckedReason(candidate.originalText)?.let { reason ->
-        // Same mapping as the *Internationalize…* preview: one literal key per value, as PluginBundleTest requires.
-        when (reason) {
-            TranslatableText.Reason.URL -> PluginBundle.message("action.i18nize.reason.url")
-            TranslatableText.Reason.PATH -> PluginBundle.message("action.i18nize.reason.path")
-            TranslatableText.Reason.IDENTIFIER -> PluginBundle.message("action.i18nize.reason.identifier")
-            TranslatableText.Reason.CSS_CLASS -> PluginBundle.message("action.i18nize.reason.css_class")
-            TranslatableText.Reason.COLOR -> PluginBundle.message("action.i18nize.reason.color")
-            TranslatableText.Reason.DATE -> PluginBundle.message("action.i18nize.reason.date")
-            TranslatableText.Reason.NUMBER -> PluginBundle.message("action.i18nize.reason.number")
-            TranslatableText.Reason.SYMBOLS -> PluginBundle.message("action.i18nize.reason.symbols")
-        }
-    }
+    TranslatableText.uncheckedReason(candidate.originalText)?.message()
 
 private class BatchExtractDialog(
     project: Project,
