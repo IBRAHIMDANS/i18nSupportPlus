@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin.ide.toolwindow
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.key.FullKey
+import com.ibrahimdans.i18n.plugin.review.ReviewMigration
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
@@ -11,6 +12,7 @@ import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.command.UndoConfirmationPolicy
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
@@ -29,6 +31,10 @@ internal typealias KeySources = Pair<FullKey, List<LocalizationSource>>
  * lookup alone is not enough, since two modules commonly own a file with the same
  * namespace. Without the scope, deleting an orphan key from one module's table also
  * removed it from the other module's file.
+ *
+ * The reviews of the deleted keys ([ReviewMigration]) go in the same command: one Ctrl+Z restores
+ * the translations and their reviews. It serves the table's *Delete orphans*, the editor's
+ * *Delete i18n Key* and the translation dialog's *Delete*.
  */
 internal class OrphanKeyDeleter(
     private val project: Project,
@@ -78,16 +84,24 @@ internal class OrphanKeyDeleter(
         // The deletion targets the whole property (not just its value, which used to leave a
         // dangling `"key":`) and removes the separating comma with it.
         val command = if (sourcesByKey.size > 1) "toolwindow.table.delete.orphans.command" else "toolwindow.table.delete.command"
-        WriteCommandAction.runWriteCommandAction(project, PluginBundle.message(command), null, {
-            val properties = sourcesByKey.flatMap { (fullKey, sources) ->
-                sources.mapNotNull { source ->
-                    val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@mapNotNull null
-                    if (ref.unresolved.isNotEmpty() || ref.element == null) return@mapNotNull null
-                    TranslationPsi.propertyOf(ref.element.value())
+        // Global and without confirmation: launched from the tool window, where no editor holds
+        // the files, and the review file it may rewrite has none either.
+        WriteCommandAction.writeCommandAction(project)
+            .withName(PluginBundle.message(command))
+            .withGlobalUndo()
+            .withUndoConfirmationPolicy(UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION)
+            .run<RuntimeException> {
+                val properties = sourcesByKey.flatMap { (fullKey, sources) ->
+                    sources.mapNotNull { source ->
+                        val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@mapNotNull null
+                        if (ref.unresolved.isNotEmpty() || ref.element == null) return@mapNotNull null
+                        TranslationPsi.propertyOf(ref.element.value())
+                    }
                 }
+                val reviews = ReviewMigration.spotsOf(properties)
+                properties.forEach { if (it.isValid) deletePropertyAndSeparator(it) }
+                ReviewMigration.remove(project, reviews)
             }
-            properties.forEach { if (it.isValid) deletePropertyAndSeparator(it) }
-        })
     }
 
     /** Keeps only the sources belonging to [moduleConfig], like TranslationDataLoader does for reads. */

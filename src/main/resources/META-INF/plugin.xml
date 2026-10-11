@@ -420,6 +420,10 @@
         <action id="com.ibrahimdans.i18n.ScanOrphanKeys"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.ScanOrphanKeysAction"
                 icon="AllIcons.Actions.Find"/>
+        <action id="com.ibrahimdans.i18n.CleanupOrphanReviews"
+                class="com.ibrahimdans.i18n.plugin.review.ui.CleanupReviewsAction">
+            <add-to-group group-id="com.ibrahimdans.i18n.ToolsMenu" anchor="after" relative-to-action="com.ibrahimdans.i18n.CleanupUnusedKeys"/>
+        </action>
     </actions>
     <extensions defaultExtensionNs="com.ibrahimdans.i18n">
         <localization implementation="com.ibrahimdans.i18n.extensions.localization.json.JsonLocalization"/>

@@ -9,6 +9,8 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
+import com.ibrahimdans.i18n.plugin.review.ReviewMigration
+import com.ibrahimdans.i18n.plugin.review.ReviewMove
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
@@ -16,6 +18,7 @@ import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.command.UndoConfirmationPolicy
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.Editor
@@ -49,11 +52,17 @@ import java.util.Collections
  * With the caret on an intermediate segment of the key (`button` in `common:button.save`), or on a
  * property holding other keys in a translation file, the whole level is renamed instead: see
  * [KeyLevelRename].
+ *
+ * The reviews of the renamed keys ([ReviewMigration]) follow them in the same command, in every
+ * locale and module that has reviews on: the values do not change, so an approval still holds.
  */
 class RenameI18nKeyHandler : RenameHandler {
 
     /** One text replacement, gathered under a read action and applied in the write action. */
     private data class Edit(val document: Document, val range: TextRange, val text: String)
+
+    /** What a rename writes: the text [edits], and the [reviews] following the renamed keys. */
+    private data class Collected(val edits: List<Edit>, val reviews: List<ReviewMove>)
 
     override fun isAvailableOnDataContext(dataContext: DataContext): Boolean {
         val editor = CommonDataKeys.EDITOR.getData(dataContext) ?: return false
@@ -83,14 +92,14 @@ class RenameI18nKeyHandler : RenameHandler {
         if (newSegment.isBlank() || newSegment == lastSegment) return
 
         // The search walks the project's sources: off the EDT, under a progress the user can cancel.
-        val edits = ProgressManager.getInstance().runProcessWithProgressSynchronously<List<Edit>, RuntimeException>(
-            { ReadAction.compute<List<Edit>, RuntimeException> { collectEdits(project, ref, lastSegment, newSegment, config) } },
+        val collected = ProgressManager.getInstance().runProcessWithProgressSynchronously<Collected, RuntimeException>(
+            { ReadAction.compute<Collected, RuntimeException> { collectEdits(project, ref, lastSegment, newSegment, config) } },
             PluginBundle.message("action.rename.title"),
             true,
             project
         )
 
-        apply(project, edits, PluginBundle.message("action.rename.title"))
+        apply(project, collected.edits, PluginBundle.message("action.rename.title"), collected.reviews)
     }
 
     override fun invoke(project: Project, elements: Array<out PsiElement>, dataContext: DataContext) {
@@ -172,19 +181,28 @@ class RenameI18nKeyHandler : RenameHandler {
             Messages.getQuestionIcon()
         ) == Messages.YES
         if (!confirmed) return
-        apply(project, plan.edits.map { Edit(it.document, it.range, it.text) }, title)
+        apply(project, plan.edits.map { Edit(it.document, it.range, it.text) }, title, plan.reviews)
     }
 
-    private fun apply(project: Project, edits: List<Edit>, command: String) {
-        WriteCommandAction.runWriteCommandAction(project, command, null, {
-            // From the end of each document, so an edit never shifts the ranges still to apply.
-            edits.groupBy { it.document }.forEach { (document, documentEdits) ->
-                documentEdits.sortedByDescending { it.range.startOffset }.forEach {
-                    document.replaceString(it.range.startOffset, it.range.endOffset, it.text)
+    /**
+     * Applies [edits] and moves [reviews] in one command. Global, without confirmation, as every
+     * command writing reviews: the review file has no editor, and one Ctrl+Z must take both back.
+     */
+    private fun apply(project: Project, edits: List<Edit>, command: String, reviews: List<ReviewMove>) {
+        WriteCommandAction.writeCommandAction(project)
+            .withName(command)
+            .withGlobalUndo()
+            .withUndoConfirmationPolicy(UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION)
+            .run<RuntimeException> {
+                // From the end of each document, so an edit never shifts the ranges still to apply.
+                edits.groupBy { it.document }.forEach { (document, documentEdits) ->
+                    documentEdits.sortedByDescending { it.range.startOffset }.forEach {
+                        document.replaceString(it.range.startOffset, it.range.endOffset, it.text)
+                    }
+                    PsiDocumentManager.getInstance(project).commitDocument(document)
                 }
-                PsiDocumentManager.getInstance(project).commitDocument(document)
+                ReviewMigration.move(project, reviews)
             }
-        })
     }
 
     // --- Collection (read action) ---
@@ -195,13 +213,20 @@ class RenameI18nKeyHandler : RenameHandler {
         lastSegment: String,
         newSegment: String,
         config: Config,
-    ): List<Edit> {
+    ): Collected {
         val translations = ref.multiResolve(false).mapNotNull { it.element }.toSet()
         val codeEdits = codeUsages(project, ref, translations, lastSegment, config).mapNotNull { literal ->
             renamedLiteral(literal, lastSegment, newSegment, config)
         }
         val translationEdits = translations.mapNotNull { renamedProperty(it, lastSegment, newSegment, config) }
-        return (codeEdits + translationEdits).distinct()
+        // Each translation moves its own review, plural forms included: `item_one` → `product_one`.
+        val reviews = translations.mapNotNull { translation ->
+            ReviewMigration.moveOf(translation) { path ->
+                val renamed = path.lastOrNull()?.let { renamedName(it, lastSegment, newSegment, config) }
+                if (renamed == null) path else path.dropLast(1) + renamed
+            }
+        }
+        return Collected((codeEdits + translationEdits).distinct(), reviews.distinct())
     }
 
     /**
@@ -264,17 +289,19 @@ class RenameI18nKeyHandler : RenameHandler {
         val document = documentOf(nameElement) ?: return null
         val raw = nameElement.text
         val quote = raw.firstOrNull()?.takeIf { it in QUOTES && raw.length > 1 && raw.last() == it }
-        val name = raw.unQuote()
-        val renamed = when {
-            name == lastSegment -> newSegment
-            PluralKey.stripSuffix(name, config.pluralSeparator) == lastSegment -> newSegment + name.removePrefix(lastSegment)
-            else -> return null
-        }
+        val renamed = renamedName(raw.unQuote(), lastSegment, newSegment, config) ?: return null
         val text = if (quote != null) "$quote$renamed$quote" else renamed
         return Edit(document, nameElement.textRange, text)
     }
 
     // --- Helpers ---
+
+    /** The property [name] renamed from [lastSegment] to [newSegment], plural suffix kept, or null when it is not named after it. */
+    private fun renamedName(name: String, lastSegment: String, newSegment: String, config: Config): String? = when {
+        name == lastSegment -> newSegment
+        PluralKey.stripSuffix(name, config.pluralSeparator) == lastSegment -> newSegment + name.removePrefix(lastSegment)
+        else -> null
+    }
 
     /**
      * [key] with its last segment [lastSegment] replaced by [newSegment], or null when the key does
