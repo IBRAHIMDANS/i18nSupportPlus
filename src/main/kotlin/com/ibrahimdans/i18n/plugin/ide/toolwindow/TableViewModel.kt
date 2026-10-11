@@ -9,6 +9,12 @@ import com.ibrahimdans.i18n.plugin.ide.inspection.KeepList
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.review.Review
+import com.ibrahimdans.i18n.plugin.review.ReviewKey
+import com.ibrahimdans.i18n.plugin.review.ReviewLocation
+import com.ibrahimdans.i18n.plugin.review.ReviewStore
+import com.ibrahimdans.i18n.plugin.review.ShownReview
+import com.ibrahimdans.i18n.plugin.review.shown
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
@@ -92,10 +98,59 @@ enum class StatusFilter(private val labelKey: String) {
     ORPHAN("toolwindow.table.status.orphan"),
 
     /** Keys whose value, in a *shown* locale, another key of the same namespace holds too. */
-    DUPLICATE("toolwindow.table.status.duplicate");
+    DUPLICATE("toolwindow.table.status.duplicate"),
+
+    /**
+     * Keys someone has to review in a *shown* locale: marked to review, approved then changed,
+     * or corrected after a change request. Offered only where reviews are on, see [TableReviews].
+     */
+    TO_REVIEW("toolwindow.table.status.to_review"),
+
+    /** Keys whose value, in a *shown* locale, a reviewer asked to correct and nobody has touched since. */
+    CHANGES_REQUESTED("toolwindow.table.status.changes_requested");
 
     /** The text shown in the combo. Never compared against anything. */
     val label: String get() = PluginBundle.message(labelKey)
+
+    /** True for the filters that read reviews, meaningless where reviews are off. */
+    val readsReviews: Boolean get() = this == TO_REVIEW || this == CHANGES_REQUESTED
+}
+
+/**
+ * The reviews of the table's module, by locale, as `.i18n-reviews/<locale>.json` holds them.
+ *
+ * [OFF] where the module has no reviews folder: no cell shows a review, the status combo does not
+ * offer the review filters and the context menu adds nothing — a team that never asked for reviews
+ * sees the table it always had. Pure: the panel reads the store, the filters and the renderer read
+ * this, so both are tested without a project.
+ */
+class TableReviews(
+    private val byLocale: Map<String, Map<ReviewKey, Review>>,
+    /** The namespace a key spelled without one lives in: `Config.defaultNamespaces().first()`. */
+    private val defaultNamespace: String,
+    /** False for [OFF]: reviews are not on for the module. */
+    val enabled: Boolean = true,
+) {
+    /** The review of [key] (spelled as the table spells it) in [locale], or null. */
+    fun reviewOf(key: String, locale: String): Review? =
+        if (!enabled) null else byLocale[locale]?.get(reviewKey(key))
+
+    /** The review file's name for [key], spelled as the table spells it. */
+    fun reviewKey(key: String): ReviewKey = ReviewKey.fromSpelling(key, defaultNamespace)
+
+    /**
+     * What the review of [key] in [locale] means for [raw], the cell's value — an empty cell has no
+     * entry, hence no value anyone reviewed (see [shown]).
+     */
+    fun shownOf(key: String, locale: String, raw: String?): ShownReview =
+        shown(reviewOf(key, locale), raw?.takeIf { it.isNotEmpty() })
+
+    companion object {
+        val OFF = TableReviews(emptyMap(), "", enabled = false)
+
+        /** What the *To review* filter keeps: no approval holds for the value shown, and no request is pending. */
+        val TO_REVIEW_STATES = setOf(ShownReview.TO_REVIEW, ShownReview.CHANGED_SINCE_APPROVAL, ShownReview.FIXED_SINCE_REQUEST)
+    }
 }
 
 /**
@@ -198,11 +253,21 @@ class TableViewModel {
      * at nothing visible. [StatusFilter.ORPHAN] keeps the rows the scan found unused — none
      * before a scan, since "not scanned" is not "unused". [StatusFilter.DUPLICATE] compares the
      * values of one locale and one namespace at a time — one translation file, as the
-     * *Duplicate translation value* inspection does.
+     * *Duplicate translation value* inspection does. [StatusFilter.TO_REVIEW] and
+     * [StatusFilter.CHANGES_REQUESTED] read [reviews] against the value each shown cell holds now:
+     * an approval of an older value reads as *to review*.
      */
-    fun filterByStatus(filter: StatusFilter, rows: List<TranslationRow>, shownLocales: List<String>): List<TranslationRow> {
+    fun filterByStatus(
+        filter: StatusFilter,
+        rows: List<TranslationRow>,
+        shownLocales: List<String>,
+        reviews: TableReviews = TableReviews.OFF,
+    ): List<TranslationRow> {
         fun anyShown(status: ValueStatus) = { row: TranslationRow ->
             shownLocales.any { valueStatus(row.values[it] ?: "") == status }
+        }
+        fun anyReview(states: Set<ShownReview>) = { row: TranslationRow ->
+            shownLocales.any { reviews.shownOf(row.key, it, row.values[it]) in states }
         }
         return when (filter) {
             StatusFilter.ALL -> rows
@@ -213,8 +278,14 @@ class TableViewModel {
                 val duplicated = duplicatedKeys(rows, shownLocales)
                 rows.filter { it.key in duplicated }
             }
+            StatusFilter.TO_REVIEW -> rows.filter(anyReview(TableReviews.TO_REVIEW_STATES))
+            StatusFilter.CHANGES_REQUESTED -> rows.filter(anyReview(setOf(ShownReview.CHANGES_REQUESTED)))
         }
     }
+
+    /** The entries the status combo offers: the review filters only where [reviews] are on. */
+    fun statusFilters(reviews: TableReviews): List<StatusFilter> =
+        StatusFilter.entries.filter { reviews.enabled || !it.readsReviews }
 
     private fun duplicatedKeys(rows: List<TranslationRow>, shownLocales: List<String>): Set<String> {
         val byNamespace = rows.groupBy { namespaceOf(it.key) }.values
@@ -244,8 +315,23 @@ class TableViewModel {
         namespace: NamespaceFilter,
         status: StatusFilter,
         shownLocales: List<String>,
+        reviews: TableReviews = TableReviews.OFF,
     ): List<TranslationRow> =
-        filter(query, filterByStatus(status, filterByNamespace(namespace, rows), shownLocales))
+        filter(query, filterByStatus(status, filterByNamespace(namespace, rows), shownLocales, reviews))
+
+    /**
+     * The reviews of [locales] under [root], or [TableReviews.OFF] when there is no root or it has
+     * no reviews folder. Reads files: off the EDT, or on it for a reload (the store caches them).
+     */
+    fun loadReviews(project: Project, root: VirtualFile?, locales: List<String>, config: Config): TableReviews {
+        if (root == null) return TableReviews.OFF
+        val store = ReviewStore.getInstance(project)
+        if (!store.isEnabled(root)) return TableReviews.OFF
+        return TableReviews(locales.associateWith { store.reviews(root, it) }, config.defaultNamespaces().first())
+    }
+
+    /** Where [moduleConfig]'s reviews folder hangs, see [ReviewLocation.rootOf]. */
+    fun reviewRoot(project: Project, moduleConfig: ModuleConfig?): VirtualFile? = ReviewLocation.rootOf(project, moduleConfig)
 
     // ── Key shape ─────────────────────────────────────────────────────────────
 

@@ -12,6 +12,11 @@ import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.review.ReviewStore
+import com.ibrahimdans.i18n.plugin.review.ShownReview
+import com.ibrahimdans.i18n.plugin.review.ui.ReviewActions
+import com.ibrahimdans.i18n.plugin.review.ui.ReviewCell
+import com.ibrahimdans.i18n.plugin.review.ui.ReviewThreadDialog
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
@@ -19,11 +24,13 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.table.JBTable
+import com.intellij.util.messages.MessageBusConnection
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.event.ActionEvent
@@ -122,6 +129,11 @@ internal fun nextEditableCell(
  * reachable from the tool window toolbar: the panel used to carry its own button in a
  * home-made filter bar, a third grammar of action next to the toolbar above it.
  *
+ * Where the module has a `.i18n-reviews/` folder, each locale cell carries its review — icon and
+ * tooltip, see [ReviewBadge] — the status combo adds *To review* and *Changes requested*, and the
+ * context menu decides on the selected cells, one command whatever their number. The reviews are
+ * read again on [ReviewStore.CHANGED]. Without the folder the table is the one it always was.
+ *
  * When [moduleConfig] is non-null, only translations from that module are shown.
  */
 class TableViewPanel(private val project: Project, private val moduleConfig: ModuleConfig? = null) : JPanel(BorderLayout()) {
@@ -194,6 +206,19 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     private var currentStatus: StatusFilter = StatusFilter.ALL
 
     /**
+     * Where the module's reviews folder hangs, resolved at each load; replaced by tests, whose
+     * project-relative paths are not where a light fixture keeps its files.
+     */
+    internal var resolveReviewRoot: () -> VirtualFile? = { viewModel.reviewRoot(project, moduleConfig) }
+    private var reviewRoot: VirtualFile? = null
+
+    /** The reviews of the loaded locales; [TableReviews.OFF] while the module has no reviews folder. */
+    private var reviews: TableReviews = TableReviews.OFF
+
+    /** Listens to [ReviewStore.CHANGED] while the panel is on screen, see [addNotify]. */
+    private var reviewConnection: MessageBusConnection? = null
+
+    /**
      * Empties the tool window's search field, which owns the query: the field then filters the
      * table back through its usual path. Set by the tool window; a lone panel has no field.
      */
@@ -221,7 +246,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     // Same split as the namespace combo: the entries are StatusFilter values, the renderer alone
     // reads their label. A JComboBox cannot disable one entry, so *Unused* before a scan is drawn
     // disabled with a tooltip saying what to run, and picking it is undone by the listener.
-    private val statusCombo = JComboBox(StatusFilter.entries.toTypedArray()).apply {
+    // The review filters join the entries only where reviews are on: see updateStatusCombo.
+    private val statusCombo = JComboBox(viewModel.statusFilters(TableReviews.OFF).toTypedArray()).apply {
         renderer = object : DefaultListCellRenderer() {
             override fun getListCellRendererComponent(
                 list: JList<*>?, value: Any?, index: Int, selected: Boolean, focused: Boolean
@@ -420,8 +446,13 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         val discovered = viewModel.getLocales(project, moduleConfig)
         locales = discovered
         val namespaces = viewModel.namespaceFilters(rows)
+        val root = resolveReviewRoot()
+        val loadedReviews = viewModel.loadReviews(project, root, discovered, config)
 
         ApplicationManager.getApplication().invokeLater {
+            reviewRoot = root
+            reviews = loadedReviews
+            updateStatusCombo()
             // Merged on the EDT, where the in-place edit and the scan also write allRows:
             // reading it from the pooled thread could merge against a stale list.
             allRows = viewModel.mergeUsages(rows, allRows)
@@ -449,7 +480,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
     private fun applyFilters() {
         val shown = viewModel.visibleLocales(locales, hiddenLocales)
-        val filtered = viewModel.visibleRows(allRows, currentFilter, currentNamespace, currentStatus, shown)
+        val filtered = viewModel.visibleRows(allRows, currentFilter, currentNamespace, currentStatus, shown, reviews)
         val withNamespace = viewModel.showsNamespaceColumn(currentNamespace, viewModel.namespaceFilters(allRows))
         rebuildTable(filtered, shown, withNamespace)
         updateEmptyText()
@@ -496,6 +527,23 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         if (currentFilter.isNotEmpty()) onClearSearch()
     }
 
+    /**
+     * Offers the review filters exactly while reviews are on. A review filter picked before the
+     * folder went away falls back to every key; the combo's listener then re-applies the filters.
+     */
+    private fun updateStatusCombo() {
+        val items = viewModel.statusFilters(reviews)
+        val model = statusCombo.model
+        if ((0 until model.size).map { model.getElementAt(it) } == items) return
+        val selected = currentStatus
+        statusCombo.model = DefaultComboBoxModel(items.toTypedArray())
+        statusCombo.selectedItem = if (selected in items) selected else StatusFilter.ALL
+    }
+
+    /** The status filters the combo offers right now; for the tests. */
+    internal fun statusFilterEntries(): List<StatusFilter> =
+        (0 until statusCombo.model.size).map { statusCombo.model.getElementAt(it) }
+
     private fun updateNamespaceCombo(items: List<NamespaceFilter>) {
         val selected = currentNamespace
         namespaceCombo.model = DefaultComboBoxModel(items.toTypedArray())
@@ -512,7 +560,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
         tableModel.setDataVector(data, columnNames)
 
-        val translationRenderer = TranslationCellRenderer(leadingColumns, locales.size, viewModel)
+        val translationRenderer = TranslationCellRenderer(leadingColumns, locales.size, viewModel, ::cellReview)
         val usageRenderer = UsageCellRenderer(viewModel)
         val usageColIdx = leadingColumns + locales.size
         val widths = viewModel.columnWidths(locales.size, withNamespace)
@@ -581,6 +629,116 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     /** The locale [column] displays, or null when it is a leading or the usage column. */
     private fun localeAt(column: Int): String? = shownLocales.getOrNull(column - leadingColumns)
 
+    // ── Reviews ───────────────────────────────────────────────────────────────
+
+    /** The review of the cell at the view [row] and [column], holding [raw]; none where reviews are off. */
+    private fun cellReview(row: Int, column: Int, raw: String): CellReview {
+        if (!reviews.enabled) return CellReview.NONE
+        val locale = localeAt(column) ?: return CellReview.NONE
+        val key = table.getValueAt(row, keyColumn) as? String ?: return CellReview.NONE
+        val shown = reviews.shownOf(key, locale, raw)
+        return if (shown == ShownReview.NONE) CellReview.NONE else CellReview(shown, reviews.reviewOf(key, locale))
+    }
+
+    /**
+     * The locale cells of the selection holding a value, the cells a review decision applies to.
+     * The selection is a block of rows and columns (cell selection): every locale column of it
+     * counts, the key and usage columns do not.
+     */
+    internal fun selectedReviewCells(): List<ReviewCell> {
+        val columns = table.selectedColumns.filter { localeAt(it) != null }
+        return table.selectedRows.flatMap { row ->
+            val key = table.getValueAt(row, keyColumn) as? String ?: return@flatMap emptyList()
+            columns.mapNotNull { column ->
+                val value = table.getValueAt(row, column) as? String ?: ""
+                if (value.isEmpty()) null else ReviewCell(key, localeAt(column)!!, value)
+            }
+        }
+    }
+
+    /**
+     * *Approve*, *Request Changes…*, *Mark for Review* and *Comments…* on the selected cells, or
+     * nothing at all where reviews are off: the menu of a module that never asked for reviews is
+     * the one it always had. Each decision is one command whatever the number of cells.
+     */
+    internal fun reviewMenuItems(): List<JMenuItem> {
+        val root = reviewRoot?.takeIf { reviews.enabled } ?: return emptyList()
+        val cells = selectedReviewCells()
+        val unavailable = PluginBundle.message("review.action.unavailable")
+        fun item(label: String, enabled: Boolean, tooltip: String = unavailable, run: () -> Unit) = JMenuItem(label).apply {
+            isEnabled = enabled
+            if (!enabled) toolTipText = tooltip
+            addActionListener { run() }
+        }
+        val approveLabel = if (cells.size > 1) PluginBundle.message("review.action.approve.many", cells.size)
+        else PluginBundle.message("review.action.approve")
+        return listOf(
+            item(approveLabel, cells.isNotEmpty()) { reviewed(ReviewActions.approve(project, root, cells), cells) },
+            item(PluginBundle.message("review.action.request.changes"), cells.isNotEmpty()) { requestChanges(root, cells) },
+            item(PluginBundle.message("review.action.mark"), cells.isNotEmpty()) { reviewed(ReviewActions.markToReview(project, root, cells), cells) },
+            item(
+                PluginBundle.message("review.action.comments"), cells.size == 1,
+                PluginBundle.message("review.action.comments.unavailable")
+            ) { ReviewThreadDialog(project, root, cells.single()).show() },
+        )
+    }
+
+    private fun requestChanges(root: VirtualFile, cells: List<ReviewCell>) {
+        val text = Messages.showMultilineInputDialog(
+            project,
+            PluginBundle.message("review.request.changes.prompt"),
+            PluginBundle.message("review.request.changes.title"),
+            "",
+            null,
+            object : InputValidator {
+                override fun checkInput(inputString: String?): Boolean = !inputString.isNullOrBlank()
+                override fun canClose(inputString: String?): Boolean = checkInput(inputString)
+            },
+        ) ?: return
+        reviewed(ReviewActions.requestChanges(project, root, cells, text), cells)
+    }
+
+    /** After a decision: an error when nothing could be written, the reviews read again otherwise. */
+    private fun reviewed(written: Boolean, cells: List<ReviewCell>) {
+        if (!written) {
+            Messages.showErrorDialog(
+                project,
+                PluginBundle.message("review.write.failed", cells.map { it.locale }.distinct().joinToString(", ")),
+                PluginBundle.message("review.write.failed.title")
+            )
+        }
+        reloadReviews()
+    }
+
+    /**
+     * Reads the reviews again — the store caches them — after a decision or a change of a review
+     * file ([ReviewStore.CHANGED]: a `git pull`, another window). Only a review filter needs the
+     * rows filtered again; otherwise a repaint keeps the selection where it is.
+     */
+    internal fun reloadReviews() {
+        if (project.isDisposed) return
+        reviews = viewModel.loadReviews(project, reviewRoot, locales, config)
+        updateStatusCombo()
+        if (currentStatus.readsReviews) applyFilters() else table.repaint()
+    }
+
+    override fun addNotify() {
+        super.addNotify()
+        if (reviewConnection != null) return
+        reviewConnection = project.messageBus.connect().also { connection ->
+            connection.subscribe(ReviewStore.CHANGED, ReviewStore.Listener {
+                // Published from inside the writer's write action: read once it is over.
+                ApplicationManager.getApplication().invokeLater({ reloadReviews() }, project.disposed)
+            })
+        }
+    }
+
+    override fun removeNotify() {
+        reviewConnection?.disconnect()
+        reviewConnection = null
+        super.removeNotify()
+    }
+
     // ── Context menu ──────────────────────────────────────────────────────────
 
     private fun showContextMenu(e: MouseEvent) {
@@ -620,6 +778,11 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             if (orphanKeys.isEmpty()) toolTipText = PluginBundle.message("toolwindow.table.no.action")
             addActionListener { deleteOrphanKeys(orphanKeys) }
         })
+        val reviewItems = reviewMenuItems()
+        if (reviewItems.isNotEmpty()) {
+            menu.addSeparator()
+            reviewItems.forEach(menu::add)
+        }
         fillMenuItem(table.columnAtPoint(e.point))?.let { item ->
             menu.addSeparator()
             menu.add(item)
