@@ -45,7 +45,7 @@ object TranslationEngines {
     private class Entry(
         val id: String?, val name: String?, val url: String?, val headers: Map<String, String>?,
         val body: String?, val responsePath: String?, val unescapeHtml: Boolean?, val local: Boolean?,
-        val batch: BatchEntry?, val languageCodes: String?
+        val batch: BatchEntry?, val languageCodes: String?, val nativeGlossary: String?
     )
 
     private class BatchEntry(val body: String?, val listPath: String?, val itemField: String?, val jsonText: Boolean?, val maxSize: Int?)
@@ -58,7 +58,7 @@ object TranslationEngines {
             EngineConfig(
                 id = it.id.orEmpty(), name = it.name.orEmpty(), url = it.url.orEmpty(), headers = it.headers.orEmpty(),
                 body = it.body.orEmpty(), responsePath = it.responsePath.orEmpty(),
-                unescapeHtml = it.unescapeHtml == true, local = it.local == true,
+                unescapeHtml = it.unescapeHtml == true, local = it.local == true, nativeGlossary = it.nativeGlossary?.takeIf(String::isNotBlank),
                 batch = it.batch?.takeIf { b -> !b.body.isNullOrBlank() && !b.listPath.isNullOrBlank() && (b.maxSize ?: 0) > 1 }?.let { b ->
                     BatchConfig(b.body!!, b.listPath!!, b.itemField.orEmpty(), b.jsonText == true, b.maxSize!!)
                 }

@@ -136,7 +136,7 @@ class TranslationGlossaryTest {
     }
 
     @Test
-    fun `DeepL's request is unchanged by translated terms`() {
+    fun `DeepL's request is unchanged when its glossary cannot be reached`() {
         val plain = Recorder { """{"translations":[{"text":"Votre panier"}]}""" }
         val withGlossary = Recorder { """{"translations":[{"text":"Votre panier"}]}""" }
         val request = TranslationRequest(listOf("Your cart"), "en", "fr")
