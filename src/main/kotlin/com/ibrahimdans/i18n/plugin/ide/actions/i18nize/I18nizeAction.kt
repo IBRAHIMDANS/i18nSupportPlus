@@ -8,6 +8,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.review.ReviewLocation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
@@ -44,7 +45,8 @@ import com.intellij.util.concurrency.AppExecutorUtil
  * 3. When the project has opted in to machine translation and the preview asked for it: the new keys
  *    translated into the other locales of their module, in the background, cancellable, then
  *    previewed the way *Fill Missing Translations* does — a proposal that lost a variable comes
- *    unchecked, and its locale stays empty.
+ *    unchecked, and its locale stays empty; its *Mark written values for review* box marks the
+ *    translations written, never the reference value taken from the code.
  * 4. Off the EDT again: [I18nizeApply.prepare] on what was accepted; then, on the EDT, its write —
  *    one command, one Ctrl+Z — and a notification summing it up.
  *
@@ -112,8 +114,8 @@ class I18nizeAction : AnAction() {
                 val proposals = proposals ?: return
                 if (proposals.isEmpty()) return apply(project, plan)
                 val locales = proposals.map { it.locale }.distinct().joinToString(", ")
-                val dialog = MachineTranslationPreviewDialog(project, locales, proposals)
-                if (dialog.showAndGet()) apply(project, plan, dialog.acceptedByLocale())
+                val dialog = MachineTranslationPreviewDialog(project, locales, proposals, reviewRoots(project, plan))
+                if (dialog.showAndGet()) apply(project, plan, dialog.acceptedByLocale(), dialog.reviewOrigins())
             }
         })
     }
@@ -215,6 +217,12 @@ class I18nizeAction : AnAction() {
             return items.mapValues { it.value.values.toList() }.filterValues { it.isNotEmpty() }
         }
 
+        /** The roots the reviews of [plan]'s modules live under, see [ReviewLocation]. */
+        private fun reviewRoots(project: Project, plan: I18nizePlan): List<VirtualFile> {
+            val config = Settings.getInstance(project).config()
+            return plan.files.map { moduleOf(project, config, it.file) }.distinct().mapNotNull { ReviewLocation.rootOf(project, it) }.distinct()
+        }
+
         /** [items] translated by [provider], locale pair after locale pair; null when the user cancelled. */
         fun translate(items: Map<Pair<String, String>, List<MachineFill.Item>>, provider: TranslationProvider, indicator: ProgressIndicator?): List<MachineFill.Proposal>? =
             items.flatMap { (pair, list) ->
@@ -224,15 +232,19 @@ class I18nizeAction : AnAction() {
 
         /**
          * Writes [plan], prepared off the EDT, with [translations] — locale → key → value — in the
-         * other locales, then sums up what was written.
+         * other locales, marked to review with [reviewOrigins] (locale → key → origin) when given,
+         * then sums up what was written.
          */
-        private fun apply(project: Project, plan: I18nizePlan, translations: Map<String, Map<String, String>> = emptyMap()) {
+        private fun apply(
+            project: Project, plan: I18nizePlan, translations: Map<String, Map<String, String>> = emptyMap(),
+            reviewOrigins: Map<String, Map<String, String>>? = null
+        ) {
             if (plan.files.isEmpty()) return
             ReadAction.nonBlocking<I18nizeApply> { I18nizeApply.prepare(plan, translations) }
                 .inSmartMode(project)
                 .expireWith(project)
                 .finishOnUiThread(ModalityState.nonModal()) { prepared ->
-                    val outcome = prepared.write(PluginBundle.message("action.i18nize.title"))
+                    val outcome = prepared.write(PluginBundle.message("action.i18nize.title"), reviewOrigins)
                     val summary = Summary.of(plan, prepared.skipped, outcome)
                     notify(project, summary.message(), if (summary.skipped > 0) NotificationType.WARNING else NotificationType.INFORMATION)
                 }

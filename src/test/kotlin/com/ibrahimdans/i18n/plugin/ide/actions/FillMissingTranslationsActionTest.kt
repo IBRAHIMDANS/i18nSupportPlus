@@ -4,18 +4,28 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.dialog.MachineTranslationPreviewDialog
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.review.Review
+import com.ibrahimdans.i18n.plugin.review.ReviewHash
+import com.ibrahimdans.i18n.plugin.review.ReviewKey
+import com.ibrahimdans.i18n.plugin.review.ReviewLocation
+import com.ibrahimdans.i18n.plugin.review.ReviewState
+import com.ibrahimdans.i18n.plugin.review.ReviewStore
+import com.ibrahimdans.i18n.plugin.translate.TranslatedBy
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.vfs.VirtualFile
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
+import java.time.Instant
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
@@ -252,5 +262,117 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
             Assertions.assertTrue("save" !in document.text, "one Ctrl+Z undoes $locale too: ${document.text}")
         }
     }
-}
 
+    /** The review store, signing and dating as a test can check. */
+    private fun store(): ReviewStore = ReviewStore.getInstance(project).apply {
+        now = { Instant.parse("2026-10-11T14:02:11Z") }
+        reviewer = { "Alice <alice@example.com>" }
+    }
+
+    /** A module root of the fixture, standing for the one [ReviewLocation.rootOf] resolves. */
+    private fun reviewRoot(): VirtualFile = myFixture.tempDirFixture.findOrCreateDir("app")
+
+    private fun deepL(locale: String, vararg keys: String) = locale to keys.associateWith { Review.machineOrigin("DeepL") }
+
+    @Test
+    fun `checked, the values written are marked to review in the same command, undone with them`() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", """{"title": "Title", "save": "Save", "cancel": "Cancel"}""")
+        val fr = addFileToProject("locales/fr/common.json", """{"title": "Titre", "save": ""}""")
+        myFixture.openFileInEditor(fr.virtualFile)
+        val root = reviewRoot()
+        val store = store()
+
+        MachineFill.write(
+            project, null,
+            mapOf("fr" to mapOf("common:save" to "Enregistrer", "common:cancel" to "Annuler", "common:title" to "Intitulé")),
+            MachineFill.ReviewMarks(root, mapOf(deepL("fr", "common:save", "common:cancel", "common:title")))
+        )
+
+        Assertions.assertTrue(store.isEnabled(root), "checking the box turns reviews on")
+        val reviews = store.reviews(root, "fr")
+        Assertions.assertEquals(
+            setOf(ReviewKey("common", "save"), ReviewKey("common", "cancel")), reviews.keys,
+            "a value already there is not rewritten, so not marked"
+        )
+        val save = reviews.getValue(ReviewKey("common", "save"))
+        Assertions.assertEquals(ReviewState.TO_REVIEW, save.state)
+        Assertions.assertEquals(ReviewHash.of("Enregistrer"), save.hash)
+        Assertions.assertEquals("machine:DeepL", save.origin)
+        Assertions.assertEquals("Alice <alice@example.com>", save.by)
+
+        UndoManager.getInstance(project).undo(FileEditorManager.getInstance(project).selectedEditor!!)
+
+        Assertions.assertFalse("Enregistrer" in myFixture.editor.document.text, myFixture.editor.document.text)
+        Assertions.assertEquals(emptyMap<ReviewKey, Review>(), store.reviews(root, "fr"), "one Ctrl+Z undoes the marks too")
+    }
+
+    @Test
+    fun `unchecked, nothing is created for reviews`() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", """{"save": "Save"}""")
+        val fr = addFileToProject("locales/fr/common.json", "{}")
+        val root = reviewRoot()
+
+        MachineFill.write(project, null, mapOf("fr" to mapOf("common:save" to "Enregistrer")), null)
+
+        Assertions.assertTrue("Enregistrer" in FileDocumentManager.getInstance().getDocument(fr.virtualFile)!!.text)
+        Assertions.assertNull(root.findChild(ReviewLocation.DIRECTORY))
+    }
+
+    @Test
+    fun `several locales in one preview leave one review file per locale`() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", """{"save": "Save"}""")
+        listOf("de", "fr").forEach { addFileToProject("locales/$it/common.json", "{}") }
+        val root = reviewRoot()
+        val store = store()
+
+        MachineFill.write(
+            project, null,
+            mapOf("de" to mapOf("common:save" to "Speichern"), "fr" to mapOf("common:save" to "Enregistrer")),
+            MachineFill.ReviewMarks(root, mapOf(deepL("de", "common:save"), deepL("fr", "common:save")))
+        )
+
+        Assertions.assertEquals(setOf("de.json", "fr.json"), root.findChild(ReviewLocation.DIRECTORY)!!.children.map { it.name }.toSet())
+        Assertions.assertEquals(ReviewHash.of("Speichern"), store.reviews(root, "de").getValue(ReviewKey("common", "save")).hash)
+        Assertions.assertEquals(ReviewHash.of("Enregistrer"), store.reviews(root, "fr").getValue(ReviewKey("common", "save")).hash)
+    }
+
+    @Test
+    fun `the box is checked when the module reviews already, and gives each value its engine`() = myFixture.runWithConfig(config) {
+        val root = reviewRoot()
+        val proposals = listOf(
+            MachineFill.Proposal(MachineFill.Item("common:save", "Save"), Translation.Done("Enregistrer", TranslatedBy("DeepL", false)), "fr"),
+            MachineFill.Proposal(MachineFill.Item("common:cancel", "Cancel"), Translation.Done("Annuler", TranslatedBy("Ollama", true)), "fr"),
+            MachineFill.Proposal(MachineFill.Item("common:quit", "Quit"), Translation.Failed("quota"), "fr"),
+        )
+        fun <T> withDialog(block: (MachineTranslationPreviewDialog) -> T): T {
+            val dialog = MachineTranslationPreviewDialog(project, "fr", proposals, listOf(root))
+            try {
+                return block(dialog)
+            } finally {
+                Disposer.dispose(dialog.disposable)
+            }
+        }
+
+        withDialog { dialog ->
+            Assertions.assertTrue(dialog.markForReview.isVisible)
+            Assertions.assertFalse(dialog.markForReview.isSelected, "reviews off in the module: unchecked")
+            Assertions.assertNull(dialog.reviewOrigins())
+            dialog.markForReview.isSelected = true
+            Assertions.assertEquals(
+                mapOf("fr" to mapOf("common:save" to "machine:DeepL", "common:cancel" to "machine:Ollama")),
+                dialog.reviewOrigins()
+            )
+        }
+
+        WriteCommandAction.runWriteCommandAction(project) { store().enable(root) }
+        withDialog { dialog -> Assertions.assertTrue(dialog.markForReview.isSelected, "reviews on in the module: checked") }
+
+        val noRoot = MachineTranslationPreviewDialog(project, "fr", proposals)
+        try {
+            Assertions.assertFalse(noRoot.markForReview.isVisible)
+            Assertions.assertNull(noRoot.reviewOrigins())
+        } finally {
+            Disposer.dispose(noRoot.disposable)
+        }
+    }
+}
