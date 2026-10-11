@@ -38,7 +38,7 @@ import com.intellij.util.concurrency.AppExecutorUtil
  * *Internationalize…*: every hard-coded text of the selected files and folders, previewed, then
  * written in one command.
  *
- * 1. In the background, cancellable, file by file: the JS/TS files of the selection, their
+ * 1. In the background, cancellable, file by file: the JS/TS and Vue files of the selection, their
  *    [I18nizePlan] and the reference values each module already holds.
  * 2. On the EDT: [I18nizePreviewDialog], where texts are unchecked and keys edited.
  * 3. When the project has opted in to machine translation and the preview asked for it: the new keys
@@ -123,22 +123,22 @@ class I18nizeAction : AnAction() {
 
     internal companion object {
 
-        /** The extensions *Internationalize…* reads texts from — those *Batch Extract* handles. */
-        private val EXTENSIONS = setOf("js", "jsx", "ts", "tsx")
+        /** The extensions *Internationalize…* reads texts from: those *Batch Extract* handles, and Vue components. */
+        private val EXTENSIONS = setOf("js", "jsx", "ts", "tsx", "vue")
 
         private fun selection(e: AnActionEvent): Array<VirtualFile> =
             e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY)
                 ?: e.getData(CommonDataKeys.VIRTUAL_FILE)?.let { arrayOf(it) }
                 ?: emptyArray()
 
-        /** Whether [files] hold something to internationalize: a folder, or a JS/TS file. */
+        /** Whether [files] hold something to internationalize: a folder, or a JS/TS or Vue file. */
         fun isApplicable(files: Array<VirtualFile>): Boolean =
             files.any { it.isDirectory || isSourceFile(it) }
 
         private fun isSourceFile(file: VirtualFile) = !file.isDirectory && file.extension?.lowercase() in EXTENSIONS
 
         /**
-         * The JS/TS files of [selection], folders walked recursively, in path order, without
+         * The JS/TS and Vue files of [selection], folders walked recursively, in path order, without
          * duplicates — excluded, ignored and library files (`node_modules`) left out. Read action.
          */
         fun sourceFiles(project: Project, selection: List<VirtualFile>, indicator: ProgressIndicator): List<VirtualFile> {
