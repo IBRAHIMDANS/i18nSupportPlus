@@ -5,6 +5,13 @@ import com.ibrahimdans.i18n.plugin.ide.actions.MachineFill
 import com.ibrahimdans.i18n.plugin.ide.dialog.MachineTranslationPreviewDialog
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.review.Review
+import com.ibrahimdans.i18n.plugin.review.ReviewHash
+import com.ibrahimdans.i18n.plugin.review.ReviewKey
+import com.ibrahimdans.i18n.plugin.review.ReviewLocation
+import com.ibrahimdans.i18n.plugin.review.ReviewState
+import com.ibrahimdans.i18n.plugin.review.ReviewStore
+import com.ibrahimdans.i18n.plugin.translate.TranslatedBy
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
@@ -50,8 +57,8 @@ class I18nizeTranslateTest : PlatformBaseTest() {
         }
     }
 
-    private fun write(plan: I18nizePlan, translations: Map<String, Map<String, String>>) =
-        ReadAction.compute<I18nizeApply, RuntimeException> { I18nizeApply.prepare(plan, translations) }.write("Internationalize")
+    private fun write(plan: I18nizePlan, translations: Map<String, Map<String, String>>, reviewOrigins: Map<String, Map<String, String>>? = null) =
+        ReadAction.compute<I18nizeApply, RuntimeException> { I18nizeApply.prepare(plan, translations) }.write("Internationalize", reviewOrigins)
 
     private fun textOf(file: PsiFile): String = PsiDocumentManager.getInstance(project).getDocument(file)!!.text
 
@@ -122,5 +129,56 @@ class I18nizeTranslateTest : PlatformBaseTest() {
         val preview = preview(menu())
 
         Assertions.assertEquals(listOf("menu.settings"), itemsOf(preview).values.flatten().map { it.key })
+    }
+
+    @Test
+    fun translatedValuesAreMarkedForReviewInTheirLocalesOnly() = myFixture.runWithConfig(config) {
+        val en = myFixture.addFileToProject("locales/en/common.json", "{}")
+        myFixture.addFileToProject("locales/fr/common.json", "{}")
+        val menu = menu()
+        myFixture.configureFromExistingVirtualFile(menu.virtualFile)
+        val root = ReviewLocation.rootOf(project, null)!!
+        val store = ReviewStore.getInstance(project).apply { reviewer = { "Alice <alice@example.com>" } }
+        val preview = preview(menu)
+        val proposals = I18nizeAction.translate(itemsOf(preview), engine { Translation.Done("[fr] $it", TranslatedBy("DeepL", false)) }, null)!!
+
+        val dialog = MachineTranslationPreviewDialog(project, "fr", proposals, listOf(root))
+        val (accepted, origins) = try {
+            Assertions.assertFalse(dialog.markForReview.isSelected)
+            dialog.markForReview.isSelected = true
+            dialog.acceptedByLocale() to dialog.reviewOrigins()
+        } finally {
+            Disposer.dispose(dialog.disposable)
+        }
+        write(preview.plan, accepted, origins)
+
+        val reviews = store.reviews(root, "fr")
+        Assertions.assertEquals(2, reviews.size, reviews.toString())
+        reviews.forEach { (key, review) ->
+            Assertions.assertEquals("common", key.namespace)
+            Assertions.assertEquals(ReviewState.TO_REVIEW, review.state)
+            Assertions.assertEquals("machine:DeepL", review.origin)
+        }
+        val home = reviews.entries.single { it.key.path.endsWith("home") }
+        Assertions.assertEquals(ReviewHash.of("[fr] Home"), home.value.hash)
+        Assertions.assertEquals(emptyMap<ReviewKey, Review>(), store.reviews(root, "en"), "the reference value, the code's text, is never marked")
+        Assertions.assertNull(root.findFileByRelativePath(ReviewLocation.DIRECTORY + "/en.json"))
+        Assertions.assertTrue("Home" in textOf(en))
+
+        UndoManager.getInstance(project).undo(FileEditorManager.getInstance(project).selectedEditor!!)
+        Assertions.assertEquals(emptyMap<ReviewKey, Review>(), store.reviews(root, "fr"), "one Ctrl+Z undoes the marks too")
+    }
+
+    @Test
+    fun withoutTheBoxNoReviewIsWritten() = myFixture.runWithConfig(config) {
+        myFixture.addFileToProject("locales/en/common.json", "{}")
+        myFixture.addFileToProject("locales/fr/common.json", "{}")
+        val root = ReviewLocation.rootOf(project, null)!!
+        val preview = preview(menu())
+        val proposals = I18nizeAction.translate(itemsOf(preview), engine { Translation.Done("[fr] $it") }, null)!!
+
+        write(preview.plan, accepted(proposals), null)
+
+        Assertions.assertNull(root.findChild(ReviewLocation.DIRECTORY))
     }
 }
