@@ -15,14 +15,30 @@ import com.intellij.psi.PsiFile
  * holding its text in the reference locale when there is one, else a new one named by [KeyNaming].
  * A file without any text is left out.
  *
+ * A string that is code by its place — a hook's namespace, an import, a `className` — is never
+ * planned ([TranslatableText.isNeverProposed]); one that looks like data — a URL, an identifier —
+ * is planned unchecked, with the reason ([Entry.uncheckedReason]).
+ *
  * Reads the file-type index: call it in a read action, in smart mode, off the EDT.
  */
 internal data class I18nizePlan(val files: List<FilePlan>) {
 
     data class FilePlan(val file: PsiFile, val entries: List<Entry>)
 
-    /** [candidate]'s text, to be written under [key] in [namespace]; [reused] when the key exists already. */
-    data class Entry(val candidate: Candidate, val namespace: String, val key: String, val reused: Boolean)
+    /**
+     * [candidate]'s text, to be written under [key] in [namespace]; [reused] when the key exists already.
+     * [uncheckedReason] says why the preview should leave it unchecked; null for a message.
+     */
+    data class Entry(
+        val candidate: Candidate,
+        val namespace: String,
+        val key: String,
+        val reused: Boolean,
+        val uncheckedReason: TranslatableText.Reason? = null
+    ) {
+        /** Whether the preview checks this text at first: only a text reading as a message is. */
+        val checkedByDefault: Boolean get() = uncheckedReason == null
+    }
 
     companion object {
 
@@ -35,7 +51,9 @@ internal data class I18nizePlan(val files: List<FilePlan>) {
             val namings = mutableMapOf<Map<String, String>, KeyNaming>()
 
             return I18nizePlan(files.mapNotNull { file ->
-                val candidates = ExtractionCandidates.withExistingKeys(ExtractionCandidates.collect(file), file)
+                val candidates = ExtractionCandidates.withExistingKeys(
+                    ExtractionCandidates.collect(file).filterNot { TranslatableText.isNeverProposed(it.literal) }, file
+                )
                 if (candidates.isEmpty()) return@mapNotNull null
                 val existing = ExistingKeyFinder.referenceValues(file)
                 val naming = namings.getOrPut(existing) {
@@ -48,7 +66,8 @@ internal data class I18nizePlan(val files: List<FilePlan>) {
                     Entry(
                         candidate, namespace,
                         reused ?: naming.keyFor(namespace, KeyNaming.componentOf(candidate.literal), candidate.originalText),
-                        reused != null
+                        reused != null,
+                        TranslatableText.uncheckedReason(candidate.originalText)
                     )
                 })
             })
