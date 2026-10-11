@@ -5,6 +5,7 @@
 ### Features
 
 - [Export] **Export only the missing translations**: *Export Translations* offers *CSV, Missing Only* — the keys at least one locale lacks or leaves empty, with all their values, the reference included. Hand it to a translator; re-importing it writes only the cells they filled
+- [next-intl] **Server Components keep their namespace**: under `const t = await getTranslations('Home')` — or `getTranslations({ locale, namespace: 'Home' })` — `t('title')` resolves to `Home.title` like under `useTranslations('Home')`: navigation, completion, hints, and no longer reported as an orphan. Without an argument, `t` works in the default namespace
 
 ## 1.9.0 - 2026-10-10
 

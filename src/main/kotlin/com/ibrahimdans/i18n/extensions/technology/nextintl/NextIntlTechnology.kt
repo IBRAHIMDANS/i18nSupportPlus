@@ -4,6 +4,8 @@ import com.ibrahimdans.i18n.extensions.technology.SimpleTechnology
 
 /**
  * next-intl: `const t = useTranslations('Home')`, then `t('title')` for the key `Home.title`.
+ * Server Components get the same `t` from `const t = await getTranslations('Home')` — or
+ * `getTranslations({ locale, namespace: 'Home' })` — and their keys are read the same way.
  *
  * The keys themselves are read by ReactUseTranslationHookExtractor, which every preset allows.
  * What this technology adds is a framework a module can be set to: without it, a next-intl
