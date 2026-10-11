@@ -20,7 +20,9 @@ import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
+import java.awt.BorderLayout
 import javax.swing.JComponent
+import javax.swing.JPanel
 import javax.swing.event.DocumentEvent
 
 /**
@@ -123,8 +125,19 @@ internal class I18nizePreviewModel(
  * box, the text, its key (editable, checked while typed, as in the *Create key* dialog), what the
  * key does (new, reused, holding another value) and the value the reference locale will hold.
  * A file's own check box checks or unchecks all its texts.
+ *
+ * [translatable] — the project has opted in to machine translation — adds a check box, checked, to
+ * translate the new keys into the other locales once *Apply* is pressed.
  */
-internal class I18nizePreviewDialog(project: Project, private val model: I18nizePreviewModel) : DialogWrapper(project) {
+internal class I18nizePreviewDialog(
+    project: Project,
+    private val model: I18nizePreviewModel,
+    translatable: Boolean = false
+) : DialogWrapper(project) {
+
+    /** *Translate the other locales*, there only when the project has opted in to machine translation. */
+    internal val translateBox: JBCheckBox? =
+        if (translatable) JBCheckBox(PluginBundle.message("action.i18nize.preview.translate"), true) else null
 
     private val fields = mutableMapOf<I18nizePreviewModel.Row, JBTextField>()
     private val statuses = mutableMapOf<I18nizePreviewModel.Row, JBLabel>()
@@ -143,6 +156,9 @@ internal class I18nizePreviewDialog(project: Project, private val model: I18nize
 
     /** The plan as accepted, once the dialog closed with *Apply*. */
     fun accepted(): I18nizePlan = model.accepted()
+
+    /** Whether the new keys are to be machine-translated into the other locales. */
+    fun translateOthers(): Boolean = translateBox?.isSelected == true
 
     override fun createCenterPanel(): JComponent {
         val content = panel {
@@ -163,9 +179,14 @@ internal class I18nizePreviewDialog(project: Project, private val model: I18nize
                 }.expanded = model.files.size <= EXPANDED_FILES
             }
         }
-        return JBScrollPane(content).apply {
+        val scroll = JBScrollPane(content).apply {
             border = JBUI.Borders.empty()
             preferredSize = JBUI.size(WIDTH, HEIGHT)
+        }
+        val translate = translateBox ?: return scroll
+        return JPanel(BorderLayout(0, JBUI.scale(6))).apply {
+            add(scroll, BorderLayout.CENTER)
+            add(translate, BorderLayout.SOUTH)
         }
     }
 

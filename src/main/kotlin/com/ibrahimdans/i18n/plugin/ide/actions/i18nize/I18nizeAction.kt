@@ -1,9 +1,17 @@
 package com.ibrahimdans.i18n.plugin.ide.actions.i18nize
 
 import com.ibrahimdans.i18n.plugin.ide.actions.ExistingKeyFinder
+import com.ibrahimdans.i18n.plugin.ide.actions.FillMissingTranslationsAction
+import com.ibrahimdans.i18n.plugin.ide.actions.MachineFill
+import com.ibrahimdans.i18n.plugin.ide.dialog.MachineTranslationPreviewDialog
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -33,7 +41,11 @@ import com.intellij.util.concurrency.AppExecutorUtil
  * 1. In the background, cancellable, file by file: the JS/TS files of the selection, their
  *    [I18nizePlan] and the reference values each module already holds.
  * 2. On the EDT: [I18nizePreviewDialog], where texts are unchecked and keys edited.
- * 3. Off the EDT again: [I18nizeApply.prepare] on what was accepted; then, on the EDT, its write —
+ * 3. When the project has opted in to machine translation and the preview asked for it: the new keys
+ *    translated into the other locales of their module, in the background, cancellable, then
+ *    previewed the way *Fill Missing Translations* does — a proposal that lost a variable comes
+ *    unchecked, and its locale stays empty.
+ * 4. Off the EDT again: [I18nizeApply.prepare] on what was accepted; then, on the EDT, its write —
  *    one command, one Ctrl+Z — and a notification summing it up.
  *
  * Nothing is written before the dialog is accepted: cancelling the computation leaves the project as it was.
@@ -67,8 +79,41 @@ class I18nizeAction : AnAction() {
                     notify(project, PluginBundle.message("action.i18nize.nothing"), NotificationType.INFORMATION)
                     return
                 }
-                val dialog = I18nizePreviewDialog(project, I18nizePreviewModel(preview.plan, preview.existing, Settings.getInstance(project).config()))
-                if (dialog.showAndGet()) apply(project, dialog.accepted())
+                val provider = FillMissingTranslationsAction.machineTranslator(project)
+                val model = I18nizePreviewModel(preview.plan, preview.existing, Settings.getInstance(project).config())
+                val dialog = I18nizePreviewDialog(project, model, translatable = provider != null)
+                if (!dialog.showAndGet()) return
+                val plan = dialog.accepted()
+                if (provider != null && dialog.translateOthers()) translateThenApply(project, plan, preview.existing, provider)
+                else apply(project, plan)
+            }
+        })
+    }
+
+    /**
+     * [plan]'s new keys translated in the background, previewed, then written with the reference
+     * values in the same command. Cancelling the translation or its preview writes nothing.
+     */
+    private fun translateThenApply(project: Project, plan: I18nizePlan, existing: Map<PsiFile, Map<String, String>>, provider: TranslationProvider) {
+        val title = PluginBundle.message("action.i18nize.title")
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, title, true) {
+            private var proposals: List<MachineFill.Proposal>? = null
+
+            override fun run(indicator: ProgressIndicator) {
+                indicator.text = PluginBundle.message("action.i18nize.progress.existing")
+                val items = ReadAction.nonBlocking<Map<Pair<String, String>, List<MachineFill.Item>>> { translationItems(project, plan, existing) }
+                    .inSmartMode(project)
+                    .wrapProgress(indicator)
+                    .executeSynchronously()
+                proposals = translate(items, provider, indicator)
+            }
+
+            override fun onSuccess() {
+                val proposals = proposals ?: return
+                if (proposals.isEmpty()) return apply(project, plan)
+                val locales = proposals.map { it.locale }.distinct().joinToString(", ")
+                val dialog = MachineTranslationPreviewDialog(project, locales, proposals)
+                if (dialog.showAndGet()) apply(project, plan, dialog.acceptedByLocale())
             }
         })
     }
@@ -138,18 +183,52 @@ class I18nizeAction : AnAction() {
             val byModule = mutableMapOf<Any, Map<String, String>>()
             return plan.files.associate { filePlan ->
                 val file = filePlan.file
-                val module = file.virtualFile?.takeIf { config.modules.isNotEmpty() }
-                    ?.let { ModuleSources.owner(config.modules, ModuleSources.FilePath.of(it, project.basePath ?: "")) }
-                file to byModule.getOrPut(module ?: NO_MODULE) { ExistingKeyFinder.referenceValues(file) }
+                file to byModule.getOrPut(moduleOf(project, config, file) ?: NO_MODULE) { ExistingKeyFinder.referenceValues(file) }
             }
         }
 
+        private fun moduleOf(project: Project, config: Config, file: PsiFile): ModuleConfig? =
+            file.virtualFile?.takeIf { config.modules.isNotEmpty() }
+                ?.let { ModuleSources.owner(config.modules, ModuleSources.FilePath.of(it, project.basePath ?: "")) }
+
         private val NO_MODULE = Any()
 
-        /** Writes [plan], prepared off the EDT, then sums up what was written. */
-        private fun apply(project: Project, plan: I18nizePlan) {
+        /**
+         * What to send to the engine for [plan], per reference → target locale pair: each key it
+         * creates — neither reused nor already in the reference locale ([existing]) — with its text,
+         * for every other locale its file's module holds. Read action, smart mode, off the EDT.
+         */
+        fun translationItems(project: Project, plan: I18nizePlan, existing: Map<PsiFile, Map<String, String>>): Map<Pair<String, String>, List<MachineFill.Item>> {
+            val config = Settings.getInstance(project).config()
+            val localesByModule = mutableMapOf<Any, List<String>>()
+            val items = linkedMapOf<Pair<String, String>, LinkedHashMap<String, MachineFill.Item>>()
+            plan.files.forEach { filePlan ->
+                val module = moduleOf(project, config, filePlan.file)
+                val locales = localesByModule.getOrPut(module ?: NO_MODULE) { TranslationDataLoader.discoverLocales(project, module) }
+                val source = ReferenceLocale.of(module, config, locales) ?: return@forEach
+                val created = filePlan.entries.filter { !it.reused && existing[filePlan.file]?.containsKey(it.key) != true }
+                locales.filter { it != source }.forEach { target ->
+                    val pair = items.getOrPut(source to target) { linkedMapOf() }
+                    created.forEach { pair.putIfAbsent(it.key, MachineFill.Item(it.key, it.candidate.originalText)) }
+                }
+            }
+            return items.mapValues { it.value.values.toList() }.filterValues { it.isNotEmpty() }
+        }
+
+        /** [items] translated by [provider], locale pair after locale pair; null when the user cancelled. */
+        fun translate(items: Map<Pair<String, String>, List<MachineFill.Item>>, provider: TranslationProvider, indicator: ProgressIndicator?): List<MachineFill.Proposal>? =
+            items.flatMap { (pair, list) ->
+                indicator?.text = PluginBundle.message("action.fill.progress.locale", pair.second)
+                MachineFill.translate(list, provider, pair.first, pair.second, indicator) ?: return null
+            }
+
+        /**
+         * Writes [plan], prepared off the EDT, with [translations] — locale → key → value — in the
+         * other locales, then sums up what was written.
+         */
+        private fun apply(project: Project, plan: I18nizePlan, translations: Map<String, Map<String, String>> = emptyMap()) {
             if (plan.files.isEmpty()) return
-            ReadAction.nonBlocking<I18nizeApply> { I18nizeApply.prepare(plan) }
+            ReadAction.nonBlocking<I18nizeApply> { I18nizeApply.prepare(plan, translations) }
                 .inSmartMode(project)
                 .expireWith(project)
                 .finishOnUiThread(ModalityState.nonModal()) { prepared ->
