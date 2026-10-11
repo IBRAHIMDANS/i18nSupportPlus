@@ -26,7 +26,8 @@ import java.nio.charset.StandardCharsets
  * Exports the project's translations so they can be handed to a translator and re-imported with
  * [ImportTranslationsAction]: as one CSV file (column "key" + one column per locale), or as XLIFF
  * 1.2 — the format CAT tools read — one `translations.<locale>.xlf` per target locale, written in
- * a folder, each pairing the reference locale's value with the target's.
+ * a folder, each pairing the reference locale's value with the target's. *CSV, missing only* keeps
+ * the keys a translator still has to fill: re-importing it writes only the cells they filled.
  */
 class ExportTranslationsAction : AnAction() {
 
@@ -44,17 +45,22 @@ class ExportTranslationsAction : AnAction() {
             project,
             PluginBundle.message("action.export.format.prompt"),
             PluginBundle.message("action.export.title"),
-            arrayOf(PluginBundle.message("action.export.format.csv"), PluginBundle.message("action.export.format.xliff")),
+            arrayOf(
+                PluginBundle.message("action.export.format.csv"),
+                PluginBundle.message("action.export.format.csv.missing"),
+                PluginBundle.message("action.export.format.xliff")
+            ),
             0,
             null
         )
         when (format) {
-            0 -> exportCsv(project, scope)
-            1 -> exportXliff(project, scope)
+            0 -> exportCsv(project, scope, missingOnly = false)
+            1 -> exportCsv(project, scope, missingOnly = true)
+            2 -> exportXliff(project, scope)
         }
     }
 
-    private fun exportCsv(project: Project, scope: ModuleScope) {
+    private fun exportCsv(project: Project, scope: ModuleScope, missingOnly: Boolean) {
         val descriptor = FileSaverDescriptor(
             PluginBundle.message("action.export.chooser.title"),
             PluginBundle.message("action.export.chooser.description"),
@@ -62,13 +68,18 @@ class ExportTranslationsAction : AnAction() {
         )
         val wrapper = FileChooserFactory.getInstance()
             .createSaveFileDialog(descriptor, project)
-            .save(null as com.intellij.openapi.vfs.VirtualFile?, "translations.csv") ?: return
+            .save(null as com.intellij.openapi.vfs.VirtualFile?, if (missingOnly) "translations-missing.csv" else "translations.csv")
+            ?: return
         val target = wrapper.file
 
         runExport(project) { indicator ->
             indicator.text = PluginBundle.message("action.export.progress.collecting")
-            val translations = TranslationDataLoader.loadAllTranslations(project, scope.config)
-            val locales = translations.values.flatMap { it.keys }.distinct().sorted()
+            val all = TranslationDataLoader.loadAllTranslations(project, scope.config)
+            val locales = all.values.flatMap { it.keys }.distinct().sorted()
+            val translations = if (missingOnly) incomplete(locales, all) else all
+            if (missingOnly && translations.isEmpty()) {
+                return@runExport PluginBundle.message("action.export.missing.nothing")
+            }
 
             indicator.text = PluginBundle.message("action.export.progress.writing", translations.size)
             target.writeText(CsvTranslationCodec.encode(locales, translations), StandardCharsets.UTF_8)
@@ -115,5 +126,11 @@ class ExportTranslationsAction : AnAction() {
                 }
             }
         })
+    }
+
+    companion object {
+        /** The keys at least one of [locales] lacks or leaves empty — what is left to translate. */
+        fun incomplete(locales: List<String>, translations: Map<String, Map<String, String>>): Map<String, Map<String, String>> =
+            translations.filterValues { values -> locales.any { values[it].isNullOrEmpty() } }
     }
 }
