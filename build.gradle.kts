@@ -14,7 +14,7 @@ val effectivePlatformVersion: String
         ?: properties("platformVersion").get()
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "2.4.20"
+    id("org.jetbrains.kotlin.jvm") version "2.4.21"
     id("org.jetbrains.intellij.platform") version "2.19.0"
     id("org.jetbrains.changelog") version "2.5.0"
     id("org.gradle.test-retry") version "1.6.6"
