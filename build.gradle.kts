@@ -336,6 +336,14 @@ tasks {
             maxRetries = if (providers.environmentVariable("CI").isPresent) 1 else 0
             failOnPassedAfterRetry = false
         }
+
+        // The platform's class loaders define plugin classes without a code source, and JaCoCo
+        // skips such classes by default: the report then shows 0 % on every file. jdk.internal
+        // stays out, instrumenting it breaks the JVM.
+        extensions.configure<JacocoTaskExtension> {
+            isIncludeNoLocationClasses = true
+            excludes = listOf("jdk.internal.*")
+        }
     }
 
     named("prepareTestSandbox") {
