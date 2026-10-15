@@ -41,6 +41,8 @@ dependencies {
         bundledPlugin("org.jetbrains.plugins.vue")
         // Git: Compare Translations with Branch, declared in gitConfig.xml only
         bundledPlugin("Git4Idea")
+        // MCP server: the translation tools for AI agents, declared in mcpConfig.xml only
+        bundledPlugin("com.intellij.mcpServer")
         // GNU GetText support — available from build 251.x onwards
         plugin("org.jetbrains.plugins.localization:253.28294.218")
         // Svelte is not bundled in IntelliJ Ultimate; without it a .svelte file is PLAIN_TEXT,
