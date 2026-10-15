@@ -250,7 +250,16 @@ On IntelliJ-based IDEs 2025.3 and later, the plugin adds three tools to the IDE'
   ```bash
   claude mcp add --transport http jetbrains http://127.0.0.1:64342/stream
   ```
-- **Codex CLI, Cursor, VS Code, Claude Desktop**: click **Auto-configure** next to the client in the MCP Server page.
+- **Codex CLI**: click **Auto-configure** next to *Codex*, or run:
+  ```bash
+  codex mcp add jetbrains --url http://127.0.0.1:64342/stream
+  ```
+  which writes to `~/.codex/config.toml`:
+  ```toml
+  [mcp_servers.jetbrains]
+  url = "http://127.0.0.1:64342/stream"
+  ```
+- **Cursor, VS Code, Claude Desktop**: click **Auto-configure** next to the client in the MCP Server page.
 - **Any other MCP client**: **Copy HTTP Stream Config** (or *SSE* / *STDIO*, whichever it supports) in the MCP Server page and paste it in the client's configuration.
 
 Restart a client that was already running: it reads the list of tools when it connects.
