@@ -88,6 +88,10 @@ enum class Mode { CREATE, EDIT }
  * In CREATE mode a Namespace combo is displayed below the Key field; changing it refreshes the
  * source list to show only matching files.
  *
+ * With machine translation on, *Translate Empty Locales* fills the empty locales and each locale's
+ * *Translate* link replaces its own value. An *Instruction* field, shown when an engine's prompt reads
+ * one, says what to ask of the translations (a tone, a length).
+ *
  * In a module that keeps reviews (its `.i18n-reviews/` folder exists), an EDIT dialog shows under
  * each locale what its review says of the stored value, with a *Review…* link to its thread. A locale
  * *Translate* filled and validated as proposed is marked *to review* in the command of OK; one
@@ -155,6 +159,16 @@ class TranslationDialog(
         addActionListener { translateEmptyLocales() }
     }
 
+    /**
+     * What the user asks of the translations (a tone, a length); shown only when an engine of the
+     * project reads it, so that a DeepL-only project is not offered a field that changes nothing.
+     */
+    private val instructionField = JBTextField().apply {
+        name = "dialog.translation.instruction"
+        emptyText.text = PluginBundle.message("dialog.translation.instruction.empty")
+        isVisible = translateButton.isVisible && machineReadsInstruction(project)
+    }
+
     /** Why the last machine translation left a locale empty, one line per locale. */
     private val translateStatus = JBLabel().apply { foreground = JBColor.RED }
 
@@ -207,6 +221,10 @@ class TranslationDialog(
             row {
                 cell(sourcesHost).align(Align.FILL)
             }.resizableRow()
+
+            row(PluginBundle.message("dialog.translation.instruction.label")) {
+                cell(instructionField).align(AlignX.FILL).comment(PluginBundle.message("dialog.translation.instruction.comment"))
+            }.visible(instructionField.isVisible)
 
             row {
                 copyButton = button(PluginBundle.message("dialog.translation.copy.button")) {
@@ -556,13 +574,14 @@ class TranslationDialog(
         }
         // Read by the engine, not by the user: English whatever the IDE language.
         val context = "A UI string of an application, under the i18n key ${keyField.text}"
+        val instruction = instructionField.text.trim().takeIf { instructionField.isVisible }.orEmpty()
         val results = ProgressManager.getInstance().runProcessWithProgressSynchronously<List<Translation>, RuntimeException>(
             {
                 val indicator = ProgressManager.getInstance().progressIndicator
                 requests.map { (locale, _, text) ->
                     indicator?.checkCanceled()
                     indicator?.text = PluginBundle.message("dialog.translation.translate.progress", locale)
-                    provider.translate(TranslationRequest(listOf(text), source.first, locale, context), indicator).single()
+                    provider.translate(TranslationRequest(listOf(text), source.first, locale, context, instruction), indicator).single()
                 }
             },
             PluginBundle.message("dialog.translation.translate.button"),
@@ -746,6 +765,12 @@ class TranslationDialog(
 
     internal val translateMessage: String get() = translateStatus.text
 
+    internal val instructionVisible: Boolean get() = instructionField.isVisible
+
+    internal fun setInstruction(text: String) {
+        instructionField.text = text
+    }
+
     /** The review state shown under [locale], or null when it shows none — nor a *Review…* link. */
     internal fun reviewStateOf(locale: String): String? =
         reviewBadges.entries.firstOrNull { it.key.localeLabel() == locale }?.value?.text
@@ -759,6 +784,9 @@ class TranslationDialog(
          * a scripted engine: nothing here reaches the network.
          */
         internal var machineTranslator: (Project) -> TranslationProvider? = { MachineTranslationSettings.getInstance(it).provider() }
+
+        /** Whether an engine of the project reads the dialog's instruction; swapped by a test like [machineTranslator]. */
+        internal var machineReadsInstruction: (Project) -> Boolean = { MachineTranslationSettings.getInstance(it).readsInstruction() }
 
         /**
          * The directory a module's reviews hang under, null when it keeps none. A test points it at

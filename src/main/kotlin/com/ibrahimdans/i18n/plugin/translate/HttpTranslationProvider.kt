@@ -22,7 +22,8 @@ import java.security.MessageDigest
  * translation read at [responsePath] (`choices[0].message.content`).
  *
  * [url], [headers] and [body] take placeholders: `{text}`, `{source}`, `{target}`, `{context}`,
- * `{glossary}` (the [glossary] terms of the target locale, as a sentence of an LLM prompt) and `{apiKey}`. They are replaced by JSON-escaped content *without* quotes, so the template writes the
+ * `{glossary}` (the [glossary] terms of the target locale, as a sentence of an LLM prompt), `{instruction}`
+ * (the user's [TranslationRequest.instruction], a sentence of an LLM prompt too — see [instructionPrompt]) and `{apiKey}`. They are replaced by JSON-escaped content *without* quotes, so the template writes the
  * quotes itself and a placeholder can sit inside a sentence — an LLM prompt. [unescapeHtml] decodes
  * the entities an engine asked for HTML output returns (`&#39;`, `&amp;`).
  */
@@ -271,6 +272,7 @@ class HttpTranslationProvider(
         "target" to request.target,
         "context" to request.context,
         "glossary" to engine.glossary.prompt(request.target),
+        "instruction" to instructionPrompt(request.instruction),
         "apiKey" to apiKey
     )
 
@@ -336,9 +338,16 @@ class HttpTranslationProvider(
     private fun failed(key: String, vararg params: Any) = Translation.Failed(PluginBundle.message(key, *params))
 
     companion object {
-        private val PLACEHOLDER = Regex("""\{(text|source|target|context|glossary|apiKey)}""")
+        private val PLACEHOLDER = Regex("""\{(text|source|target|context|glossary|instruction|apiKey)}""")
         private val FENCE = Regex("""^\s*```\w*\s*|\s*```\s*$""")
         private val PATH_PART = Regex("""([^.\[\]]+)|\[(\d+)]""")
+
+        /**
+         * What `{instruction}` becomes: [instruction] as a sentence opening with a space, to follow the
+         * prompt's last one — empty for a blank one, leaving the request as it was.
+         */
+        fun instructionPrompt(instruction: String): String =
+            instruction.trim().trimEnd('.').takeIf { it.isNotEmpty() }?.let { " Also follow this instruction from the user: $it." }.orEmpty()
 
         internal fun fill(template: String, values: Map<String, String>, encode: (String) -> String): String =
             PLACEHOLDER.replace(template) { match -> values[match.groupValues[1]]?.let(encode) ?: match.value }

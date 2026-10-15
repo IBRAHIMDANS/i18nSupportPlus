@@ -6,6 +6,8 @@
 
 - [Translation] **Translate a locale again from the translation dialog**: with machine translation on, each locale of the *Edit Translation* dialog has a *Translate* link that replaces its value — filled or not — with the machine translation of the reference locale (of another locale when it is the reference itself). *Translate Empty Locales* still never touches a value already there. Nothing is written before *OK*, *Cancel* keeps the stored values, and a proposal kept as is is marked *to review* like the button's
 
+- [Translation] **Tell the AI how to translate, from the translation dialog**: an *Instruction* field — "formal tone", "under 20 characters" — goes with every translation the dialog asks for, from *Translate Empty Locales* and from each locale's *Translate* link. Only an LLM reads it: the field shows when an engine's prompt holds the new `{instruction}` placeholder, which the OpenAI-compatible preset now does, and not for a project translating with DeepL, Google or LibreTranslate alone. An engine saved with the preset's former prompt sends today's, and a request without an instruction is the same as before
+
 ## 1.10.1 - 2026-10-15
 
 ### Features

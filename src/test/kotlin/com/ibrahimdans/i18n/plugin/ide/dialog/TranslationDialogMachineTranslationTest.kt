@@ -24,6 +24,7 @@ class TranslationDialogMachineTranslationTest : PlatformBaseTest() {
 
     private val config = Config(defaultNs = "translation")
     private val original = TranslationDialog.machineTranslator
+    private val originalReadsInstruction = TranslationDialog.machineReadsInstruction
 
     /** The requests the scripted engine received. */
     private val requests = mutableListOf<TranslationRequest>()
@@ -38,6 +39,7 @@ class TranslationDialogMachineTranslationTest : PlatformBaseTest() {
     @AfterEach
     fun restore() {
         TranslationDialog.machineTranslator = original
+        TranslationDialog.machineReadsInstruction = originalReadsInstruction
     }
 
     private fun seed() {
@@ -145,6 +147,32 @@ class TranslationDialogMachineTranslationTest : PlatformBaseTest() {
             Assertions.assertTrue("No other locale" in dialog.translateMessage, dialog.translateMessage)
         }
         Assertions.assertTrue(requests.isEmpty())
+    }
+
+    @Test
+    fun `the instruction is offered when an engine reads it, and goes with every request`() = myFixture.runWithConfig(config) {
+        seed()
+        TranslationDialog.machineTranslator = { engine { Translation.Done("x") } }
+        TranslationDialog.machineReadsInstruction = { false }
+        withDialog { Assertions.assertFalse(it.instructionVisible, "no engine reads it: DeepL alone") }
+
+        TranslationDialog.machineReadsInstruction = { true }
+        withDialog { dialog ->
+            Assertions.assertTrue(dialog.instructionVisible)
+            dialog.setInstruction("  formal tone ")
+            dialog.translateEmptyLocales()
+            dialog.translateLocale("de")
+        }
+        Assertions.assertEquals(listOf("fr", "es", "de"), requests.map { it.target })
+        Assertions.assertTrue(requests.all { it.instruction == "formal tone" }, "$requests")
+    }
+
+    @Test
+    fun `the instruction is never offered without machine translation`() = myFixture.runWithConfig(config) {
+        seed()
+        TranslationDialog.machineTranslator = { null }
+        TranslationDialog.machineReadsInstruction = { true }
+        withDialog { Assertions.assertFalse(it.instructionVisible) }
     }
 
     @Test
