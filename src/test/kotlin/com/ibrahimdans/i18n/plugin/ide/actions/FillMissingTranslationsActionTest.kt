@@ -246,8 +246,9 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `a retranslation shows the value it replaces, and always marks what it writes`() = myFixture.runWithConfig(config) {
+    fun `a retranslation shows the value it replaces, and always marks what it writes where reviews are on`() = myFixture.runWithConfig(config) {
         val root = reviewRoot()
+        WriteCommandAction.runWriteCommandAction(project) { store().enable(root) }
         val proposals = listOf(
             MachineFill.Proposal(MachineFill.Item("common:save", "Save all", current = "Enregistrer"), Translation.Done("Tout enregistrer"), "fr")
         )
@@ -263,6 +264,23 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
             Disposer.dispose(dialog.disposable)
         }
         Assertions.assertEquals(mapOf("fr" to mapOf("common:save" to "Enregistrer")), MachineFill.replacedOf(proposals))
+    }
+
+    /** The lagging locales of a module without reviews: nothing records a source there, nothing to lock. */
+    @Test
+    fun `a retranslation where reviews are off leaves the box unchecked and free`() = myFixture.runWithConfig(config) {
+        val proposals = listOf(
+            MachineFill.Proposal(MachineFill.Item("common:save", "Save all", current = "Enregistrer"), Translation.Done("Tout enregistrer"), "fr")
+        )
+        val dialog = MachineTranslationPreviewDialog(project, "fr", proposals, listOf(reviewRoot()))
+        try {
+            Assertions.assertTrue(dialog.markForReview.isVisible)
+            Assertions.assertFalse(dialog.markForReview.isSelected, "not checked: nothing is marked by default")
+            Assertions.assertTrue(dialog.markForReview.isEnabled, "not locked: checking it turns reviews on, as for a fill")
+            Assertions.assertNull(dialog.reviewOrigins())
+        } finally {
+            Disposer.dispose(dialog.disposable)
+        }
     }
 
     @Test
