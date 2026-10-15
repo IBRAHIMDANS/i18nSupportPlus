@@ -801,9 +801,11 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             menu.addSeparator()
             reviewItems.forEach(menu::add)
         }
-        fillMenuItem(table.columnAtPoint(e.point))?.let { item ->
+        val column = table.columnAtPoint(e.point)
+        val machineItems = listOfNotNull(fillMenuItem(column), retranslateMenuItem(column))
+        if (machineItems.isNotEmpty()) {
             menu.addSeparator()
-            menu.add(item)
+            machineItems.forEach(menu::add)
         }
         menu.show(e.component, e.x, e.y)
     }
@@ -822,6 +824,25 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         return JMenuItem(PluginBundle.message("toolwindow.table.fill.missing", target)).apply {
             name = "toolwindow.table.fill.missing"
             addActionListener { MachineFill.run(project, moduleConfig, source, target, provider, onWritten = ::refresh) }
+        }
+    }
+
+    /**
+     * *Retranslate Stale in <locale>…* on a locale column where reviews are on and the project opted
+     * in to machine translation: the cells of the column shown as *Source changed*, translated again
+     * ([MachineFill.retranslate]). Disabled while the column has none; null on another column, on the
+     * reference locale, without reviews or without opt-in.
+     */
+    internal fun retranslateMenuItem(column: Int): JMenuItem? {
+        val target = localeAt(column) ?: return null
+        val source = reviews.referenceLocale?.takeIf { reviews.enabled && it != target } ?: return null
+        val provider = FillMissingTranslationsAction.machineTranslator(project) ?: return null
+        val stale = allRows.count { reviews.shownOf(it, target) == ShownReview.SOURCE_CHANGED }
+        return JMenuItem(PluginBundle.message("toolwindow.table.retranslate.stale", target)).apply {
+            name = "toolwindow.table.retranslate.stale"
+            isEnabled = stale > 0
+            if (stale == 0) toolTipText = PluginBundle.message("toolwindow.table.retranslate.none", target)
+            addActionListener { MachineFill.retranslate(project, moduleConfig, source, listOf(target), provider, onWritten = ::refresh) }
         }
     }
 

@@ -367,6 +367,8 @@
                     class="com.ibrahimdans.i18n.plugin.ide.actions.GeneratePseudoLocaleAction"/>
             <action id="com.ibrahimdans.i18n.FillMissingTranslations"
                     class="com.ibrahimdans.i18n.plugin.ide.actions.FillMissingTranslationsAction"/>
+            <action id="com.ibrahimdans.i18n.RetranslateStale"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.RetranslateStaleAction"/>
         </group>
         <action id="com.ibrahimdans.i18n.ToggleFolding"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.ToggleFoldingAction"

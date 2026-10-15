@@ -88,6 +88,36 @@ class SortI18nKeysActionTest : PlatformBaseTest() {
         assertEquals("beta", (obj.findProperty("b")!!.value as com.intellij.json.psi.JsonStringLiteral).value)
     }
 
+    /**
+     * Only the properties that move change: indent, aligned values and one-line objects stay as
+     * written. The whole file used to be reformatted with the IDE's JSON style (2 spaces).
+     */
+    @Test
+    fun testSortMovesPropertiesWithoutReformattingTheFile() {
+        val file = myFixture.configureByText(
+            "en.json",
+            "{\n    \"b\": \"B\",\n    \"a\":   \"A\",\n    \"c\": {\n        \"y\": \"Y\",\n        \"x\": \"X\"\n    },\n" +
+                "    \"d\": { \"k\": \"K\" },\n    \"e\":\t\"E\"\n}"
+        ) as JsonFile
+        WriteCommandAction.runWriteCommandAction(project) {
+            SortI18nKeysAction().sort(file, project)
+        }
+        myFixture.checkResult(
+            "{\n    \"a\":   \"A\",\n    \"b\": \"B\",\n    \"c\": {\n        \"x\": \"X\",\n        \"y\": \"Y\"\n    },\n" +
+                "    \"d\": { \"k\": \"K\" },\n    \"e\":\t\"E\"\n}"
+        )
+    }
+
+    @Test
+    fun testSortOfAnAlreadySortedFileChangesNothing() {
+        val text = "{\n\t\"a\" : \"A\",\n\t\"b\": {\"x\":\"X\",   \"y\": \"Y\"}\n}"
+        val file = myFixture.configureByText("en.json", text) as JsonFile
+        WriteCommandAction.runWriteCommandAction(project) {
+            SortI18nKeysAction().sort(file, project)
+        }
+        myFixture.checkResult(text)
+    }
+
     @Test
     fun testSingleKeyUnchanged() {
         val keys = sortedKeys("""{"only": "1"}""")

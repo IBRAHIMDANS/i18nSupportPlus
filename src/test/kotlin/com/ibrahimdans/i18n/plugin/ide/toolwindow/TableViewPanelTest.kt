@@ -2,6 +2,12 @@ package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.plugin.ide.actions.FillMissingTranslationsAction
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.review.ReviewKey
+import com.ibrahimdans.i18n.plugin.review.ReviewSource
+import com.ibrahimdans.i18n.plugin.review.ReviewState
+import com.ibrahimdans.i18n.plugin.review.ReviewStore
+import com.intellij.openapi.command.WriteCommandAction
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
@@ -273,6 +279,49 @@ class TableViewPanelTest : PlatformBaseTest() {
             assertNull(panel.fillMenuItem(0), "not on the key column")
             assertNull(panel.fillMenuItem(1), "not on the reference locale itself")
             assertNull(panel.fillMenuItem(3), "not on the usage column")
+        } finally {
+            FillMissingTranslationsAction.machineTranslator = original
+        }
+    }
+
+    @Test
+    fun `a locale column offers to retranslate its stale translations only where reviews are on`() {
+        stubTranslations()
+        val original = FillMissingTranslationsAction.machineTranslator
+        try {
+            FillMissingTranslationsAction.machineTranslator = {
+                object : TranslationProvider {
+                    override fun translate(request: TranslationRequest, indicator: ProgressIndicator?) = emptyList<Translation>()
+                }
+            }
+            val root = myFixture.tempDirFixture.findOrCreateDir("app")
+            val withoutReviews = TableViewPanel(project).apply { resolveReviewRoot = { root } }
+            loadedTable(withoutReviews)
+            assertNull(withoutReviews.retranslateMenuItem(2), "no entry without reviews")
+
+            val store = ReviewStore.getInstance(project).apply { reviewer = { "Alice" } }
+            val defaultNs = Settings.getInstance(project).config().defaultNamespaces().first()
+            WriteCommandAction.runWriteCommandAction(project) {
+                store.enable(root)
+                store.decide(root, "fr", ReviewKey(defaultNs, "menu.about"), ReviewState.APPROVED, "À propos", source = ReviewSource.of("en", "About"))
+            }
+            val panel = TableViewPanel(project).apply { resolveReviewRoot = { root } }
+            loadedTable(panel)
+            val upToDate = panel.retranslateMenuItem(2)
+            assertNotNull(upToDate, "fr is a target where reviews are on")
+            assertEquals(PluginBundle.message("toolwindow.table.retranslate.stale", "fr"), upToDate!!.text)
+            assertFalse(upToDate.isEnabled, "nothing stale in fr yet")
+
+            WriteCommandAction.runWriteCommandAction(project) {
+                store.decide(root, "fr", ReviewKey(defaultNs, "menu.home"), ReviewState.APPROVED, "Accueil", source = ReviewSource.of("en", "Homepage"))
+            }
+            panel.reloadReviews()
+            assertTrue(panel.retranslateMenuItem(2)!!.isEnabled, "menu.home was approved on a source changed since")
+            assertNull(panel.retranslateMenuItem(1), "not on the reference locale itself")
+            assertNull(panel.retranslateMenuItem(0), "not on the key column")
+
+            FillMissingTranslationsAction.machineTranslator = { null }
+            assertNull(panel.retranslateMenuItem(2), "no entry without machine translation")
         } finally {
             FillMissingTranslationsAction.machineTranslator = original
         }
