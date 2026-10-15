@@ -6,12 +6,15 @@ import com.ibrahimdans.i18n.plugin.ide.dialog.MachineTranslationPreviewDialog
 import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableReviews
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.review.Review
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
 import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
+import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.translate.MachineTranslationSettings
 import com.ibrahimdans.i18n.plugin.translate.PluralTranslationPlan
@@ -85,7 +88,7 @@ class FillMissingTranslationsAction : AnAction() {
     }
 }
 
-/** The steps of *Fill Missing Translations*, apart from the UI. */
+/** The steps of *Fill Missing Translations* and *Retranslate Stale Translations*, apart from the UI. */
 internal object MachineFill {
 
     /** At most this many provider calls at once: an engine's rate limit is easy to reach with a whole module. */
@@ -110,8 +113,46 @@ internal object MachineFill {
      * apart, and one command writing them all.
      */
     fun run(project: Project, module: ModuleConfig?, source: String, targets: List<String>, provider: TranslationProvider, onWritten: () -> Unit = {}) {
-        val title = PluginBundle.message("action.fill.title")
         val keySeparator = Settings.getInstance(project).config().keySeparator
+        preview(project, module, source, targets, provider, Pass.FILL, onWritten) { translations, target ->
+            itemsOf(translations, source, target, keySeparator)
+        }
+    }
+
+    /**
+     * *Retranslate Stale Translations* for [module] from [source] — its reference locale — to
+     * [targets]: the values whose source text changed since they were reviewed
+     * ([ShownReview.SOURCE_CHANGED], see [staleItemsOf]), translated again, previewed next to the
+     * value they replace, then written — each one only while it still holds that value — and marked
+     * to review on the new source, in one command. Nothing is proposed where reviews are off.
+     */
+    fun retranslate(project: Project, module: ModuleConfig?, source: String, targets: List<String>, provider: TranslationProvider, onWritten: () -> Unit = {}) {
+        val config = Settings.getInstance(project).config()
+        // Read in the background, once for all the targets.
+        val reviews by lazy {
+            TableViewModel().loadReviews(project, ReviewLocation.rootOf(project, module), (listOf(source) + targets).distinct(), config, module)
+        }
+        preview(project, module, source, targets, provider, Pass.RETRANSLATE, onWritten) { translations, target ->
+            staleItemsOf(translations, reviews, target)
+        }
+    }
+
+    /** What tells a fill from a retranslation apart: the bundle keys of its title, its empty case and its undo. */
+    private enum class Pass(val title: String, val nothing: String, val command: String) {
+        FILL("action.fill.title", "action.fill.nothing", "action.fill.command"),
+        RETRANSLATE("action.retranslate.title", "action.retranslate.nothing", "action.retranslate.command"),
+    }
+
+    /**
+     * The items [itemsFor] picks in each locale of [targets] (`translations, target -> items`, run
+     * in the background), translated, previewed, then written with their marks in one command: what
+     * a fill and a retranslation share.
+     */
+    private fun preview(
+        project: Project, module: ModuleConfig?, source: String, targets: List<String>, provider: TranslationProvider,
+        pass: Pass, onWritten: () -> Unit, itemsFor: (Map<String, Map<String, String>>, String) -> List<Item>,
+    ) {
+        val title = PluginBundle.message(pass.title)
         val label = targets.joinToString(", ")
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, title, true) {
             override fun run(indicator: ProgressIndicator) {
@@ -119,12 +160,12 @@ internal object MachineFill {
                 val proposals = mutableListOf<Proposal>()
                 for (target in targets) {
                     indicator.text = PluginBundle.message("action.fill.progress.locale", target)
-                    val items = itemsOf(translations, source, target, keySeparator)
+                    val items = itemsFor(translations, target)
                     if (items.isNotEmpty()) proposals += translate(items, provider, source, target, indicator) ?: return
                 }
                 if (proposals.isEmpty()) {
                     ApplicationManager.getApplication().invokeLater {
-                        Messages.showInfoMessage(project, PluginBundle.message("action.fill.nothing", label), title)
+                        Messages.showInfoMessage(project, PluginBundle.message(pass.nothing, label), title)
                     }
                     return
                 }
@@ -135,7 +176,7 @@ internal object MachineFill {
                         val marks = reviewRoot?.let { root ->
                             dialog.reviewOrigins()?.let { ReviewMarks(root, it, reviewSourcesOf(proposals, source)) }
                         }
-                        write(project, module, dialog.acceptedByLocale(), marks)
+                        write(project, module, dialog.acceptedByLocale(), marks, replacedOf(proposals), PluginBundle.message(pass.command))
                         onWritten()
                     }
                 }
@@ -146,8 +187,12 @@ internal object MachineFill {
     /**
      * A key to translate, with its [source] text. [needsReview]: a plural form translated from the
      * source's `other`, the source having no form of its category. [skipped]: why it is not sent at all.
+     * [current]: the value the translation replaces, as read for the preview — null for a value to fill.
      */
-    data class Item(val key: String, val source: String, val needsReview: Boolean = false, val skipped: String? = null)
+    data class Item(
+        val key: String, val source: String, val needsReview: Boolean = false, val skipped: String? = null,
+        val current: String? = null,
+    )
 
     /** What the engine proposed for [item], in the [locale] it fills. */
     data class Proposal(val item: Item, val result: Translation, val locale: String = "")
@@ -190,6 +235,40 @@ internal object MachineFill {
         }
         return items.sortedBy { it.key }
     }
+
+    /**
+     * The stale translations of [target] in [translations] (`key -> locale -> value`), sorted: each
+     * key whose [target] value is the one its review was decided on while its source — the same key
+     * in [reviews]' reference locale — changed since ([ShownReview.SOURCE_CHANGED], as the table shows
+     * it). Each one is translated again from that source, the value it replaces kept as [Item.current];
+     * an ICU plural is listed with why it is not translated, as *Fill* does. None where reviews are
+     * off, nor in the reference locale itself.
+     *
+     * A plural form is translated from the same form of the source — a stale value always has one —
+     * never from `other`, so no item here [needs review][Item.needsReview]: such an item is marked
+     * without source and keeps the one of its previous review, which would leave it stale after its
+     * retranslation. A form the source lacks has no source that could change: it is never stale.
+     */
+    fun staleItemsOf(translations: Map<String, Map<String, String>>, reviews: TableReviews, target: String): List<Item> {
+        val reference = reviews.referenceLocale
+        if (!reviews.enabled || reference == null || reference == target) return emptyList()
+        return translations.mapNotNull { (key, values) ->
+            val current = values[target]?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            val source = values[reference]?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            if (reviews.shownOf(key, target, current, source) != ShownReview.SOURCE_CHANGED) return@mapNotNull null
+            if (PluralTranslationPlan.isIcuPlural(source)) Item(key, source, skipped = PluginBundle.message("action.fill.icu"), current = current)
+            else Item(key, source, current = current)
+        }.sortedBy { it.key }
+    }
+
+    /**
+     * The values [proposals] replace, `locale -> key -> value read for the preview`: a write replaces
+     * each one only while it is still that value. Empty for a fill.
+     */
+    fun replacedOf(proposals: List<Proposal>): Map<String, Map<String, String>> =
+        proposals.mapNotNull { proposal -> proposal.item.current?.let { proposal to it } }
+            .groupBy({ it.first.locale }, { it.first.item.key to it.second })
+            .mapValues { it.value.toMap() }
 
     /** Between a base and its CLDR category in i18next's flat convention, as [TranslationDialog] reads it. */
     private const val CLDR_SUFFIX_SEPARATOR = "_"
@@ -273,11 +352,16 @@ internal object MachineFill {
 
     /**
      * [accepted] (`locale -> key -> value`) written in one command, whatever the number of locales.
-     * With [marks], each value written — not one filled since the preview, left as it is — is marked
-     * to review in the same command, reviews turned on under the root first: one Ctrl+Z undoes the
-     * values and their marks.
+     * A key of [replaced] (`locale -> key -> value read for the preview`) replaces its value only
+     * while it is still that one — edited since, it is left as it is; any other key only fills a
+     * missing or blank value. With [marks], each value written — not one left as it is — is marked
+     * to review in the same command, reviews turned on under the root first: one Ctrl+Z, named
+     * [command], undoes the values and their marks.
      */
-    fun write(project: Project, module: ModuleConfig?, accepted: Map<String, Map<String, String>>, marks: ReviewMarks? = null) {
+    fun write(
+        project: Project, module: ModuleConfig?, accepted: Map<String, Map<String, String>>, marks: ReviewMarks? = null,
+        replaced: Map<String, Map<String, String>> = emptyMap(), command: String = PluginBundle.message("action.fill.command"),
+    ) {
         if (accepted.values.all { it.isEmpty() }) return
         val config = Settings.getInstance(project).config()
         val synchronizer = KeysSynchronizer()
@@ -285,13 +369,15 @@ internal object MachineFill {
         val current = TranslationDataLoader.loadAllTranslations(project, module)
         val viewModel = DialogViewModel(project)
         WriteCommandAction.writeCommandAction(project)
-            .withName(PluginBundle.message("action.fill.command"))
+            .withName(command)
             .withGlobalUndo()
             .withUndoConfirmationPolicy(UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION)
             .run<RuntimeException> {
                 val written = accepted.mapValues { (target, values) ->
                     values.filter { (key, value) ->
-                        if (!current[key]?.get(target).isNullOrBlank()) return@filter false
+                        val now = current[key]?.get(target)
+                        val seen = replaced[target]?.get(key)
+                        if (if (seen == null) !now.isNullOrBlank() else now != seen) return@filter false
                         val file = translationFileFor(key, target, sources) ?: return@filter false
                         viewModel.saveTranslation(file, synchronizer.buildFullKey(key, config), value)
                         true

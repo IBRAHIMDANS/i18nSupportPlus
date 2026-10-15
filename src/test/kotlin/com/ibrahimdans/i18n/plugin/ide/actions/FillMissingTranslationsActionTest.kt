@@ -246,6 +246,43 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
     }
 
     @Test
+    fun `a retranslation shows the value it replaces, and always marks what it writes`() = myFixture.runWithConfig(config) {
+        val root = reviewRoot()
+        val proposals = listOf(
+            MachineFill.Proposal(MachineFill.Item("common:save", "Save all", current = "Enregistrer"), Translation.Done("Tout enregistrer"), "fr")
+        )
+        val dialog = MachineTranslationPreviewDialog(project, "fr", proposals, listOf(root))
+        try {
+            Assertions.assertEquals(7, dialog.model.columnCount)
+            Assertions.assertEquals(PluginBundle.message("action.retranslate.column.current"), dialog.model.getColumnName(3))
+            Assertions.assertEquals("Enregistrer", dialog.model.getValueAt(0, 3))
+            Assertions.assertEquals("Tout enregistrer", dialog.model.getValueAt(0, 4))
+            Assertions.assertTrue(dialog.markForReview.isSelected && !dialog.markForReview.isEnabled, "checked and locked")
+            Assertions.assertEquals(mapOf("fr" to mapOf("common:save" to "machine:unknown")), dialog.reviewOrigins())
+        } finally {
+            Disposer.dispose(dialog.disposable)
+        }
+        Assertions.assertEquals(mapOf("fr" to mapOf("common:save" to "Enregistrer")), MachineFill.replacedOf(proposals))
+    }
+
+    @Test
+    fun `a replacing write replaces only the values still as previewed`() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", """{"title": "Title", "save": "Save all", "cancel": "Cancel"}""")
+        val fr = addFileToProject("locales/fr/common.json", """{"title": "Titre", "save": "Enregistrer", "cancel": "Annuler !"}""")
+
+        MachineFill.write(
+            project, null,
+            mapOf("fr" to mapOf("common:save" to "Tout enregistrer", "common:cancel" to "Annuler", "common:title" to "Intitulé")),
+            replaced = mapOf("fr" to mapOf("common:save" to "Enregistrer", "common:cancel" to "Annuler"))
+        )
+
+        val written = FileDocumentManager.getInstance().getDocument(fr.virtualFile)!!.text
+        Assertions.assertTrue("\"Tout enregistrer\"" in written, written)
+        Assertions.assertTrue("\"Annuler !\"" in written, "edited since the preview: left as it is: $written")
+        Assertions.assertTrue("\"Titre\"" in written, "not a replaced key: an existing value is still never replaced: $written")
+    }
+
+    @Test
     fun `three locales are written in one command, undone by one Ctrl+Z`() = myFixture.runWithConfig(config) {
         addFileToProject("locales/en/common.json", """{"save": "Save"}""")
         val files = listOf("de", "fr", "ja").associateWith { addFileToProject("locales/$it/common.json", "{}") }

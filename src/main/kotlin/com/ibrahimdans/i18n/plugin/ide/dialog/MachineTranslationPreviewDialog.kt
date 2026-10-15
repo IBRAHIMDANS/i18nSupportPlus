@@ -23,11 +23,15 @@ import javax.swing.table.DefaultTableModel
  * The preview of *Fill Missing Translations*: one row per key — keep it or not, key, source text,
  * proposal, note, engine — local or not. A proposal the engine got wrong, or a key not sent, shows its reason in the note,
  * unchecked and locked. A plural form translated from `other` comes unchecked, noted for review.
- * Filling several locales at once adds a *Locale* column after the key.
+ * Filling several locales at once adds a *Locale* column after the key. Retranslating values already
+ * there — *Retranslate Stale Translations* — adds a *Current value* column before the proposal: the
+ * value each one replaces.
  *
  * Under the table, *Mark written values for review* when the values land under [reviewRoots] — the
  * roots of the modules they belong to: checked when reviews are already on in all of them (their
  * `.i18n-reviews` folder exists), unchecked otherwise. Checking it turns them on there when writing.
+ * A retranslation always marks what it writes: the box stays checked, locked — unmarked, a value
+ * would no longer say which source it was translated from.
  */
 internal class MachineTranslationPreviewDialog(
     project: Project,
@@ -39,12 +43,16 @@ internal class MachineTranslationPreviewDialog(
     /** Several target locales in one preview: each row says which one it fills. */
     private val severalLocales = proposals.map { it.locale }.distinct().size > 1
 
+    /** The proposals replace values already there: each row shows the one it replaces. */
+    private val replacing = proposals.any { it.item.current != null }
+
     internal val model = object : DefaultTableModel(
         listOfNotNull(
             "",
             PluginBundle.message("action.fill.column.key"),
             PluginBundle.message("action.fill.column.locale").takeIf { severalLocales },
             PluginBundle.message("action.fill.column.source"),
+            PluginBundle.message("action.retranslate.column.current").takeIf { replacing },
             PluginBundle.message("action.fill.column.proposal"),
             PluginBundle.message("action.fill.column.note"),
             PluginBundle.message("action.fill.column.engine")
@@ -59,9 +67,14 @@ internal class MachineTranslationPreviewDialog(
     internal val markForReview = JBCheckBox(PluginBundle.message("action.fill.preview.markReview")).apply {
         val store = ReviewStore.getInstance(project)
         val enabled = reviewRoots.isNotEmpty() && reviewRoots.all { store.isEnabled(it) }
-        isSelected = enabled
+        isSelected = enabled || replacing
         isVisible = reviewRoots.isNotEmpty()
-        if (!enabled) toolTipText = PluginBundle.message("action.fill.preview.markReview.enable")
+        if (replacing) {
+            isEnabled = false
+            toolTipText = PluginBundle.message("action.retranslate.preview.markReview")
+        } else if (!enabled) {
+            toolTipText = PluginBundle.message("action.fill.preview.markReview.enable")
+        }
     }
 
     init {
@@ -74,10 +87,11 @@ internal class MachineTranslationPreviewDialog(
             }
             val engine = (proposal.result as? Translation.Done)?.engine?.let { engineLabel(it) }.orEmpty()
             model.addRow(listOfNotNull<Any>(
-                row.first, proposal.item.key, proposal.locale.takeIf { severalLocales }, proposal.item.source, row.second, row.third, engine
+                row.first, proposal.item.key, proposal.locale.takeIf { severalLocales }, proposal.item.source,
+                proposal.item.current.orEmpty().takeIf { replacing }, row.second, row.third, engine
             ).toTypedArray())
         }
-        title = PluginBundle.message("action.fill.preview.title", target, proposals.size)
+        title = PluginBundle.message(if (replacing) "action.retranslate.preview.title" else "action.fill.preview.title", target, proposals.size)
         setOKButtonText(PluginBundle.message("action.fill.preview.ok"))
         init()
     }
