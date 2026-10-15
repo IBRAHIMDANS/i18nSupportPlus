@@ -3,8 +3,12 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileKeys
+import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
 import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.review.ReviewMigration
@@ -214,10 +218,23 @@ internal class KeyLevelRename(
 
     private object Resolver : CompositeKeyResolver<PsiElement>
 
-    private companion object {
-        val QUOTES = setOf('"', '\'', '`')
-        const val DYNAMIC = "\${"
-        const val KEY_PREFIX = "keyPrefix"
-        const val USE_TRANSLATION = "useTranslation"
+    companion object {
+        private val QUOTES = setOf('"', '\'', '`')
+        private const val DYNAMIC = "\${"
+        private const val KEY_PREFIX = "keyPrefix"
+        private const val USE_TRANSLATION = "useTranslation"
+
+        /**
+         * The level [property] stands for — a key-value of a translation file, holding other keys or
+         * a value — in that file's namespace, or null when the file is no translation source.
+         */
+        fun inTranslationFile(property: PsiElement): KeyLevelRename? {
+            val file = property.containingFile ?: return null
+            val source = TranslationFileScope.sourceOf(file) ?: return null
+            val config = Settings.getInstance(file.project).config()
+            val path = TranslationFileKeys.pathOf(property).takeIf { it.isNotEmpty() } ?: return null
+            val namespace = TranslationDataLoader.extractNamespace(source, config.defaultNamespaces().first())
+            return KeyLevelRename(file.project, listOf(namespace), path, config, file)
+        }
     }
 }
