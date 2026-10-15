@@ -75,7 +75,8 @@ private class JsonContentGenerator: ContentGenerator {
         if (props.isEmpty()) {
             obj.addAfter(keyValue, obj.findElementAt(0))
         } else {
-            val before = if (Settings.getInstance(item.project).extractSorted) props.takeWhile { it.name < key } else props
+            val settings = Settings.getInstance(item.project)
+            val before = if (settings.extractSorted) props.takeWhile { settings.keyOrder.comparator.compare(it.name, key) < 0 } else props
             if (before.isEmpty()) {
                 val inserted = obj.addBefore(keyValue, props.first())
                 obj.addAfter(generator.createComma(), inserted)

@@ -1,6 +1,9 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.ide.runWithConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.KeyOrder
 import com.intellij.json.psi.JsonFile
 import com.intellij.json.psi.JsonObject
 import com.intellij.openapi.command.WriteCommandAction
@@ -9,10 +12,12 @@ import org.junit.jupiter.api.Test
 
 class SortI18nKeysActionTest : PlatformBaseTest() {
 
-    private fun sortedKeys(content: String): List<String> {
+    private fun sortedKeys(content: String, order: KeyOrder = KeyOrder.IGNORE_CASE): List<String> {
         val file = myFixture.configureByText("en.json", content) as JsonFile
-        WriteCommandAction.runWriteCommandAction(project) {
-            SortI18nKeysAction().sort(file, project)
+        myFixture.runWithConfig(Config(keyOrder = order)) {
+            WriteCommandAction.runWriteCommandAction(project) {
+                SortI18nKeysAction().sort(file, project)
+            }
         }
         val obj = file.topLevelValue as JsonObject
         return obj.propertyList.map { it.name }
@@ -38,6 +43,24 @@ class SortI18nKeysActionTest : PlatformBaseTest() {
     fun testCaseInsensitiveOrder() {
         val keys = sortedKeys("""{"Zebra": "1", "apple": "2", "Banana": "3"}""")
         assertEquals(listOf("apple", "Banana", "Zebra"), keys)
+    }
+
+    @Test
+    fun testCharacterCodeOrderMatchesTheIde() {
+        val keys = sortedKeys("""{"apple": "1", "Zebra": "2", "banana": "3", "Banana": "4"}""", KeyOrder.CHARACTER_CODE)
+        assertEquals(listOf("Banana", "Zebra", "apple", "banana"), keys)
+    }
+
+    @Test
+    fun testCharacterCodeOrderAppliesToNestedObjects() {
+        val file = myFixture.configureByText("en.json", """{"root": {"b": "1", "A": "2", "a": "3"}}""") as JsonFile
+        myFixture.runWithConfig(Config(keyOrder = KeyOrder.CHARACTER_CODE)) {
+            WriteCommandAction.runWriteCommandAction(project) {
+                SortI18nKeysAction().sort(file, project)
+            }
+        }
+        val nested = (file.topLevelValue as JsonObject).findProperty("root")!!.value as JsonObject
+        assertEquals(listOf("A", "a", "b"), nested.propertyList.map { it.name })
     }
 
     @Test

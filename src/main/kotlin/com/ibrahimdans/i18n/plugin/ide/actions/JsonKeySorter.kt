@@ -1,5 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
+import com.ibrahimdans.i18n.plugin.ide.settings.KeyOrder
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.intellij.json.psi.JsonElementGenerator
 import com.intellij.json.psi.JsonFile
 import com.intellij.json.psi.JsonObject
@@ -7,8 +9,8 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.codeStyle.CodeStyleManager
 
 /**
- * Sorts the keys of a JSON translation file alphabetically (case-insensitive), recursively
- * into nested objects.
+ * Sorts the keys of a JSON translation file in the project's [KeyOrder], recursively into
+ * nested objects.
  *
  * Conservative: each entry keeps its own text (value subtree and any inline content); only the
  * order of properties changes, and the file is reformatted afterwards to restore indentation.
@@ -24,21 +26,21 @@ object JsonKeySorter {
 
     fun sort(file: JsonFile, project: Project) {
         val root = file.topLevelValue as? JsonObject ?: return
-        sortObject(root, JsonElementGenerator(project))
+        sortObject(root, JsonElementGenerator(project), Settings.getInstance(project).keyOrder.comparator)
         CodeStyleManager.getInstance(project).reformat(file)
     }
 
-    private fun sortObject(obj: JsonObject, generator: JsonElementGenerator) {
+    private fun sortObject(obj: JsonObject, generator: JsonElementGenerator, order: Comparator<String>) {
         // Depth-first: sort nested objects first so their serialized text is already ordered
         // by the time the parent is rebuilt.
         obj.propertyList.forEach { property ->
-            (property.value as? JsonObject)?.let { sortObject(it, generator) }
+            (property.value as? JsonObject)?.let { sortObject(it, generator, order) }
         }
 
         val props = obj.propertyList
         if (props.size < 2) return
 
-        val sorted = props.sortedBy { it.name.lowercase() }
+        val sorted = props.sortedWith(compareBy(order) { it.name })
         if (sorted.map { it.name } == props.map { it.name }) return
 
         val body = sorted.joinToString(",\n") { it.text }

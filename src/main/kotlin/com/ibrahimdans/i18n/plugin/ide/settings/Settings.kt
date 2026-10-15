@@ -35,6 +35,7 @@ class Settings : PersistentStateComponent<Settings> {
     internal var preferredLocalization = default.preferredLocalization
     internal var localizationConfig = default.localizationConfig
     internal var sortKeysAlphabetically = default.sortKeysAlphabetically
+    internal var keyOrder = default.keyOrder
     internal var previewLocale = default.previewLocale
     internal var translationsRoot = default.translationsRoot
     internal var excludedDirectories = default.excludedDirectories
@@ -79,6 +80,7 @@ class Settings : PersistentStateComponent<Settings> {
             preferredLocalization = preferredLocalization,
             localizationConfig = localizationConfig,
             sortKeysAlphabetically = sortKeysAlphabetically,
+            keyOrder = keyOrder,
             previewLocale = previewLocale,
             translationsRoot = translationsRoot,
             excludedDirectories = excludedDirectories,
@@ -112,6 +114,7 @@ class Settings : PersistentStateComponent<Settings> {
         preferredLocalization = config.preferredLocalization
         localizationConfig = config.localizationConfig
         sortKeysAlphabetically = config.sortKeysAlphabetically
+        keyOrder = config.keyOrder
         previewLocale = config.previewLocale
         translationsRoot = config.translationsRoot
         excludedDirectories = config.excludedDirectories

@@ -30,6 +30,7 @@ data class Config (
     val preferredLocalization: String = "",
     val localizationConfig: Map<String, String> = mapOf(),
     val sortKeysAlphabetically: Boolean = false,
+    val keyOrder: KeyOrder = KeyOrder.IGNORE_CASE,
     val previewLocale: String = "",
     val translationsRoot: String = "",
     val excludedDirectories: String = "",
