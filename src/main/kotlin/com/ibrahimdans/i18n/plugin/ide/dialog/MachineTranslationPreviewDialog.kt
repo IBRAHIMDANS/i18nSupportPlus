@@ -30,8 +30,10 @@ import javax.swing.table.DefaultTableModel
  * Under the table, *Mark written values for review* when the values land under [reviewRoots] — the
  * roots of the modules they belong to: checked when reviews are already on in all of them (their
  * `.i18n-reviews` folder exists), unchecked otherwise. Checking it turns them on there when writing.
- * A retranslation always marks what it writes: the box stays checked, locked — unmarked, a value
- * would no longer say which source it was translated from.
+ * A retranslation where reviews are on always marks what it writes: the box stays checked, locked —
+ * unmarked, a value would no longer say which source it was translated from. Where they are off — the
+ * lagging locales of a module without reviews — nothing has a source to lose: the box is left
+ * unchecked and free, as for a fill.
  */
 internal class MachineTranslationPreviewDialog(
     project: Project,
@@ -67,9 +69,9 @@ internal class MachineTranslationPreviewDialog(
     internal val markForReview = JBCheckBox(PluginBundle.message("action.fill.preview.markReview")).apply {
         val store = ReviewStore.getInstance(project)
         val enabled = reviewRoots.isNotEmpty() && reviewRoots.all { store.isEnabled(it) }
-        isSelected = enabled || replacing
+        isSelected = enabled
         isVisible = reviewRoots.isNotEmpty()
-        if (replacing) {
+        if (replacing && enabled) {
             isEnabled = false
             toolTipText = PluginBundle.message("action.retranslate.preview.markReview")
         } else if (!enabled) {

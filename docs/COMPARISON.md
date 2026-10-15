@@ -154,7 +154,7 @@ IDEs.
 | Unused keys | Inspection, Scan Orphans, Cleanup Unused Keys | Usage report: idle keys | — |
 | Extract a hardcoded string | Dialog, file or folder at once | Quick fix, per file, and the whole project at once ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/extraction.md), [announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)) | One click |
 | Review | Tool window table and key dialog, `.i18n-reviews/` | Gutter and comment threads in the translation file, `.vscode/i18n-ally-next-reviews.yml` ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/review.md)) | — |
-| Translations outdated by a changed source text | — | Snapshot of the source text per key, compared on demand ([announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)) | — |
+| Translations outdated by a changed source text | Where reviews are kept: source text recorded with each decision, changed ones flagged in the table, the key dialog and an inspection, retranslated in one go. Everywhere: the locales a change of the reference left behind, in the working copy or against a branch, retranslated in one go | Snapshot of the source text per key, compared on demand ([announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)) | — |
 | Machine translation | Ollama, OpenAI-compatible API, DeepL, LibreTranslate, Google; opt-in | Google (default), DeepL, Baidu, LibreTranslate, OpenAI, Ollama, the editor's built-in model through Copilot ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/translation.md)) | The command opens an inlang Cloud page, announced as coming, and points to the inlang CLI ([source](https://github.com/opral/sherlock/blob/main/src/commands/cloud.ts)) |
 | AI agents (MCP) | Tools on the IDE's MCP server | — | — |
 | Your own translation function | Key assistance rules, call template | Custom framework in YAML ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/custom-framework.md)) | — (matcher plugins exist for `m()`, `t()` and next-intl) |
@@ -166,7 +166,8 @@ IDEs.
   option: it is a JetBrains plugin.
 - **i18n Ally Next detects translations left behind by a changed source text** and offers to translate them again,
   one by one or all at once ([announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)).
-  I18n Support Plus compares translations with a Git branch, not with the source text they were made from.
+  I18n Support Plus records the source text only in modules keeping reviews; elsewhere it catches the locales a change
+  of the reference leaves behind, in the working copy or against a branch, not a translation outdated by an older change.
 - **i18n Ally reviews from the editor**: approvals, requested changes, comments and suggested values in the gutter, the side panel and its Editor UI,
   stored in the repository ([wiki](https://github.com/lokalise/i18n-ally/wiki/Review-&-Collaboration-System)).
   I18n Support Plus reviews from the tool window table and the key dialog, not from the code editor.
