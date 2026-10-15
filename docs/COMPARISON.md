@@ -1,6 +1,6 @@
 # Coming from i18n Ally or Easy I18n?
 
-_Last verified: 2026-10-11. Re-check at every major release of any of the tools below._
+_Last verified: 2026-10-15. Re-check at every major release of any of the tools below._
 
 This page compares **I18n Support Plus** with the two tools people most often use for i18n keys in an editor:
 **i18n Ally** (by Lokalise, for VS Code and for JetBrains IDEs) and **Easy I18n** (for JetBrains IDEs). Each claim
@@ -9,7 +9,7 @@ wrong or out of date, [open an issue](https://github.com/IBRAHIMDANS/i18nSupport
 
 | Tool | Version compared | Released | Source |
 |---|---|---|---|
-| I18n Support Plus | 1.10.0 | 2026-10-11 | [CHANGELOG](../CHANGELOG.md) |
+| I18n Support Plus | 1.12.0 | 2026-10-15 | [CHANGELOG](../CHANGELOG.md) |
 | Easy I18n | 5.0.2 | 2026-05-03 | [Marketplace](https://plugins.jetbrains.com/plugin/16316-easy-i18n), [docs](https://marhali.github.io/easy-i18n/), [GitHub](https://github.com/marhali/easy-i18n) |
 | i18n Ally for JetBrains | 1.4.3.2 | 2024-10-12 | [Marketplace](https://plugins.jetbrains.com/plugin/17212-i18n-ally) |
 | i18n Ally for VS Code | 2.13.1 | 2024-12-13 | [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=lokalise.i18n-ally), [wiki](https://github.com/lokalise/i18n-ally/wiki), [GitHub](https://github.com/lokalise/i18n-ally) |
@@ -98,6 +98,7 @@ installs on **builds 241 to 242 only, i.e. 2024.1 and 2024.2**. It cannot be ins
 | Opt-in | Yes: nothing is sent until enabled for the project | — | — | No: Google is the default engine |
 | Placeholders and tags kept | Masked before sending | — | — | — |
 | Plural forms of the target language | Yes | — | — | — |
+| AI agents (Codex, Claude, any MCP client) | Tools on the IDE's MCP server: the agent reads the missing keys and writes them through the plugin — never over an existing value, placeholders and plural forms checked, one undo ([setup](../README.md#ai-agents-mcp)) | — | — | — ([#1328](https://github.com/lokalise/i18n-ally/issues/1328), open) |
 | Preview before writing | Yes, one undo, the engine that translated each proposal | — | — | Can save as review candidates |
 | Fill a whole locale | Yes, every locale at once | — | — | `fulfill-keys` |
 | Glossary | Terms kept as written for every engine; translated terms sent to the OpenAI-compatible prompt and as a DeepL glossary | — | — | — |
