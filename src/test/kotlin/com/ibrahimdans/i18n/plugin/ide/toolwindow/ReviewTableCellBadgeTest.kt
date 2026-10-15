@@ -41,6 +41,13 @@ class ReviewTableCellBadgeTest {
     }
 
     @Test
+    fun `a stale translation has its own icon and words, apart from the eye`() {
+        assertSame(AllIcons.General.Warning, ReviewBadge.icon(ShownReview.SOURCE_CHANGED))
+        assertEquals(PluginBundle.message("review.state.source.changed"), ReviewBadge.label(ShownReview.SOURCE_CHANGED))
+        assertEquals(ReviewBadge.label(ShownReview.SOURCE_CHANGED), ReviewBadge.lines(review, ShownReview.SOURCE_CHANGED).first())
+    }
+
+    @Test
     fun `each shown state has its own words, which tell apart what the shared icon does not`() {
         val labels = ShownReview.entries.filter { it != ShownReview.NONE }.map { ReviewBadge.label(it) }
 

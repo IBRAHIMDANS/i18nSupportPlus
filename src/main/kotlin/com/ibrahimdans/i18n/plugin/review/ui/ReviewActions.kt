@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.review.ReviewEdits
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
+import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
@@ -18,8 +19,10 @@ import java.time.temporal.ChronoUnit
  * A locale cell a decision is made on: [key] spelled as the tool window spells it ([com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling]),
  * [value] the value the cell holds now — the one the decision is recorded against. An empty
  * [value] is a locale without entry: there is nothing to review, every action skips it.
+ * [source] is the value the key holds now in the module's reference locale, recorded with the
+ * decision; null or empty when unknown or absent — the key then keeps the source it had.
  */
-data class ReviewCell(val key: String, val locale: String, val value: String)
+data class ReviewCell(val key: String, val locale: String, val value: String, val source: String? = null)
 
 /**
  * The review decisions of the tool window and of the review dialog, each one command.
@@ -28,6 +31,9 @@ data class ReviewCell(val key: String, val locale: String, val value: String)
  * `WriteCommandAction`, so that one Ctrl+Z takes it back whole. Each locale's file is rewritten
  * once, every cell of the locale folded into it, rather than once per cell. The command is global
  * (`withGlobalUndo`): it is made from the tool window, where no editor holds the review files.
+ *
+ * Each one takes the module's `referenceLocale`, the locale a [ReviewCell.source] is read in: null
+ * when unknown, and then no source is recorded.
  *
  * Must be called on the EDT, outside a write action.
  */
@@ -41,38 +47,65 @@ object ReviewActions {
     fun defaultNamespace(project: Project): String = Settings.getInstance(project).config().defaultNamespaces().first()
 
     /** [cells] approved. False when nothing was written: no cell with a value, or a file that cannot be read. */
-    fun approve(project: Project, root: VirtualFile, cells: List<ReviewCell>, defaultNamespace: String = defaultNamespace(project)): Boolean =
-        decide(project, root, cells, ReviewState.APPROVED, "", defaultNamespace, PluginBundle.message("review.command.approve"))
+    fun approve(
+        project: Project, root: VirtualFile, cells: List<ReviewCell>, defaultNamespace: String = defaultNamespace(project),
+        referenceLocale: String? = null
+    ): Boolean =
+        decide(project, root, cells, ReviewState.APPROVED, "", defaultNamespace, referenceLocale, PluginBundle.message("review.command.approve"))
 
     /** [cells] marked to review again, by hand: their origin is kept. */
-    fun markToReview(project: Project, root: VirtualFile, cells: List<ReviewCell>, defaultNamespace: String = defaultNamespace(project)): Boolean =
-        decide(project, root, cells, ReviewState.TO_REVIEW, "", defaultNamespace, PluginBundle.message("review.command.mark"))
+    fun markToReview(
+        project: Project, root: VirtualFile, cells: List<ReviewCell>, defaultNamespace: String = defaultNamespace(project),
+        referenceLocale: String? = null
+    ): Boolean =
+        decide(project, root, cells, ReviewState.TO_REVIEW, "", defaultNamespace, referenceLocale, PluginBundle.message("review.command.mark"))
 
     /**
      * Changes requested on [cells], [text] saying which. Refused — false, nothing written — when
      * [text] is blank: the translator would have nothing to act on.
      */
     fun requestChanges(
-        project: Project, root: VirtualFile, cells: List<ReviewCell>, text: String, defaultNamespace: String = defaultNamespace(project)
+        project: Project, root: VirtualFile, cells: List<ReviewCell>, text: String, defaultNamespace: String = defaultNamespace(project),
+        referenceLocale: String? = null
     ): Boolean {
         if (text.isBlank()) return false
-        return decide(project, root, cells, ReviewState.CHANGES_REQUESTED, text.trim(), defaultNamespace, PluginBundle.message("review.command.request.changes"))
+        return decide(
+            project, root, cells, ReviewState.CHANGES_REQUESTED, text.trim(), defaultNamespace, referenceLocale,
+            PluginBundle.message("review.command.request.changes")
+        )
     }
 
     /** [text] added to [cell]'s thread, its decision unchanged. False when [text] is blank or the cell has no value. */
-    fun comment(project: Project, root: VirtualFile, cell: ReviewCell, text: String, defaultNamespace: String = defaultNamespace(project)): Boolean {
+    fun comment(
+        project: Project, root: VirtualFile, cell: ReviewCell, text: String, defaultNamespace: String = defaultNamespace(project),
+        referenceLocale: String? = null
+    ): Boolean {
         if (text.isBlank() || cell.value.isEmpty()) return false
         val store = ReviewStore.getInstance(project)
         return write(project, PluginBundle.message("review.command.comment")) {
             val by = store.reviewer(root)
             val at = timestamp(store)
-            store.update(root, cell.locale) { ReviewEdits.comment(it, ReviewKey.fromSpelling(cell.key, defaultNamespace), cell.value, by, at, text.trim()) }
+            store.update(root, cell.locale) {
+                ReviewEdits.comment(
+                    it, ReviewKey.fromSpelling(cell.key, defaultNamespace), cell.value, by, at, text.trim(), sourceOf(cell, referenceLocale)
+                )
+            }
         }
+    }
+
+    /**
+     * The source [cell] is decided against: its [ReviewCell.source] in [referenceLocale]. None for a
+     * cell of the reference locale itself, nor when the locale or the source is unknown.
+     */
+    internal fun sourceOf(cell: ReviewCell, referenceLocale: String?): ReviewSource? {
+        val text = cell.source
+        if (referenceLocale == null || cell.locale == referenceLocale || text.isNullOrEmpty()) return null
+        return ReviewSource.of(referenceLocale, text)
     }
 
     private fun decide(
         project: Project, root: VirtualFile, cells: List<ReviewCell>, state: ReviewState, text: String,
-        defaultNamespace: String, commandName: String,
+        defaultNamespace: String, referenceLocale: String?, commandName: String,
     ): Boolean {
         val withValue = cells.filter { it.value.isNotEmpty() }.distinct()
         if (withValue.isEmpty()) return false
@@ -84,7 +117,9 @@ object ReviewActions {
             withValue.groupBy { it.locale }.map { (locale, inLocale) ->
                 store.update(root, locale) { reviews ->
                     inLocale.fold(reviews) { acc, cell ->
-                        ReviewEdits.decide(acc, ReviewKey.fromSpelling(cell.key, defaultNamespace), state, cell.value, by, at, text)
+                        ReviewEdits.decide(
+                            acc, ReviewKey.fromSpelling(cell.key, defaultNamespace), state, cell.value, by, at, text, sourceOf(cell, referenceLocale)
+                        )
                     }
                 }
             }.all { it }

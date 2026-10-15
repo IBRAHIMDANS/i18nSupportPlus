@@ -30,7 +30,8 @@ internal data class CellReview(val shown: ShownReview, val review: Review?) {
  * How a review reads, in a table cell and in the review dialog: an icon and words, never a tint
  * alone — the rule [ValueStatus] follows. Platform icons only: the eye of *to review* (whatever
  * made it so), the check of *approved*, the red balloon of *changes requested*, which carries a
- * comment by definition.
+ * comment by definition, the warning sign of *source changed*, which is to review too but asks to
+ * translate again rather than to read.
  */
 internal object ReviewBadge {
 
@@ -39,6 +40,7 @@ internal object ReviewBadge {
     fun icon(shown: ShownReview): Icon? = when (shown) {
         ShownReview.NONE -> null
         ShownReview.TO_REVIEW, ShownReview.CHANGED_SINCE_APPROVAL, ShownReview.FIXED_SINCE_REQUEST -> AllIcons.Actions.Show
+        ShownReview.SOURCE_CHANGED -> AllIcons.General.Warning
         ShownReview.APPROVED -> AllIcons.General.InspectionsOK
         ShownReview.CHANGES_REQUESTED -> AllIcons.General.BalloonError
     }
@@ -49,6 +51,7 @@ internal object ReviewBadge {
         ShownReview.TO_REVIEW -> PluginBundle.message("review.state.to.review")
         ShownReview.CHANGED_SINCE_APPROVAL -> PluginBundle.message("review.state.changed.since.approval")
         ShownReview.FIXED_SINCE_REQUEST -> PluginBundle.message("review.state.fixed.since.request")
+        ShownReview.SOURCE_CHANGED -> PluginBundle.message("review.state.source.changed")
         ShownReview.APPROVED -> PluginBundle.message("review.state.approved")
         ShownReview.CHANGES_REQUESTED -> PluginBundle.message("review.state.changes.requested")
     }

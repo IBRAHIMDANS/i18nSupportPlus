@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.review
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -99,6 +100,83 @@ class ReviewCodecTest {
             assertEquals(emptyMap<ReviewKey, Review>(), decoded.reviews, it)
             assertFalse(decoded.readable, it)
         }
+    }
+
+    @Test
+    fun `a file written before the source reads without one and writes back byte for byte`() {
+        val reviews = ReviewCodec.read(canonical)
+
+        reviews.values.forEach { assertNull(it.source) }
+        val written = ReviewCodec.write(reviews)
+        assertEquals(canonical, written)
+        assertFalse("sourceLocale" in written || "sourceHash" in written, "no empty source field may be written")
+    }
+
+    private val withSource = """
+        {
+          "version": 1,
+          "reviews": {
+            "common:cart.title": {
+              "status": "approved",
+              "hash": "sha256:3f2a9c0e1b7d4a55",
+              "by": "Alice",
+              "at": "2026-10-15T14:02:11Z",
+              "origin": "manual",
+              "thread": [],
+              "sourceLocale": "en",
+              "sourceHash": "sha256:9b1e0d77c2aa4e10"
+            }
+          }
+        }
+
+    """.trimIndent()
+
+    @Test
+    fun `the source is read and written last in the entry, still in version 1`() {
+        val review = ReviewCodec.read(withSource).getValue(ReviewKey("common", "cart.title"))
+
+        assertEquals(ReviewSource("en", "sha256:9b1e0d77c2aa4e10"), review.source)
+        assertEquals(withSource, ReviewCodec.write(mapOf(ReviewKey("common", "cart.title") to review)))
+        assertEquals(1, ReviewCodec.VERSION)
+    }
+
+    @Test
+    fun `a source missing its locale or its hash is unknown`() {
+        val text = """
+            {"version": 1, "reviews": {
+              "ns:no-locale": {"status": "approved", "hash": "h", "sourceHash": "s"},
+              "ns:no-hash": {"status": "approved", "hash": "h", "sourceLocale": "en"}
+            }}
+        """.trimIndent()
+
+        assertEquals(listOf(null, null), ReviewCodec.read(text).values.map { it.source })
+    }
+
+    @Test
+    fun `the properties of a later version are written back as they were read`() {
+        val later = withSource.replace(
+            "      \"sourceHash\": \"sha256:9b1e0d77c2aa4e10\"\n",
+            """
+            |      "sourceHash": "sha256:9b1e0d77c2aa4e10",
+            |      "assignee": "Carol",
+            |      "labels": [
+            |        "urgent",
+            |        1.50
+            |      ],
+            |      "meta": {
+            |        "pinned": true,
+            |        "note": null
+            |      }
+            |
+            """.trimMargin()
+        )
+        val review = ReviewCodec.read(later).getValue(ReviewKey("common", "cart.title"))
+
+        assertEquals(listOf("assignee", "labels", "meta"), review.extra.keys.toList())
+        assertEquals(later, ReviewCodec.write(mapOf(ReviewKey("common", "cart.title") to review)))
+        // A decision of this version keeps them too.
+        val approved = ReviewEdits.decide(mapOf(ReviewKey("common", "cart.title") to review), ReviewKey("common", "cart.title"), ReviewState.APPROVED, "Panier", "Bob", "T")
+        assertTrue("\"assignee\": \"Carol\"" in ReviewCodec.write(approved))
     }
 
     @Test

@@ -9,6 +9,9 @@
 ### Documentation
 
 - [Docs] **Coming from I18n Support, i18n Ally Next or Sherlock?** [docs/COMPARISON.md](docs/COMPARISON.md) now covers I18n Support, the plugin this one started from — what carries over, what is new, and that its project settings are read as they are, under the same name and file — and compares the plugin with the VS Code extensions i18n Ally Next and Sherlock, each claim sourced and dated
+### Refactoring
+
+- [Reviews] A review can record the reference text it was decided on, as a hash: two optional fields, `sourceLocale` and `sourceHash`, written last in an entry and never when unknown, so a review file of 1.10 to 1.12 is written back byte for byte and stays at format version 1. Nothing records them yet: this is the ground for showing a translation whose source changed since it was reviewed. A review file now also keeps, on rewrite, the properties of an entry this version does not know, so a field added by a later version is no longer dropped by a teammate's decision — no other behaviour change
 
 ## 1.12.1 - 2026-10-15
 

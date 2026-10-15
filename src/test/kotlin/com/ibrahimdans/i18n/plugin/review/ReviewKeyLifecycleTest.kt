@@ -43,11 +43,11 @@ class ReviewKeyLifecycleTest : PlatformBaseTest() {
 
     private fun root(): VirtualFile = ReviewLocation.rootOf(project, null)!!
 
-    /** Reviews on for the project, [approved] (key → value) approved in [locale]. */
-    private fun approve(locale: String, approved: Map<ReviewKey, String>) {
+    /** Reviews on for the project, [approved] (key → value) approved in [locale], against [source] when given. */
+    private fun approve(locale: String, approved: Map<ReviewKey, String>, source: ReviewSource? = null) {
         WriteCommandAction.runWriteCommandAction(project) {
             store().enable(root())
-            approved.forEach { (key, value) -> store().decide(root(), locale, key, ReviewState.APPROVED, value) }
+            approved.forEach { (key, value) -> store().decide(root(), locale, key, ReviewState.APPROVED, value, source = source) }
         }
     }
 
@@ -88,6 +88,21 @@ class ReviewKeyLifecycleTest : PlatformBaseTest() {
         Assertions.assertNull(reviews("fr")[ReviewKey("common", "button.save")])
         assertApproved("en", ReviewKey("common", "button.store"), "Save")
         assertApproved("fr", ReviewKey("common", "button.store"), "Enregistrer")
+    }
+
+    @Test
+    fun renamingAKeyCarriesTheSourceOfItsReview() {
+        addFileToProject("locales/en/common.json", """{"button": {"save": "Save"}}""")
+        addFileToProject("locales/fr/common.json", """{"button": {"save": "Enregistrer"}}""")
+        val source = ReviewSource.of("en", "Save")
+        approve("fr", mapOf(ReviewKey("common", "button.save") to "Enregistrer"), source)
+        myFixture.configureByText("First.js", "export const a = (t) => t('common:button.sa<caret>ve');")
+
+        renameAtCaret("store")
+
+        val review = reviews("fr").getValue(ReviewKey("common", "button.store"))
+        Assertions.assertEquals(source, review.source)
+        Assertions.assertEquals(ShownReview.APPROVED, shown(review, "Enregistrer", ReviewSource.of("en", "Save")))
     }
 
     @Test
@@ -140,6 +155,22 @@ class ReviewKeyLifecycleTest : PlatformBaseTest() {
         Assertions.assertEquals(setOf(ReviewKey("profile", "user.name"), ReviewKey("common", "user.age")), reviews("en").keys)
         assertApproved("en", ReviewKey("profile", "user.name"), "Name")
         assertApproved("fr", ReviewKey("profile", "user.name"), "Nom")
+    }
+
+    @Test
+    fun movingAKeyToAnotherNamespaceCarriesTheSourceOfItsReview() {
+        addFileToProject("locales/en/common.json", """{"user": {"name": "Name"}}""")
+        addFileToProject("locales/fr/common.json", """{"user": {"name": "Nom"}}""")
+        addFileToProject("locales/en/profile.json", "{}")
+        val source = ReviewSource.of("en", "Name")
+        approve("fr", mapOf(ReviewKey("common", "user.name") to "Nom"), source)
+
+        WriteCommandAction.runWriteCommandAction(project) {
+            val leaves = listOf(jsonLeaf("locales/en/common.json", "user", "name"), jsonLeaf("locales/fr/common.json", "user", "name"))
+            MoveI18nKeyHandler().execute(project, leaves, emptyList(), listOf(Literal("user"), Literal("name")), "profile")
+        }
+
+        Assertions.assertEquals(source, reviews("fr").getValue(ReviewKey("profile", "user.name")).source)
     }
 
     @Test
