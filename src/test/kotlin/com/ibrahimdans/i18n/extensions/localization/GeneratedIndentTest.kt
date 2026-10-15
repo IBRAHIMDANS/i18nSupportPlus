@@ -36,7 +36,9 @@ class GeneratedIndentTest : PlatformBaseTest() {
         WriteCommandAction.runWriteCommandAction(project) {
             YamlLocalization().contentGenerator().generate(mapping, key, key.compositeKey, "v")
         }
-        assertTrue(file.text.contains("\n    c: v"), file.text)
+        // Every generated level is four spaces deeper: the IDE's YAML code style no longer reformats
+        // the insertion back to two.
+        assertEquals("x: y\na:\n    b:\n        c: v\n", file.text)
     }
 
     /** JSON has no indent setting: a key added to a file takes the indent of the file itself. */
