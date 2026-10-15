@@ -10,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.ReviewBadge
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
+import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.review.shown
@@ -94,8 +95,11 @@ enum class Mode { CREATE, EDIT }
  *
  * In a module that keeps reviews (its `.i18n-reviews/` folder exists), an EDIT dialog shows under
  * each locale what its review says of the stored value, with a *Review…* link to its thread. A locale
- * *Translate* filled and validated as proposed is marked *to review* in the command of OK; one
- * retouched by hand is not — whoever changed it has read it.
+ * *Translate* filled and validated as proposed is marked *to review* in the command of OK, with the
+ * source text it was translated from; one retouched by hand is not — whoever changed it has read it.
+ * The badge compares the stored value with the key's source in its module's reference locale
+ * ([ReferenceLocale.of]), the one the table compares: a value whose source changed since its review
+ * reads *source changed*, and *Translate* is how it is translated again.
  */
 class TranslationDialog(
     private val project: Project,
@@ -183,6 +187,9 @@ class TranslationDialog(
 
     /** Where each source's reviews live, null when its module keeps none; read once per dialog. */
     private val reviewRoots = HashMap<LocalizationSource, VirtualFile?>()
+
+    /** The module each source belongs to, null when no module of the settings holds it; read once per dialog. */
+    private val owners = HashMap<LocalizationSource, ModuleConfig?>()
 
     init {
         title =
@@ -386,9 +393,31 @@ class TranslationDialog(
      */
     private fun reviewRootOf(source: LocalizationSource): VirtualFile? {
         if (source in reviewRoots) return reviewRoots[source]
+        return reviewRoot(project, moduleOf(source)).also { reviewRoots[source] = it }
+    }
+
+    /** The module [source]'s file belongs to, or null when no module of the settings holds it. */
+    private fun moduleOf(source: LocalizationSource): ModuleConfig? {
+        if (source in owners) return owners[source]
         val modules = Settings.getInstance(project).config().modules
         val module = if (modules.isEmpty()) null else ModuleSources.owner(modules, TranslationDataLoader.projectPathOf(source))
-        return reviewRoot(project, module).also { reviewRoots[source] = it }
+        return module.also { owners[source] = it }
+    }
+
+    /**
+     * What [source]'s stored value is compared against: the same key, as stored, in the reference
+     * locale of [source]'s module — [ReferenceLocale.of] over that module's locales, as the table
+     * reads it — as its locale and its text. Null for the reference locale itself, and when the
+     * reference holds no value.
+     */
+    private fun currentSourceOf(source: LocalizationSource): Pair<String, String>? {
+        val module = moduleOf(source)
+        val inModule = sources.keys.filter { moduleOf(it) == module }
+        val config = Settings.getInstance(project).config()
+        val reference = ReferenceLocale.of(module, config, inModule.map { it.localeLabel() }.distinct()) ?: return null
+        if (source.localeLabel() == reference) return null
+        val text = inModule.firstOrNull { it.localeLabel() == reference }?.let { sources[it] }
+        return text?.takeIf { it.isNotEmpty() }?.let { reference to it }
     }
 
     /**
@@ -407,14 +436,19 @@ class TranslationDialog(
     /** What the review of [source]'s stored value says, in [badge]. */
     private fun showReview(source: LocalizationSource, root: VirtualFile, badge: JBLabel) {
         val review = ReviewStore.getInstance(project).reviews(root, source.localeLabel())[reviewKeyOf(source, fullKey)]
-        val state = shown(review, sources[source])
+        val current = currentSourceOf(source)?.let { (locale, text) -> ReviewSource.of(locale, text) }
+        val state = shown(review, sources[source], current)
         badge.icon = ReviewBadge.icon(state)
         badge.text = if (state == ShownReview.NONE) PluginBundle.message("review.dialog.state.none") else ReviewBadge.label(state)
     }
 
-    /** The review thread of [source]'s locale, on the value stored — not the one being typed. */
+    /**
+     * The review thread of [source]'s locale, on the value stored — not the one being typed — and on
+     * the source stored in its module's reference locale.
+     */
     private fun openReview(source: LocalizationSource, root: VirtualFile) {
-        ReviewThreadDialog(project, root, ReviewCell(reviewSpellingOf(source, fullKey), source.localeLabel(), sources[source].orEmpty())).show()
+        val cell = ReviewCell(reviewSpellingOf(source, fullKey), source.localeLabel(), sources[source].orEmpty(), currentSourceOf(source)?.second)
+        ReviewThreadDialog(project, root, cell).show()
         reviewBadges[source]?.let { showReview(source, root, it) }
     }
 
@@ -530,19 +564,24 @@ class TranslationDialog(
         val provider = machineTranslator(project) ?: return
         if (targetSources.isEmpty()) return
         val filled = textAreas.entries.filter { it.key !in targetSources && it.value.text.isNotBlank() }
-        // The language translated *from* matters more than for a copy: a module's declared
-        // reference, then the project's (preview locale, else `en`), the fullest locale last.
+        // The language translated *from* matters more than for a copy: the reference of the key's
+        // module, as the rest of the plugin picks it (its declared one, then the project's: preview
+        // locale, else `en`), the fullest locale last. Another module's declared reference is not
+        // asked: the source a review mark records has to be the one the table compares.
         val config = Settings.getInstance(project).config()
+        val module = moduleOf(targetSources.first())
         // A plural form only when its `other` exists somewhere: `steps.one` is otherwise just a key.
         val plural = pluralFormOf(keyField.text, config.keySeparator, CLDR_SUFFIX_SEPARATOR)
-            ?.takeIf { it.first == PluralCategories.OTHER || otherFormSource(it.second, config) != null }
+            ?.takeIf { it.first == PluralCategories.OTHER || otherFormSource(it.second, module, config) != null }
         val labels = filled.map { it.key.localeLabel() }.toSet()
-        val sourceLocale = config.modules.map { it.referenceLocale }.firstOrNull { it in labels }
-            ?: ReferenceLocale.of(null, config, labels)
-            ?: viewModel.localeToCopyFrom(textAreas.keys)
-        val donor = filled.sortedByDescending { it.key.localeLabel() == sourceLocale }.firstOrNull()
+        val sourceLocale = ReferenceLocale.of(module, config, labels) ?: viewModel.localeToCopyFrom(textAreas.keys)
+        // Among the files of that locale, the one of the key's module: a neighbour's may say otherwise.
+        val donor = filled.sortedWith(
+            compareByDescending<Map.Entry<LocalizationSource, JBTextArea>> { it.key.localeLabel() == sourceLocale }
+                .thenByDescending { moduleOf(it.key) == module }
+        ).firstOrNull()
         val source = donor?.let { it.key.localeLabel() to it.value.text }
-            ?: plural?.let { otherFormSource(it.second, config) }
+            ?: plural?.let { otherFormSource(it.second, module, config) }
         // A locale is never translated into itself: the one whose `other` form is the source is left out.
         val targets = textAreas.entries.filter { it.key in targetSources && it.key.localeLabel() != source?.first }
             .map { it.key.localeLabel() to it.value }
@@ -551,10 +590,13 @@ class TranslationDialog(
             return
         }
 
-        // What each target locale is asked for: the source text, or a note saying why not.
+        // What each target locale is asked for: the source text, or a note saying why not. The text
+        // is kept as the proposal's source only when it is the key's own: an `other` form standing in
+        // for a missing one is another key's, which the table never compares — no source, in v1.
+        val asSource = { text: String -> if (donor != null) ReviewSource.of(source.first, text) else null }
         val notes = mutableListOf<String>()
         val requests = targets.mapNotNull { (locale, area) ->
-            if (plural == null) return@mapNotNull Triple(locale, area, source.second)
+            if (plural == null) return@mapNotNull MachineRequest(locale, area, source.second, asSource(source.second))
             val sourceForms = if (donor != null) mapOf(plural.first to source.second) else mapOf(PluralCategories.OTHER to source.second)
             when (val plan = PluralTranslationPlan.of(sourceForms, locale)) {
                 PluralTranslationPlan.Plan.IcuPlural -> {
@@ -566,7 +608,7 @@ class TranslationDialog(
                         form == null -> { notes += PluginBundle.message("dialog.translation.translate.no.such.form", locale, plural.first); null }
                         else -> {
                             if (form.needsReview) notes += PluginBundle.message("dialog.translation.translate.review", locale, plural.first)
-                            Triple(locale, area, form.source)
+                            MachineRequest(locale, area, form.source, if (form.needsReview) null else asSource(form.source))
                         }
                     }
                 }
@@ -591,27 +633,26 @@ class TranslationDialog(
         val failures = requests.zip(results).mapNotNull { (request, result) ->
             when (result) {
                 is Translation.Done -> {
-                    request.second.text = result.text
-                    textAreas.entries.firstOrNull { it.value === request.second }?.key
-                        ?.let { machineProposals[it] = MachineProposal(result.text, MachineFill.originOf(result)) }
+                    request.area.text = result.text
+                    textAreas.entries.firstOrNull { it.value === request.area }?.key
+                        ?.let { machineProposals[it] = MachineProposal(result.text, MachineFill.originOf(result), request.source) }
                     null
                 }
-                is Translation.Failed -> "${request.first}: ${result.reason}"
+                is Translation.Failed -> "${request.locale}: ${result.reason}"
             }
         } + notes
         translateStatus.text = failures.joinToString("<br>", "<html>", "</html>").takeIf { failures.isNotEmpty() }.orEmpty()
     }
 
     /**
-     * The `other` form of the plural being edited, [otherKey], as the reference locale holds it —
-     * any locale holding it when the reference does not — or null when none does.
+     * The `other` form of the plural being edited, [otherKey], as [module]'s reference locale holds
+     * it — any locale holding it when the reference does not — or null when none does.
      */
-    private fun otherFormSource(otherKey: String, config: Config): Pair<String, String>? {
+    private fun otherFormSource(otherKey: String, module: ModuleConfig?, config: Config): Pair<String, String>? {
         val values = viewModel.parseKey(otherKey)?.let(viewModel::loadTranslations).orEmpty()
             .mapNotNull { (source, value) -> value?.takeIf { it.isNotBlank() }?.let { source.localeLabel() to it } }
             .toMap()
-        val reference = config.modules.map { it.referenceLocale }.firstOrNull { it in values }
-            ?: ReferenceLocale.of(null, config, values.keys)
+        val reference = ReferenceLocale.of(module, config, values.keys)
         return (values.entries.firstOrNull { it.key == reference } ?: values.entries.firstOrNull())?.toPair()
     }
 
@@ -701,8 +742,9 @@ class TranslationDialog(
 
     /**
      * Marks *to review* each locale of [written] holding *Translate*'s proposal unchanged, with the
-     * engine it came from — in the current command, for its undo. A module keeping no reviews gets
-     * nothing, not even a folder: only an explicit choice turns reviews on.
+     * engine it came from and the source it was translated from — in the current command, for its
+     * undo. A module keeping no reviews gets nothing, not even a folder: only an explicit choice
+     * turns reviews on.
      */
     private fun markMachineValues(key: FullKey, written: Map<LocalizationSource, String>) {
         val toMark = untouchedProposals(machineProposals, written)
@@ -711,7 +753,9 @@ class TranslationDialog(
         val store = ReviewStore.getInstance(project)
         ApplicationManager.getApplication().runWriteAction {
             toMark.forEach { (source, root, proposal) ->
-                store.mark(root, source.localeLabel(), mapOf(reviewKeyOf(source, key) to proposal.text), proposal.origin)
+                val reviewKey = reviewKeyOf(source, key)
+                val sources = proposal.source?.let { mapOf(reviewKey to it) }.orEmpty()
+                store.mark(root, source.localeLabel(), mapOf(reviewKey to proposal.text), proposal.origin, sources)
             }
         }
         // No editor holds the review file: a global command is what Ctrl+Z reaches from anywhere.
@@ -775,8 +819,15 @@ class TranslationDialog(
     internal fun reviewStateOf(locale: String): String? =
         reviewBadges.entries.firstOrNull { it.key.localeLabel() == locale }?.value?.text
 
-    /** A machine translation as *Translate* proposed it: its [text] and its [origin] (`machine:<engine>`). */
-    internal data class MachineProposal(val text: String, val origin: String)
+    /**
+     * A machine translation as *Translate* proposed it: its [text], its [origin] (`machine:<engine>`)
+     * and the [source] it was translated from — the locale and text of the request — null when that
+     * text was not the key's own.
+     */
+    internal data class MachineProposal(val text: String, val origin: String, val source: ReviewSource? = null)
+
+    /** What *Translate* asks for [locale], shown in [area]: [text], kept as the proposal's [source]. */
+    private data class MachineRequest(val locale: String, val area: JBTextArea, val text: String, val source: ReviewSource?)
 
     companion object {
         /**

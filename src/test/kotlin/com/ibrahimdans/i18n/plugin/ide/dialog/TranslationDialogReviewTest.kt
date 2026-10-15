@@ -4,12 +4,16 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.ReviewBadge
 import com.ibrahimdans.i18n.plugin.review.Review
 import com.ibrahimdans.i18n.plugin.review.ReviewHash
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
+import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
+import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.translate.TranslatedBy
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
@@ -22,6 +26,7 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiDocumentManager
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
@@ -29,8 +34,9 @@ import java.time.Instant
 
 /**
  * The translation dialog and the review of translations: a locale *Translate* filled and validated
- * as proposed is marked to review in the command of OK, one retouched is not, and a module keeping
- * no reviews sees no mark, no link and no folder.
+ * as proposed is marked to review in the command of OK, with the source it was translated from, one
+ * retouched is not, a locale whose source changed since its review says so, and a module keeping no
+ * reviews sees no mark, no link and no folder.
  *
  * Assertions are qualified: `BasePlatformTestCase` inherits JUnit 3's reversed `assertEquals(message, …)`.
  */
@@ -100,7 +106,122 @@ class TranslationDialogReviewTest : PlatformBaseTest() {
         Assertions.assertEquals(ReviewState.TO_REVIEW, review.state)
         Assertions.assertEquals(ReviewHash.of("Bonjour"), review.hash)
         Assertions.assertEquals("machine:DeepL", review.origin)
+        Assertions.assertEquals(ReviewSource.of("en", "Hello"), review.source, "the text it was translated from")
         Assertions.assertEquals(emptyMap<ReviewKey, Review>(), store().reviews(root, "en"), "the donor locale is not marked")
+    }
+
+    /** `fr` approved on `Salut` when `en` read `Hi`; `en` reads `Hello` now: the approval no longer holds. */
+    private fun seedStale(): Pair<VirtualFile, VirtualFile> {
+        addFileToProject("locales/en/common.json", """{"greeting": "Hello"}""")
+        val fr = addFileToProject("locales/fr/common.json", """{"greeting": "Salut"}""").virtualFile
+        TranslationDialog.machineTranslator = { engine("Bonjour") }
+        val root = reviewRoot(enabled = true)
+        WriteAction.runAndWait<RuntimeException> {
+            store().decide(root, "fr", key, ReviewState.APPROVED, "Salut", source = ReviewSource.of("en", "Hi"))
+        }
+        return fr to root
+    }
+
+    private fun engine(answer: String, requests: MutableList<TranslationRequest> = mutableListOf()) = object : TranslationProvider {
+        override fun translate(request: TranslationRequest, indicator: ProgressIndicator?): List<Translation> {
+            requests += request
+            return listOf(Translation.Done(answer, TranslatedBy("DeepL", local = false)))
+        }
+    }
+
+    private fun label(state: ShownReview): String = ReviewBadge.label(state)
+
+    @Test
+    fun `a locale whose source changed since its review says so when the dialog opens`() = myFixture.runWithConfig(config) {
+        seedStale()
+
+        withDialog { dialog ->
+            Assertions.assertEquals(label(ShownReview.SOURCE_CHANGED), dialog.reviewStateOf("fr"))
+            Assertions.assertEquals(PluginBundle.message("review.dialog.state.none"), dialog.reviewStateOf("en"), "the reference is never stale")
+        }
+    }
+
+    @Test
+    fun `a stale locale translated again and validated is to review, no longer stale`() = myFixture.runWithConfig(config) {
+        val (fr, root) = seedStale()
+
+        withDialog { dialog ->
+            dialog.translateLocale("fr")
+            dialog.confirm()
+        }
+
+        Assertions.assertTrue("Bonjour" in frText(fr), frText(fr))
+        val review = store().reviews(root, "fr").getValue(key)
+        Assertions.assertEquals(ReviewState.TO_REVIEW, review.state)
+        Assertions.assertEquals(ReviewSource.of("en", "Hello"), review.source, "the source of the day")
+        withDialog { dialog -> Assertions.assertEquals(label(ShownReview.TO_REVIEW), dialog.reviewStateOf("fr")) }
+    }
+
+    @Test
+    fun `a stale locale retouched by hand is not marked and reads changed since approval`() = myFixture.runWithConfig(config) {
+        val (fr, root) = seedStale()
+
+        withDialog { dialog ->
+            dialog.translateLocale("fr")
+            dialog.setValue("fr", "Bonjour !")
+            dialog.confirm()
+        }
+
+        Assertions.assertTrue("Bonjour !" in frText(fr), frText(fr))
+        val review = store().reviews(root, "fr").getValue(key)
+        Assertions.assertEquals(ReviewState.APPROVED, review.state, "no mark")
+        Assertions.assertEquals(ReviewSource.of("en", "Hi"), review.source)
+        withDialog { dialog -> Assertions.assertEquals(label(ShownReview.CHANGED_SINCE_APPROVAL), dialog.reviewStateOf("fr")) }
+    }
+
+    @Test
+    fun `one Ctrl+Z gives a stale locale its value and its review back`() = myFixture.runWithConfig(config) {
+        val (fr, root) = seedStale()
+        myFixture.openFileInEditor(fr)
+
+        withDialog { dialog ->
+            dialog.translateLocale("fr")
+            dialog.confirm()
+        }
+        Assertions.assertEquals(ReviewState.TO_REVIEW, store().reviews(root, "fr").getValue(key).state)
+
+        UndoManager.getInstance(project).undo(FileEditorManager.getInstance(project).selectedEditor!!)
+
+        Assertions.assertTrue("Salut" in frText(fr), frText(fr))
+        val review = store().reviews(root, "fr").getValue(key)
+        Assertions.assertEquals(ReviewState.APPROVED, review.state)
+        Assertions.assertEquals(ReviewSource.of("en", "Hi"), review.source)
+        // The dialog reads values through the PSI, which an undo leaves to the next commit.
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+        withDialog { dialog -> Assertions.assertEquals(label(ShownReview.SOURCE_CHANGED), dialog.reviewStateOf("fr")) }
+    }
+
+    /**
+     * Two modules declaring different references: the key's own is the one translated from and
+     * recorded — not the first module's, which the table would not compare, every mark then stale.
+     */
+    @Test
+    fun `the source is the reference of the key's module, not another module's`() = myFixture.runWithConfig(
+        config.copy(modules = listOf(
+            ModuleConfig(name = "admin", rootDirectory = "src/apps/admin", referenceLocale = "de"),
+            ModuleConfig(name = "web", rootDirectory = "src/apps/web", referenceLocale = "es"),
+        ))
+    ) {
+        addFileToProject("apps/web/locales/en/common.json", """{"greeting": "Hello"}""")
+        addFileToProject("apps/web/locales/de/common.json", """{"greeting": "Hallo"}""")
+        addFileToProject("apps/web/locales/es/common.json", """{"greeting": "Hola"}""")
+        addFileToProject("apps/web/locales/fr/common.json", "{}")
+        val requests = mutableListOf<TranslationRequest>()
+        TranslationDialog.machineTranslator = { engine("Bonjour", requests) }
+        val root = reviewRoot(enabled = true)
+
+        withDialog { dialog ->
+            dialog.translateEmptyLocales()
+            dialog.confirm()
+        }
+
+        Assertions.assertEquals(listOf("es" to "fr"), requests.map { it.source to it.target })
+        Assertions.assertEquals(ReviewSource.of("es", "Hola"), store().reviews(root, "fr").getValue(key).source)
     }
 
     @Test
