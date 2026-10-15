@@ -1,11 +1,13 @@
-# Coming from i18n Ally or Easy I18n?
+# Coming from i18n Ally, Easy I18n, I18n Support or Sherlock?
 
 _Last verified: 2026-10-15. Re-check at every major release of any of the tools below._
 
 This page compares **I18n Support Plus** with the two tools people most often use for i18n keys in an editor:
-**i18n Ally** (by Lokalise, for VS Code and for JetBrains IDEs) and **Easy I18n** (for JetBrains IDEs). Each claim
-about another tool links to its documentation, its source code or its issue tracker at the version below. If one is
-wrong or out of date, [open an issue](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues) and it will be fixed.
+**i18n Ally** (by Lokalise, for VS Code and for JetBrains IDEs) and **Easy I18n** (for JetBrains IDEs). It also covers
+**I18n Support**, the plugin I18n Support Plus started from, and two other VS Code extensions: **i18n Ally Next** and
+**Sherlock** (by inlang). Each claim about another tool links to its documentation, its source
+code or its issue tracker at the version below. If one is wrong or out of date,
+[open an issue](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues) and it will be fixed.
 
 | Tool | Version compared | Released | Source |
 |---|---|---|---|
@@ -13,6 +15,9 @@ wrong or out of date, [open an issue](https://github.com/IBRAHIMDANS/i18nSupport
 | Easy I18n | 5.0.2 | 2026-05-03 | [Marketplace](https://plugins.jetbrains.com/plugin/16316-easy-i18n), [docs](https://marhali.github.io/easy-i18n/), [GitHub](https://github.com/marhali/easy-i18n) |
 | i18n Ally for JetBrains | 1.4.3.2 | 2024-10-12 | [Marketplace](https://plugins.jetbrains.com/plugin/17212-i18n-ally) |
 | i18n Ally for VS Code | 2.13.1 | 2024-12-13 | [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=lokalise.i18n-ally), [wiki](https://github.com/lokalise/i18n-ally/wiki), [GitHub](https://github.com/lokalise/i18n-ally) |
+| I18n Support | 2.8.4 | 2023-03-28 | [Marketplace](https://plugins.jetbrains.com/plugin/12981-i18n-support/versions), [GitHub](https://github.com/nyavro/i18nPlugin) |
+| i18n Ally Next | 3.0.15 | 2026-03-19 | [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=lydanne.i18n-ally-next), [docs](https://lydanne.github.io/i18n-ally-next/), [GitHub](https://github.com/lydanne/i18n-ally-next) |
+| Sherlock | 2.5.1 | 2026-10-15 | [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=inlang.vs-code-extension), [GitHub](https://github.com/opral/sherlock) |
 
 In the tables, **—** means the tool's documentation says nothing about it at that version. It does not mean the
 feature is missing.
@@ -24,6 +29,36 @@ installs on **builds 241 to 242 only, i.e. 2024.1 and 2024.2**. It cannot be ins
 ([Marketplace versions](https://plugins.jetbrains.com/plugin/17212-i18n-ally/versions),
 [issue #1379](https://github.com/lokalise/i18n-ally/issues/1379), open). I18n Support Plus runs on 2025.2 to 2026.3
 (builds 252–263).
+
+## Coming from I18n Support?
+
+**I18n Support** (`com.eny.i18n`, by Evgeniy Nyavro, 79 697 downloads on 2026-10-15) has not been updated since
+2.8.4, released on 2023-03-28. That version installs on **builds 221 to 231 only, i.e. 2022.1 to 2023.1**
+([Marketplace versions](https://plugins.jetbrains.com/plugin/12981-i18n-support/versions),
+[`gradle.properties`](https://github.com/nyavro/i18nPlugin/blob/master/gradle.properties)). Its companion
+**Vue-I18n Support** (`com.eny.i18nVue`) stopped at 1.0.3, released on 2022-12-08, for builds 221 to 223
+([Marketplace versions](https://plugins.jetbrains.com/plugin/20194-vue-i18n-support/versions)).
+
+I18n Support Plus started as a fork of I18n Support. It is a separate plugin with its own id
+(`com.ibrahimdans.i18n`), not an update: install it from the Marketplace.
+
+**What is carried over.** Everything I18n Support 2.8.4 lists in its
+[README](https://github.com/nyavro/i18nPlugin/blob/master/README.md) and on the
+[Marketplace](https://plugins.jetbrains.com/plugin/12981-i18n-support): key annotation, navigation from the key to its
+value and back, completion, quick fixes for a missing namespace or key, extraction of a string, the value on
+Ctrl+hover, YAML files, PHP and Vue. vue-i18n is built in: Vue-I18n Support is not needed.
+
+**What is new.** Everything in the tables below that I18n Support did not have, among others: modules for a monorepo,
+the setup wizard, `fallbackNS`, next-intl, Transloco and Laravel, the plural forms each language needs, renaming
+and moving keys, the tool window, value checks, unused keys, CSV and XLIFF, reviews and machine translation.
+
+**Do you have to reconfigure?** No. I18n Support Plus keeps the project settings under the same name, `i18nSettings`,
+in the same file, `.idea/i18nSettings.xml`, with the same option names
+([I18n Support](https://github.com/nyavro/i18nPlugin/blob/master/src/main/kotlin/com/eny/i18n/plugin/ide/settings/Settings.kt),
+[I18n Support Plus](../src/main/kotlin/com/ibrahimdans/i18n/plugin/ide/settings/Settings.kt)): separators, default
+namespaces, first key segment as namespace, folding, gettext and its aliases, sorted extraction, the partial
+translation inspection and the others are read as they are. I18n Support had no translation root setting: while none is set,
+a notification offers the setup wizard when the project opens.
 
 ## Feature by feature
 
@@ -103,9 +138,35 @@ installs on **builds 241 to 242 only, i.e. 2024.1 and 2024.2**. It cannot be ins
 | Fill a whole locale | Yes, every locale at once | — | — | `fulfill-keys` |
 | Glossary | Terms kept as written for every engine; translated terms sent to the OpenAI-compatible prompt and as a DeepL glossary | — | — | — |
 
+## i18n Ally Next and Sherlock (VS Code)
+
+**i18n Ally Next** is a fork of i18n Ally for VS Code
+([announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)),
+installed 1 151 times on 2026-10-15. **Sherlock** is the inlang extension for VS Code, built on the inlang project
+format ([README](https://github.com/opral/sherlock)), installed 51 740 times on 2026-10-15. Neither runs in JetBrains
+IDEs.
+
+| | I18n Support Plus | i18n Ally Next 3.0.15 | Sherlock 2.5.1 |
+|---|---|---|---|
+| Setup | Wizard and per-framework presets | Framework detected from `package.json` ([README](https://github.com/lydanne/i18n-ally-next)) | A `project.inlang/settings.json` and a Git repository; a module per file format, a matcher per call syntax ([README](https://github.com/opral/sherlock)) |
+| Value next to the key | Inlay hint, folding, Ctrl+hover | Inline annotation, hover | Inline annotation, hover |
+| Missing translations | Inspection, filters, keys synchronizer | Usage report: missing keys ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/usage-report.md)) | Message lint: missing translations and other issues ([README](https://github.com/opral/sherlock)) |
+| Unused keys | Inspection, Scan Orphans, Cleanup Unused Keys | Usage report: idle keys | — |
+| Extract a hardcoded string | Dialog, file or folder at once | Quick fix, per file, and the whole project at once ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/extraction.md), [announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)) | One click |
+| Review | Tool window table and key dialog, `.i18n-reviews/` | Gutter and comment threads in the translation file, `.vscode/i18n-ally-next-reviews.yml` ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/review.md)) | — |
+| Translations outdated by a changed source text | — | Snapshot of the source text per key, compared on demand ([announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)) | — |
+| Machine translation | Ollama, OpenAI-compatible API, DeepL, LibreTranslate, Google; opt-in | Google (default), DeepL, Baidu, LibreTranslate, OpenAI, Ollama, the editor's built-in model through Copilot ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/translation.md)) | The command opens an inlang Cloud page, announced as coming, and points to the inlang CLI ([source](https://github.com/opral/sherlock/blob/main/src/commands/cloud.ts)) |
+| AI agents (MCP) | Tools on the IDE's MCP server | — | — |
+| Your own translation function | Key assistance rules, call template | Custom framework in YAML ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/custom-framework.md)) | — (matcher plugins exist for `m()`, `t()` and next-intl) |
+| Migration from i18n Ally | Settings table [below](#from-i18n-ally) | Command that renames the `i18n-ally.*` settings, custom framework and reviews files ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/migration.md)) | — |
+
 ## What the others do better
 
-- **i18n Ally runs in VS Code.** If your team uses VS Code, I18n Support Plus is not an option: it is a JetBrains plugin.
+- **i18n Ally, i18n Ally Next and Sherlock run in VS Code.** If your team uses VS Code, I18n Support Plus is not an
+  option: it is a JetBrains plugin.
+- **i18n Ally Next detects translations left behind by a changed source text** and offers to translate them again,
+  one by one or all at once ([announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)).
+  I18n Support Plus compares translations with a Git branch, not with the source text they were made from.
 - **i18n Ally reviews from the editor**: approvals, requested changes, comments and suggested values in the gutter, the side panel and its Editor UI,
   stored in the repository ([wiki](https://github.com/lokalise/i18n-ally/wiki/Review-&-Collaboration-System)).
   I18n Support Plus reviews from the tool window table and the key dialog, not from the code editor.
@@ -137,6 +198,10 @@ installs on **builds 241 to 242 only, i.e. 2024.1 and 2024.2**. It cannot be ins
 | `i18n-ally.refactor.templates` | The module's *Call template* (`translate({key})`) |
 | `i18n-ally.sortKeys` | *Sort keys alphabetically* |
 | Custom framework (`.vscode/i18n-ally-custom-framework.yml`) | *Key assistance rules*: a trigger per function name |
+
+### From I18n Support
+
+Nothing to carry over by hand: see [Coming from I18n Support?](#coming-from-i18n-support).
 
 ### From Easy I18n
 

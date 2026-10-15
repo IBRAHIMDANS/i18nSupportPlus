@@ -11,6 +11,9 @@
 ### Tests
 
 - [Astro] **`t('key')` in `.astro` components is covered, and documented** (i18n Ally #1063, #1347): `AstroCallsTest` checks the `---` frontmatter and `{…}` template expressions — annotation of a resolved and a missing key, navigation to the value, completion and folding all work, with no production code: the Astro plugin parses both contexts into JavaScript PSI, which the extensions registered for JavaScript already read. That plugin is not bundled in IntelliJ Ultimate (a `.astro` file is plain text without it), so it is added as a test dependency only, and the README states the requirement
+### Documentation
+
+- [Docs] **Coming from I18n Support, i18n Ally Next or Sherlock?** [docs/COMPARISON.md](docs/COMPARISON.md) now covers I18n Support, the plugin this one started from — what carries over, what is new, and that its project settings are read as they are, under the same name and file — and compares the plugin with the VS Code extensions i18n Ally Next and Sherlock, each claim sourced and dated
 
 ## 1.12.0 - 2026-10-15
 
