@@ -5,6 +5,8 @@ Plugin ID: `com.ibrahimdans.i18n`
 <!-- Plugin description -->
 Turns i18n keys into first-class code symbols in **WebStorm, IntelliJ IDEA Ultimate and PhpStorm**: see each key's value and status, jump to it, rename it, translate it and keep every locale in sync.
 
+Maintained successor of **I18n Support**, which no longer installs on IDEs after 2023.1: a fork of it, installed separately rather than as an update, that reads its project settings back as they are — see [Coming from I18n Support?](https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/docs/COMPARISON.md#coming-from-i18n-support).
+
 Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-intl, ngx-translate, Transloco, svelte-i18n, i18n-js and Laravel / Blade**, in JS, TS, JSX, TSX, Vue SFC, Angular templates and PHP, with **JSON, JSON5, YAML, PO/POT** and plain **TS/JS catalogues**. A setup wizard configures it on first launch, monorepo modules included.
 
 - **See** — gutter status per key (all / some / no locale), inline value hints, folding and hover in a preview locale, completion of real keys, namespaces included

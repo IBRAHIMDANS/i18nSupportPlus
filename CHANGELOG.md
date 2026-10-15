@@ -6,6 +6,10 @@
 
 - [Platform] **IntelliJ-based IDEs 2025.2 and later** (build 252): 2025.1 is no longer supported, and stays on 1.11.1. On 2025.1 the Marketplace verifier matched the optional MCP server dependency to the old standalone *MCP Server* plugin, which shares its id but not its API, and held 1.12.0 back for every IDE. An IDE with that old plugin would also have loaded the MCP tools against an API it lacks
 
+### Documentation
+
+- [Docs] **The Marketplace page presents the plugin as the maintained successor of I18n Support**: a fork of it, installed separately rather than as an update, that reads its project settings back as they are, with a link to [Coming from I18n Support?](docs/COMPARISON.md#coming-from-i18n-support)
+
 ## 1.12.0 - 2026-10-15
 
 ### Features
