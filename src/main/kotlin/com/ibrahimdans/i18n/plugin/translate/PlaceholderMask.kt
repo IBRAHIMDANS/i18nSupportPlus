@@ -156,6 +156,18 @@ object PlaceholderMask {
         return Unmasked.Restored(TAG.replace(translated) { masked.tokens[it.groupValues[1].toInt()].original })
     }
 
+    /**
+     * Whether [translation], written in clear rather than masked, keeps what [source] protects: the
+     * same variables, tags and ICU pieces, as many times each, its tags still nesting. A variable may
+     * move; it may not be dropped, doubled or renamed.
+     */
+    fun samePlaceholders(source: String, translation: String): Boolean {
+        val expected = mask(source).tokens
+        val found = mask(translation).tokens
+        if (expected.groupingBy { it }.eachCount() != found.groupingBy { it }.eachCount()) return false
+        return nests(found.filter { it.kind == Kind.MARKUP }.map { it.original })
+    }
+
     /** Whether the [tags], in order, open and close as a well-formed tree. */
     private fun nests(tags: List<String>): Boolean {
         val open = ArrayDeque<String>()
