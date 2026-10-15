@@ -287,6 +287,13 @@
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.ValueStyleInspection"/>
         <localInspection
             groupName="i18n Support Plus"
+            key="inspection.keyNaming.display.name"
+            shortName="I18nKeyNaming"
+            enabledByDefault="false"
+            level="WEAK WARNING"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.KeyNamingInspection"/>
+        <localInspection
+            groupName="i18n Support Plus"
             key="inspection.icu.display.name"
             shortName="I18nIcuFormat"
             enabledByDefault="true"

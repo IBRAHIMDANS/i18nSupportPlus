@@ -1,12 +1,10 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.Extensions
-import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileKeys
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
 import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.review.ReviewMigration
@@ -22,10 +20,12 @@ import com.intellij.openapi.command.UndoConfirmationPolicy
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.vfs.ReadonlyStatusHandler
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -139,25 +139,28 @@ class RenameI18nKeyHandler : RenameHandler {
 
     /** The level under the caret in a translation file: a property holding other keys, not a value. */
     private fun levelInTranslationFile(editor: Editor, file: PsiFile): KeyLevelRename? {
-        val source = TranslationFileScope.sourceOf(file) ?: return null
+        TranslationFileScope.sourceOf(file) ?: return null
         val element = file.findElementAt(editor.caretModel.offset) ?: return null
         val property = TranslationPsi.propertyOf(element, strict = false) ?: return null
         val entry = TranslationPsi.entryOf(property) ?: return null
         if (entry.literal != null || !PsiTreeUtil.isAncestor(entry.keyElement, element, false)) return null
-        val config = Settings.getInstance(file.project).config()
-        val path = TranslationFileKeys.pathOf(property).takeIf { it.isNotEmpty() } ?: return null
-        val namespace = TranslationDataLoader.extractNamespace(source, config.defaultNamespaces().first())
-        return KeyLevelRename(file.project, listOf(namespace), path, config, file)
+        return KeyLevelRename.inTranslationFile(property)
     }
 
-    private fun renameLevel(project: Project, level: KeyLevelRename) {
-        val title = PluginBundle.message("action.rename.level.title")
+    /**
+     * Asks for the new name of [level], [suggested] filled in, then renames it everywhere once
+     * confirmed. A [leaf] — a key holding a value — is asked for as a key, not as a level.
+     */
+    internal fun renameLevel(project: Project, level: KeyLevelRename, suggested: String = level.levelName, leaf: Boolean = false) {
+        val title = PluginBundle.message(if (leaf) "action.rename.title" else "action.rename.level.title")
+        val prompt = if (leaf) PluginBundle.message("action.rename.key.prompt", level.path.joinToString("."))
+            else PluginBundle.message("action.rename.level.prompt", level.path.joinToString("."))
         val newName = Messages.showInputDialog(
             project,
-            PluginBundle.message("action.rename.level.prompt", level.path.joinToString(".")),
+            prompt,
             title,
             Messages.getQuestionIcon(),
-            level.levelName,
+            suggested,
             null
         )?.trim() ?: return
         if (newName.isEmpty() || newName == level.levelName) return
@@ -187,8 +190,13 @@ class RenameI18nKeyHandler : RenameHandler {
     /**
      * Applies [edits] and moves [reviews] in one command. Global, without confirmation, as every
      * command writing reviews: the review file has no editor, and one Ctrl+Z must take both back.
+     *
+     * The files are made writable first — a file a VCS such as Perforce keeps read-only is checked
+     * out, or the rename is dropped when the user refuses — rather than failing halfway through.
      */
     private fun apply(project: Project, edits: List<Edit>, command: String, reviews: List<ReviewMove>) {
+        val files = edits.mapNotNull { FileDocumentManager.getInstance().getFile(it.document) }.distinct()
+        if (ReadonlyStatusHandler.getInstance(project).ensureFilesWritable(files).hasReadonlyFiles()) return
         WriteCommandAction.writeCommandAction(project)
             .withName(command)
             .withGlobalUndo()

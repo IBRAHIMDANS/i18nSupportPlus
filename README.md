@@ -229,6 +229,7 @@ Enabled under **Settings > Editor > Inspections > i18n Support Plus**:
 | ICU message format validation | Unbalanced braces, a `plural` block without `one`/`other`, … |
 | Unused translation key | A key of a translation file no code refers to, unless the settings keep it (*Keys used outside the code*); quick fixes: delete it, or keep it |
 | Translation reviewed on a source that changed since | Where a module keeps reviews, a value still the one reviewed while the key's reference text changed since (weak warning) |
+| Key naming convention | A key not following the project's convention — camelCase, snake_case, kebab-case or a pattern of your own — segment by segment, plural suffixes aside (off by default); quick fix: rename it in every locale and call site |
 
 ### Continuous Integration
 
