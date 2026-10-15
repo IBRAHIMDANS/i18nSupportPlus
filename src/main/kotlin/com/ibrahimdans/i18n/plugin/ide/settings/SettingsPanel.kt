@@ -6,9 +6,13 @@ import com.intellij.openapi.project.Project
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
+import java.awt.Component
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
+import javax.swing.DefaultListCellRenderer
 import javax.swing.JCheckBox
+import javax.swing.JComboBox
+import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.JTextField
 import javax.swing.event.DocumentEvent
@@ -139,6 +143,10 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                 row {
                     cell(checkbox(PluginBundle.message("settings.sort.keys.alphabetically"), settings::sortKeysAlphabetically))
                 }
+                row(PluginBundle.message("settings.key.order")) {
+                    cell(keyOrderField(PluginBundle.message("settings.key.order"), settings::keyOrder))
+                        .comment(PluginBundle.message("settings.key.order.comment"))
+                }
             }
 
             group(PluginBundle.message("settings.group.gettext")) {
@@ -194,6 +202,24 @@ class SettingsPanel(val settings: Settings, val project: Project) {
         checkbox.name = label
         checkbox.addItemListener { _ -> property.set(checkbox.isSelected) }
         return checkbox
+    }
+
+    private fun keyOrderField(label: String, property: KMutableProperty0<KeyOrder>): JComboBox<KeyOrder> {
+        val control = JComboBox(KeyOrder.entries.toTypedArray())
+        control.name = label
+        control.selectedItem = property.get()
+        control.renderer = object : DefaultListCellRenderer() {
+            override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component {
+                val text = when (value as? KeyOrder) {
+                    KeyOrder.IGNORE_CASE -> PluginBundle.message("settings.key.order.ignore_case")
+                    KeyOrder.CHARACTER_CODE -> PluginBundle.message("settings.key.order.character_code")
+                    null -> null
+                }
+                return super.getListCellRendererComponent(list, text, index, isSelected, cellHasFocus)
+            }
+        }
+        control.addItemListener { _ -> (control.selectedItem as? KeyOrder)?.let(property::set) }
+        return control
     }
 
     private fun separatorField(label: String, property: KMutableProperty0<String>): JTextField {

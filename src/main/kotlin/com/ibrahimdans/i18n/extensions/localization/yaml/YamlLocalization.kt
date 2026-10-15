@@ -82,8 +82,9 @@ private class YamlContentGenerator: ContentGenerator {
         val obj = (item as YAMLMapping)
         val props = obj.keyValues
         val separator = generator.createEol()
-        val (element, anchor) = if (Settings.getInstance(item.project).extractSorted) {
-            val before = props.takeWhile {it.name ?: "" < key}
+        val settings = Settings.getInstance(item.project)
+        val (element, anchor) = if (settings.extractSorted) {
+            val before = props.takeWhile { settings.keyOrder.comparator.compare(it.name ?: "", key) < 0 }
             if (before.isEmpty()) {
                 Pair(separator, obj.addBefore(keyValue, if (props.isEmpty()) item.node.firstChildNode.psi else props.first()))
             } else {

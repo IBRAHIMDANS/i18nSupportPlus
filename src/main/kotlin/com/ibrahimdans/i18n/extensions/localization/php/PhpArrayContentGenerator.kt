@@ -40,8 +40,9 @@ class PhpArrayContentGenerator : ContentGenerator {
         val project = item.project
         val entry = createEntry(project, key, value) ?: return
         val entries = array.hashElements.toList()
-        val before = if (Settings.getInstance(project).extractSorted) {
-            entries.takeWhile { (PhpArrays.keyOf(it)?.contents ?: "") < key }
+        val settings = Settings.getInstance(project)
+        val before = if (settings.extractSorted) {
+            entries.takeWhile { settings.keyOrder.comparator.compare(PhpArrays.keyOf(it)?.contents ?: "", key) < 0 }
         } else {
             entries
         }

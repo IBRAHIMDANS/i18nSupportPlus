@@ -58,8 +58,9 @@ class PlainObjectContentGenerator : ContentGenerator {
         val document = manager.getDocument(file) ?: return
         val entry = generateContent(listOf(Literal(key)), value)
 
-        val anchor = if (Settings.getInstance(item.project).extractSorted) {
-            sortedAnchor(document.text, key)
+        val settings = Settings.getInstance(item.project)
+        val anchor = if (settings.extractSorted) {
+            sortedAnchor(document.text, key, settings.keyOrder.comparator)
         } else null
 
         if (anchor != null) {
@@ -93,10 +94,10 @@ class PlainObjectContentGenerator : ContentGenerator {
      * open on `msgid "Project-Id-Version"`). It carries the metadata, never a translation, so it
      * is neither an anchor nor something to sort against.
      */
-    private fun sortedAnchor(text: String, key: String): Int? {
+    private fun sortedAnchor(text: String, key: String, order: Comparator<String>): Int? {
         val entries = entryOffsets(text)
         // drop(1): the header is not a translation and must not move.
-        return entries.drop(1).firstOrNull { (_, msgid) -> msgid > key }?.first
+        return entries.drop(1).firstOrNull { (_, msgid) -> order.compare(msgid, key) > 0 }?.first
     }
 
     /**

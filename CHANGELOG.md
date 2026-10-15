@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Extraction] **Choose the order keys are sorted in** ([#508](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/508)): the new *Key order* setting (*Key extraction* group) sorts keys ignoring case — `apple`, `Banana`, `cherry`, the order so far — or by character code, like the IDE's *Sort properties alphabetically* — `Banana`, `apple`, `cherry`. *Sort i18n Keys Alphabetically*, *Sort keys alphabetically* and *Extract translation sorted by key* all follow it, so a file sorted by the IDE no longer gets reshuffled by the plugin. Nothing changes for a file the plugin already sorted. The sorted insertion compared character codes while the full sort ignored case, so with both options on a new key could land out of place; it now follows the setting too, which moves where it inserts a key differing in case from its neighbours (JSON, YAML, TS/JS, PHP and PO)
+
 ### Fixes
 
 - [ci] Measure the plugin's own classes in the coverage report. Every pull request was commented `0%` — overall and on every changed file — while the suite passed: the report counted 114 884 instructions missed out of 114 884. The JaCoCo agent did run, but recorded 448 classes, none of them the plugin's: the platform's class loaders define plugin classes without a code source, and JaCoCo skips such classes unless `includeNoLocationClasses` is set. The `test` task now sets it, and excludes `jdk.internal.*`, which the agent must not instrument. A single test class (`ExtractI18nIntentionActionTest`) already brings the report from 0 % to 10.6 % of the project's instructions, and 66 of the 71 lines of `ExtractI18nIntentionAction`

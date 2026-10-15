@@ -45,8 +45,9 @@ class TsContentGenerator : ContentGenerator {
             obj.addAfter(newProperty, obj.firstChild)
             return
         }
-        val (element, anchor) = if (Settings.getInstance(item.project).extractSorted) {
-            val before = props.takeWhile { it.name ?: "" < key }
+        val settings = Settings.getInstance(item.project)
+        val (element, anchor) = if (settings.extractSorted) {
+            val before = props.takeWhile { settings.keyOrder.comparator.compare(it.name ?: "", key) < 0 }
             if (before.isEmpty()) {
                 Pair(comma, obj.addBefore(newProperty, props.first()))
             } else {
