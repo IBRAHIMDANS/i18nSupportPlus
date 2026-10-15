@@ -8,6 +8,10 @@
 
 - [Platform] **IntelliJ-based IDEs 2025.2 and later** (build 252): 2025.1 is no longer supported, and stays on 1.11.1. On 2025.1 the Marketplace verifier matched the optional MCP server dependency to the old standalone *MCP Server* plugin, which shares its id but not its API, and held 1.12.0 back for every IDE. An IDE with that old plugin would also have loaded the MCP tools against an API it lacks
 
+### Tests
+
+- [Astro] **`t('key')` in `.astro` components is covered, and documented** (i18n Ally #1063, #1347): `AstroCallsTest` checks the `---` frontmatter and `{…}` template expressions — annotation of a resolved and a missing key, navigation to the value, completion and folding all work, with no production code: the Astro plugin parses both contexts into JavaScript PSI, which the extensions registered for JavaScript already read. That plugin is not bundled in IntelliJ Ultimate (a `.astro` file is plain text without it), so it is added as a test dependency only, and the README states the requirement
+
 ## 1.12.0 - 2026-10-15
 
 ### Features
