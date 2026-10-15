@@ -1,0 +1,9 @@
+<html>
+<body>
+<p>Reports a translation still holding the value its review was decided on, while the same key's text in the module's reference locale changed since.</p>
+<p>Example: <code>fr.json: "save": "Enregistrer"</code> approved when <code>en.json</code> read <code>Save</code>, which now reads <code>Save and close</code>: the approval no longer holds.</p>
+<p>Only where the module keeps reviews (an <code>.i18n-reviews</code> folder). The reference locale itself, and reviews decided before the source was recorded, are never reported. Approve the value again, or re-translate it, from the key dialog or the table.</p>
+<!-- tooltip end -->
+<p>Reads the review files already loaded by the IDE: no external process is run. Runs in the editor and headless, in Qodana or <code>inspect.sh</code>.</p>
+</body>
+</html>
