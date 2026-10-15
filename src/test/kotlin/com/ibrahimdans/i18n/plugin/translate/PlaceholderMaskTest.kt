@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.translate.PlaceholderMask.Rejection
 import com.ibrahimdans.i18n.plugin.translate.PlaceholderMask.Unmasked
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
@@ -93,5 +94,36 @@ class PlaceholderMaskTest {
         val masked = PlaceholderMask.mask("<b>bold <i>both</i></b>")
 
         assertEquals(Unmasked.Rejected(Rejection.MARKUP_BROKEN), PlaceholderMask.unmask("""<x id="0"/>gras <x id="1"/>les deux<x id="3"/><x id="2"/>""", masked))
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+        strings = [
+            "Hello {{name}}!|Bonjour {{name}} !",
+            "{{count}} of {{total}}|{{total}} : {{count}}",
+            "Save <0>now</0>|<0>Maintenant</0>, enregistrer",
+            "%s files|%s fichiers",
+            "Plain|Simple",
+        ]
+    )
+    fun `a translation in clear keeping the same placeholders is accepted`(pair: String) {
+        val (source, translation) = pair.split("|")
+        assertTrue(PlaceholderMask.samePlaceholders(source, translation), translation)
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+        strings = [
+            "Hello {{name}}!|Bonjour !",
+            "Hello {{name}}!|Bonjour {{nom}} !",
+            "Hello {{name}}!|Bonjour {{name}} {{name}} !",
+            "Save <0>now</0>|Enregistrer maintenant</0>",
+            "<b>bold <i>both</i></b>|<b>gras <i>les deux</b></i>",
+            "Plain|Simple {{name}}",
+        ]
+    )
+    fun `a translation in clear losing, doubling, renaming or breaking a placeholder is refused`(pair: String) {
+        val (source, translation) = pair.split("|")
+        assertFalse(PlaceholderMask.samePlaceholders(source, translation), translation)
     }
 }
