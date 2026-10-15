@@ -60,11 +60,15 @@ internal object YamlTranslationPsi {
         else -> null
     }
 
-    /** Replaces the value of a scalar or of a key-value with [newValue]. */
+    /**
+     * Replaces the value of a scalar or of a key-value with [newValue], in the quotes the value had
+     * when they can carry it ([YamlScalars.spell]).
+     */
     fun replaceValue(element: PsiElement, newValue: String, project: Project) {
         val keyValue = element as? YAMLKeyValue ?: PsiTreeUtil.getParentOfType(element, YAMLKeyValue::class.java) ?: return
-        val replacement = YAMLElementGenerator.getInstance(project).createYamlKeyValue(keyValue.keyText, newValue).value ?: return
         val current = if (element is YAMLScalar) element else keyValue.value
+        val spelling = YamlScalars.spell(newValue, YamlScalars.styleOf(current?.text.orEmpty()))
+        val replacement = YAMLElementGenerator.getInstance(project).createYamlKeyValue(keyValue.keyText, spelling).value ?: return
         current?.replace(replacement)
     }
 
