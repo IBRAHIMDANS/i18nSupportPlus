@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- [Translation] **The *Machine Translation* settings page shows again** ([#509](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/509)): with no engine configured yet — every project before its first one — the page stayed blank or half drawn, and machine translation could not be set up. The *Preset* box failed to render its empty selection, at every repaint
+
 ## 1.11.0 - 2026-10-15
 
 ### Features

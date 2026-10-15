@@ -51,8 +51,10 @@ internal class MachineTranslationPanel(
     private val presetCombo = JComboBox(DefaultComboBoxModel(TranslationEngines.presets.map { it.id }.toTypedArray())).apply {
         name = PluginBundle.message("settings.translate.preset")
         renderer = javax.swing.DefaultListCellRenderer().let { base ->
+            // `value` is null while no engine is selected: rendered blank, a cast would fail every repaint
             javax.swing.ListCellRenderer { list, value, index, selected, focus ->
-                base.getListCellRendererComponent(list, TranslationEngines.preset(value as String)?.name ?: value, index, selected, focus)
+                val label = (value as? String)?.let { TranslationEngines.preset(it)?.name ?: it }
+                base.getListCellRendererComponent(list, label, index, selected, focus)
             }
         }
         addActionListener { applyPreset(selectedItem as? String) }
