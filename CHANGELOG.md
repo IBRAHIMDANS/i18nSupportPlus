@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Reviews] **The key dialog shows a translation whose source changed since it was reviewed, and *Translate* records the source it translates from**: in a module keeping reviews, a locale whose value is the one reviewed while the key's reference text changed since reads *To review (source changed since the decision)*. *Translate* on it, then *OK*, marks the new value *to review* with the reference text it was translated from, so it is no longer stale; a proposal retouched by hand is not marked and reads *To review (changed since approved)*, and one Ctrl+Z still takes back values and marks together. The text translated from is now the reference of the key's own module, as everywhere else in the plugin, rather than the first module of the settings declaring a locale the key holds — a multi-module project whose modules declare different references may see *Translate* start from another locale than before
+
 ### Tests
 
 - [Astro] **`t('key')` in `.astro` components is covered, and documented** (i18n Ally #1063, #1347): `AstroCallsTest` checks the `---` frontmatter and `{…}` template expressions — annotation of a resolved and a missing key, navigation to the value, completion and folding all work, with no production code: the Astro plugin parses both contexts into JavaScript PSI, which the extensions registered for JavaScript already read. That plugin is not bundled in IntelliJ Ultimate (a `.astro` file is plain text without it), so it is added as a test dependency only, and the README states the requirement
