@@ -51,6 +51,9 @@ dependencies {
         // Blade is not bundled in IntelliJ Ultimate either. Only for the tests and runIde: the plugin
         // declares no dependency on it, a Blade echo being PHP the Blade plugin injects.
         plugin("com.jetbrains.php.blade:253.28294.325")
+        // Astro is not bundled in IntelliJ Ultimate either: without it a .astro file is PLAIN_TEXT.
+        // Only for the tests and runIde (AstroCallsTest): the plugin declares no dependency on it.
+        plugin("org.jetbrains.plugins.astro:253.32098.37")
 
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }

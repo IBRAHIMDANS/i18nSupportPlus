@@ -1,0 +1,6 @@
+---
+import { t } from 'i18next';
+const title = t('test:page.title');
+const missing = t('test:page.<error descr="Unresolved key">absent</error>');
+---
+<h1>{title}</h1>
