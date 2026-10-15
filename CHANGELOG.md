@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Translation] **Translate a locale again from the translation dialog**: with machine translation on, each locale of the *Edit Translation* dialog has a *Translate* link that replaces its value — filled or not — with the machine translation of the reference locale (of another locale when it is the reference itself). *Translate Empty Locales* still never touches a value already there. Nothing is written before *OK*, *Cancel* keeps the stored values, and a proposal kept as is is marked *to review* like the button's
+
 ## 1.10.1 - 2026-10-15
 
 ### Features

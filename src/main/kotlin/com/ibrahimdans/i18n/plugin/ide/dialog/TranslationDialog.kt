@@ -47,6 +47,7 @@ import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.AlignY
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.Row
 import com.intellij.ui.dsl.builder.panel
@@ -336,6 +337,12 @@ class TranslationDialog(
                 cell(JBScrollPane(textArea))
                     .align(AlignX.FILL)
                     .comment(source.displayPath)
+                // Beside the button, which only fills the empty locales: this one replaces a value too.
+                if (translateButton.isVisible) {
+                    link(PluginBundle.message("dialog.translation.translate.locale")) { translateLocale(source.localeLabel()) }
+                        .align(AlignY.TOP)
+                        .applyToComponent { toolTipText = PluginBundle.message("dialog.translation.translate.locale.tooltip") }
+                }
             }
             variableWarningRows[source] = row("") {
                 cell(warning).align(AlignX.FILL)
@@ -477,26 +484,34 @@ class TranslationDialog(
     }
 
     /**
-     * Fills every locale left empty with the value of the donor locale: the one the module
-     * declares as its reference, or the fullest one when it declares none — see
-     * [DialogViewModel.localeToCopyFrom].
-     */
-    /**
      * Fills every locale left empty with the machine translation of the reference locale's value. A
-     * value already there is never replaced, and nothing is
-     * written to the files before *OK*: the proposals stay editable in their fields.
+     * value already there is never replaced — [translateLocale] is for that.
+     */
+    internal fun translateEmptyLocales() = translate(textAreas.filterValues { it.text.isBlank() }.keys)
+
+    /**
+     * Replaces the value shown for [locale], empty or not, with the machine translation of another
+     * locale's: the reference, or another one when [locale] is the reference itself.
+     */
+    internal fun translateLocale(locale: String) = translate(textAreas.keys.filter { it.localeLabel() == locale }.toSet())
+
+    /**
+     * Fills [targetSources] with the machine translation of the reference locale's value, taken among the
+     * other locales. Nothing is written to the files before *OK*: the proposals stay editable in their
+     * fields, and *Cancel* gives the stored values back.
      *
-     * One request per empty locale, under a cancellable progress. A locale the engines could not
-     * translate stays empty, and the reason shows under the buttons.
+     * One request per target locale, under a cancellable progress. A locale the engines could not
+     * translate keeps its value, and the reason shows under the buttons.
      *
      * A plural form (`file_few`) follows [PluralTranslationPlan]: a locale whose language has no
      * such form (`file_one` in Japanese) is left alone, and when no locale holds the form yet its
      * text comes from the reference locale's `other`, the proposal then flagged for review. An ICU
      * plural is not translated: its branches depend on the target language.
      */
-    internal fun translateEmptyLocales() {
+    private fun translate(targetSources: Set<LocalizationSource>) {
         val provider = machineTranslator(project) ?: return
-        val filled = textAreas.entries.filter { it.value.text.isNotBlank() }
+        if (targetSources.isEmpty()) return
+        val filled = textAreas.entries.filter { it.key !in targetSources && it.value.text.isNotBlank() }
         // The language translated *from* matters more than for a copy: a module's declared
         // reference, then the project's (preview locale, else `en`), the fullest locale last.
         val config = Settings.getInstance(project).config()
@@ -510,11 +525,15 @@ class TranslationDialog(
         val donor = filled.sortedByDescending { it.key.localeLabel() == sourceLocale }.firstOrNull()
         val source = donor?.let { it.key.localeLabel() to it.value.text }
             ?: plural?.let { otherFormSource(it.second, config) }
-            ?: return
-        val targets = textAreas.entries.filter { it.value.text.isBlank() }.map { it.key.localeLabel() to it.value }
-        if (targets.isEmpty()) return
+        // A locale is never translated into itself: the one whose `other` form is the source is left out.
+        val targets = textAreas.entries.filter { it.key in targetSources && it.key.localeLabel() != source?.first }
+            .map { it.key.localeLabel() to it.value }
+        if (source == null || targets.isEmpty()) {
+            translateStatus.text = PluginBundle.message("dialog.translation.translate.no.source")
+            return
+        }
 
-        // What each empty locale is asked for: the source text, or a note saying why not.
+        // What each target locale is asked for: the source text, or a note saying why not.
         val notes = mutableListOf<String>()
         val requests = targets.mapNotNull { (locale, area) ->
             if (plural == null) return@mapNotNull Triple(locale, area, source.second)
@@ -577,6 +596,11 @@ class TranslationDialog(
         return (values.entries.firstOrNull { it.key == reference } ?: values.entries.firstOrNull())?.toPair()
     }
 
+    /**
+     * Fills every locale left empty with the value of the donor locale: the one the module
+     * declares as its reference, or the fullest one when it declares none — see
+     * [DialogViewModel.localeToCopyFrom].
+     */
     private fun copyToEmptyLocales() {
         val donorLocale = viewModel.localeToCopyFrom(textAreas.keys)
         val value = textAreas.entries

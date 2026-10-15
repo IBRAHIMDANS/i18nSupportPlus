@@ -15,7 +15,8 @@ import org.junit.jupiter.api.Test
 
 /**
  * *Translate Empty Locales* in the translation dialog: the donor value goes to the project's engines
- * for each empty locale, and only empty fields are filled — nothing is written before *OK*.
+ * for each empty locale, and only empty fields are filled — nothing is written before *OK*. The
+ * per-locale *Translate* link replaces one value, filled or not, from another locale.
  *
  * Assertions are qualified: `BasePlatformTestCase` inherits JUnit 3's reversed `assertEquals(message, …)`.
  */
@@ -98,6 +99,52 @@ class TranslationDialogMachineTranslationTest : PlatformBaseTest() {
             Assertions.assertEquals("Hola {{name}}", dialog.valueOf("es"))
             Assertions.assertTrue("fr: quota" in dialog.translateMessage, dialog.translateMessage)
         }
+    }
+
+    @Test
+    fun `a filled locale is translated again from the reference, the others untouched`() = myFixture.runWithConfig(config) {
+        seed()
+        TranslationDialog.machineTranslator = { engine { Translation.Done("[${it.target}] ${it.texts.single()}") } }
+
+        withDialog { dialog ->
+            dialog.translateLocale("de")
+
+            Assertions.assertEquals("[de] Hello {{name}}", dialog.valueOf("de"))
+            Assertions.assertEquals("", dialog.valueOf("fr"), "only the locale asked for")
+            Assertions.assertEquals("Hello {{name}}", dialog.valueOf("en"))
+        }
+        Assertions.assertEquals(listOf("en" to "de"), requests.map { it.source to it.target })
+        Assertions.assertTrue(
+            String(myFixture.findFileInTempDir("locales/de/common.json").contentsToByteArray()).contains("Hallo {{name}}"),
+            "nothing written before OK"
+        )
+    }
+
+    @Test
+    fun `the reference locale is translated from another one`() = myFixture.runWithConfig(config) {
+        seed()
+        TranslationDialog.machineTranslator = { engine { Translation.Done("[${it.target}] ${it.texts.single()}") } }
+
+        withDialog { dialog ->
+            dialog.translateLocale("en")
+            Assertions.assertEquals("[en] Hallo {{name}}", dialog.valueOf("en"))
+        }
+        Assertions.assertEquals(listOf("de" to "en"), requests.map { it.source to it.target })
+    }
+
+    @Test
+    fun `a locale with nothing to translate from says so`() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", """{"greeting": "Hello"}""")
+        addFileToProject("locales/fr/common.json", """{"greeting": ""}""")
+        TranslationDialog.machineTranslator = { engine { Translation.Done("x") } }
+
+        withDialog { dialog ->
+            dialog.translateLocale("en")
+
+            Assertions.assertEquals("Hello", dialog.valueOf("en"))
+            Assertions.assertTrue("No other locale" in dialog.translateMessage, dialog.translateMessage)
+        }
+        Assertions.assertTrue(requests.isEmpty())
     }
 
     @Test
