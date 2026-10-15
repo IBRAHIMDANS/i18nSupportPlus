@@ -14,6 +14,7 @@
 ### Refactoring
 
 - [Reviews] A review can record the reference text it was decided on, as a hash: two optional fields, `sourceLocale` and `sourceHash`, written last in an entry and never when unknown, so a review file of 1.10 to 1.12 is written back byte for byte and stays at format version 1. Nothing records them yet: this is the ground for showing a translation whose source changed since it was reviewed. A review file now also keeps, on rewrite, the properties of an entry this version does not know, so a field added by a later version is no longer dropped by a teammate's decision — no other behaviour change
+- [Reviews] A value machine-translated and marked *to review* now records the reference text it was translated from: *Fill Missing Translations…* (Tools menu and table column) and the MCP tool `i18n_write_translations` record the source text sent, *Internationalize…* the text taken from the code, written as the reference value in the same command. A plural form translated from the reference's `other`, which has no form of its category, records none: its text is another key's. Nothing shows it yet: this is what tells a translation whose source changed since
 
 ## 1.12.1 - 2026-10-15
 

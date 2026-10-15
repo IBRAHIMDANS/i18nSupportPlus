@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
+import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.intellij.openapi.command.WriteCommandAction
@@ -131,6 +132,23 @@ class TranslationAgentToolsTest : PlatformBaseTest() {
         val review = store.reviews(root, "de").getValue(ReviewKey("common", "cancel"))
         Assertions.assertEquals(ReviewState.TO_REVIEW, review.state)
         Assertions.assertEquals("machine:codex", review.origin)
+        Assertions.assertEquals(ReviewSource.of("en", "Cancel"), review.source, "the source the agent was given")
+    }
+
+    @Test
+    fun `a plural form the agent translated from other is marked without source`() = myFixture.runWithConfig(config) {
+        seed()
+        myFixture.addFileToProject("locales/ru/common.json", "{}")
+        val root = myFixture.tempDirFixture.findOrCreateDir("app")
+        val store = store()
+        WriteCommandAction.runWriteCommandAction(project) { store.enable(root) }
+
+        val result = tools(root).write(null, "ru", mapOf("common:item_one" to "{{count}} элемент", "common:item_few" to "{{count}} элемента"), "codex")
+
+        Assertions.assertEquals(listOf("common:item_few", "common:item_one"), result.written)
+        val reviews = store.reviews(root, "ru")
+        Assertions.assertEquals(ReviewSource.of("en", "{{count}} item"), reviews.getValue(ReviewKey("common", "item_one")).source)
+        Assertions.assertNull(reviews.getValue(ReviewKey("common", "item_few")).source, "read from `other`, another key's text")
     }
 
     @Test

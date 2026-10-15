@@ -4,12 +4,16 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.dialog.MachineTranslationPreviewDialog
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.review.Review
 import com.ibrahimdans.i18n.plugin.review.ReviewHash
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
+import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
+import com.ibrahimdans.i18n.plugin.review.ShownReview
+import com.ibrahimdans.i18n.plugin.review.shown
 import com.ibrahimdans.i18n.plugin.translate.TranslatedBy
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
@@ -23,6 +27,7 @@ import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiDocumentManager
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import java.time.Instant
@@ -374,5 +379,56 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
         } finally {
             Disposer.dispose(noRoot.disposable)
         }
+    }
+
+    @Test
+    fun `each proposal's source is the text sent, none for a plural form from other or a skipped item`() {
+        val proposals = MachineFill.translate(MachineFill.itemsOf(plural, "en", "ru", "."), engine { Translation.Done("[ru] $it") }, "en", "ru", EmptyProgressIndicator())!! +
+            MachineFill.Proposal(MachineFill.Item("common:count", "{n, plural, one {# file} other {# files}}", skipped = icu), Translation.Failed(icu), "ru")
+
+        Assertions.assertEquals(
+            mapOf("ru" to mapOf(
+                "files:file_one" to ReviewSource.of("en", "{{count}} file"),
+                "files:file_other" to ReviewSource.of("en", "{{count}} files"),
+            )),
+            MachineFill.reviewSourcesOf(proposals, "en")
+        )
+    }
+
+    @Test
+    fun `a value marked to review keeps its source, and shows when that source changes`() = myFixture.runWithConfig(config) {
+        val en = addFileToProject("locales/en/common.json", """{"save": "Save", "file_one": "{{count}} file", "file_other": "{{count}} files"}""")
+        addFileToProject("locales/ru/common.json", "{}")
+        val root = reviewRoot()
+        val store = store()
+        val items = MachineFill.itemsOf(TranslationDataLoader.loadAllTranslations(project, null), "en", "ru", ".")
+        val proposals = MachineFill.translate(items, engine { Translation.Done("[ru] $it", TranslatedBy("DeepL", false)) }, "en", "ru", EmptyProgressIndicator())!!
+        val accepted = proposals.associate { it.item.key to (it.result as Translation.Done).text }
+
+        MachineFill.write(
+            project, null, mapOf("ru" to accepted),
+            MachineFill.ReviewMarks(root, mapOf(deepL("ru", *accepted.keys.toTypedArray())), MachineFill.reviewSourcesOf(proposals, "en"))
+        )
+
+        val reviews = store.reviews(root, "ru")
+        val save = reviews.getValue(ReviewKey("common", "save"))
+        Assertions.assertEquals(ReviewSource.of("en", "Save"), save.source)
+        Assertions.assertEquals(ReviewSource.of("en", "{{count}} file"), reviews.getValue(ReviewKey("common", "file_one")).source)
+        Assertions.assertNull(reviews.getValue(ReviewKey("common", "file_few")).source, "a form translated from other has no source")
+
+        fun currentSource(key: String) = TranslationDataLoader.loadAllTranslations(project, null)[key]?.get("en")?.let { ReviewSource.of("en", it) }
+        Assertions.assertEquals(ShownReview.TO_REVIEW, shown(save, "[ru] Save", currentSource("common:save")))
+
+        WriteCommandAction.runWriteCommandAction(project) {
+            val document = PsiDocumentManager.getInstance(project).getDocument(en)!!
+            document.setText(document.text.replace("\"Save\"", "\"Save all\""))
+            PsiDocumentManager.getInstance(project).commitDocument(document)
+        }
+
+        Assertions.assertEquals(ShownReview.SOURCE_CHANGED, shown(save, "[ru] Save", currentSource("common:save")))
+        Assertions.assertEquals(
+            ShownReview.TO_REVIEW, shown(reviews.getValue(ReviewKey("common", "file_few")), "[ru] {{count}} files", currentSource("common:file_few")),
+            "without source, never stale"
+        )
     }
 }

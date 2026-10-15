@@ -9,8 +9,11 @@ import com.ibrahimdans.i18n.plugin.review.Review
 import com.ibrahimdans.i18n.plugin.review.ReviewHash
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
+import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
+import com.ibrahimdans.i18n.plugin.review.ShownReview
+import com.ibrahimdans.i18n.plugin.review.shown
 import com.ibrahimdans.i18n.plugin.translate.TranslatedBy
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
@@ -161,6 +164,9 @@ class I18nizeTranslateTest : PlatformBaseTest() {
         }
         val home = reviews.entries.single { it.key.path.endsWith("home") }
         Assertions.assertEquals(ReviewHash.of("[fr] Home"), home.value.hash)
+        Assertions.assertEquals(ReviewSource.of("en", "Home"), home.value.source, "translated from the text of the code, in the reference locale")
+        Assertions.assertEquals(ShownReview.TO_REVIEW, shown(home.value, "[fr] Home", ReviewSource.of("en", "Home")))
+        Assertions.assertEquals(ShownReview.SOURCE_CHANGED, shown(home.value, "[fr] Home", ReviewSource.of("en", "Homepage")))
         Assertions.assertEquals(emptyMap<ReviewKey, Review>(), store.reviews(root, "en"), "the reference value, the code's text, is never marked")
         Assertions.assertNull(root.findFileByRelativePath(ReviewLocation.DIRECTORY + "/en.json"))
         Assertions.assertTrue("Home" in textOf(en))
