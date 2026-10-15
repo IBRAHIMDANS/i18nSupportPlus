@@ -321,6 +321,13 @@
             level="WARNING"
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.MissingTranslationKeyInspection"/>
         <localInspection
+            groupName="i18n Support Plus"
+            key="inspection.stale.display.name"
+            shortName="I18nStaleTranslation"
+            enabledByDefault="true"
+            level="WEAK WARNING"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.StaleTranslationInspection"/>
+        <localInspection
             language="JavaScript"
             groupName="i18n Support Plus"
             key="inspection.interpolation.arguments.display.name"
