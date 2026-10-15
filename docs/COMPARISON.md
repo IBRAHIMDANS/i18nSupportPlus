@@ -22,8 +22,8 @@ feature is missing.
 i18n Ally exists for JetBrains IDEs too, as a separate plugin with its own feature set. Its latest version, 1.4.3.2,
 installs on **builds 241 to 242 only, i.e. 2024.1 and 2024.2**. It cannot be installed on 2024.3, 2025.x or 2026.x
 ([Marketplace versions](https://plugins.jetbrains.com/plugin/17212-i18n-ally/versions),
-[issue #1379](https://github.com/lokalise/i18n-ally/issues/1379), open). I18n Support Plus runs on 2025.1 to 2026.3
-(builds 251–263).
+[issue #1379](https://github.com/lokalise/i18n-ally/issues/1379), open). I18n Support Plus runs on 2025.2 to 2026.3
+(builds 252–263).
 
 ## Feature by feature
 
@@ -31,7 +31,7 @@ installs on **builds 241 to 242 only, i.e. 2024.1 and 2024.2**. It cannot be ins
 
 | | I18n Support Plus | Easy I18n | i18n Ally (JetBrains) | i18n Ally (VS Code) |
 |---|---|---|---|---|
-| Editor | WebStorm, IntelliJ IDEA Ultimate, PhpStorm 2025.1+ (needs the bundled JavaScript plugin) | Any IntelliJ-based IDE 2025.2+ | IntelliJ-based IDEs 2024.1–2024.2 | VS Code |
+| Editor | WebStorm, IntelliJ IDEA Ultimate, PhpStorm 2025.2+ (needs the bundled JavaScript plugin) | Any IntelliJ-based IDE 2025.2+ | IntelliJ-based IDEs 2024.1–2024.2 | VS Code |
 | Code languages | JS, TS, JSX, TSX, Vue SFC, Angular templates, Svelte, PHP, Blade | HTML/XML, JS(X), TS(X), Vue, Svelte, PHP, Ruby, Rust, Go, Dart, Python, Kotlin, Java ([Marketplace](https://plugins.jetbrains.com/plugin/16316-easy-i18n)) | JS, TS, React, Vue, PHP, Blade, Twig ([Marketplace](https://plugins.jetbrains.com/plugin/17212-i18n-ally)) | Per framework, including Flutter, Rails and Ember ([wiki](https://github.com/lokalise/i18n-ally/wiki/Supported-Frameworks)) |
 | Translation files | JSON, JSON5, YAML, PO/POT, TS/JS catalogues, Laravel PHP arrays | JSON, JSON5, YAML, Properties | JSON, JS/TS, PHP, PO/POT, XLIFF 1/2, YAML | JSON, YAML, JSON5; INI, properties, POT and read-only JS/TS/PHP when enabled ([wiki](https://github.com/lokalise/i18n-ally/wiki/Locale-Formats)) |
 | Laravel PHP array files (`lang/en/*.php`) | Yes, read and written, the file name as namespace; package keys (`package::file.key`) read from the overrides in `lang/vendor/` | Preset reads `resources/lang/{locale}.json` ([presets](https://marhali.github.io/easy-i18n/configuration/presets/)) | Yes | Read-only |

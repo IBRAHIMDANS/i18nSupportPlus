@@ -434,7 +434,8 @@ Per-format settings; the first one is the **indentation of the keys generated in
 
 ## Requirements
 
-- IntelliJ IDEA 2025.1+ (build 251–263.*), verified against 2025.1, 2025.2, 2025.3, 2026.1 and 2026.2
+- IntelliJ IDEA 2025.2+ (build 252–263.*), verified against 2025.2, 2025.3, 2026.1, 2026.2 and 2026.3
+- On 2025.1, the last compatible version is 1.11.1
 - Java 21+
 
 ### Plugin Dependencies
