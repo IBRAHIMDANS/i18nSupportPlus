@@ -65,6 +65,32 @@ class ReviewStoreTest : PlatformBaseTest() {
     }
 
     @Test
+    fun theSourceOfAMarkADecisionAndACommentIsWrittenAndReadBack() {
+        val root = root("app")
+        val store = store()
+        val other = ReviewKey("common", "cart.empty")
+        val save = ReviewSource.of("en", "Cart")
+        val edited = ReviewSource.of("en", "Shopping cart")
+
+        write {
+            store.enable(root)
+            store.mark(root, "fr", mapOf(key to "Panier"), Review.machineOrigin("DeepL"), mapOf(key to save))
+            store.comment(root, "fr", other, "Vide", "Is this right?", save)
+        }
+        Assertions.assertEquals(save, store.reviews(root, "fr").getValue(key).source)
+        Assertions.assertEquals(save, store.reviews(root, "fr").getValue(other).source)
+
+        write { store.decide(root, "fr", key, ReviewState.APPROVED, "Panier") }
+        Assertions.assertEquals(save, store.reviews(root, "fr").getValue(key).source, "no source given: the key keeps its own")
+
+        write { store.decide(root, "fr", key, ReviewState.APPROVED, "Panier", source = edited) }
+        val review = store.reviews(root, "fr").getValue(key)
+        Assertions.assertEquals(edited, review.source)
+        Assertions.assertEquals(ShownReview.APPROVED, shown(review, "Panier", edited))
+        Assertions.assertTrue("\"sourceHash\": \"${edited.hash}\"" in textOf(root.findFileByRelativePath(".i18n-reviews/fr.json")!!))
+    }
+
+    @Test
     fun anEmptyOrUnreadableFileHoldsNoReviewAndIsNeverOverwritten() {
         val empty = addFileToProject("empty/.i18n-reviews/fr.json", "").virtualFile
         val broken = addFileToProject("broken/.i18n-reviews/fr.json", "<<<<<<< HEAD\n{").virtualFile

@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.review.ReviewEventKind
 import com.ibrahimdans.i18n.plugin.review.ReviewHash
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
+import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.intellij.openapi.command.WriteCommandAction
@@ -106,6 +107,38 @@ class ReviewActionsTest : PlatformBaseTest() {
         Assertions.assertEquals(ReviewState.TO_REVIEW, commented.state)
         Assertions.assertEquals("Looks fine", commented.thread.last().text)
         Assertions.assertEquals(4, commented.thread.size)
+    }
+
+    @Test
+    fun aDecisionRecordsTheSourceOfTheCellInTheReferenceLocale() {
+        val root = enabledRoot()
+        val withSource = listOf(
+            ReviewCell("menu.home", "fr", "Accueil", "Home"),
+            ReviewCell("menu.home", "en", "Home", "Home"),
+            ReviewCell("common:cart.title", "fr", "Panier", ""),
+        )
+
+        Assertions.assertTrue(ReviewActions.approve(project, root, withSource, ns, referenceLocale = "en"))
+
+        val fr = store().reviews(root, "fr")
+        Assertions.assertEquals(ReviewSource.of("en", "Home"), fr.getValue(ReviewKey(ns, "menu.home")).source)
+        Assertions.assertNull(fr.getValue(ReviewKey("common", "cart.title")).source, "no source in the reference: none recorded")
+        Assertions.assertNull(store().reviews(root, "en").getValue(ReviewKey(ns, "menu.home")).source, "the reference has no source of its own")
+    }
+
+    @Test
+    fun withoutReferenceLocaleNoSourceIsRecordedAndTheKeyKeepsItsOwn() {
+        val root = enabledRoot()
+        val cell = ReviewCell("menu.home", "fr", "Accueil", "Home")
+        Assertions.assertTrue(ReviewActions.approve(project, root, listOf(cell), ns))
+        Assertions.assertNull(store().reviews(root, "fr").getValue(ReviewKey(ns, "menu.home")).source)
+
+        Assertions.assertTrue(ReviewActions.requestChanges(project, root, listOf(cell), "Say Home page", ns, "en"))
+        Assertions.assertTrue(ReviewActions.markToReview(project, root, listOf(cell.copy(source = "Home page")), ns))
+        Assertions.assertTrue(ReviewActions.comment(project, root, cell.copy(source = "Home page"), "Fine", ns, "en"))
+
+        // The change request recorded the source; neither the mark without reference nor the comment replaced it.
+        Assertions.assertEquals(ReviewSource.of("en", "Home"), store().reviews(root, "fr").getValue(ReviewKey(ns, "menu.home")).source)
     }
 
     @Test

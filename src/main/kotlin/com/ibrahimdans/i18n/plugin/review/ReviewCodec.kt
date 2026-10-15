@@ -21,7 +21,9 @@ import com.google.gson.JsonParser
  *       "origin": "machine:DeepL",
  *       "thread": [
  *         { "id": "r1", "kind": "approve", "by": "…", "at": "…", "text": "" }
- *       ]
+ *       ],
+ *       "sourceLocale": "en",
+ *       "sourceHash": "sha256:9b1e0d77c2aa4e10"
  *     }
  *   }
  * }
@@ -30,6 +32,11 @@ import com.google.gson.JsonParser
  * The output is deterministic so that the file merges well in Git: keys sorted, fields in a fixed
  * order, two-space indentation, one property per line, a final `\n`. Two reviews of distant keys never
  * touch the same lines. HTML characters are written as they are (`Alice <alice@…>`, `« Panier »`).
+ *
+ * `sourceLocale` and `sourceHash` ([Review.source]) are optional, and left out when unknown: a file
+ * written before them reads and writes back unchanged, still in [VERSION] 1 — a version that does
+ * not know them reads the file all the same. The properties of an entry this version does not know
+ * are written back after the others, as they were read ([Review.extra]).
  */
 object ReviewCodec {
 
@@ -43,7 +50,8 @@ object ReviewCodec {
      */
     data class Decoded(val reviews: Map<ReviewKey, Review>, val readable: Boolean)
 
-    private val gson = GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create()
+    // Nulls kept: an unknown property set to null is written back as it was read.
+    private val gson = GsonBuilder().setPrettyPrinting().disableHtmlEscaping().serializeNulls().create()
 
     /** The reviews [text] holds; none, and no exception, when it is absent, blank or unreadable. */
     fun read(text: String?): Map<ReviewKey, Review> = decode(text).reviews
@@ -90,9 +98,13 @@ object ReviewCodec {
         val hash = json.string("hash") ?: return null
         val thread = json.get("thread")?.takeIf { it.isJsonArray }?.asJsonArray
             ?.mapNotNull { readEvent(it) }.orEmpty()
+        val sourceLocale = json.string(SOURCE_LOCALE)
+        val sourceHash = json.string(SOURCE_HASH)
+        val source = if (sourceLocale != null && sourceHash != null) ReviewSource(sourceLocale, sourceHash) else null
+        val extra = json.entrySet().filter { it.key !in KNOWN }.associate { (name, value) -> name to value.toString() }
         return Review(
             state, hash, json.string("by").orEmpty(), json.string("at").orEmpty(),
-            json.string("origin") ?: Review.ORIGIN_MANUAL, thread
+            json.string("origin") ?: Review.ORIGIN_MANUAL, thread, source, extra
         )
     }
 
@@ -112,6 +124,12 @@ object ReviewCodec {
         addProperty("at", review.at)
         addProperty("origin", review.origin)
         add("thread", JsonArray().apply { review.thread.forEach { add(writeEvent(it)) } })
+        // Never written when unknown: a review read from an older file is written back as it was.
+        review.source?.let {
+            addProperty(SOURCE_LOCALE, it.locale)
+            addProperty(SOURCE_HASH, it.hash)
+        }
+        review.extra.forEach { (name, raw) -> if (name !in KNOWN) add(name, JsonParser.parseString(raw)) }
     }
 
     private fun writeEvent(event: ReviewEvent): JsonObject = JsonObject().apply {
@@ -124,4 +142,10 @@ object ReviewCodec {
 
     private fun JsonObject.string(name: String): String? =
         get(name)?.takeIf { it.isJsonPrimitive }?.asString
+
+    private const val SOURCE_LOCALE = "sourceLocale"
+    private const val SOURCE_HASH = "sourceHash"
+
+    /** The properties of an entry this version reads; any other one is kept in [Review.extra]. */
+    private val KNOWN = setOf("status", "hash", "by", "at", "origin", "thread", SOURCE_LOCALE, SOURCE_HASH)
 }

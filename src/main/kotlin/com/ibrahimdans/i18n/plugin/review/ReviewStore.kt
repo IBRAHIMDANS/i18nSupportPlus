@@ -110,19 +110,31 @@ class ReviewStore(private val project: Project) : Disposable {
         return true
     }
 
-    /** [values] (key → value just written) marked to review, from [origin]. See [ReviewEdits.markToReview]. */
-    fun mark(root: VirtualFile, locale: String, values: Map<ReviewKey, String>, origin: String): Boolean {
+    /**
+     * [values] (key → value just written) marked to review, from [origin], with the source each one
+     * was translated from in [sources] — a key left out keeps its own. See [ReviewEdits.markToReview].
+     */
+    fun mark(
+        root: VirtualFile, locale: String, values: Map<ReviewKey, String>, origin: String,
+        sources: Map<ReviewKey, ReviewSource> = emptyMap()
+    ): Boolean {
         if (values.isEmpty()) return true
-        return update(root, locale) { ReviewEdits.markToReview(it, values, origin, reviewer(root), timestamp()) }
+        return update(root, locale) { ReviewEdits.markToReview(it, values, origin, reviewer(root), timestamp(), sources) }
     }
 
-    /** [key]'s decision set to [state] on [value]; [text] is required for a change request. See [ReviewEdits.decide]. */
-    fun decide(root: VirtualFile, locale: String, key: ReviewKey, state: ReviewState, value: String, text: String = ""): Boolean =
-        update(root, locale) { ReviewEdits.decide(it, key, state, value, reviewer(root), timestamp(), text) }
+    /**
+     * [key]'s decision set to [state] on [value] and [source] — null keeps the key's own; [text] is
+     * required for a change request. See [ReviewEdits.decide].
+     */
+    fun decide(
+        root: VirtualFile, locale: String, key: ReviewKey, state: ReviewState, value: String, text: String = "",
+        source: ReviewSource? = null
+    ): Boolean =
+        update(root, locale) { ReviewEdits.decide(it, key, state, value, reviewer(root), timestamp(), text, source) }
 
-    /** [text] added to [key]'s thread. See [ReviewEdits.comment]. */
-    fun comment(root: VirtualFile, locale: String, key: ReviewKey, value: String, text: String): Boolean =
-        update(root, locale) { ReviewEdits.comment(it, key, value, reviewer(root), timestamp(), text) }
+    /** [text] added to [key]'s thread; [source] is only recorded on a key never reviewed. See [ReviewEdits.comment]. */
+    fun comment(root: VirtualFile, locale: String, key: ReviewKey, value: String, text: String, source: ReviewSource? = null): Boolean =
+        update(root, locale) { ReviewEdits.comment(it, key, value, reviewer(root), timestamp(), text, source) }
 
     override fun dispose() {
         cache.clear()

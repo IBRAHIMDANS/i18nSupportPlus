@@ -51,6 +51,79 @@ class ReviewModelTest {
         assertEquals(ShownReview.NONE, shown(review(ReviewState.APPROVED), null))
     }
 
+    // --- shown with the source: the truth table of the stale translations framing (§4.1) ---
+
+    private val source = "Cart"
+    private val sourceEn = ReviewSource.of("en", source)
+
+    private fun decided(state: ReviewState?): Review? = state?.let { review(it).copy(source = sourceEn) }
+
+    @Test
+    fun `the truth table, twelve cases`() {
+        val sameSource = ReviewSource.of("en", source)
+        val otherSource = ReviewSource.of("en", "Basket")
+        // Stored state → (same value and same source, same value and unknown source, same value and other source, other value).
+        val table = mapOf(
+            ReviewState.APPROVED to listOf(ShownReview.APPROVED, ShownReview.APPROVED, ShownReview.SOURCE_CHANGED, ShownReview.CHANGED_SINCE_APPROVAL),
+            ReviewState.CHANGES_REQUESTED to listOf(ShownReview.CHANGES_REQUESTED, ShownReview.CHANGES_REQUESTED, ShownReview.SOURCE_CHANGED, ShownReview.FIXED_SINCE_REQUEST),
+            ReviewState.TO_REVIEW to listOf(ShownReview.TO_REVIEW, ShownReview.TO_REVIEW, ShownReview.SOURCE_CHANGED, ShownReview.TO_REVIEW),
+            null to listOf(ShownReview.NONE, ShownReview.NONE, ShownReview.NONE, ShownReview.NONE),
+        )
+
+        table.forEach { (state, expected) ->
+            val r = decided(state)
+            val actual = listOf(shown(r, value, sameSource), shown(r, value, null), shown(r, value, otherSource), shown(r, "Chariot", otherSource))
+            assertEquals(expected, actual, "stored $state")
+        }
+    }
+
+    @Test
+    fun `a source edited after the approval makes it stale, a value edited next makes it to review`() {
+        val approved = ReviewEdits.decide(emptyMap(), key, ReviewState.APPROVED, value, "Alice", "T1", source = sourceEn).getValue(key)
+        val edited = ReviewSource.of("en", "Shopping cart")
+
+        assertEquals(ShownReview.SOURCE_CHANGED, shown(approved, value, edited))
+        assertEquals(ShownReview.CHANGED_SINCE_APPROVAL, shown(approved, "Panier d'achat", edited))
+    }
+
+    @Test
+    fun `a source back to its former text is no longer stale`() {
+        val approved = decided(ReviewState.APPROVED)
+
+        assertEquals(ShownReview.SOURCE_CHANGED, shown(approved, value, ReviewSource.of("en", "Basket")))
+        assertEquals(ShownReview.APPROVED, shown(approved, value, ReviewSource.of("en", source)))
+    }
+
+    @Test
+    fun `a review without source is never stale`() {
+        ReviewState.entries.forEach { state ->
+            assertEquals(shown(review(state), value), shown(review(state), value, ReviewSource.of("en", "Basket")), "stored $state")
+        }
+    }
+
+    @Test
+    fun `a source taken in another locale than the reference of the day is not stale`() {
+        assertEquals(ShownReview.APPROVED, shown(decided(ReviewState.APPROVED), value, ReviewSource.of("de", "Warenkorb")))
+    }
+
+    @Test
+    fun `a key without source now is not stale`() {
+        assertEquals(ShownReview.APPROVED, shown(decided(ReviewState.APPROVED), value, null))
+    }
+
+    @Test
+    fun `a source read with CRLF or decomposed accents is the same source`() {
+        val approved = review(ReviewState.APPROVED).copy(source = ReviewSource.of("en", "Line one\nCafé"))
+
+        assertEquals(ShownReview.APPROVED, shown(approved, value, ReviewSource.of("en", "Line one\r\nCafé")))
+        assertEquals(ShownReview.APPROVED, shown(approved, value, ReviewSource.of("en", "Line one\nCafé")))
+    }
+
+    @Test
+    fun `a source hashes as a value does`() {
+        assertEquals(ReviewSource("en", ReviewHash.of(source)), ReviewSource.of("en", source))
+    }
+
     // --- ReviewKey ---
 
     @Test
@@ -139,5 +212,60 @@ class ReviewModelTest {
         val review = ReviewEdits.comment(emptyMap(), key, value, "Bob", "T1", "Is this right?").getValue(key)
         assertEquals(ReviewState.TO_REVIEW, review.state)
         assertEquals(ReviewHash.of(value), review.hash)
+    }
+
+    // --- edits and the source ---
+
+    @Test
+    fun `a decision records its source, and approving a stale value again records the new one`() {
+        val approved = ReviewEdits.decide(emptyMap(), key, ReviewState.APPROVED, value, "Alice", "T1", source = sourceEn)
+        assertEquals(sourceEn, approved.getValue(key).source)
+
+        val edited = ReviewSource.of("en", "Shopping cart")
+        val again = ReviewEdits.decide(approved, key, ReviewState.APPROVED, value, "Alice", "T2", source = edited).getValue(key)
+
+        assertEquals(edited, again.source)
+        assertEquals(ShownReview.APPROVED, shown(again, value, edited))
+    }
+
+    @Test
+    fun `an edit without source keeps the one the key had`() {
+        val approved = ReviewEdits.decide(emptyMap(), key, ReviewState.APPROVED, value, "Alice", "T1", source = sourceEn)
+
+        assertEquals(sourceEn, ReviewEdits.decide(approved, key, ReviewState.TO_REVIEW, value, "Bob", "T2").getValue(key).source)
+        assertEquals(sourceEn, ReviewEdits.markToReview(approved, mapOf(key to "Chariot"), "machine:DeepL", "Bob", "T2").getValue(key).source)
+        assertNull(ReviewEdits.decide(emptyMap(), key, ReviewState.APPROVED, value, "Alice", "T1").getValue(key).source)
+    }
+
+    @Test
+    fun `marking to review records the source each value was translated from`() {
+        val other = ReviewKey("common", "cart.empty")
+        val marked = ReviewEdits.markToReview(
+            emptyMap(), mapOf(key to value, other to "Vide"), "machine:DeepL", "Bob", "T1", mapOf(key to sourceEn)
+        )
+
+        assertEquals(sourceEn, marked.getValue(key).source)
+        assertNull(marked.getValue(other).source, "a value without source records none")
+    }
+
+    @Test
+    fun `a comment records the source of a key never reviewed only`() {
+        val fresh = ReviewEdits.comment(emptyMap(), key, value, "Bob", "T1", "Is this right?", sourceEn).getValue(key)
+        assertEquals(sourceEn, fresh.source)
+
+        // The decision stays the one made on the former source: recording today's would hide the change.
+        val approved = ReviewEdits.decide(emptyMap(), key, ReviewState.APPROVED, value, "Alice", "T1", source = sourceEn)
+        val commented = ReviewEdits.comment(approved, key, value, "Bob", "T2", "Nice", ReviewSource.of("en", "Basket")).getValue(key)
+        assertEquals(sourceEn, commented.source)
+    }
+
+    @Test
+    fun `the properties of a later version are kept by every edit`() {
+        val extra = mapOf("assignee" to "\"Carol\"")
+        val reviews = mapOf(key to review(ReviewState.TO_REVIEW).copy(extra = extra))
+
+        assertEquals(extra, ReviewEdits.decide(reviews, key, ReviewState.APPROVED, value, "Alice", "T2").getValue(key).extra)
+        assertEquals(extra, ReviewEdits.markToReview(reviews, mapOf(key to value), "manual", "Alice", "T2").getValue(key).extra)
+        assertEquals(extra, ReviewEdits.comment(reviews, key, value, "Alice", "T2", "Hm").getValue(key).extra)
     }
 }
