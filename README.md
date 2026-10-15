@@ -239,11 +239,36 @@ On IntelliJ-based IDEs 2025.3 and later, the plugin adds three tools to the IDE'
 | `i18n_missing_translations` | The keys a locale lacks, with the reference text to translate and the plural forms the locale needs |
 | `i18n_write_translations` | Writes translations of missing keys in one undoable command; an existing value is never replaced, and a value losing a placeholder or tag of its reference is refused with the reason. Marked *to review* (`machine:<agent>`) when the module keeps reviews |
 
-To use them:
-- **Codex or Claude in AI Assistant**: check **Pass IntelliJ MCP server** in the AI Assistant settings of the agent (unchecked by default), then ask it, for instance, *"translate the missing German keys"*.
-- **Codex CLI, Claude Code or another MCP client**: enable the server in **Settings > Tools > MCP Server** and connect the client as that page explains.
+#### Setting it up
 
-ICU plurals (`{count, plural, …}`) are listed but not written: edit them in the file.
+**1. Turn the IDE's MCP server on.** **Settings > Tools > MCP Server**, check **Enable MCP Server**. The page shows the server's address, `http://127.0.0.1:64342/stream` by default (the port may differ). Nothing else to install: the server comes with the IDE, and the plugin adds its tools to it.
+
+**2. Connect your agent**, one of:
+
+- **Codex or Claude in AI Assistant**: **Settings > Tools > AI Assistant > Agents**, check **Pass IntelliJ MCP server** (unchecked by default), then start a **new** chat: an agent gets its tools when its session starts.
+- **Claude Code**: in the MCP Server page, click **Auto-configure** next to *Claude Code*, or run:
+  ```bash
+  claude mcp add --transport http jetbrains http://127.0.0.1:64342/stream
+  ```
+- **Codex CLI, Cursor, VS Code, Claude Desktop**: click **Auto-configure** next to the client in the MCP Server page.
+- **Any other MCP client**: **Copy HTTP Stream Config** (or *SSE* / *STDIO*, whichever it supports) in the MCP Server page and paste it in the client's configuration.
+
+Restart a client that was already running: it reads the list of tools when it connects.
+
+**3. Ask**, from the project folder or naming the project, for instance:
+
+```text
+Use the i18n tools to translate the missing German keys.
+```
+
+The agent calls `i18n_missing_translations`, translates, then `i18n_write_translations`, and sends again the values refused with their reason. With several projects open in the IDE, it has to say which one (`projectPath`): give it the project folder if it asks.
+
+#### Good to know
+
+- Only missing values are written; to re-translate a filled one, use *Translate* in the *Edit Translation* dialog.
+- ICU plurals (`{count, plural, …}`) are listed but not written: edit them in the file.
+- Reviews: in a module with a `.i18n-reviews/` folder, the values written are marked *to review* as `machine:<agent>`; an agent never creates that folder.
+- Nothing appears? Check that the plugin's tools are listed by your client (`/mcp` in Claude Code), that the MCP server is enabled, and that the IDE is 2025.3 or later.
 
 ### Wildcard Traversal
 
