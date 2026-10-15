@@ -37,9 +37,9 @@ data class EngineState(
 
     fun toConfig(glossary: Glossary = Glossary.EMPTY): EngineConfig {
         val presetConfig = TranslationEngines.preset(preset)
-        // An entry saved before its preset's prompt took `{glossary}` sends the preset's prompt of today:
-        // the same request while the glossary is empty, the glossary once there is one.
-        val sent = presetConfig?.body?.takeIf { body == it.replace(GLOSSARY_SLOT, "") } ?: body
+        // An entry saved before its preset's prompt took `{glossary}`, then `{instruction}`, sends the preset's
+        // prompt of today: the same request while they are empty, the glossary and instruction once given.
+        val sent = presetConfig?.body?.takeIf { body in OPTIONAL_SLOTS.runningFold(it) { older, slot -> older.replace(slot, "") } } ?: body
         return EngineConfig(
             id = id, name = name, url = url.trim(),
             headers = headers.lines().mapNotNull { line ->
@@ -57,7 +57,8 @@ data class EngineState(
     }
 
     companion object {
-        private const val GLOSSARY_SLOT = "{glossary}"
+        /** The placeholders a preset's prompt took after it was first saved, the latest first. */
+        private val OPTIONAL_SLOTS = listOf(INSTRUCTION_SLOT, "{glossary}")
 
         /** A new entry filled from [preset], with an id of its own. */
         fun of(preset: EngineConfig): EngineState = EngineState(
@@ -148,10 +149,19 @@ class MachineTranslationSettings : PersistentStateComponent<MachineTranslationSe
         return TranslationEngines.provider(state.engines.map { it.toConfig(glossary) }, { keys.get(it.id) }, transport)
     }
 
+    /**
+     * Whether one of the engines would send an instruction typed in the key's dialog: machine translation
+     * on, and an engine's request holding `{instruction}` — the LLM presets, not DeepL nor Google.
+     */
+    fun readsInstruction(): Boolean =
+        state.enabled && state.engines.any { INSTRUCTION_SLOT in it.toConfig().body }
+
     companion object {
         fun getInstance(project: Project): MachineTranslationSettings = project.getService(MachineTranslationSettings::class.java)
     }
 }
+
+private const val INSTRUCTION_SLOT = "{instruction}"
 
 /** Where engine API keys live, apart from the project files. */
 interface ApiKeyStore {

@@ -6,13 +6,14 @@
     "headers": {
       "Authorization": "Bearer {apiKey}"
     },
-    "body": "{\"model\": \"llama3.1\", \"temperature\": 0, \"messages\": [{\"role\": \"system\", \"content\": \"Translate the user's text from {source} to {target}. It is a UI string of an application; context: {context}. Keep every <x id=\\\"N\\\"/> tag exactly as written, and reply with the translation only.{glossary}\"}, {\"role\": \"user\", \"content\": \"{text}\"}]}",
+    "body": "{\"model\": \"llama3.1\", \"temperature\": 0, \"messages\": [{\"role\": \"system\", \"content\": \"Translate the user's text from {source} to {target}. It is a UI string of an application; context: {context}. Keep every <x id=\\\"N\\\"/> tag exactly as written, and reply with the translation only.{glossary}{instruction}\"}, {\"role\": \"user\", \"content\": \"{text}\"}]}",
     "responsePath": "choices[0].message.content",
     "local": true,
     "glossary": "{glossary} is the project's glossary for the target locale, a sentence starting with a space: empty without one, so the request stays the same",
+    "instruction": "{instruction} is what the user asks of the translation in the key's dialog (a tone, a length), a sentence starting with a space: empty without one, so the request stays the same",
     "source": "https://platform.openai.com/docs/api-reference/chat/create ; https://github.com/ollama/ollama/blob/main/docs/openai.md (Ollama serves /v1 locally, no key needed)",
     "batch": {
-      "body": "{\"model\": \"llama3.1\", \"temperature\": 0, \"messages\": [{\"role\": \"system\", \"content\": \"Translate each string of the JSON array the user sends from {source} to {target}. They are UI strings of an application; context: {context}. Keep every <x id=\\\"N\\\"/> tag exactly as written.{glossary} Reply with a JSON array of the translations only: same order, same length, nothing else.\"}, {\"role\": \"user\", \"content\": \"{textsJson}\"}]}",
+      "body": "{\"model\": \"llama3.1\", \"temperature\": 0, \"messages\": [{\"role\": \"system\", \"content\": \"Translate each string of the JSON array the user sends from {source} to {target}. They are UI strings of an application; context: {context}. Keep every <x id=\\\"N\\\"/> tag exactly as written.{glossary}{instruction} Reply with a JSON array of the translations only: same order, same length, nothing else.\"}, {\"role\": \"user\", \"content\": \"{textsJson}\"}]}",
       "listPath": "choices[0].message.content",
       "jsonText": true,
       "maxSize": 20,

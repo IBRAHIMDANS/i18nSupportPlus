@@ -4,13 +4,16 @@ import com.intellij.openapi.progress.ProgressIndicator
 
 /**
  * What to translate: [texts] from [source] to [target] locale, and what helps an engine pick the
- * right meaning — the key path and the reference value, say — in [context].
+ * right meaning — the key path and the reference value, say — in [context]. [instruction] is what the
+ * user asks of the translation (a tone, a length), read only by the engines whose prompt holds
+ * `{instruction}`.
  */
 data class TranslationRequest(
     val texts: List<String>,
     val source: String,
     val target: String,
-    val context: String = ""
+    val context: String = "",
+    val instruction: String = ""
 )
 
 /** The engine a translation comes from: its [name], and whether it runs on the user's machine. */
