@@ -14,6 +14,7 @@ import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
+import com.ibrahimdans.i18n.plugin.review.ui.ReviewThreadDialog
 import com.ibrahimdans.i18n.plugin.translate.TranslatedBy
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
@@ -45,12 +46,25 @@ class TranslationDialogReviewTest : PlatformBaseTest() {
     private val config = Config(defaultNs = "translation")
     private val originalTranslator = TranslationDialog.machineTranslator
     private val originalRoot = TranslationDialog.reviewRoot
+    private val originalThread = TranslationDialog.reviewThread
     private val key = ReviewKey("common", "greeting")
 
     @AfterEach
     fun restore() {
         TranslationDialog.machineTranslator = originalTranslator
         TranslationDialog.reviewRoot = originalRoot
+        TranslationDialog.reviewThread = originalThread
+    }
+
+    /** The *Review…* link opens a thread that [act]s on it, as a click would, then closes. */
+    private fun onReviewThread(act: (ReviewThreadDialog) -> Unit) {
+        TranslationDialog.reviewThread = { thread ->
+            try {
+                act(thread)
+            } finally {
+                Disposer.dispose(thread.disposable)
+            }
+        }
     }
 
     /** `en` holds the key, `fr` lacks it; the engine answers `Bonjour`, from DeepL. */
@@ -158,6 +172,25 @@ class TranslationDialogReviewTest : PlatformBaseTest() {
     }
 
     @Test
+    fun `approving a stale locale from its Review link records the source of now, no longer stale`() = myFixture.runWithConfig(config) {
+        val (_, root) = seedStale()
+        onReviewThread { thread ->
+            Assertions.assertEquals(ShownReview.SOURCE_CHANGED, thread.shownReview(), "the thread reads the source of now")
+            Assertions.assertTrue(thread.approve())
+        }
+
+        withDialog { dialog ->
+            Assertions.assertTrue(dialog.openReviewOf("fr"))
+            Assertions.assertEquals(label(ShownReview.APPROVED), dialog.reviewStateOf("fr"), "the badge follows the decision")
+        }
+
+        val review = store().reviews(root, "fr").getValue(key)
+        Assertions.assertEquals(ReviewState.APPROVED, review.state)
+        Assertions.assertEquals(ReviewSource.of("en", "Hello"), review.source, "the source of the day")
+        withDialog { dialog -> Assertions.assertEquals(label(ShownReview.APPROVED), dialog.reviewStateOf("fr")) }
+    }
+
+    @Test
     fun `a stale locale retouched by hand is not marked and reads changed since approval`() = myFixture.runWithConfig(config) {
         val (fr, root) = seedStale()
 
@@ -247,6 +280,7 @@ class TranslationDialogReviewTest : PlatformBaseTest() {
         withDialog { dialog ->
             Assertions.assertNull(dialog.reviewStateOf("fr"), "no mark, no Review… link")
             Assertions.assertNull(dialog.reviewStateOf("en"))
+            Assertions.assertFalse(dialog.openReviewOf("fr"), "no Review… link to click")
             dialog.translateEmptyLocales()
             dialog.confirm()
         }

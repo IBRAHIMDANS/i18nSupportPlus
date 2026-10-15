@@ -444,12 +444,20 @@ class TranslationDialog(
 
     /**
      * The review thread of [source]'s locale, on the value stored — not the one being typed — and on
-     * the source stored in its module's reference locale.
+     * the source stored in its module's reference locale, which every decision taken there records.
      */
     private fun openReview(source: LocalizationSource, root: VirtualFile) {
-        val cell = ReviewCell(reviewSpellingOf(source, fullKey), source.localeLabel(), sources[source].orEmpty(), currentSourceOf(source)?.second)
-        ReviewThreadDialog(project, root, cell).show()
+        val current = currentSourceOf(source)
+        val cell = ReviewCell(reviewSpellingOf(source, fullKey), source.localeLabel(), sources[source].orEmpty(), current?.second)
+        reviewThread(ReviewThreadDialog(project, root, cell, referenceLocale = current?.first))
         reviewBadges[source]?.let { showReview(source, root, it) }
+    }
+
+    /** Clicks the *Review…* link of [locale]; false when it has none (reviews off, or CREATE mode). */
+    internal fun openReviewOf(locale: String): Boolean {
+        val source = reviewBadges.keys.firstOrNull { it.localeLabel() == locale } ?: return false
+        openReview(source, reviewRootOf(source) ?: return false)
+        return true
     }
 
     /**
@@ -844,6 +852,9 @@ class TranslationDialog(
          * the fixture: a project-relative module root is not where a fixture's files are.
          */
         internal var reviewRoot: (Project, ModuleConfig?) -> VirtualFile? = { project, module -> ReviewActions.enabledRoot(project, module) }
+
+        /** Shows the review thread the *Review…* link opens; a test acts on the dialog, and disposes it, instead. */
+        internal var reviewThread: (ReviewThreadDialog) -> Unit = { it.show() }
 
         /**
          * The [proposals] validated as they were: those whose locale was [written] with exactly the
