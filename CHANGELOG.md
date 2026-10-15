@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.12.0 - 2026-10-15
+
 ### Features
 
 - [AI agents] **Translate with your own AI agent, through the plugin** ([#509](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/509)): on 2025.2.6 and later, the IDE's MCP server offers three tools — `i18n_list_modules`, `i18n_missing_translations`, `i18n_write_translations` — so Codex, Claude or any MCP client translates on your own plan, without an API key, instead of rewriting the files. Only missing values are written, never an existing one; a value must keep the placeholders and tags of its reference text, an ICU plural is left alone, and the plural forms the locale needs are listed one by one. What a call writes is one command, undone by one Ctrl+Z, and marked to review as `machine:<agent>` in a module keeping reviews — an agent never turns them on. Codex and Claude in AI Assistant see the tools once *Pass IntelliJ MCP server* is checked in their settings. On the first 2025.2 builds the tools answer that the IDE needs an update; without the MCP server plugin, nothing changes
