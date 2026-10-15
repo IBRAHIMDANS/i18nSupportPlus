@@ -236,13 +236,14 @@ The inspections also run without an editor, in [Qodana](https://www.jetbrains.co
 
 ### AI Agents (MCP)
 
-On IntelliJ-based IDEs 2025.2.6 and later, the plugin adds three tools to the IDE's built-in MCP server, so an AI agent translates through the plugin rather than by rewriting the files — with your own Codex or Claude plan, no API key:
+On IntelliJ-based IDEs 2025.2.6 and later, the plugin adds four tools to the IDE's built-in MCP server, so an AI agent translates through the plugin rather than by rewriting the files — with your own Codex or Claude plan, no API key:
 
 | Tool | What it does |
 |------|--------------|
 | `i18n_list_modules` | The translation modules, their reference locale, locales, and whether reviews are on |
 | `i18n_missing_translations` | The keys a locale lacks, with the reference text to translate and the plural forms the locale needs |
-| `i18n_write_translations` | Writes translations of missing keys in one undoable command; an existing value is never replaced, and a value losing a placeholder or tag of its reference is refused with the reason. Marked *to review* (`machine:<agent>`) when the module keeps reviews |
+| `i18n_stale_translations` | The stale translations of a locale — values still the ones reviewed while their key's reference text changed since — with that text as it reads now and the value to replace. Only in a module keeping reviews |
+| `i18n_write_translations` | Writes translations in one undoable command: fills a missing value, or replaces one that is stale when written — never any other existing value — and a value losing a placeholder or tag of its reference is refused with the reason. Marked *to review* (`machine:<agent>`) with the reference text it was translated from when the module keeps reviews |
 
 #### Setting it up
 
@@ -279,7 +280,8 @@ The agent calls `i18n_missing_translations`, translates, then `i18n_write_transl
 
 #### Good to know
 
-- Only missing values are written; to re-translate a filled one, use *Translate* in the *Edit Translation* dialog.
+- Only a missing value is filled, and only a stale one replaced: staleness is checked again when writing, so a value you fixed or approved after the agent listed it is refused (`Already filled and not stale`), and one changed during the write is left as it is (`Changed since it was read`). To re-translate any other filled value, use *Translate* in the *Edit Translation* dialog.
+- Stale translations need reviews: a value is stale when it is still the one reviewed while the reference text recorded with that review changed since. In a module without `.i18n-reviews/`, `i18n_stale_translations` is refused with the reason; *Show Translation Changes* still shows the locales lagging behind the reference.
 - ICU plurals (`{count, plural, …}`) are listed but not written: edit them in the file.
 - Reviews: in a module with a `.i18n-reviews/` folder, the values written are marked *to review* as `machine:<agent>`; an agent never creates that folder.
 - Nothing appears? Check that the plugin's tools are listed by your client (`/mcp` in Claude Code), that the MCP server is enabled, and that the IDE is 2025.2.6 or later.

@@ -12,15 +12,17 @@ import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import java.time.Instant
 
 /**
- * An agent reads what a locale lacks and fills it with the plugin's guards: nothing already there is
- * replaced, a value losing a placeholder or meant for an ICU plural is refused, and what is written
- * is one undoable command, marked to review only where the module keeps reviews.
+ * An agent reads what a locale lacks, or what went stale in it, and writes it with the plugin's
+ * guards: nothing already there is replaced unless it is stale when written, a value losing a
+ * placeholder or meant for an ICU plural is refused, and what is written is one undoable command,
+ * marked to review only where the module keeps reviews.
  *
  * Assertions are qualified: `BasePlatformTestCase` inherits JUnit 3's reversed `assertEquals(message, …)`.
  */
@@ -160,5 +162,106 @@ class TranslationAgentToolsTest : PlatformBaseTest() {
         tools(root).write(null, "de", mapOf("common:cancel" to "Abbrechen"), "codex")
 
         Assertions.assertFalse(store().isEnabled(root))
+    }
+
+    /** `de` approved on the English of the day, then `save` and `cancel` changed in English: both stale, `title` not. */
+    private fun staleProject(): Pair<VirtualFile, PsiFile> {
+        val en = myFixture.addFileToProject("locales/en/common.json", """{"title": "Title", "save": "Save {{what}}", "cancel": "Cancel"}""")
+        val de = myFixture.addFileToProject("locales/de/common.json", """{"title": "Titel", "save": "{{what}} speichern", "cancel": "Abbrechen"}""")
+        val root = myFixture.tempDirFixture.findOrCreateDir("app")
+        val store = store()
+        WriteCommandAction.runWriteCommandAction(project) {
+            store.enable(root)
+            store.decide(root, "de", ReviewKey("common", "title"), ReviewState.APPROVED, "Titel", source = ReviewSource.of("en", "Title"))
+            store.decide(root, "de", ReviewKey("common", "save"), ReviewState.APPROVED, "{{what}} speichern", source = ReviewSource.of("en", "Save {{what}}"))
+            store.decide(root, "de", ReviewKey("common", "cancel"), ReviewState.APPROVED, "Abbrechen", source = ReviewSource.of("en", "Cancel"))
+        }
+        edit(en, "\"Save {{what}}\"" to "\"Save all {{what}}\"", "\"Cancel\"" to "\"Cancel all\"")
+        return root to de
+    }
+
+    private fun edit(file: PsiFile, vararg replacements: Pair<String, String>) = WriteCommandAction.runWriteCommandAction(project) {
+        val document = PsiDocumentManager.getInstance(project).getDocument(file)!!
+        document.setText(replacements.fold(document.text) { text, (from, to) -> text.replace(from, to) })
+        PsiDocumentManager.getInstance(project).commitDocument(document)
+    }
+
+    private fun text(file: PsiFile): String = PsiDocumentManager.getInstance(project).getDocument(file)!!.text
+
+    @Test
+    fun `the stale translations of a locale come with the source of now and the value they replace`() = myFixture.runWithConfig(config) {
+        val (root, _) = staleProject()
+
+        val page = tools(root).stale(null, "de", 100)
+
+        Assertions.assertEquals("en", page.sourceLocale)
+        Assertions.assertEquals(
+            listOf(
+                TranslationAgentTools.Stale("common:cancel", "Cancel all", "Abbrechen", null),
+                TranslationAgentTools.Stale("common:save", "Save all {{what}}", "{{what}} speichern", null),
+            ),
+            page.items
+        )
+        val first = tools(root).stale(null, "de", 1)
+        Assertions.assertEquals(listOf("common:cancel"), first.items.map { it.key })
+        Assertions.assertEquals(2, first.total, "the total counts what the limit leaves out")
+    }
+
+    @Test
+    fun `a module without reviews has no stale list, refused with the reason`() = myFixture.runWithConfig(config) {
+        seed()
+
+        val refused = Assertions.assertThrows(TranslationAgentTools.Refused::class.java) { tools(myFixture.tempDirFixture.findOrCreateDir("app")).stale(null, "de", 10) }
+
+        Assertions.assertEquals(TranslationAgentTools.REVIEWS_OFF, refused.message)
+    }
+
+    @Test
+    fun `a value stale when written is replaced and marked to review on the new source, a filled one is not`() = myFixture.runWithConfig(config) {
+        val (root, de) = staleProject()
+
+        val result = tools(root).write(
+            null, "de",
+            mapOf("common:save" to "Alle {{what}} speichern", "common:title" to "Überschrift", "common:cancel" to "Alles abbrechen {{x}}"),
+            "codex"
+        )
+
+        Assertions.assertEquals(listOf("common:save"), result.written)
+        Assertions.assertEquals(TranslationAgentTools.ALREADY_FILLED, result.rejected["common:title"], "reviewed on the source of now: not stale")
+        Assertions.assertTrue(result.rejected.getValue("common:cancel").startsWith(TranslationAgentTools.PLACEHOLDERS), "checked against the new source")
+        val text = text(de)
+        Assertions.assertTrue("\"Alle {{what}} speichern\"" in text && "\"Titel\"" in text && "\"Abbrechen\"" in text, text)
+        val save = store().reviews(root, "de").getValue(ReviewKey("common", "save"))
+        Assertions.assertEquals(ReviewState.TO_REVIEW, save.state)
+        Assertions.assertEquals("machine:codex", save.origin)
+        Assertions.assertEquals(ReviewSource.of("en", "Save all {{what}}"), save.source, "the new source: no longer stale")
+        Assertions.assertEquals(listOf("common:cancel"), tools(root).stale(null, "de", 10).items.map { it.key })
+    }
+
+    @Test
+    fun `a stale value fixed between the listing and the write is refused, never replaced`() = myFixture.runWithConfig(config) {
+        val (root, de) = staleProject()
+        Assertions.assertEquals(listOf("common:cancel", "common:save"), tools(root).stale(null, "de", 10).items.map { it.key })
+
+        edit(de, "\"Abbrechen\"" to "\"Alles abbrechen\"")
+        val result = tools(root).write(null, "de", mapOf("common:cancel" to "Alle abbrechen"), "codex")
+
+        Assertions.assertEquals(emptyList<String>(), result.written)
+        Assertions.assertEquals(TranslationAgentTools.ALREADY_FILLED, result.rejected["common:cancel"], "no longer stale when written")
+        Assertions.assertTrue("\"Alles abbrechen\"" in text(de), text(de))
+    }
+
+    @Test
+    fun `a stale value changed while being written is refused with its own reason, the others written`() = myFixture.runWithConfig(config) {
+        val (root, de) = staleProject()
+        val tools = tools(root).apply { beforeWrite = { edit(de, "\"Abbrechen\"" to "\"Alles abbrechen\"") } }
+
+        val result = tools.write(null, "de", mapOf("common:cancel" to "Alle abbrechen", "common:save" to "Alle {{what}} speichern"), "codex")
+
+        Assertions.assertEquals(listOf("common:save"), result.written)
+        Assertions.assertEquals(TranslationAgentTools.CHANGED, result.rejected["common:cancel"])
+        val text = text(de)
+        Assertions.assertTrue("\"Alles abbrechen\"" in text && "\"Alle {{what}} speichern\"" in text, text)
+        Assertions.assertEquals(ReviewState.APPROVED, store().reviews(root, "de").getValue(ReviewKey("common", "cancel")).state, "not marked")
     }
 }
