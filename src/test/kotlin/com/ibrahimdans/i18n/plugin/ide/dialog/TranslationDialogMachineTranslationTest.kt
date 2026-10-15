@@ -163,7 +163,10 @@ class TranslationDialogMachineTranslationTest : PlatformBaseTest() {
             dialog.translateEmptyLocales()
             dialog.translateLocale("de")
         }
-        Assertions.assertEquals(listOf("fr", "es", "de"), requests.map { it.target })
+        // The empty locales go in the order their files were found, which varies: fr and es either way, then de.
+        val targets = requests.map { it.target }
+        Assertions.assertEquals(setOf("fr", "es"), targets.take(2).toSet(), "$targets")
+        Assertions.assertEquals(listOf("de"), targets.drop(2), "$targets")
         Assertions.assertTrue(requests.all { it.instruction == "formal tone" }, "$requests")
     }
 
