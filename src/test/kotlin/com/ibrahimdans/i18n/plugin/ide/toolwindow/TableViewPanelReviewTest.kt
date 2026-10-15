@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin.ide.toolwindow
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
+import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
@@ -33,10 +34,10 @@ class TableViewPanelReviewTest : PlatformBaseTest() {
 
     private val defaultNs: String get() = Settings.getInstance(project).config().defaultNamespaces().first()
 
-    private fun stubTranslations() {
+    private fun stubTranslations(home: String = "Home") {
         mockkObject(TranslationDataLoader)
         every { TranslationDataLoader.loadAllTranslations(project, null) } returns mapOf(
-            "menu.home" to mapOf("en" to "Home", "fr" to "Accueil"),
+            "menu.home" to mapOf("en" to home, "fr" to "Accueil"),
             "menu.about" to mapOf("en" to "About", "fr" to "À propos"),
         )
         every { TranslationDataLoader.discoverLocales(project, null) } returns listOf("en", "fr")
@@ -53,8 +54,8 @@ class TableViewPanelReviewTest : PlatformBaseTest() {
         return root
     }
 
-    private fun panel(root: VirtualFile): Pair<TableViewPanel, JTable> {
-        stubTranslations()
+    private fun panel(root: VirtualFile, home: String = "Home"): Pair<TableViewPanel, JTable> {
+        stubTranslations(home)
         val panel = TableViewPanel(project).apply { resolveReviewRoot = { root } }
         val table = find(panel)
         panel.refresh()
@@ -178,5 +179,71 @@ class TableViewPanelReviewTest : PlatformBaseTest() {
             }
         }
         error("no status combo")
+    }
+
+    // ── Source changed ────────────────────────────────────────────────────────
+
+    /** Reviews on, fr's menu.home approved on "Accueil" against the English source "Home". */
+    private fun staleRoot(): VirtualFile {
+        val root = myFixture.tempDirFixture.findOrCreateDir("app")
+        val store = ReviewStore.getInstance(project).apply { reviewer = { "Alice" } }
+        WriteCommandAction.runWriteCommandAction(project) {
+            store.enable(root)
+            store.decide(root, "fr", ReviewKey(defaultNs, "menu.home"), ReviewState.APPROVED, "Accueil", source = ReviewSource.of("en", "Home"))
+        }
+        return root
+    }
+
+    @Test
+    fun aSourceChangedSinceTheApprovalShowsInItsCellAndItsFilter() {
+        // The English source is "Home page" now: fr's approval was made on "Home".
+        val (panel, table) = panel(staleRoot(), home = "Home page")
+
+        assertTrue(StatusFilter.SOURCE_CHANGED in panel.statusFilterEntries())
+        val stale = table.columnModel.getColumn(2).cellRenderer.getTableCellRendererComponent(table, "Accueil", false, false, 1, 2) as JLabel
+        assertSame(AllIcons.General.Warning, stale.icon)
+        assertTrue(stale.toolTipText.contains(ReviewBadge.label(ShownReview.SOURCE_CHANGED)), stale.toolTipText)
+        assertTrue(stale.toolTipText.contains("Home page"), "the source of now: ${stale.toolTipText}")
+        val reference = table.columnModel.getColumn(1).cellRenderer.getTableCellRendererComponent(table, "Home page", false, false, 1, 1) as JLabel
+        assertNull(reference.icon, "the reference locale is never stale")
+
+        findCombo(panel).selectedItem = StatusFilter.SOURCE_CHANGED
+        assertEquals(listOf("menu.home"), (0 until table.rowCount).map { table.getValueAt(it, 0) })
+        findCombo(panel).selectedItem = StatusFilter.TO_REVIEW
+        assertTrue((0 until table.rowCount).any { table.getValueAt(it, 0) == "menu.home" }, "a stale translation is to review")
+    }
+
+    @Test
+    fun aHiddenReferenceColumnStillTellsAStaleTranslationAndApprovingRecordsTheSourceOfNow() {
+        val viewState = ToolWindowViewState.getInstance(project)
+        val saved = viewState.hiddenLocales(null)
+        viewState.setHiddenLocales(null, setOf("en"))
+        try {
+            val root = staleRoot()
+            val (panel, table) = panel(root, home = "Home page")
+            assertEquals(3, table.columnCount, "Key + fr + Usage")
+
+            findCombo(panel).selectedItem = StatusFilter.SOURCE_CHANGED
+            assertEquals(1, table.rowCount)
+            assertEquals("menu.home", table.getValueAt(0, 0))
+
+            select(table, 0..0, 1..1)
+            assertEquals("Home page", panel.selectedReviewCells().single().source)
+            panel.reviewMenuItems()[0].doClick()
+            panel.reloadReviews()
+
+            assertEquals(0, table.rowCount, "approved again on the source of now, it is no longer stale")
+            val review = ReviewStore.getInstance(project).reviews(root, "fr").getValue(ReviewKey(defaultNs, "menu.home"))
+            assertEquals(ReviewSource.of("en", "Home page"), review.source)
+        } finally {
+            viewState.setHiddenLocales(null, saved)
+        }
+    }
+
+    @Test
+    fun withoutReviewsFolderNoSourceChangedFilterIsOffered() {
+        val (panel, _) = panel(root(enabled = false), home = "Home page")
+
+        assertFalse(StatusFilter.SOURCE_CHANGED in panel.statusFilterEntries())
     }
 }

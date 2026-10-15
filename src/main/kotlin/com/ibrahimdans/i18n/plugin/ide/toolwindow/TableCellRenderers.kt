@@ -19,8 +19,11 @@ import javax.swing.Icon
 import javax.swing.JTable
 import javax.swing.table.DefaultTableCellRenderer
 
-/** The review a locale cell shows: what it means for the value held now, and the stored review behind it. */
-internal data class CellReview(val shown: ShownReview, val review: Review?) {
+/**
+ * The review a locale cell shows: what it means for the value held now, the stored review behind it,
+ * and [source], the text the key holds now in the reference locale — null when unknown.
+ */
+internal data class CellReview(val shown: ShownReview, val review: Review?, val source: String? = null) {
     companion object {
         val NONE = CellReview(ShownReview.NONE, null)
     }
@@ -82,21 +85,36 @@ internal object ReviewBadge {
         ReviewEventKind.REQUEST_CHANGE -> PluginBundle.message("review.event.request.change")
     }
 
-    /** The lines a tooltip adds for [review]: state, last decision, origin, last comment. Plain text. */
-    fun lines(review: Review, shown: ShownReview): List<String> = listOfNotNull(
-        label(shown),
-        PluginBundle.message("review.tooltip.decision", review.by, date(review.at)),
-        PluginBundle.message("review.tooltip.origin", origin(review.origin)),
-        lastComment(review)?.let { PluginBundle.message("review.tooltip.comment", it.by, it.text) },
-    )
+    /**
+     * The lines a tooltip adds for [review]: state, last decision, origin, last comment. Plain text.
+     * For [ShownReview.SOURCE_CHANGED], the decision line says the source changed since it, and the
+     * text the source holds now, [source], follows when known: what the value is to be checked against.
+     */
+    fun lines(review: Review, shown: ShownReview, source: String? = null): List<String> {
+        val stale = shown == ShownReview.SOURCE_CHANGED
+        val decision = if (stale) PluginBundle.message("review.tooltip.source.changed", review.by, date(review.at))
+        else PluginBundle.message("review.tooltip.decision", review.by, date(review.at))
+        val locale = review.source?.locale
+        val current = if (stale && locale != null && !source.isNullOrEmpty()) {
+            PluginBundle.message("review.tooltip.source.current", locale, source)
+        } else null
+        return listOfNotNull(
+            label(shown),
+            decision,
+            current,
+            PluginBundle.message("review.tooltip.origin", origin(review.origin)),
+            lastComment(review)?.let { PluginBundle.message("review.tooltip.comment", it.by, it.text) },
+        )
+    }
 
     /**
      * The tooltip of a reviewed cell: [base] — the value, or what the cell says about it — then the
-     * review's [lines]. HTML, every text escaped: a value or a comment holding `<b>` is shown as typed.
+     * review's [lines], [source] the text the key holds now in the reference locale. HTML, every text
+     * escaped: a value, a source or a comment holding `<b>` is shown as typed.
      */
-    fun tooltip(base: String?, review: Review, shown: ShownReview): String {
+    fun tooltip(base: String?, review: Review, shown: ShownReview, source: String? = null): String {
         val parts = listOfNotNull(base?.takeIf { it.isNotEmpty() }?.let(::html)) +
-            lines(review, shown).mapIndexed { i, line -> if (i == 0) "<b>${html(line)}</b>" else html(line) }
+            lines(review, shown, source).mapIndexed { i, line -> if (i == 0) "<b>${html(line)}</b>" else html(line) }
         return "<html>" + parts.joinToString("<br>") + "</html>"
     }
 
@@ -147,7 +165,8 @@ private val DYNAMIC_FOREGROUND = JBColor.namedColor("Label.infoForeground", JBCo
  *
  * Where reviews are on, [review] says what the cell's review is — asked with the view row and
  * column and the cell's value — and the cell carries its [ReviewBadge] icon, its tooltip the
- * state, the last decision, the origin and the last comment. The icon of a missing or blank value
+ * state, the last decision, the origin and the last comment; for a source changed since the
+ * decision, the source text of now. The icon of a missing or blank value
  * stays: that is the first thing to fix.
  */
 internal class TranslationCellRenderer(
@@ -208,7 +227,7 @@ internal class TranslationCellRenderer(
         val cellReview = review(row, column, raw)
         if (cellReview.shown != ShownReview.NONE && cellReview.review != null) {
             if (icon == null) icon = ReviewBadge.icon(cellReview.shown)
-            toolTipText = ReviewBadge.tooltip(toolTipText, cellReview.review, cellReview.shown)
+            toolTipText = ReviewBadge.tooltip(toolTipText, cellReview.review, cellReview.shown, cellReview.source)
         }
         return component
     }

@@ -3,11 +3,13 @@ package com.ibrahimdans.i18n.plugin.ide.toolwindow
 import com.ibrahimdans.i18n.plugin.review.Review
 import com.ibrahimdans.i18n.plugin.review.ReviewHash
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
+import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ShownReview
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -105,14 +107,116 @@ class TableViewModelReviewTest {
     }
 
     @Test
-    fun `with reviews the combo adds the two review filters at the end`() {
+    fun `with reviews the combo adds the three review filters at the end`() {
         assertEquals(StatusFilter.entries.toList(), viewModel.statusFilters(reviews))
-        assertEquals(listOf(StatusFilter.TO_REVIEW, StatusFilter.CHANGES_REQUESTED), StatusFilter.entries.filter { it.readsReviews })
+        assertEquals(
+            listOf(StatusFilter.TO_REVIEW, StatusFilter.SOURCE_CHANGED, StatusFilter.CHANGES_REQUESTED),
+            StatusFilter.entries.filter { it.readsReviews }
+        )
     }
 
     @Test
     fun `visibleRows hands the reviews to the status filter`() {
         val visible = viewModel.visibleRows(rows, "", NamespaceFilter.All, StatusFilter.CHANGES_REQUESTED, listOf("de"), reviews)
         assertEquals(listOf("menu.about"), visible.map { it.key })
+    }
+
+    // ── Source changed ────────────────────────────────────────────────────────
+
+    /** fr and de approved on their value, decided against the English [source]. */
+    private fun approvedOn(source: String) = TableReviews(
+        mapOf(
+            "fr" to mapOf(ReviewKey("translation", "menu.home") to review(ReviewState.APPROVED, "Accueil").copy(source = ReviewSource.of("en", source))),
+            "de" to mapOf(ReviewKey("translation", "menu.home") to review(ReviewState.APPROVED, "Start").copy(source = ReviewSource.of("en", source))),
+            // The reference value approved as it reads now, with a source of its own that differs: never compared.
+            "en" to mapOf(ReviewKey("translation", "menu.home") to review(ReviewState.APPROVED, "Home page").copy(source = ReviewSource.of("en", source))),
+        ),
+        "translation",
+        referenceLocale = "en",
+    )
+
+    private val homeRow = TranslationRow("menu.home", mapOf("en" to "Home page", "fr" to "Accueil", "de" to "Start"))
+
+    @Test
+    fun `an approval whose source changed since shows in the Source changed and To review filters`() {
+        val stale = approvedOn("Home")
+
+        assertEquals(ShownReview.SOURCE_CHANGED, stale.shownOf(homeRow, "fr"))
+        assertEquals(listOf(homeRow), viewModel.filterByStatus(StatusFilter.SOURCE_CHANGED, listOf(homeRow), listOf("en", "fr"), stale))
+        assertEquals(listOf(homeRow), viewModel.filterByStatus(StatusFilter.TO_REVIEW, listOf(homeRow), listOf("en", "fr"), stale))
+        assertTrue(ShownReview.SOURCE_CHANGED in TableReviews.TO_REVIEW_STATES)
+    }
+
+    @Test
+    fun `a source unchanged since the decision keeps the approval`() {
+        val fresh = approvedOn("Home page")
+
+        assertEquals(ShownReview.APPROVED, fresh.shownOf(homeRow, "fr"))
+        assertTrue(viewModel.filterByStatus(StatusFilter.SOURCE_CHANGED, listOf(homeRow), listOf("en", "fr", "de"), fresh).isEmpty())
+        assertTrue(viewModel.filterByStatus(StatusFilter.TO_REVIEW, listOf(homeRow), listOf("en", "fr", "de"), fresh).isEmpty())
+    }
+
+    @Test
+    fun `the Source changed filter reads the shown locales only, the reference read even when hidden`() {
+        val stale = approvedOn("Home")
+
+        assertEquals(listOf(homeRow), viewModel.filterByStatus(StatusFilter.SOURCE_CHANGED, listOf(homeRow), listOf("de"), stale), "en is hidden, its source still read")
+        assertTrue(viewModel.filterByStatus(StatusFilter.SOURCE_CHANGED, listOf(homeRow), listOf("en"), stale).isEmpty(), "fr and de are hidden")
+    }
+
+    @Test
+    fun `the reference locale itself is never stale`() {
+        assertEquals(ShownReview.APPROVED, approvedOn("Home").shownOf(homeRow, "en"))
+    }
+
+    @Test
+    fun `approving again on the current source is no longer stale`() {
+        val reapproved = TableReviews(
+            mapOf("fr" to mapOf(ReviewKey("translation", "menu.home") to review(ReviewState.APPROVED, "Accueil").copy(source = ReviewSource.of("en", "Home page")))),
+            "translation",
+            referenceLocale = "en",
+        )
+
+        assertEquals(ShownReview.APPROVED, reapproved.shownOf(homeRow, "fr"))
+    }
+
+    @Test
+    fun `a value edited since the decision is to review, not stale`() {
+        val edited = homeRow.copy(values = homeRow.values + ("fr" to "Page d'accueil"))
+
+        assertEquals(ShownReview.CHANGED_SINCE_APPROVAL, approvedOn("Home").shownOf(edited, "fr"))
+    }
+
+    @Test
+    fun `a review without source, or a module without reference locale, is never stale`() {
+        val noSource = TableReviews(
+            mapOf("fr" to mapOf(ReviewKey("translation", "menu.home") to review(ReviewState.APPROVED, "Accueil"))), "translation", referenceLocale = "en",
+        )
+        val noReference = TableReviews(
+            mapOf("fr" to mapOf(ReviewKey("translation", "menu.home") to review(ReviewState.APPROVED, "Accueil").copy(source = ReviewSource.of("en", "Home")))),
+            "translation",
+        )
+
+        assertEquals(ShownReview.APPROVED, noSource.shownOf(homeRow, "fr"))
+        assertEquals(ShownReview.APPROVED, noReference.shownOf(homeRow, "fr"))
+        assertNull(noReference.sourceOf("menu.home", "Home page"))
+    }
+
+    @Test
+    fun `the source hash is kept per key and follows an edit of the source`() {
+        val stale = approvedOn("Home")
+
+        val first = stale.sourceOf("menu.home", "Home page")
+        assertSame(first, stale.sourceOf("menu.home", "Home page"), "hashed once per key and text")
+        assertEquals(ReviewSource.of("en", "Home page"), first)
+        assertEquals(ShownReview.APPROVED, stale.shownOf("menu.home", "fr", "Accueil", "Home"), "the source edited back to its old text")
+        assertNull(stale.sourceOf("menu.home", ""), "an empty source is no source")
+    }
+
+    @Test
+    fun `without reviews nothing is stale and no Source changed filter is offered`() {
+        assertFalse(StatusFilter.SOURCE_CHANGED in viewModel.statusFilters(TableReviews.OFF))
+        assertEquals(ShownReview.NONE, TableReviews.OFF.shownOf(homeRow, "fr"))
+        assertNull(TableReviews.OFF.sourceOf("menu.home", "Home page"))
     }
 }

@@ -12,16 +12,19 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.review.Review
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
+import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.review.shown
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.PsiSearchHelper
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Represents a single row in the translation table.
@@ -102,9 +105,16 @@ enum class StatusFilter(private val labelKey: String) {
 
     /**
      * Keys someone has to review in a *shown* locale: marked to review, approved then changed,
-     * or corrected after a change request. Offered only where reviews are on, see [TableReviews].
+     * corrected after a change request, or decided on a source text changed since. Offered only
+     * where reviews are on, see [TableReviews].
      */
     TO_REVIEW("toolwindow.table.status.to_review"),
+
+    /**
+     * Keys whose value, in a *shown* locale, is still the one decided on while the reference text
+     * changed since — the translations to translate again. A subset of [TO_REVIEW].
+     */
+    SOURCE_CHANGED("toolwindow.table.status.source_changed"),
 
     /** Keys whose value, in a *shown* locale, a reviewer asked to correct and nobody has touched since. */
     CHANGES_REQUESTED("toolwindow.table.status.changes_requested");
@@ -113,7 +123,7 @@ enum class StatusFilter(private val labelKey: String) {
     val label: String get() = PluginBundle.message(labelKey)
 
     /** True for the filters that read reviews, meaningless where reviews are off. */
-    val readsReviews: Boolean get() = this == TO_REVIEW || this == CHANGES_REQUESTED
+    val readsReviews: Boolean get() = this == TO_REVIEW || this == SOURCE_CHANGED || this == CHANGES_REQUESTED
 }
 
 /**
@@ -123,6 +133,11 @@ enum class StatusFilter(private val labelKey: String) {
  * offer the review filters and the context menu adds nothing — a team that never asked for reviews
  * sees the table it always had. Pure: the panel reads the store, the filters and the renderer read
  * this, so both are tested without a project.
+ *
+ * A review is read against the source text its key holds now in [referenceLocale], so that a value
+ * decided on an older source shows as [ShownReview.SOURCE_CHANGED]. The source is passed in by the
+ * caller, read from the row whether its column is shown or not; its hash is kept per key, so the
+ * renderer does not hash it again for every cell it paints.
  */
 class TableReviews(
     private val byLocale: Map<String, Map<ReviewKey, Review>>,
@@ -130,7 +145,15 @@ class TableReviews(
     private val defaultNamespace: String,
     /** False for [OFF]: reviews are not on for the module. */
     val enabled: Boolean = true,
+    /**
+     * The module's reference locale, as `ReferenceLocale.of` picks it among the loaded locales —
+     * the locale a decision records its source in. Null when none matches: no source is known then.
+     */
+    val referenceLocale: String? = null,
 ) {
+    /** Per key, the source text last hashed and its [ReviewSource]: one hash per key and text. */
+    private val sources = ConcurrentHashMap<String, Pair<String, ReviewSource>>()
+
     /** The review of [key] (spelled as the table spells it) in [locale], or null. */
     fun reviewOf(key: String, locale: String): Review? =
         if (!enabled) null else byLocale[locale]?.get(reviewKey(key))
@@ -140,16 +163,41 @@ class TableReviews(
 
     /**
      * What the review of [key] in [locale] means for [raw], the cell's value — an empty cell has no
-     * entry, hence no value anyone reviewed (see [shown]).
+     * entry, hence no value anyone reviewed (see [shown]) — given [source], the text [key] holds now
+     * in [referenceLocale]. The reference locale itself has no source: it is never
+     * [ShownReview.SOURCE_CHANGED].
      */
-    fun shownOf(key: String, locale: String, raw: String?): ShownReview =
-        shown(reviewOf(key, locale), raw?.takeIf { it.isNotEmpty() })
+    fun shownOf(key: String, locale: String, raw: String?, source: String? = null): ShownReview {
+        val review = reviewOf(key, locale) ?: return ShownReview.NONE
+        val current = if (locale == referenceLocale) null else sourceOf(key, source)
+        return shown(review, raw?.takeIf { it.isNotEmpty() }, current)
+    }
+
+    /** What the review of [row]'s key in [locale] means for its value, against its own source. */
+    fun shownOf(row: TranslationRow, locale: String): ShownReview =
+        shownOf(row.key, locale, row.values[locale], sourceText(row))
+
+    /** The text [row] holds in [referenceLocale], whatever locales are shown; null when it has none. */
+    fun sourceText(row: TranslationRow?): String? = referenceLocale?.let { row?.values?.get(it) }
+
+    /**
+     * [text], the source [key] holds now, as a [ReviewSource] in [referenceLocale]; null when either
+     * is unknown or [text] is empty. Hashed once per key and text: an edit of the source is seen.
+     */
+    fun sourceOf(key: String, text: String?): ReviewSource? {
+        val locale = referenceLocale ?: return null
+        if (!enabled || text.isNullOrEmpty()) return null
+        sources[key]?.let { (hashed, source) -> if (hashed == text) return source }
+        return ReviewSource.of(locale, text).also { sources[key] = text to it }
+    }
 
     companion object {
         val OFF = TableReviews(emptyMap(), "", enabled = false)
 
         /** What the *To review* filter keeps: no approval holds for the value shown, and no request is pending. */
-        val TO_REVIEW_STATES = setOf(ShownReview.TO_REVIEW, ShownReview.CHANGED_SINCE_APPROVAL, ShownReview.FIXED_SINCE_REQUEST)
+        val TO_REVIEW_STATES = setOf(
+            ShownReview.TO_REVIEW, ShownReview.CHANGED_SINCE_APPROVAL, ShownReview.FIXED_SINCE_REQUEST, ShownReview.SOURCE_CHANGED,
+        )
     }
 }
 
@@ -253,9 +301,10 @@ class TableViewModel {
      * at nothing visible. [StatusFilter.ORPHAN] keeps the rows the scan found unused — none
      * before a scan, since "not scanned" is not "unused". [StatusFilter.DUPLICATE] compares the
      * values of one locale and one namespace at a time — one translation file, as the
-     * *Duplicate translation value* inspection does. [StatusFilter.TO_REVIEW] and
-     * [StatusFilter.CHANGES_REQUESTED] read [reviews] against the value each shown cell holds now:
-     * an approval of an older value reads as *to review*.
+     * *Duplicate translation value* inspection does. [StatusFilter.TO_REVIEW],
+     * [StatusFilter.SOURCE_CHANGED] and [StatusFilter.CHANGES_REQUESTED] read [reviews] against the
+     * value each shown cell holds now and the row's source, read in the reference locale even when
+     * its column is hidden: an approval of an older value, or on an older source, reads as *to review*.
      */
     fun filterByStatus(
         filter: StatusFilter,
@@ -267,7 +316,7 @@ class TableViewModel {
             shownLocales.any { valueStatus(row.values[it] ?: "") == status }
         }
         fun anyReview(states: Set<ShownReview>) = { row: TranslationRow ->
-            shownLocales.any { reviews.shownOf(row.key, it, row.values[it]) in states }
+            shownLocales.any { reviews.shownOf(row, it) in states }
         }
         return when (filter) {
             StatusFilter.ALL -> rows
@@ -279,6 +328,7 @@ class TableViewModel {
                 rows.filter { it.key in duplicated }
             }
             StatusFilter.TO_REVIEW -> rows.filter(anyReview(TableReviews.TO_REVIEW_STATES))
+            StatusFilter.SOURCE_CHANGED -> rows.filter(anyReview(setOf(ShownReview.SOURCE_CHANGED)))
             StatusFilter.CHANGES_REQUESTED -> rows.filter(anyReview(setOf(ShownReview.CHANGES_REQUESTED)))
         }
     }
@@ -321,13 +371,20 @@ class TableViewModel {
 
     /**
      * The reviews of [locales] under [root], or [TableReviews.OFF] when there is no root or it has
-     * no reviews folder. Reads files: off the EDT, or on it for a reload (the store caches them).
+     * no reviews folder, read against [moduleConfig]'s reference locale ([ReferenceLocale.of], the
+     * choice every decision records its source with). Reads files: off the EDT, or on it for a
+     * reload (the store caches them).
      */
-    fun loadReviews(project: Project, root: VirtualFile?, locales: List<String>, config: Config): TableReviews {
+    fun loadReviews(
+        project: Project, root: VirtualFile?, locales: List<String>, config: Config, moduleConfig: ModuleConfig? = null,
+    ): TableReviews {
         if (root == null) return TableReviews.OFF
         val store = ReviewStore.getInstance(project)
         if (!store.isEnabled(root)) return TableReviews.OFF
-        return TableReviews(locales.associateWith { store.reviews(root, it) }, config.defaultNamespaces().first())
+        return TableReviews(
+            locales.associateWith { store.reviews(root, it) }, config.defaultNamespaces().first(),
+            referenceLocale = ReferenceLocale.of(moduleConfig, config, locales),
+        )
     }
 
     /** Where [moduleConfig]'s reviews folder hangs, see [ReviewLocation.rootOf]. */

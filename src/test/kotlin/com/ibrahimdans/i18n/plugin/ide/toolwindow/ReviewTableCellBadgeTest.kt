@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin.ide.toolwindow
 import com.ibrahimdans.i18n.plugin.review.Review
 import com.ibrahimdans.i18n.plugin.review.ReviewEvent
 import com.ibrahimdans.i18n.plugin.review.ReviewEventKind
+import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
@@ -85,5 +86,28 @@ class ReviewTableCellBadgeTest {
     fun `a date that is not an instant reads as is`() {
         assertEquals("T", ReviewBadge.date("T"))
         assertTrue(ReviewBadge.date("2026-10-11T14:02:11Z").matches(Regex("""\d{4}-\d{2}-\d{2} \d{2}:\d{2}""")))
+    }
+
+    @Test
+    fun `the tooltip of a stale translation says the source changed since the decision, and what it says now`() {
+        val stale = review.copy(state = ReviewState.APPROVED, thread = emptyList(), source = ReviewSource.of("en", "Cart"))
+        val tooltip = ReviewBadge.tooltip("Panier", stale, ShownReview.SOURCE_CHANGED, "Shopping <cart>")
+
+        assertTrue(tooltip.contains("<b>" + PluginBundle.message("review.state.source.changed") + "</b>"), tooltip)
+        val since = PluginBundle.message("review.tooltip.source.changed", "Alice <alice@example.com>", ReviewBadge.date("2026-10-11T14:02:11Z"))
+        assertTrue(tooltip.contains(since.replace("<", "&lt;").replace(">", "&gt;")), tooltip)
+        assertFalse(tooltip.contains(PluginBundle.message("review.tooltip.decision", "", "").substringBefore(":")), "no second decision line: $tooltip")
+        assertTrue(tooltip.contains(PluginBundle.message("review.tooltip.source.current", "en", "Shopping &lt;cart&gt;")), "the source of now, escaped: $tooltip")
+    }
+
+    @Test
+    fun `the source of now is shown for a stale translation only, and only when known`() {
+        val withSource = review.copy(state = ReviewState.APPROVED, thread = emptyList(), source = ReviewSource.of("en", "Cart"))
+        val current = PluginBundle.message("review.tooltip.source.current", "en", "Shopping cart")
+
+        assertEquals(4, ReviewBadge.lines(withSource, ShownReview.SOURCE_CHANGED, "Shopping cart").size)
+        assertTrue(current in ReviewBadge.lines(withSource, ShownReview.SOURCE_CHANGED, "Shopping cart"))
+        assertEquals(3, ReviewBadge.lines(withSource, ShownReview.SOURCE_CHANGED).size, "no source known")
+        assertEquals(3, ReviewBadge.lines(withSource, ShownReview.APPROVED, "Shopping cart").size, "an approval that holds says nothing of the source")
     }
 }
