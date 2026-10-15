@@ -22,8 +22,9 @@ import kotlinx.coroutines.withContext
  * rather than by rewriting files. [TranslationAgentTools] does the work; this class only adapts the
  * protocol, and is the one class loaded with the MCP server plugin.
  *
- * Built against 2025.3: in 2025.2 the server keeps the calling project elsewhere and its error has
- * another constructor, so a tool there answers that it needs 2025.3 instead of failing.
+ * Built against 2025.3, whose API 2025.2.6 already has: in the first 2025.2 builds the server keeps the
+ * calling project elsewhere and its error has another constructor, so a tool there answers that the IDE
+ * needs an update instead of failing.
  */
 class I18nMcpToolset : McpToolset {
 
@@ -61,7 +62,7 @@ class I18nMcpToolset : McpToolset {
 
     /** [block] run for the calling project and MCP client, its result as JSON; a refusal as the MCP error the agent reads. */
     private suspend fun call(block: suspend (TranslationAgentTools, String) -> Any): String {
-        val (project, client) = caller() ?: return REQUIRES_2025_3
+        val (project, client) = caller() ?: return REQUIRES_UPDATE
         val result = try {
             block(TranslationAgentTools(project), client)
         } catch (refused: TranslationAgentTools.Refused) {
@@ -70,7 +71,7 @@ class I18nMcpToolset : McpToolset {
         return GSON.toJson(result)
     }
 
-    /** The calling project and client name; null in 2025.2, where neither is found where this was built to look. */
+    /** The calling project and client name; null in the first 2025.2 builds, where neither is found where this was built to look. */
     private suspend fun caller(): Pair<Project, String>? {
         val context = currentCoroutineContext()
         return try {
@@ -82,6 +83,6 @@ class I18nMcpToolset : McpToolset {
 
     private companion object {
         val GSON = GsonBuilder().disableHtmlEscaping().create()
-        const val REQUIRES_2025_3 = "The i18n Support Plus tools require IntelliJ-based IDEs 2025.3 or later."
+        const val REQUIRES_UPDATE = "The i18n Support Plus tools need a more recent IDE: 2025.2.6 or later."
     }
 }

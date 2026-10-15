@@ -10,7 +10,7 @@ Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-
 - **See** — gutter status per key (all / some / no locale), inline value hints, folding and hover in a preview locale, completion of real keys, namespaces included
 - **Edit safely** — extract hardcoded strings (variables and plural forms included), rename a key or a whole level across every locale and call site (`Shift+F6`), move a key to another namespace; one Ctrl+Z undoes the files and the code
 - **Translate** — opt-in machine translation of empty locales, for one key or a whole locale, through a local Ollama (nothing leaves the machine), DeepL, LibreTranslate, Google or any OpenAI-compatible API; variables, tags and the target language's plural forms are kept, and nothing is written before a preview
-- **AI agents** — Codex, Claude or any MCP client translates through the plugin's tools on the IDE's MCP server, on your own AI plan: only missing values are written, placeholders and plural forms are checked, and one Ctrl+Z undoes it (2025.3+)
+- **AI agents** — Codex, Claude or any MCP client translates through the plugin's tools on the IDE's MCP server, on your own AI plan: only missing values are written, placeholders and plural forms are checked, and one Ctrl+Z undoes it (2025.2.6+)
 - **Plurals done right** — i18next `_one` / `_other` keys and nested plural objects resolve, missing CLDR forms per language are reported, ICU messages are validated
 - **Stay healthy** — tool window with tree and table views, filters for missing, empty, duplicate and unreferenced keys, coverage per namespace and locale, a keep list for keys used outside the code, keys synchronizer, cleanup, CSV and XLIFF export / import, comparison with a Git branch
 - **Your own calls** — rules turn `translate('key')` or `__('key')` into translation calls, and a module can write its own wrapper's call at extraction
@@ -231,7 +231,7 @@ The inspections also run without an editor, in [Qodana](https://www.jetbrains.co
 
 ### AI Agents (MCP)
 
-On IntelliJ-based IDEs 2025.3 and later, the plugin adds three tools to the IDE's built-in MCP server, so an AI agent translates through the plugin rather than by rewriting the files — with your own Codex or Claude plan, no API key:
+On IntelliJ-based IDEs 2025.2.6 and later, the plugin adds three tools to the IDE's built-in MCP server, so an AI agent translates through the plugin rather than by rewriting the files — with your own Codex or Claude plan, no API key:
 
 | Tool | What it does |
 |------|--------------|
@@ -277,7 +277,7 @@ The agent calls `i18n_missing_translations`, translates, then `i18n_write_transl
 - Only missing values are written; to re-translate a filled one, use *Translate* in the *Edit Translation* dialog.
 - ICU plurals (`{count, plural, …}`) are listed but not written: edit them in the file.
 - Reviews: in a module with a `.i18n-reviews/` folder, the values written are marked *to review* as `machine:<agent>`; an agent never creates that folder.
-- Nothing appears? Check that the plugin's tools are listed by your client (`/mcp` in Claude Code), that the MCP server is enabled, and that the IDE is 2025.3 or later.
+- Nothing appears? Check that the plugin's tools are listed by your client (`/mcp` in Claude Code), that the MCP server is enabled, and that the IDE is 2025.2.6 or later.
 
 ### Wildcard Traversal
 

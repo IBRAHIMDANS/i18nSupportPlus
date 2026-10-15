@@ -23,6 +23,6 @@
 // MCP tools (I18nMcpToolset, loaded by mcpConfig.xml only, optional dependency on com.intellij.mcpServer):
 //  - 2025.1 has no MCP server plugin: the package is missing, but mcpConfig.xml is never loaded there.
 //  - 2025.2.0 (252.23892) lacks McpCallInfoKt, ClientInfo and McpExpectedError(String, JsonObject), added by
-//    2025.2.6: I18nMcpToolset.caller() catches the LinkageError and the tool answers that it needs 2025.3.
+//    2025.2.6: I18nMcpToolset.caller() catches the LinkageError and the tool answers that the IDE needs an update.
 // Scoped to that package and to this plugin, so that any other missing class still fails the build.
 com.ibrahimdans.i18n:.*com\.intellij\.mcpserver.*

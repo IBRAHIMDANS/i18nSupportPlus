@@ -1,6 +1,6 @@
 <idea-plugin>
     <extensions defaultExtensionNs="com.intellij">
-        <!-- Translation tools for AI agents on the IDE's MCP server (2025.3+; see I18nMcpToolset). -->
+        <!-- Translation tools for AI agents on the IDE's MCP server (2025.2.6+; see I18nMcpToolset). -->
         <mcpServer.mcpToolset implementation="com.ibrahimdans.i18n.plugin.mcp.I18nMcpToolset"/>
     </extensions>
 </idea-plugin>
