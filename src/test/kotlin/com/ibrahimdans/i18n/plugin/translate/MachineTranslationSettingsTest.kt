@@ -14,6 +14,8 @@ import java.awt.Component
 import java.awt.Container
 import javax.swing.JButton
 import javax.swing.JComboBox
+import javax.swing.JLabel
+import javax.swing.JList
 import javax.swing.JTextField
 
 /**
@@ -158,5 +160,16 @@ class MachineTranslationSettingsTest {
         down.doClick()
         assertEquals(listOf("deepl", "openai-compatible"), copy.engines.map { it.preset })
     }
-}
 
+    @Test
+    fun `the preset box renders without an engine selected`() {
+        val panel = MachineTranslationPanel(MachineTranslationSettings.Settings(), { "" }) { _, _, _ -> }
+        @Suppress("UNCHECKED_CAST")
+        val combo = find(panel, PluginBundle.message("settings.translate.preset")) as JComboBox<String>
+        val render = { value: String? -> combo.renderer.getListCellRendererComponent(JList(), value, -1, false, false) as JLabel }
+
+        assertNull(combo.selectedItem)
+        assertEquals("", render(null).text)
+        assertEquals(TranslationEngines.preset("deepl")!!.name, render("deepl").text)
+    }
+}
