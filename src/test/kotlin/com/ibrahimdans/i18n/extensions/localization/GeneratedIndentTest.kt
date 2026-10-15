@@ -39,7 +39,7 @@ class GeneratedIndentTest : PlatformBaseTest() {
         assertTrue(file.text.contains("\n    c: v"), file.text)
     }
 
-    /** JSON's indentation belongs to the IDE's JSON code style, which reformats generated content. */
+    /** JSON has no indent setting: a key added to a file takes the indent of the file itself. */
     @Test
     fun onlyYamlDeclaresTheIndentProperty() {
         assertEquals(listOf("indent"), YamlLocalization().config().props().map { it.id })
