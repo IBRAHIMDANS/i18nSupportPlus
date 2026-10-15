@@ -139,7 +139,7 @@ class BatchExtractI18nAction : AnAction() {
         val extractor: TranslationExtractor,
         val marker: RangeMarker
     ) {
-        private val template = CallTemplate.template(extractor, candidate.literal)
+        private val template = CallTemplate.template(extractor, candidate.literal, candidate.originalText)
 
         fun apply(editor: Editor, source: String) {
             if (marker.isValid) {

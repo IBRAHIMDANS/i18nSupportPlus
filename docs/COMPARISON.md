@@ -195,7 +195,7 @@ IDEs.
 | `i18n-ally.keysInUse` | *Keys used outside the code* |
 | `i18n-ally.ignoredLocales` | *Locales not checked for missing keys* (the locale stays visible) |
 | `i18n-ally.translate.engines` | *Settings → Tools → i18n Support Plus → Machine Translation*: engines tried in order |
-| `i18n-ally.refactor.templates` | The module's *Call template* (`translate({key})`) |
+| `i18n-ally.refactor.templates` | The module's *Call template* (`translate({key})`, `t({key}, {text})` with the text as default value) |
 | `i18n-ally.sortKeys` | *Sort keys alphabetically* |
 | Custom framework (`.vscode/i18n-ally-custom-framework.yml`) | *Key assistance rules*: a trigger per function name |
 
