@@ -130,9 +130,11 @@ internal fun nextEditableCell(
  * home-made filter bar, a third grammar of action next to the toolbar above it.
  *
  * Where the module has a `.i18n-reviews/` folder, each locale cell carries its review — icon and
- * tooltip, see [ReviewBadge] — the status combo adds *To review* and *Changes requested*, and the
- * context menu decides on the selected cells, one command whatever their number. The reviews are
- * read again on [ReviewStore.CHANGED]. Without the folder the table is the one it always was.
+ * tooltip, see [ReviewBadge] — the status combo adds *To review*, *Source changed* and *Changes
+ * requested*, and the context menu decides on the selected cells, one command whatever their
+ * number, each decision recording the source text the key holds now in the reference locale. A
+ * review is read against that source too, taken from the row even when its column is hidden. The
+ * reviews are read again on [ReviewStore.CHANGED]. Without the folder the table is the one it always was.
  *
  * When [moduleConfig] is non-null, only translations from that module are shown.
  */
@@ -198,6 +200,13 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     private val keyColumn: Int get() = leadingColumns - 1
 
     private var allRows: List<TranslationRow> = emptyList()
+        set(value) {
+            field = value
+            rowsByKey = value.associateBy { it.key }
+        }
+
+    /** [allRows] by key: where a cell finds its row's source text, whatever locales are shown. */
+    private var rowsByKey: Map<String, TranslationRow> = emptyMap()
 
     /** The configuration the rows were loaded under; what the default group is called depends on it. */
     private var config: Config = Config()
@@ -447,7 +456,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         locales = discovered
         val namespaces = viewModel.namespaceFilters(rows)
         val root = resolveReviewRoot()
-        val loadedReviews = viewModel.loadReviews(project, root, discovered, config)
+        val loadedReviews = viewModel.loadReviews(project, root, discovered, config, moduleConfig)
 
         ApplicationManager.getApplication().invokeLater {
             reviewRoot = root
@@ -636,14 +645,18 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         if (!reviews.enabled) return CellReview.NONE
         val locale = localeAt(column) ?: return CellReview.NONE
         val key = table.getValueAt(row, keyColumn) as? String ?: return CellReview.NONE
-        val shown = reviews.shownOf(key, locale, raw)
-        return if (shown == ShownReview.NONE) CellReview.NONE else CellReview(shown, reviews.reviewOf(key, locale))
+        val source = sourceText(key)
+        val shown = reviews.shownOf(key, locale, raw, source)
+        return if (shown == ShownReview.NONE) CellReview.NONE else CellReview(shown, reviews.reviewOf(key, locale), source)
     }
 
+    /** The text [key] holds now in the reference locale, read from its row: its column may be hidden. */
+    private fun sourceText(key: String): String? = reviews.sourceText(rowsByKey[key])
+
     /**
-     * The locale cells of the selection holding a value, the cells a review decision applies to.
-     * The selection is a block of rows and columns (cell selection): every locale column of it
-     * counts, the key and usage columns do not.
+     * The locale cells of the selection holding a value, the cells a review decision applies to,
+     * each with the source its key holds now. The selection is a block of rows and columns (cell
+     * selection): every locale column of it counts, the key and usage columns do not.
      */
     internal fun selectedReviewCells(): List<ReviewCell> {
         val columns = table.selectedColumns.filter { localeAt(it) != null }
@@ -651,7 +664,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             val key = table.getValueAt(row, keyColumn) as? String ?: return@flatMap emptyList()
             columns.mapNotNull { column ->
                 val value = table.getValueAt(row, column) as? String ?: ""
-                if (value.isEmpty()) null else ReviewCell(key, localeAt(column)!!, value)
+                if (value.isEmpty()) null else ReviewCell(key, localeAt(column)!!, value, sourceText(key))
             }
         }
     }
@@ -672,14 +685,19 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         }
         val approveLabel = if (cells.size > 1) PluginBundle.message("review.action.approve.many", cells.size)
         else PluginBundle.message("review.action.approve")
+        val reference = reviews.referenceLocale
         return listOf(
-            item(approveLabel, cells.isNotEmpty()) { reviewed(ReviewActions.approve(project, root, cells), cells) },
+            item(approveLabel, cells.isNotEmpty()) {
+                reviewed(ReviewActions.approve(project, root, cells, referenceLocale = reference), cells)
+            },
             item(PluginBundle.message("review.action.request.changes"), cells.isNotEmpty()) { requestChanges(root, cells) },
-            item(PluginBundle.message("review.action.mark"), cells.isNotEmpty()) { reviewed(ReviewActions.markToReview(project, root, cells), cells) },
+            item(PluginBundle.message("review.action.mark"), cells.isNotEmpty()) {
+                reviewed(ReviewActions.markToReview(project, root, cells, referenceLocale = reference), cells)
+            },
             item(
                 PluginBundle.message("review.action.comments"), cells.size == 1,
                 PluginBundle.message("review.action.comments.unavailable")
-            ) { ReviewThreadDialog(project, root, cells.single()).show() },
+            ) { ReviewThreadDialog(project, root, cells.single(), referenceLocale = reference).show() },
         )
     }
 
@@ -695,7 +713,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
                 override fun canClose(inputString: String?): Boolean = checkInput(inputString)
             },
         ) ?: return
-        reviewed(ReviewActions.requestChanges(project, root, cells, text), cells)
+        reviewed(ReviewActions.requestChanges(project, root, cells, text, referenceLocale = reviews.referenceLocale), cells)
     }
 
     /** After a decision: an error when nothing could be written, the reviews read again otherwise. */
@@ -717,7 +735,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      */
     internal fun reloadReviews() {
         if (project.isDisposed) return
-        reviews = viewModel.loadReviews(project, reviewRoot, locales, config)
+        reviews = viewModel.loadReviews(project, reviewRoot, locales, config, moduleConfig)
         updateStatusCombo()
         if (currentStatus.readsReviews) applyFilters() else table.repaint()
     }

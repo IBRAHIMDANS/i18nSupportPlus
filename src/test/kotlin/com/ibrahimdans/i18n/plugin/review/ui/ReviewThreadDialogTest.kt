@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.ReviewBadge
 import com.ibrahimdans.i18n.plugin.review.ReviewEvent
 import com.ibrahimdans.i18n.plugin.review.ReviewEventKind
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
+import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
@@ -101,5 +102,67 @@ class ReviewThreadDialogTest : PlatformBaseTest() {
             Assertions.assertEquals(ShownReview.APPROVED, dialog.shownReview())
         }
         Assertions.assertNotNull(ReviewStore.getInstance(project).reviews(root, "fr")[ReviewKey("common", "cart.title")])
+    }
+
+    /** fr's menu.home approved on "Accueil" against the English source "Home". */
+    private fun approvedOnHome(): VirtualFile {
+        val root = enabledRoot()
+        Assertions.assertTrue(ReviewActions.approve(project, root, listOf(cell.copy(source = "Home")), ns, referenceLocale = "en"))
+        return root
+    }
+
+    private fun <T> withStaleDialog(root: VirtualFile, cell: ReviewCell, block: (ReviewThreadDialog) -> T): T {
+        val dialog = ReviewThreadDialog(project, root, cell, ns, referenceLocale = "en")
+        try {
+            return block(dialog)
+        } finally {
+            Disposer.dispose(dialog.disposable)
+        }
+    }
+
+    @Test
+    fun aSourceChangedSinceTheDecisionIsShownAsSuch() {
+        val root = approvedOnHome()
+
+        withStaleDialog(root, cell.copy(source = "Home page")) { dialog ->
+            Assertions.assertEquals(ShownReview.SOURCE_CHANGED, dialog.shownReview())
+            Assertions.assertEquals(ReviewBadge.label(ShownReview.SOURCE_CHANGED), dialog.stateText())
+        }
+        withStaleDialog(root, cell.copy(source = "Home")) { dialog ->
+            Assertions.assertEquals(ShownReview.APPROVED, dialog.shownReview(), "the source the decision was made on")
+        }
+        // Without the reference locale, the source cannot be compared: the approval holds.
+        withDialog(root, cell.copy(source = "Home page")) { dialog ->
+            Assertions.assertEquals(ShownReview.APPROVED, dialog.shownReview())
+        }
+    }
+
+    @Test
+    fun approvingAgainRecordsTheSourceOfNow() {
+        val root = approvedOnHome()
+
+        withStaleDialog(root, cell.copy(source = "Home page")) { dialog ->
+            Assertions.assertTrue(dialog.approve())
+            Assertions.assertEquals(ShownReview.APPROVED, dialog.shownReview())
+        }
+        Assertions.assertEquals(ReviewSource.of("en", "Home page"), ReviewStore.getInstance(project).reviews(root, "fr")[ReviewKey(ns, "menu.home")]?.source)
+    }
+
+    @Test
+    fun aChangeRequestRecordsTheSourceOfNowAndTheReferenceLocaleIsNeverStale() {
+        val root = enabledRoot()
+
+        withStaleDialog(root, cell.copy(source = "Home page")) { dialog ->
+            dialog.input.text = "Say « Page d'accueil »"
+            Assertions.assertTrue(dialog.requestChanges())
+        }
+        Assertions.assertEquals(ReviewSource.of("en", "Home page"), ReviewStore.getInstance(project).reviews(root, "fr")[ReviewKey(ns, "menu.home")]?.source)
+
+        val english = ReviewCell("menu.home", "en", "Home", "Home page")
+        Assertions.assertTrue(ReviewActions.approve(project, root, listOf(english), ns, referenceLocale = "en"))
+        withStaleDialog(root, english) { dialog ->
+            Assertions.assertEquals(ShownReview.APPROVED, dialog.shownReview())
+        }
+        Assertions.assertNull(ReviewStore.getInstance(project).reviews(root, "en")[ReviewKey(ns, "menu.home")]?.source)
     }
 }

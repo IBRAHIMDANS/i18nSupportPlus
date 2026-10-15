@@ -38,12 +38,18 @@ import javax.swing.JPanel
  *
  * Opened from the table's *Comments…* and, through [open], from wherever a key and a locale are
  * known — the key dialog's *Review…* link.
+ *
+ * [referenceLocale] is the module's reference locale (`ReferenceLocale.of`), the one
+ * [ReviewCell.source] is read in: the state is shown against that source — *source changed* when
+ * the value was decided on another — and every decision records it. Null when unknown: the state
+ * ignores the source, and a decision keeps the one the key had.
  */
 class ReviewThreadDialog(
     private val project: Project,
     private val root: VirtualFile,
     private val cell: ReviewCell,
     private val defaultNamespace: String = ReviewActions.defaultNamespace(project),
+    private val referenceLocale: String? = null,
 ) : DialogWrapper(project) {
 
     private val reviewKey = ReviewKey.fromSpelling(cell.key, defaultNamespace)
@@ -60,9 +66,11 @@ class ReviewThreadDialog(
 
     private val hasValue = cell.value.isNotEmpty()
 
-    private val approveAction = decision("review.action.approve") { written(ReviewActions.approve(project, root, listOf(cell), defaultNamespace)) }
+    private val approveAction = decision("review.action.approve") { approve() }
     private val requestAction = decision("review.action.request.changes") { requestChanges() }
-    private val markAction = decision("review.action.mark") { written(ReviewActions.markToReview(project, root, listOf(cell), defaultNamespace)) }
+    private val markAction = decision("review.action.mark") {
+        written(ReviewActions.markToReview(project, root, listOf(cell), defaultNamespace, referenceLocale))
+    }
     private val commentAction = object : AbstractAction(PluginBundle.message("review.dialog.comment")) {
         override fun actionPerformed(e: ActionEvent) {
             postComment()
@@ -80,8 +88,9 @@ class ReviewThreadDialog(
     /** The stored review, read again from the store. */
     internal fun review(): Review? = ReviewStore.getInstance(project).reviews(root, cell.locale)[reviewKey]
 
-    /** What the review means for the value the cell holds. */
-    internal fun shownReview(): ShownReview = shown(review(), cell.value.takeIf { it.isNotEmpty() })
+    /** What the review means for the value the cell holds, against the source the key holds now. */
+    internal fun shownReview(): ShownReview =
+        shown(review(), cell.value.takeIf { it.isNotEmpty() }, ReviewActions.sourceOf(cell, referenceLocale))
 
     /** The thread as the dialog shows it. */
     internal fun threadText(): String = threadPane.text
@@ -115,6 +124,9 @@ class ReviewThreadDialog(
 
     override fun createActions(): Array<Action> = arrayOf(approveAction, requestAction, markAction, commentAction, cancelAction)
 
+    /** Approves the cell's value on its current source. Internal for the tests. */
+    internal fun approve(): Boolean = written(ReviewActions.approve(project, root, listOf(cell), defaultNamespace, referenceLocale))
+
     /**
      * Requests changes with the field's text. Refused — the field flagged, nothing written — when
      * it is empty. Internal for the tests, as are [postComment] and the other entry points.
@@ -125,7 +137,7 @@ class ReviewThreadDialog(
             setErrorText(PluginBundle.message("review.request.changes.empty"), input)
             return false
         }
-        return written(ReviewActions.requestChanges(project, root, listOf(cell), text, defaultNamespace))
+        return written(ReviewActions.requestChanges(project, root, listOf(cell), text, defaultNamespace, referenceLocale))
     }
 
     /** Adds the field's text to the thread and keeps the dialog open on it. */
@@ -135,7 +147,7 @@ class ReviewThreadDialog(
             setErrorText(PluginBundle.message("review.comment.empty"), input)
             return false
         }
-        val ok = written(ReviewActions.comment(project, root, cell, text, defaultNamespace))
+        val ok = written(ReviewActions.comment(project, root, cell, text, defaultNamespace, referenceLocale))
         if (ok) {
             input.text = ""
             setErrorText(null)
@@ -171,12 +183,16 @@ class ReviewThreadDialog(
         /**
          * Opens the review of [key] — spelled as the tool window spells it — in [locale], for
          * [moduleConfig] (null: the project's reviews). [value] is the value the locale holds now,
-         * empty when it has none. Returns false, showing nothing, when reviews are off for the
-         * module; true once the dialog is closed.
+         * empty when it has none; [source] the text the key holds now in [referenceLocale], the
+         * module's reference locale (`ReferenceLocale.of`) — both null when unknown. Returns false,
+         * showing nothing, when reviews are off for the module; true once the dialog is closed.
          */
-        fun open(project: Project, moduleConfig: ModuleConfig?, key: String, locale: String, value: String): Boolean {
+        fun open(
+            project: Project, moduleConfig: ModuleConfig?, key: String, locale: String, value: String,
+            source: String? = null, referenceLocale: String? = null,
+        ): Boolean {
             val root = ReviewActions.enabledRoot(project, moduleConfig) ?: return false
-            ReviewThreadDialog(project, root, ReviewCell(key, locale, value)).show()
+            ReviewThreadDialog(project, root, ReviewCell(key, locale, value, source), referenceLocale = referenceLocale).show()
             return true
         }
 

@@ -333,6 +333,14 @@ Flat table: a **Namespace** column while the rows span several namespaces, the *
 ![Tool Window namespace filter](docs/img/toolwindow-table-namespace-filter.png)
 ![Tool Window Orphans](docs/img/toolwindow-table-orphans.png)
 
+### Reviews
+
+A module with a `.i18n-reviews/` folder keeps a review per key and locale, versioned with the code so the whole team shares it. The table then shows each cell's review (an icon and a tooltip), the status filter adds *To review*, *Source changed* and *Changes requested*, and right-clicking locale cells approves them, requests changes, marks them for review or opens their thread.
+
+- **Source changed**: the value is still the one decided on, but the key's text in the module's reference locale changed since. An approval made on "Save" no longer holds once the source says "Save and close". The cell counts as *to review*, and its tooltip shows the source as it reads now: approve the value if it still fits, or translate it again. The reference locale itself is never *source changed*
+- A review decided before 1.13.0 records no source: it reads as before until its next decision
+- Have the whole team on 1.13.0 or later: an older version rewriting a locale's review file drops the sources recorded in it. That never turns into a false approval, but the locale stops telling stale translations until their next decision
+
 ### Keys Synchronizer
 
 Propagates missing keys across all locales in one click. When a key exists in `en.json` but not `fr.json`, the synchronizer creates the missing entry. A **batch placeholder dialog** lets you fill in values for all missing keys at once.
