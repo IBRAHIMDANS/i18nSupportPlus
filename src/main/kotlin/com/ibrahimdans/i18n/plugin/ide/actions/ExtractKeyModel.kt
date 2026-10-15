@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.plugin.factory.CallTemplate
 import com.ibrahimdans.i18n.plugin.factory.MessageVariable
 import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
@@ -309,8 +310,7 @@ internal class ExtractKeyModel(
         private val DEFAULT_VALUE_PRESETS = setOf("", "i18next")
 
         /** [text] as a single-quoted JavaScript string. */
-        internal fun quote(text: String): String =
-            "'" + text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r") + "'"
+        internal fun quote(text: String): String = CallTemplate.quote(text)
 
         /**
          * Whether an extraction at [caller] writes the default value: the module holding its file
@@ -319,6 +319,8 @@ internal class ExtractKeyModel(
          */
         internal fun writesDefaultValue(project: Project, caller: PsiElement, config: Config): Boolean {
             if (config.modules.none { it.writeDefaultValue }) return false
+            // A call template placing the text itself already writes it.
+            if (CallTemplate.writesText(caller)) return false
             val file = caller.hostVirtualFile() ?: return false
             val module = ModuleSources.owner(config.modules, ModuleSources.FilePath.of(file, project.basePath ?: "")) ?: return false
             val javaScript = Language.findLanguageByID(JAVASCRIPT) ?: return false

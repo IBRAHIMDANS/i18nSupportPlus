@@ -13,11 +13,17 @@ import com.intellij.psi.PsiElement
  * wrapper (`translate('…')`, `tr('…')`) rewriting every extraction by hand. The template replaces
  * the call only: what the extractor writes around it — the braces of a JSX expression — and its
  * arguments, the quoted key and the interpolated variables, stay as written.
+ *
+ * [TEXT] writes the text extracted, as a JavaScript string, wherever the framework reads a default
+ * value: `t({key}, {text})` gives `t('greeting', 'Hello')`, vue-i18n 9's `t(key, defaultMsg)`.
  */
 object CallTemplate {
 
     /** The placeholder the arguments of the call replace. */
     const val KEY = "{key}"
+
+    /** The placeholder the text extracted replaces, quoted: optional, as often as the template wants it. */
+    const val TEXT = "{text}"
 
     private val CALLEE_CHAR = Regex("""[\p{L}\p{N}_$.]""")
 
@@ -26,17 +32,30 @@ object CallTemplate {
 
     /**
      * [written], the call an extractor wrote for [argument], with its callee and parentheses
-     * replaced by [template]. [written] unchanged when it does not call a function on [argument].
+     * replaced by [template], and [TEXT] by [text] quoted. [written] unchanged when it does not call
+     * a function on [argument].
      */
-    fun apply(template: String, written: String, argument: String): String {
+    fun apply(template: String, written: String, argument: String, text: String): String {
         val open = written.indexOf("($argument")
         val close = written.lastIndexOf(')')
         if (open < 0 || close < open) return written
         var start = open
         while (start > 0 && CALLEE_CHAR.matches(written[start - 1].toString())) start--
         val arguments = written.substring(open + 1, close)
-        return written.substring(0, start) + template.replace(KEY, arguments) + written.substring(close + 1)
+        // Each side of {key} on its own: neither the arguments nor the text are read for placeholders.
+        val call = template.split(KEY).joinToString(arguments) { it.replace(TEXT, quote(text)) }
+        return written.substring(0, start) + call + written.substring(close + 1)
     }
+
+    /** [text] as a single-quoted JavaScript string. */
+    fun quote(text: String): String =
+        "'" + text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r") + "'"
+
+    /**
+     * Whether the template of [element]'s module writes the text itself: the module's option to
+     * write it as i18next's default value then stays out, or the call would carry it twice.
+     */
+    fun writesText(element: PsiElement): Boolean = of(element)?.contains(TEXT) == true
 
     /** The valid template of the module holding [element]'s file, or null: no module, none set, or invalid. */
     fun of(element: PsiElement): String? {
@@ -48,17 +67,29 @@ object CallTemplate {
         return module?.callTemplate?.trim()?.takeIf { it.isNotEmpty() && isValid(it) }
     }
 
-    /** [extractor]'s [TranslationExtractor.call] at [element], through its module's template when it has one. */
+    /**
+     * [extractor]'s [TranslationExtractor.call] at [element], through its module's template when it
+     * has one. The text keeps the placeholders under the names the variables are given:
+     * `Hello {{userName}}` once `name` is renamed `userName`.
+     */
     fun call(extractor: TranslationExtractor, element: PsiElement): (String, List<MessageVariable>) -> String {
         val call = extractor.call(element)
         val template = of(element) ?: return call
-        return { argument, variables -> apply(template, call(argument, variables), argument) }
+        val text = extractor.text(element).trim()
+        val original = extractor.variables(element)
+        return { argument, variables ->
+            val renamed = original.zip(variables).fold(text) { acc, (was, now) -> acc.replace(was.placeholder, now.placeholder) }
+            apply(template, call(argument, variables), argument, renamed)
+        }
     }
 
-    /** [extractor]'s [TranslationExtractor.template] at [element], through its module's template when it has one. */
-    fun template(extractor: TranslationExtractor, element: PsiElement): (String) -> String {
+    /**
+     * [extractor]'s [TranslationExtractor.template] at [element], through its module's template when
+     * it has one; [text] is the text extracted, the element's own by default.
+     */
+    fun template(extractor: TranslationExtractor, element: PsiElement, text: String = extractor.text(element).trim()): (String) -> String {
         val written = extractor.template(element)
         val template = of(element) ?: return written
-        return { argument -> apply(template, written(argument), argument) }
+        return { argument -> apply(template, written(argument), argument, text) }
     }
 }

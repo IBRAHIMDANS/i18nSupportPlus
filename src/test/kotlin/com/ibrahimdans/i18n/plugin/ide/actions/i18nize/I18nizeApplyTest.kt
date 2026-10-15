@@ -101,6 +101,20 @@ class I18nizeApplyTest : PlatformBaseTest() {
     }
 
     @Test
+    fun theModuleCallTemplateWritesTheTextWhereItAsks() = myFixture.runWithConfig(
+        config.copy(modules = listOf(ModuleConfig(
+            name = "web", rootDirectory = "web", pathTemplate = "i18n/{ns}/{lang}.json", callTemplate = "translate({key}, {text})"
+        )))
+    ) {
+        myFixture.addFileToProject("web/i18n/common/en.json", "{}")
+        val file = myFixture.addFileToProject("web/Account.tsx", "export function Account() { return <p>Delete account</p>; }")
+
+        prepare(planOf(file)).write()
+
+        Assertions.assertTrue("{translate('account.delete_account', 'Delete account')}" in textOf(file), textOf(file))
+    }
+
+    @Test
     fun anExistingValueIsNeverReplaced() = myFixture.runWithConfig(config) {
         val translations = myFixture.addFileToProject("locales/en/common.json", """{"menu": {"open": "Open the menu"}}""")
         val file = myFixture.addFileToProject("src/Menu.tsx", "export function Menu() { return <nav><p>Open</p></nav>; }")

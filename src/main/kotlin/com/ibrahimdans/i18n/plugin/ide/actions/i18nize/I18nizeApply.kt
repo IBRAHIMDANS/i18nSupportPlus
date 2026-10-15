@@ -159,7 +159,7 @@ internal class I18nizeApply private constructor(
         val calls = entries.mapNotNull { entryWork ->
             val literal = entryWork.entry.candidate.literal
             val extractor = extractors.firstOrNull { it.canExtract(literal) } ?: return@mapNotNull null
-            var call = CallTemplate.template(extractor, literal)("'${entryWork.entry.key}'")
+            var call = CallTemplate.template(extractor, literal, entryWork.entry.candidate.originalText)("'${entryWork.entry.key}'")
             HookInsertion.componentNeedingHook(literal)?.let { component ->
                 hooks.putIfAbsent(component, entryWork.entry.namespace)
                 call = HookInsertion.callThroughHook(call)
