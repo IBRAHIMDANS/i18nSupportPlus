@@ -40,7 +40,7 @@ jobs:
       - name: Build plugin
         run: ./gradlew buildPlugin -x test
 
-      - name: Verify compatibility (recommended IDEs + 2025.1 / 2025.2, see build.gradle.kts)
+      - name: Verify compatibility (recommended IDEs + 2025.2 / 2025.3, see build.gradle.kts)
         run: ./gradlew verifyPlugin
 
       - name: Upload verification reports

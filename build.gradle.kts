@@ -8,7 +8,7 @@ import java.util.zip.ZipOutputStream
 
 fun properties(key: String) = providers.gradleProperty(key)
 
-// Allow overriding platformVersion from CLI: ./gradlew ... -PplatformVersion=2025.1
+// Allow overriding platformVersion from CLI: ./gradlew ... -PplatformVersion=2025.2
 val effectivePlatformVersion: String
     get() = providers.gradleProperty("platformVersion").orNull
         ?: properties("platformVersion").get()
@@ -195,6 +195,9 @@ intellijPlatform {
     }
 
     pluginVerification {
+        // The floor is 2025.2 (pluginSinceBuild = 252): on 2025.1 the Marketplace verifier resolves the optional
+        // com.intellij.mcpServer dependency to the old standalone MCP Server plugin (same id, other API), reports
+        // the MCP classes as a compatibility problem and blocks the release; it ignores verifier-ignored-problems.txt.
         // ide(type, version) removed in IGPP 2.14.0 — use recommended() or create()
         ignoredProblemsFile.set(file("verifier-ignored-problems.txt"))
 
@@ -205,15 +208,14 @@ intellijPlatform {
         // marks them @ApiStatus.Internal. I18nToolWindowFactory overrides none of them — it
         // implements createToolWindowContent() and nothing else, and the icon and anchor are read
         // from plugin.xml. Kotlin still emits an implementation for every interface member with a
-        // default body, so the verifier sees all three both overridden and invoked, on 2025.1 and
-        // 2025.2 (they are @Experimental from 2025.3 on, which is not a failure level here). There
+        // default body, so the verifier sees all three both overridden and invoked, on 2025.2
+        // (they are @Experimental from 2025.3 on, which is not a failure level here). There
         // is no source change that removes them, so the choice is to fail every release or to say
         // so here. Note that verifier-ignored-problems.txt cannot express this: it filters
         // compatibility problems, and an internal API usage is not one.
         failureLevel.set(listOf(FailureLevel.COMPATIBILITY_PROBLEMS, FailureLevel.OVERRIDE_ONLY_API_USAGES))
         ides {
             recommended()
-            create(IntelliJPlatformType.IntellijIdeaUltimate, "2025.1")
             create(IntelliJPlatformType.IntellijIdeaUltimate, "2025.2")
             create(IntelliJPlatformType.IntellijIdeaUltimate, "2025.3")
         }
