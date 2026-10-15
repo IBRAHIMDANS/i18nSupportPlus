@@ -56,11 +56,12 @@ class TranslationAgentTools(private val project: Project) {
     /**
      * Writes into [locale] of [moduleName] each of [values] (`key -> text`) that fills a missing
      * value with the placeholders of its source; every other one is returned with the reason. The
-     * values written are marked to review as coming from [client] when the module keeps reviews.
+     * values written are marked to review as coming from [client] when the module keeps reviews, with
+     * the source text the agent was given — none for a plural form read from `other`.
      */
     fun write(moduleName: String?, locale: String, values: Map<String, String>, client: String): WriteResult {
         val (_, module) = scope(moduleName)
-        val (_, translations, items) = snapshot(module, locale)
+        val (source, translations, items) = snapshot(module, locale)
         val missing = items.associateBy { it.key }
         val rejected = sortedMapOf<String, String>()
         val accepted = sortedMapOf<String, String>()
@@ -77,7 +78,8 @@ class TranslationAgentTools(private val project: Project) {
         }
         if (accepted.isNotEmpty()) {
             val origin = Review.machineOrigin(client.ifBlank { UNKNOWN_CLIENT })
-            val marks = reviewsOn(module)?.let { MachineFill.ReviewMarks(it, mapOf(locale to accepted.mapValues { origin })) }
+            val sources = accepted.keys.mapNotNull { key -> MachineFill.reviewSourceOf(missing.getValue(key), source)?.let { key to it } }.toMap()
+            val marks = reviewsOn(module)?.let { MachineFill.ReviewMarks(it, mapOf(locale to accepted.mapValues { origin }), mapOf(locale to sources)) }
             MachineFill.write(project, module, mapOf(locale to accepted), marks)
         }
         return WriteResult(accepted.keys.toList(), rejected)

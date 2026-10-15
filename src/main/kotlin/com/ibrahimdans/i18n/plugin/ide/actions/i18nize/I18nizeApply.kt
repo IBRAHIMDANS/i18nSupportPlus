@@ -15,6 +15,7 @@ import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
+import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
@@ -66,7 +67,8 @@ internal class I18nizeApply private constructor(
     /** What [write] did: the calls written in the code, the translation files created, the values kept. */
     data class Outcome(val replaced: Int, val createdFiles: List<String>, val keptValues: Int)
 
-    private class FileWork(val plan: I18nizePlan.FilePlan, val entries: List<EntryWork>, val module: ModuleConfig?)
+    /** [plan]'s file, its texts written into [module], [reference] the locale the texts of the code go to. */
+    private class FileWork(val plan: I18nizePlan.FilePlan, val entries: List<EntryWork>, val module: ModuleConfig?, val reference: String)
 
     private class EntryWork(val entry: I18nizePlan.Entry, val fullKey: FullKey, val values: List<ValueWork>)
 
@@ -86,7 +88,8 @@ internal class I18nizeApply private constructor(
      *
      * With [reviewOrigins] — `locale -> key -> machine:<engine>`, the translations a machine made —
      * each of those values actually written is marked to review in the same command, under its
-     * module's root, reviews turned on there first. The reference value, the text of the code, never is.
+     * module's root, reviews turned on there first, with the text of the code in the module's
+     * reference locale as its source. The reference value, the text of the code, is never marked.
      */
     fun write(
         commandName: String = PluginBundle.message("action.batch.extract.title"),
@@ -106,9 +109,11 @@ internal class I18nizeApply private constructor(
                 val documents = PsiDocumentManager.getInstance(project)
                 documents.commitAllDocuments()
                 // Computed on the code as it is, before anything moves; applied last.
-                val code = files.mapNotNull { work -> codeEdits(project, work)?.let { it to work.module } }
+                val code = files.mapNotNull { work -> codeEdits(project, work)?.let { it to work } }
                 val createdSources = mutableMapOf<String, LocalizationSource>()
-                code.flatMap { (edits, module) -> edits.entries.map { it to module } }.forEach { (entry, module) ->
+                code.flatMap { (edits, work) -> edits.entries.map { it to work } }.forEach { (entry, work) ->
+                    // What the other locales were translated from: the text of the code, the reference value.
+                    val translatedFrom = ReviewSource.of(work.reference, entry.entry.candidate.originalText)
                     entry.values.forEach values@{ (target, value, locale) ->
                         val source = when (target) {
                             is Target.Existing -> target.source
@@ -120,7 +125,7 @@ internal class I18nizeApply private constructor(
                                     // A file just created holds the value it was created for.
                                     if (fresh) {
                                         created += target.path
-                                        if (locale != null) marks.written(module, locale, entry.entry, value)
+                                        if (locale != null) marks.written(work.module, locale, entry.entry, value, translatedFrom)
                                         return@values
                                     }
                                     source
@@ -128,7 +133,7 @@ internal class I18nizeApply private constructor(
                             }
                         }
                         if (!writeValue(source, entry.fullKey, value)) kept++
-                        else if (locale != null) marks.written(module, locale, entry.entry, value)
+                        else if (locale != null) marks.written(work.module, locale, entry.entry, value, translatedFrom)
                     }
                 }
                 if (reviewOrigins != null) marks.mark(reviewOrigins)
@@ -211,21 +216,26 @@ internal class I18nizeApply private constructor(
 
     /** The translations [write] wrote, by module root, to mark for review once written. */
     private class ReviewMarking(private val project: Project) {
-        private class Written(val values: MutableMap<String, MutableMap<String, String>> = mutableMapOf(), val keys: MutableMap<String, ReviewKey> = mutableMapOf())
+        private class Written(
+            val values: MutableMap<String, MutableMap<String, String>> = mutableMapOf(),
+            val sources: MutableMap<String, MutableMap<String, ReviewSource>> = mutableMapOf(),
+            val keys: MutableMap<String, ReviewKey> = mutableMapOf()
+        )
 
         private val roots = linkedMapOf<VirtualFile, Written>()
 
-        /** [entry]'s [value] written in [locale], in the files of [module]. */
-        fun written(module: ModuleConfig?, locale: String, entry: I18nizePlan.Entry, value: String) {
+        /** [entry]'s [value] written in [locale], in the files of [module], translated from [source]. */
+        fun written(module: ModuleConfig?, locale: String, entry: I18nizePlan.Entry, value: String, source: ReviewSource) {
             val root = ReviewLocation.rootOf(project, module) ?: return
             val written = roots.getOrPut(root) { Written() }
             written.values.getOrPut(locale) { mutableMapOf() }[entry.key] = value
+            written.sources.getOrPut(locale) { mutableMapOf() }[entry.key] = source
             written.keys[entry.key] = ReviewKey.fromSpelling(entry.key, entry.namespace)
         }
 
-        /** Each value written that [origins] (`locale -> key -> origin`) knows, marked to review. */
+        /** Each value written that [origins] (`locale -> key -> origin`) knows, marked to review with its source. */
         fun mark(origins: Map<String, Map<String, String>>) = roots.forEach { (root, written) ->
-            MachineFill.markWritten(project, root, written.values, origins) { written.keys.getValue(it) }
+            MachineFill.markWritten(project, root, written.values, origins, written.sources) { written.keys.getValue(it) }
         }
     }
 
@@ -273,7 +283,7 @@ internal class I18nizeApply private constructor(
                             locator.target(sources, locale, entry.namespace)?.let { ValueWork(it, value, locale) }
                         }
                     EntryWork(entry, fullKey, listOf(ValueWork(referenceTarget, entry.candidate.originalText)) + others)
-                }, module)
+                }, module, reference)
             }
             return I18nizeApply(project, files.filter { it.entries.isNotEmpty() }, skipped)
         }

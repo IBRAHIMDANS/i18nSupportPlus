@@ -10,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.review.Review
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
+import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.translate.MachineTranslationSettings
@@ -131,7 +132,9 @@ internal object MachineFill {
                     val reviewRoot = ReviewLocation.rootOf(project, module)
                     val dialog = MachineTranslationPreviewDialog(project, label, proposals, listOfNotNull(reviewRoot))
                     if (dialog.showAndGet()) {
-                        val marks = reviewRoot?.let { root -> dialog.reviewOrigins()?.let { ReviewMarks(root, it) } }
+                        val marks = reviewRoot?.let { root ->
+                            dialog.reviewOrigins()?.let { ReviewMarks(root, it, reviewSourcesOf(proposals, source)) }
+                        }
                         write(project, module, dialog.acceptedByLocale(), marks)
                         onWritten()
                     }
@@ -237,10 +240,29 @@ internal object MachineFill {
     private const val UNKNOWN_ENGINE = "unknown"
 
     /**
-     * The values a write is to mark for review, under [root] (the module's, see [ReviewLocation]):
-     * the origin of each one, `locale -> key -> machine:<engine>`.
+     * The source [item] was translated from, read in [locale]: its text, as sent to the engine. None
+     * for a plural form translated from `other` — that text is another key's, and a review compares
+     * the source of the same key — nor for an item never sent.
      */
-    data class ReviewMarks(val root: VirtualFile, val origins: Map<String, Map<String, String>>)
+    fun reviewSourceOf(item: Item, locale: String): ReviewSource? =
+        if (item.needsReview || item.skipped != null) null else ReviewSource.of(locale, item.source)
+
+    /** The source each of [proposals] was translated from, `locale -> key -> source`, read in [source]. See [reviewSourceOf]. */
+    fun reviewSourcesOf(proposals: List<Proposal>, source: String): Map<String, Map<String, ReviewSource>> =
+        proposals.mapNotNull { proposal -> reviewSourceOf(proposal.item, source)?.let { proposal to it } }
+            .groupBy({ it.first.locale }, { it.first.item.key to it.second })
+            .mapValues { it.value.toMap() }
+
+    /**
+     * The values a write is to mark for review, under [root] (the module's, see [ReviewLocation]):
+     * the origin of each one, `locale -> key -> machine:<engine>`, and the source it was translated
+     * from, `locale -> key -> source` — a key without one is marked without source.
+     */
+    data class ReviewMarks(
+        val root: VirtualFile,
+        val origins: Map<String, Map<String, String>>,
+        val sources: Map<String, Map<String, ReviewSource>> = emptyMap()
+    )
 
     /**
      * Writes [accepted] (`key -> value`) into [target]'s files of [module], in one command: one Ctrl+Z
@@ -277,19 +299,22 @@ internal object MachineFill {
                 }
                 if (marks != null) {
                     val defaultNamespace = config.defaultNamespaces().first()
-                    markWritten(project, marks.root, written, marks.origins) { ReviewKey.fromSpelling(it, defaultNamespace) }
+                    markWritten(project, marks.root, written, marks.origins, marks.sources) { ReviewKey.fromSpelling(it, defaultNamespace) }
                 }
             }
     }
 
     /**
      * Under [root], [written] (`locale -> key -> value`) marked to review with its origin in [origins]
-     * (`locale -> key -> machine:<engine>`); a key without one is not marked. Reviews are turned on
-     * under [root] when anything is to be marked. In the caller's write command, for its undo.
+     * (`locale -> key -> machine:<engine>`); a key without one is not marked. The source each value was
+     * translated from, in [sources] (`locale -> key -> source`), is recorded with its mark, so that a
+     * source changed since shows. Reviews are turned on under [root] when anything is to be marked.
+     * In the caller's write command, for its undo.
      */
     fun markWritten(
         project: Project, root: VirtualFile, written: Map<String, Map<String, String>>,
-        origins: Map<String, Map<String, String>>, keyOf: (String) -> ReviewKey
+        origins: Map<String, Map<String, String>>, sources: Map<String, Map<String, ReviewSource>> = emptyMap(),
+        keyOf: (String) -> ReviewKey
     ) {
         val toMark = written.mapValues { (locale, values) -> values.filterKeys { origins[locale]?.containsKey(it) == true } }
             .filterValues { it.isNotEmpty() }
@@ -298,7 +323,11 @@ internal object MachineFill {
         store.enable(root)
         toMark.forEach { (locale, values) ->
             values.entries.groupBy { origins.getValue(locale).getValue(it.key) }.forEach { (origin, entries) ->
-                store.mark(root, locale, entries.associate { keyOf(it.key) to it.value }, origin)
+                val translatedFrom = sources[locale].orEmpty()
+                store.mark(
+                    root, locale, entries.associate { keyOf(it.key) to it.value }, origin,
+                    entries.mapNotNull { entry -> translatedFrom[entry.key]?.let { keyOf(entry.key) to it } }.toMap()
+                )
             }
         }
     }
