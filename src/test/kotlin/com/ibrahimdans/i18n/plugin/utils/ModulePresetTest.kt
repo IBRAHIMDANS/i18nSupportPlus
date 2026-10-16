@@ -53,6 +53,15 @@ class ModulePresetTest : PlatformBaseTest() {
         assertFalse(annotated("apps/web/src/B.js", "\$t('common:missing')"), "vue-i18n's \$t is not")
     }
 
+    /** Paraglide publishes no function name: a module of its preset claims no generic call. */
+    @Test
+    fun aParaglidePresetIgnoresTheGenericCalls() = myFixture.runWithConfig(
+        Config(modules = listOf(ModuleConfig(name = "web", rootDirectory = "apps/web", preset = "paraglide")))
+    ) {
+        assertFalse(annotated("apps/web/src/A.js", "t('common:missing')"), "i18next's t is not a call of a Paraglide module")
+        assertFalse(annotated("apps/web/src/B.js", "\$t('common:missing')"), "nor vue-i18n's \$t")
+    }
+
     @Test
     fun outsideThePresetModuleEveryFrameworkApplies() = myFixture.runWithConfig(Config(modules = listOf(vueModule))) {
         assertTrue(annotated("apps/react/src/A.js", "t('common:missing')"))

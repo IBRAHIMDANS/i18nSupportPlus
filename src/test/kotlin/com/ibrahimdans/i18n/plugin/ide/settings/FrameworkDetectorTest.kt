@@ -31,6 +31,21 @@ class FrameworkDetectorTest {
         assertTrue(FrameworkDetector.detect(packageJson("i18next-browser-languagedetector")).isEmpty())
     }
 
+    /** `@inlang/sdk` is a dependency of every inlang tool, not only of Paraglide. */
+    @Test
+    fun `the inlang sdk alone is not a Paraglide project`() {
+        assertTrue(FrameworkDetector.detect(packageJson("@inlang/sdk")).isEmpty())
+        assertEquals(setOf("paraglide"), FrameworkDetector.detect(packageJson("@inlang/sdk", "@inlang/paraglide-js")))
+    }
+
+    @Test
+    fun `the Paraglide preset reads messages per locale at the project root`() {
+        val layout = LayoutPresets.of("paraglide")!!
+        assertEquals("messages/{lang}.json", layout.pathTemplate)
+        assertEquals("{key}", layout.keyTemplate)
+        assertEquals("Paraglide JS (inlang)", FrameworkDetector.LABELS["paraglide"])
+    }
+
     @Test
     fun `several frameworks are all detected`() {
         assertEquals(
