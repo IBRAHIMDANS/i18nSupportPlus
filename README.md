@@ -7,7 +7,7 @@ Turns i18n keys into first-class code symbols in **WebStorm, IntelliJ IDEA Ultim
 
 Maintained successor of **I18n Support**, which no longer installs on IDEs after 2023.1: a fork of it, installed separately rather than as an update, that reads its project settings back as they are — see [Coming from I18n Support?](https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/docs/COMPARISON.md#coming-from-i18n-support).
 
-Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-intl, ngx-translate, Transloco, svelte-i18n, i18n-js and Laravel / Blade**, in JS, TS, JSX, TSX, Vue SFC, Angular templates and PHP, with **JSON, JSON5, YAML, PO/POT** and plain **TS/JS catalogues**. A setup wizard configures it on first launch, monorepo modules included.
+Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-intl, ngx-translate, Transloco, svelte-i18n, i18n-js, Paraglide JS and Laravel / Blade**, in JS, TS, JSX, TSX, Vue SFC, Angular templates and PHP, with **JSON, JSON5, YAML, PO/POT** and plain **TS/JS catalogues**. A setup wizard configures it on first launch, monorepo modules included.
 
 - **See** — gutter status per key (all / some / no locale), inline value hints, folding and hover in a preview locale, completion of real keys, namespaces included
 - **Edit safely** — extract hardcoded strings (variables and plural forms included), rename a key or a whole level across every locale and call site (`Shift+F6`), move a key to another namespace; one Ctrl+Z undoes the files and the code
@@ -37,7 +37,7 @@ whether a key exists, in which namespace, and whether it's translated everywhere
   Scan Orphans (find keys no code refers to), CSV export/import, and inspections for empty,
   duplicate or inconsistent values.
 
-Works with **i18next, vue-i18n, lingui, react-intl, ngx-translate, Transloco, svelte-i18n & i18n-js**
+Works with **i18next, vue-i18n, lingui, react-intl, ngx-translate, Transloco, svelte-i18n, i18n-js & Paraglide JS**
 across JS/TS/JSX/TSX, Vue SFC and PHP, with JSON, YAML and PO/POT files.
 A setup wizard auto-configures it on first launch.
 
@@ -56,6 +56,7 @@ A setup wizard auto-configures it on first launch.
 | Transloco (Angular) | `translocoService.translate('key')`, `.selectTranslate('key')`, `{{ 'key' \| transloco }}` <sup>1</sup>, `*transloco="let t"` then `t('key')` <sup>4</sup> | No |
 | svelte-i18n | `$_('key')`, `_('key')` <sup>2</sup> | No |
 | i18n-js (React Native / Expo) | `t('key')`, `i18n.t('key')`, plain locale-keyed TS/JS catalogues, nested plurals <sup>3</sup> | No |
+| Paraglide JS (inlang) | `m.hello()`, `m["user.profile.title"]()`, once the file imports `m` from `…/paraglide/messages.js` <sup>5</sup> | Yes, `project.inlang/settings.json` |
 
 `useTranslation` supports both string form (`useTranslation('ns')`) and array form (`useTranslation(['ns1', 'ns2'])`). The namespace can also come from an options object (`t('key', { ns: 'auth' })`) or from the key itself (`t('auth:key')`).
 
@@ -65,7 +66,18 @@ A setup wizard auto-configures it on first launch.
 
 <sup>3</sup> i18n-js pluralizes into a nested object (`{ one: …, other: … }`) rather than through i18next's flat `key_one` suffixes; such a key is treated as resolved. Its `%{count}` placeholders are displayed verbatim, as the plugin interprets no interpolation syntax.
 
-<sup>4</sup> Transloco's service calls are recognised when the object they are called on names the service (`translocoService`, `transloco`): `translate` alone is too common a method name. Scoped keys resolve in their scope file: `admin.title` reads the key `title` of `i18n/admin/en.json`, a folder named after its scope next to the global locale files. The first segment is read as a scope only when such a folder exists, and only in a Transloco project. A scope set by the directive (`*transloco="let t; read: 'admin'"`, then `t('title')`) is not read.
+<sup>4</sup> Transloco's service calls are recognised when the object they are called on names the service (`translocoService`, `transloco`): `translate` alone is too common a method name. Scoped keys resolve in their scope file: `admin.title` reads the key `title` of `i18n/admin/en.json`, a folder named after its scope next to the global locale files. The first segment is read as a scope only when such a folder exists, and only in a Transloco project. A scope set by the directive (`*transloco="let t; read: 'admin'"`, then `t('title')`) is read; the `[translocoRead]` input is not.
+
+<sup>5</sup> Paraglide compiles each message into a function, so the key is the member of the message object, not a
+string. It is read in a file importing that object from a path ending in `paraglide/messages` — `{ m }`,
+`{ m as msg }`, or Paraglide 1's `import * as m` — in `.js`, `.ts` and Svelte components (with the Svelte plugin).
+Annotation, completion after `m.` (with the messages not yet compiled), folding, hover and inlay hints, Ctrl+click to
+the message rather than the generated function, usages and *Extract I18n* (which writes `m.key({ name })` and adds
+the import) all work on it. The message files are read where `project.inlang/settings.json` puts them, one inlang
+project per folder in a monorepo, and the generated folder is never counted as a use. Limits: a message with variants
+(a `match` array) is displayed as its catch-all branch and edited as raw JSON; `m[variable]` names no key; renaming
+from `m.hello` is not supported yet; Astro components are not tested. A ready-to-open project:
+[examples/paraglide-js](examples/paraglide-js/README.md).
 
 ## Supported Languages
 
@@ -107,7 +119,7 @@ namespace.
 
 On first launch, a wizard guides you through configuration in 3 steps:
 
-1. **Framework detection** — auto-detects i18next, vue-i18n, lingui, react-intl, ngx-translate, Transloco, svelte-i18n or i18n-js from your `package.json`
+1. **Framework detection** — auto-detects i18next, vue-i18n, lingui, react-intl, ngx-translate, Transloco, svelte-i18n, i18n-js or Paraglide JS from your `package.json`
 2. **Translation file discovery** — scans for `.json`, `.yaml`, `.po`, and `.pot` files in `locales/`, `i18n/`, `translations/` folders (PO/POT support requires the optional **GNU GetText** plugin — see Plugin Dependencies)
 3. **Summary** — review and apply the configuration
 
