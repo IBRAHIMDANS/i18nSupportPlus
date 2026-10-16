@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
 import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
@@ -143,6 +144,9 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
 
     /** The configuration the report was computed under; what the default group is called depends on it. */
     private var config: Config = Config()
+
+    /** The sources the report was read from; whether the default group has a namespace to name depends on them. */
+    private var sources: List<LocalizationSource> = emptyList()
     private var loadRequested = false
 
     /** Loads started by [refresh] and not finished yet; the table paints busy while any is. */
@@ -205,8 +209,10 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
             try {
                 val report = TranslationStatsAnalyzer.report(project, moduleConfig)
                 val config = Settings.getInstance(project).config()
+                val sources = TranslationDataLoader.findSources(project, moduleConfig)
                 ApplicationManager.getApplication().invokeLater {
                     this.config = config
+                    this.sources = sources
                     rebuildTable(report)
                 }
             } finally {
@@ -278,7 +284,7 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
     private fun rowLabel(row: Int): String = report?.rows?.getOrNull(row)?.let { rowLabel(it) }.orEmpty()
 
     private fun rowLabel(row: NamespaceStats): String =
-        row.group?.label(config) ?: PluginBundle.message("toolwindow.stats.row.total")
+        row.group?.label(config, sources) ?: PluginBundle.message("toolwindow.stats.row.total")
 
     /** One line of the popup: a key the locale lacks ([LocaleState.MISSING]) or leaves blank ([LocaleState.EMPTY]). */
     private data class UntranslatedKey(val key: String, val state: LocaleState)
