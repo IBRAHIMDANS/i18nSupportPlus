@@ -106,6 +106,20 @@ class I18nInlayHintsProviderTest : PlatformBaseTest() {
         assertTrue(hints.single().contains("Colour"), hints.single())
     }
 
+    /** Paraglide: `m.hello()` gets its value, and a message with variants its catch-all branch, not raw JSON. */
+    @Test
+    fun testParaglideMessagesShowTheirValueAndVariants() = myFixture.runWithConfig(Config(foldingPreferredLanguage = "en")) {
+        addFileToProject(
+            "messages/en.json",
+            """{"hello": "Hello", "cart": [{"selectors": ["n"], "match": {"n=one": "One item", "n=other": "{n} items"}}]}"""
+        )
+        myFixture.configureByText("paraglide.ts", "import { m } from './paraglide/messages.js';\nconst a = [m.hello(), m.cart({ n: 2 })];")
+        val hints = collectHints()
+        assertEquals(2, hints.size, hints.toString())
+        assertTrue(hints[0].contains("Hello"), hints[0])
+        assertTrue(hints[1].contains("{n} items…") && !hints[1].contains("match"), hints[1])
+    }
+
     @Test
     fun testUnresolvedKeyProducesNoHint() = myFixture.runWithConfig(Config()) {
         configure("missing", "Hello", key = "root.first.absent")

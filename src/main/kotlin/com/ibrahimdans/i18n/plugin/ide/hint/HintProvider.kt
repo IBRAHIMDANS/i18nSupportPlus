@@ -10,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.utils.ellipsis
 import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.ibrahimdans.i18n.plugin.utils.renderIcu
+import com.ibrahimdans.i18n.plugin.utils.InlangMessageRenderer
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.lang.documentation.DocumentationProvider
 import com.intellij.openapi.application.ApplicationManager
@@ -111,7 +112,7 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
                 ?: return@mapNotNull null
             // Escaping comes last, after rendering and truncation: entities must not be
             // counted in the truncated length, nor have their `&` escaped a second time.
-            val value = displayed.value().text?.unQuote()?.renderIcu()?.ellipsis(MAX_TRANSLATION_LENGTH)
+            val value = displayed.value().text?.let(InlangMessageRenderer::preview)?.unQuote()?.renderIcu()?.ellipsis(MAX_TRANSLATION_LENGTH)
                 ?.let { StringUtil.escapeXmlEntities(it) }
                 ?: return@mapNotNull null
             val locale = StringUtil.escapeXmlEntities(source.localeLabel())
