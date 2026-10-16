@@ -19,7 +19,7 @@ internal object MessageVariables {
 
     /**
      * How the technology of the module holding [element] writes a variable in a message: `{name}`
-     * where it interpolates single braces (lingui, react-intl, vue-i18n, svelte-i18n — the list
+     * where it interpolates single braces (lingui, react-intl, vue-i18n, svelte-i18n, Paraglide — the list
      * [InterpolationArgumentsInspection] reads calls with), `%{name}` for i18n-js, and i18next's
      * `{{name}}` otherwise, a module without a preset included. A placeholder in another
      * technology's syntax is printed as is: `Hello {{name}}` on screen.
@@ -28,6 +28,8 @@ internal object MessageVariables {
         val preset = ModulePresets.presetOf(element)
         return when {
             preset == I18N_JS -> { name -> "%{$name}" }
+            // Paraglide's message format interpolates single braces, preset or not once the file imports `m`.
+            ParaglideCall.applies(element) -> { name -> "{$name}" }
             preset != null && preset in InterpolationArgumentsInspection.SINGLE_BRACE_FRAMEWORKS -> { name -> "{$name}" }
             else -> { name -> "{{$name}}" }
         }
@@ -60,9 +62,13 @@ internal object MessageVariables {
     }
 
     /** `, { name: user.name, count }` for a call, nothing without variables. */
-    fun options(variables: List<MessageVariable>): String {
+    fun options(variables: List<MessageVariable>): String =
+        inputs(variables).let { if (it.isEmpty()) "" else ", $it" }
+
+    /** `{ name: user.name, count }`, the object a call passes its variables in; empty without variables. */
+    fun inputs(variables: List<MessageVariable>): String {
         if (variables.isEmpty()) return ""
         val entries = variables.joinToString(", ") { if (it.name == it.expression) it.name else "${it.name}: ${it.expression}" }
-        return ", { $entries }"
+        return "{ $entries }"
     }
 }
