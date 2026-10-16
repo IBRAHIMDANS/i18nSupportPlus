@@ -79,6 +79,15 @@ class ParaglideEndToEndTest : PlatformBaseTest() {
         Assertions.assertEquals(setOf(unresolved to "does_not_exist", partial to "only_in_english"), problems().toSet())
     }
 
+    /** Paraglide's message files hold no namespace: the tooltip names none. */
+    @Test
+    fun anUnknownMessageNamesNoNamespace() = myFixture.runWithConfig(config) {
+        open("src/main.ts")
+        val tooltip = myFixture.doHighlighting().single { it.description == unresolved }.toolTip.orEmpty()
+        assertTrue("Looked up in" in tooltip && "messages/en.json" in tooltip, tooltip)
+        assertTrue("namespace" !in tooltip.lowercase(), tooltip)
+    }
+
     @Test
     fun anMOfAnotherModuleIsLeftAlone() = myFixture.runWithConfig(config) {
         open("src/notParaglide.ts")

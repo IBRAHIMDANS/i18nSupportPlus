@@ -90,6 +90,19 @@ class KeyDiagnosisTest : PlatformBaseTest() {
     }
 
     @Test
+    fun `message files without namespace say nothing about one`() {
+        Assertions.assertEquals(
+            listOf("Looked up in messages/en.json, messages/fr.json", "'missing' does not exist at the top of these files"),
+            KeyDiagnosis(listOf("translation"), NamespaceOrigin.NONE, searched = listOf("messages/en.json", "messages/fr.json"), missing = "missing").explain(),
+        )
+        Assertions.assertEquals(
+            listOf("In module 'app'", "No message file in module 'app'"),
+            KeyDiagnosis(listOf("translation"), NamespaceOrigin.NONE, module = "app").explain(),
+        )
+        Assertions.assertEquals(listOf("No message file in the project"), KeyDiagnosis(listOf("translation"), NamespaceOrigin.NONE).explain())
+    }
+
+    @Test
     fun `a long list of files is cut`() {
         val files = (1..5).map { "l$it/common.json" }
         val line = KeyDiagnosis(listOf("common"), NamespaceOrigin.WRITTEN, searched = files).explain()[1]
