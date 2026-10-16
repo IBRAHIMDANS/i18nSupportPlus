@@ -4,7 +4,7 @@
 
 ### Features
 
-- [Paraglide] **Paraglide JS support, as a preview**: `m.hello()` and `m["user.profile.title"]()` are read as keys in a file importing Paraglide's message object (`{ m }`, `{ m as msg }` or `import * as m`), in `.js`, `.ts` and Svelte components. Tested on a project compiled by Paraglide JS 2.29, not yet tried in a running IDE — see the [README](README.md#supported-frameworks) and [examples/paraglide-js](examples/paraglide-js/README.md)
+- [Paraglide] **Paraglide JS support**: `m.hello()` and `m["user.profile.title"]()` are read as keys in a file importing Paraglide's message object (`{ m }`, `{ m as msg }` or `import * as m`), in `.js`, `.ts` and Svelte components. See the [README](README.md#supported-frameworks) and [examples/paraglide-js](examples/paraglide-js/README.md)
   - The setup wizard detects `@inlang/paraglide-js` and its adapters, and the message files are found where `project.inlang/settings.json` puts them, monorepos included
   - An unknown message is underlined, one missing in a locale is reported, and the generated code is never counted as a use
   - Completion after `m.` offers every message with its value, including the ones not compiled yet

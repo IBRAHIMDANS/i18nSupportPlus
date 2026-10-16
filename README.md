@@ -56,7 +56,7 @@ A setup wizard auto-configures it on first launch.
 | Transloco (Angular) | `translocoService.translate('key')`, `.selectTranslate('key')`, `{{ 'key' \| transloco }}` <sup>1</sup>, `*transloco="let t"` then `t('key')` <sup>4</sup> | No |
 | svelte-i18n | `$_('key')`, `_('key')` <sup>2</sup> | No |
 | i18n-js (React Native / Expo) | `t('key')`, `i18n.t('key')`, plain locale-keyed TS/JS catalogues, nested plurals <sup>3</sup> | No |
-| Paraglide JS (inlang), preview | `m.hello()`, `m["user.profile.title"]()`, once the file imports `m` from `…/paraglide/messages.js` <sup>5</sup> | Yes, `project.inlang/settings.json` |
+| Paraglide JS (inlang) | `m.hello()`, `m["user.profile.title"]()`, once the file imports `m` from `…/paraglide/messages.js` <sup>5</sup> | Yes, `project.inlang/settings.json` |
 
 `useTranslation` supports both string form (`useTranslation('ns')`) and array form (`useTranslation(['ns1', 'ns2'])`). The namespace can also come from an options object (`t('key', { ns: 'auth' })`) or from the key itself (`t('auth:key')`).
 
@@ -68,8 +68,7 @@ A setup wizard auto-configures it on first launch.
 
 <sup>4</sup> Transloco's service calls are recognised when the object they are called on names the service (`translocoService`, `transloco`): `translate` alone is too common a method name. Scoped keys resolve in their scope file: `admin.title` reads the key `title` of `i18n/admin/en.json`, a folder named after its scope next to the global locale files. The first segment is read as a scope only when such a folder exists, and only in a Transloco project. A scope set by the directive (`*transloco="let t; read: 'admin'"`, then `t('title')`) is read; the `[translocoRead]` input is not.
 
-<sup>5</sup> **Preview**: every feature below is covered by tests on a project compiled by Paraglide JS 2.29, but has not
-been tried in a running IDE yet, nor in WebStorm. Paraglide compiles each message into a function, so the key is the
+<sup>5</sup> Paraglide compiles each message into a function, so the key is the
 member of the message object, not a string. It is read in a file importing that object from a path ending in `paraglide/messages` — `{ m }`,
 `{ m as msg }`, or Paraglide 1's `import * as m` — in `.js`, `.ts` and Svelte components (with the Svelte plugin).
 Annotation, completion after `m.` (with the messages not yet compiled), folding, hover and inlay hints, Ctrl+click to

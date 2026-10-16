@@ -86,7 +86,7 @@ a notification offers the setup wizard when the project opens.
 | vue-i18n `<i18n-t keypath>`, `v-t` | Resolved, navigable, checked; completion, folding and a constant `:keypath` | — | — | — |
 | vue-i18n linked messages `@:key` | Yes | — | — | Yes |
 | next-intl `useTranslations` / `getTranslations` | Yes | — | — | next-intl listed in its [source](https://github.com/lokalise/i18n-ally/tree/main/src/frameworks) |
-| Paraglide JS (inlang) `m.hello()` | Yes<sup>next</sup>, as a preview: resolved, completed, folded, navigable to the message, usages counted, renamed, extracted as `m.key()`; `project.inlang/settings.json` read | Open request ([#404](https://github.com/marhali/easy-i18n/issues/404)) | — | Open request ([#1330](https://github.com/lokalise/i18n-ally/issues/1330)) |
+| Paraglide JS (inlang) `m.hello()` | Yes<sup>next</sup>: resolved, completed, folded, navigable to the message, usages counted, renamed, extracted as `m.key()`; `project.inlang/settings.json` read | Open request ([#404](https://github.com/marhali/easy-i18n/issues/404)) | — | Open request ([#1330](https://github.com/lokalise/i18n-ally/issues/1330)) |
 | Transloco | Service, pipe, structural directive and its `read`, scopes | Preset: service and attribute directive | — | Yes |
 | Laravel `__()`, `trans()`, `trans_choice()`, `@lang` | Yes, `package::file.key` included | Preset: `__`, `trans`, `trans_choice` | Yes, Blade included | Yes |
 | Your own `translate()` wrapper | Key assistance rules, per-module call template, the extracted text as default value (`t({key}, {text})`)<sup>next</sup> | Editor rules, flavor template | — | Custom framework, refactor templates |
