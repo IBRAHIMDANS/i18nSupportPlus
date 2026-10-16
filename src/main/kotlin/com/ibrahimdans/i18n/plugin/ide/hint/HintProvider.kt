@@ -10,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.utils.ellipsis
 import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.ibrahimdans.i18n.plugin.utils.renderIcu
+import com.ibrahimdans.i18n.plugin.utils.InlangMessageRenderer
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.lang.documentation.DocumentationProvider
 import com.intellij.openapi.application.ApplicationManager
@@ -92,7 +93,10 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
 
     private fun resolveAllTranslations(hovered: PsiElement): String? {
         val project = hovered.project
-        val (sourceElement, fullKey) = EditTranslationAtCaretAction.keyAt(hovered) ?: return null
+        // The hovered token, or the element up to two levels above it holding the key: Paraglide's
+        // `m.hello` is claimed as a whole, below which `hello` is a mere identifier.
+        val (sourceElement, fullKey) = generateSequence(hovered) { it.parent }.take(3)
+            .firstNotNullOfOrNull(EditTranslationAtCaretAction::keyAt) ?: return null
 
         val sources = project.service<LocalizationSourceService>().findReadSources(fullKey, sourceElement)
         if (sources.isEmpty()) return null
@@ -111,7 +115,7 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
                 ?: return@mapNotNull null
             // Escaping comes last, after rendering and truncation: entities must not be
             // counted in the truncated length, nor have their `&` escaped a second time.
-            val value = displayed.value().text?.unQuote()?.renderIcu()?.ellipsis(MAX_TRANSLATION_LENGTH)
+            val value = displayed.value().text?.let(InlangMessageRenderer::preview)?.unQuote()?.renderIcu()?.ellipsis(MAX_TRANSLATION_LENGTH)
                 ?.let { StringUtil.escapeXmlEntities(it) }
                 ?: return@mapNotNull null
             val locale = StringUtil.escapeXmlEntities(source.localeLabel())

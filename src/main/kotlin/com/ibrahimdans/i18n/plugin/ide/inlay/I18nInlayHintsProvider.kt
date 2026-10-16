@@ -10,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.utils.ellipsis
 import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.ibrahimdans.i18n.plugin.utils.renderIcu
+import com.ibrahimdans.i18n.plugin.utils.InlangMessageRenderer
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.codeInsight.hints.declarative.HintFormat
 import com.intellij.codeInsight.hints.declarative.InlayHintsCollector
@@ -71,7 +72,8 @@ class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiEleme
                     .flatMap { resolve(fullKey.compositeKey, it, config.pluralSeparator) }
                     .filter { it.unresolved.isEmpty() }
                     .firstNotNullOfOrNull { PluralGroup.displayableValue(it.element) }
-                    ?.value()?.text?.unQuote()
+                    // A Paraglide message with variants is a JSON array: shown as its catch-all branch.
+                    ?.value()?.text?.let(InlangMessageRenderer::preview)?.unQuote()
                     ?.renderIcu()
                     ?.ellipsis(config.foldingMaxLength)
                     ?: return
