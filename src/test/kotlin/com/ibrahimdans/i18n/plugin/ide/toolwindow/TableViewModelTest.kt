@@ -523,6 +523,16 @@ class TableViewModelTest {
     }
 
     @Test
+    fun `one file per locale gives the default group a neutral label`() {
+        val perLocale = listOf(source("messages/en.json", "en.json", "messages"), source("messages/fr.json", "fr.json", "messages"))
+        val namespaced = listOf(source("locales/en/common.json", "common.json", "en"), source("locales/en/translation.json", "translation.json", "en"))
+
+        assertEquals(PluginBundle.message("toolwindow.table.namespace.none"), NamespaceFilter.Default.label(Config(), perLocale))
+        assertEquals("translation (default)", NamespaceFilter.Default.label(Config(), namespaced))
+        assertEquals("common", NamespaceFilter.Named("common").label(Config(), perLocale), "a named group never changes")
+    }
+
+    @Test
     fun `the namespace column leads with the default group, then names alphabetically`() {
         val order = viewModel.namespaceOrder(Config(defaultNs = "common"))
 

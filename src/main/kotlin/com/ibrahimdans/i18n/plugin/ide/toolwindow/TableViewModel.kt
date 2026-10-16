@@ -20,6 +20,7 @@ import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
+import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
@@ -59,6 +60,14 @@ sealed interface NamespaceFilter {
      */
     fun label(config: Config): String = label
 
+    /**
+     * The text shown for this filter under [config], for keys read from [sources]. Only [Default]
+     * cares: where every source is one file per locale (Paraglide's `messages/en.json`, next-intl,
+     * vue-i18n's `locales/en.json`), no key has a namespace, and naming the configured default —
+     * `translation (default)` — pointed at a setting the project never uses.
+     */
+    fun label(config: Config, sources: List<LocalizationSource>): String = label(config)
+
     /** Every namespace, i.e. no filtering. */
     data object All : NamespaceFilter {
         override val label: String get() = PluginBundle.message("toolwindow.table.namespace.all")
@@ -72,6 +81,9 @@ sealed interface NamespaceFilter {
             config.defaultNamespaces().singleOrNull()
                 ?.let { PluginBundle.message("toolwindow.table.namespace.default.named", it) }
                 ?: label
+
+        override fun label(config: Config, sources: List<LocalizationSource>): String =
+            if (carriesNamespaces(sources)) label(config) else PluginBundle.message("toolwindow.table.namespace.none")
     }
 
     /** One named namespace, the part of a key before its `:`. */
@@ -79,6 +91,13 @@ sealed interface NamespaceFilter {
         override val label: String get() = name
     }
 }
+
+/**
+ * False only when every source of [sources] is a file named after its locale alone; no source at all
+ * says nothing about the project, and keeps the configured name.
+ */
+internal fun carriesNamespaces(sources: List<LocalizationSource>): Boolean =
+    sources.isEmpty() || sources.any { !it.isLocaleNamedFile() }
 
 /**
  * What the status combo filters on: "what is left to translate" without a trip through the
