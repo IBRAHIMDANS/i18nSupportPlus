@@ -67,10 +67,13 @@ class RenameI18nKeyHandler : RenameHandler {
     override fun isAvailableOnDataContext(dataContext: DataContext): Boolean {
         val editor = CommonDataKeys.EDITOR.getData(dataContext) ?: return false
         val psiFile = CommonDataKeys.PSI_FILE.getData(dataContext) ?: return false
-        return findI18nReference(editor, psiFile) != null || levelInTranslationFile(editor, psiFile) != null
+        return findI18nReference(editor, psiFile) != null || paraglideMessage(editor, psiFile) != null ||
+            levelInTranslationFile(editor, psiFile) != null
     }
 
     override fun invoke(project: Project, editor: Editor, file: PsiFile, dataContext: DataContext) {
+        // Paraglide's `m.hello` holds no I18nReference: its key is renamed as the leaf it names.
+        paraglideMessage(editor, file)?.let { return renameLevel(project, it, leaf = true) }
         val config = Settings.getInstance(project).config()
         val ref = findI18nReference(editor, file)
         val level = if (ref != null) levelInCode(ref, editor, config) else levelInTranslationFile(editor, file)
@@ -143,9 +146,15 @@ class RenameI18nKeyHandler : RenameHandler {
         val element = file.findElementAt(editor.caretModel.offset) ?: return null
         val property = TranslationPsi.propertyOf(element, strict = false) ?: return null
         val entry = TranslationPsi.entryOf(property) ?: return null
-        if (entry.literal != null || !PsiTreeUtil.isAncestor(entry.keyElement, element, false)) return null
+        if (!PsiTreeUtil.isAncestor(entry.keyElement, element, false)) return null
+        // A leaf is left to the platform's rename, but in a Paraglide project, whose `m.hello` calls must follow.
+        if (entry.literal != null && !KeyLevelRename.isParaglideProject(file)) return null
         return KeyLevelRename.inTranslationFile(property)
     }
+
+    /** The Paraglide message the caret is on — `m.hello`, `m["a.b"]` — as the leaf to rename, or null. */
+    private fun paraglideMessage(editor: Editor, file: PsiFile): KeyLevelRename? =
+        file.findElementAt(editor.caretModel.offset)?.let(KeyLevelRename::ofParaglideMember)
 
     /**
      * Asks for the new name of [level], [suggested] filled in, then renames it everywhere once
