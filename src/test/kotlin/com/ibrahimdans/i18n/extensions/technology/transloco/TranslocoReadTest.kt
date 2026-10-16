@@ -10,7 +10,10 @@ import com.intellij.psi.util.PsiTreeUtil
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 
-/** The `read` of `*transloco="let t; read: 'admin'"`: a key prefix, whose first segment may name a scope. */
+/**
+ * The `read` of `*transloco="let t; read: 'admin'"` or of a literal `[translocoRead]="'admin'"`: a key
+ * prefix, whose first segment may name a scope.
+ */
 class TranslocoReadTest : PlatformBaseTest() {
 
     private val unresolved = PluginBundle.getMessage("annotator.unresolved.key")
@@ -75,6 +78,49 @@ class TranslocoReadTest : PlatformBaseTest() {
             """<ng-container *transloco="let t"><p>{{ t('menu.home') }}</p><p>{{ t('admin.title') }}</p><p>{{ t('home') }}</p></ng-container>"""
         )
         Assertions.assertEquals(listOf("home"), reported)
+    }
+
+    @Test
+    fun aLiteralReadInputNamingAScopeResolvesInTheScopeFile() {
+        val reported = unresolvedIn(
+            """<ng-container *transloco="let t" [translocoRead]="'admin'"><p>{{ t('title') }}</p><p>{{ t('zzMissing') }}</p></ng-container>"""
+        )
+        Assertions.assertEquals(listOf("zzMissing"), reported)
+    }
+
+    @Test
+    fun aLiteralReadInputGoingDeeperThanTheScopeIsAPrefixInIt() {
+        val reported = unresolvedIn(
+            """<ng-container *transloco="let t" [translocoRead]="'admin.users'"><p>{{ t('list') }}</p><p>{{ t('title') }}</p></ng-container>"""
+        )
+        Assertions.assertEquals(listOf("title"), reported)
+    }
+
+    @Test
+    fun aLiteralReadInputNamingNoScopeIsAPrefixOfAGlobalKey() {
+        val reported = unresolvedIn(
+            """<ng-container *transloco="let t" [translocoRead]="'menu'"><p>{{ t('home') }}</p><p>{{ t('zzGlobal') }}</p></ng-container>"""
+        )
+        Assertions.assertEquals(listOf("zzGlobal"), reported)
+    }
+
+    /** A bound expression is only known at runtime: the keys are read as if there were no input. */
+    @Test
+    fun aDynamicReadInputIsIgnored() {
+        val reported = unresolvedIn(
+            """<ng-container *transloco="let t" [translocoRead]="scopeName"><p>{{ t('menu.home') }}</p><p>{{ t('home') }}</p></ng-container>"""
+        )
+        Assertions.assertEquals(listOf("home"), reported)
+    }
+
+    @Test
+    fun aScopeKeyReadThroughTheReadInputIsNotUnused() {
+        translocoProject()
+        addFileToProject(
+            "src/app/tpl.html",
+            """<ng-container *transloco="let t" [translocoRead]="'admin'"><p>{{ t('title') }}</p><p>{{ t('users.list') }}</p></ng-container>"""
+        )
+        Assertions.assertEquals(listOf("zzUnused"), unusedIn("src/assets/i18n/admin/en.json"))
     }
 
     /** The directive publishing the function closest to the call decides. */
