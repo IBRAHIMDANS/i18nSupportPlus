@@ -4,10 +4,13 @@ import com.intellij.psi.xml.XmlAttributeValue
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.extensions.lang.js.isDirectOrConfiguredCall
 import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
+import com.ibrahimdans.i18n.plugin.utils.ModulePresets
 import com.ibrahimdans.i18n.plugin.utils.default
 import com.intellij.lang.javascript.patterns.JSPatterns
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSConditionalExpression
+import com.intellij.lang.javascript.psi.JSIndexedPropertyAccessExpression
+import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.lang.javascript.psi.JSParenthesizedExpression
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.lang.javascript.psi.JSSpreadExpression
@@ -26,7 +29,18 @@ internal class JsFoldingProvider: FoldingProvider {
         /** vue-i18n's template keys outside any call: `<i18n-t keypath>` and the `v-t` directive. */
         val VUE_I18N_KEYPATH = VueI18nKeypathExtractor()
         val VUE_T_DIRECTIVE = VueTDirectiveExtractor()
+
+        /** Paraglide's `m.hello` / `m["a.b"]`: a member access, no string. */
+        val PARAGLIDE_MESSAGE = ParaglideMessageExtractor()
     }
+
+    /**
+     * The Paraglide members under [root], where the module's preset lets Paraglide's syntax be
+     * read: under another preset the key extraction ignores them, and the folding must too.
+     */
+    private fun paraglideMembers(root: PsiElement): List<PsiElement> =
+        PsiTreeUtil.findChildrenOfAnyType(root, JSReferenceExpression::class.java, JSIndexedPropertyAccessExpression::class.java)
+            .filter { PARAGLIDE_MESSAGE.canExtract(it) && ModulePresets.allows(ModulePresets.presetOf(it), "paraglide") }
 
     private fun isI18nArgument(element: PsiElement): Boolean {
         val argument = ternaryArgument(element) ?: element
@@ -83,7 +97,8 @@ internal class JsFoldingProvider: FoldingProvider {
         // Direct JS nodes (standard .js/.ts/.jsx/.tsx files), and the `i18nKey` attributes of
         // react-i18next's `<Trans>`, which no call holds: they used to be left unfolded.
         val direct = literals.filter { isI18nArgument(it) && !isInsideSpreadArgument(it) } +
-            attributeValues.filter(I18N_KEY_ATTRIBUTE::canExtract)
+            attributeValues.filter(I18N_KEY_ATTRIBUTE::canExtract) +
+            paraglideMembers(root)
 
         // vue-i18n's template keys sit in the component's own PSI, not in an injected fragment:
         // `keypath` is a plain attribute, and the Vue plugin parses `v-t`'s value in place. They
@@ -109,6 +124,7 @@ internal class JsFoldingProvider: FoldingProvider {
                         PsiTreeUtil.findChildrenOfType(pair.first, JSLiteralExpression::class.java)
                             .filter { isI18nArgument(it) && !isInsideSpreadArgument(it) }
                             .forEach { result.add(it) }
+                        result.addAll(paraglideMembers(pair.first))
                     }
                 }
             }
@@ -121,8 +137,14 @@ internal class JsFoldingProvider: FoldingProvider {
 
     override fun getFoldingRange(container: PsiElement, offset: Int, psiElement: PsiElement): TextRange {
         // A ternary key folds each branch to its own value: the whole call would show only one.
-        val callExpr = if (ternaryArgument(psiElement) != null) null
-            else PsiTreeUtil.getParentOfType(psiElement, JSCallExpression::class.java)
+        // A Paraglide member folds with its own call, `m.hello(…)`, or alone when passed along
+        // uncalled: the call around it (`render(m.hello)`) is not its own.
+        val callExpr = when {
+            PARAGLIDE_MESSAGE.canExtract(psiElement) ->
+                (psiElement.parent as? JSCallExpression)?.takeIf { it.methodExpression === psiElement }
+            ternaryArgument(psiElement) != null -> null
+            else -> PsiTreeUtil.getParentOfType(psiElement, JSCallExpression::class.java)
+        }
         val sourceElement = callExpr ?: psiElement
 
         // Check if element is in an injected fragment

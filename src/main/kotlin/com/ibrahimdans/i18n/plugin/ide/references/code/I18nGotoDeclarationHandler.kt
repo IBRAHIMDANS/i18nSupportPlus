@@ -23,13 +23,21 @@ class I18nGotoDeclarationHandler : GotoDeclarationHandler {
             .flatMap { it.references.asSequence() }
             .filterIsInstance<I18nReference>()
             .firstOrNull() ?: return null
-        val config = Settings.getInstance(source.project).config()
-        val locale = config.previewLocale.ifBlank { config.foldingPreferredLanguage }
-        // The first form in the file: `_one` before `_other` for a plural key.
-        return reference.targetsIn(locale).minByOrNull { it.textOffset }?.let { arrayOf(it) }
+        return previewTarget(reference)
     }
 
-    private companion object {
-        const val MAX_DEPTH = 3
+    internal companion object {
+        private const val MAX_DEPTH = 3
+
+        /**
+         * [reference]'s target in the preview locale (the folding locale when none is set), or null when
+         * that locale lacks the key. Shared with the handlers of keys no `I18nReference` holds (Paraglide's `m.hello`).
+         */
+        fun previewTarget(reference: I18nReference): Array<PsiElement>? {
+            val config = Settings.getInstance(reference.element.project).config()
+            val locale = config.previewLocale.ifBlank { config.foldingPreferredLanguage }
+            // The first form in the file: `_one` before `_other` for a plural key.
+            return reference.targetsIn(locale).minByOrNull { it.textOffset }?.let { arrayOf(it) }
+        }
     }
 }

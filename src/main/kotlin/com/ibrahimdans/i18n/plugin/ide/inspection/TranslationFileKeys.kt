@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
+import com.ibrahimdans.i18n.extensions.localization.json.JsonElementTree
 import com.ibrahimdans.i18n.extensions.localization.yaml.YamlTranslationPsi
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.json.psi.JsonFile
@@ -53,6 +54,8 @@ internal object TranslationFileKeys {
      * (`YamlElementTree`): a key of a later `---` document resolves nowhere — and i18next's YAML
      * loaders refuse such a file — so listing it would report, offer or type a key the code
      * cannot reach.
+     *
+     * A JSON file's root `$schema` (Paraglide's message files start with one) is no key: left out.
      */
     fun translationLeaves(file: PsiFile): Map<List<String>, String> {
         val result = linkedMapOf<List<String>, String>()
@@ -85,6 +88,7 @@ internal object TranslationFileKeys {
 
     private fun collectJsonProperties(obj: JsonObject, prefix: List<String>, result: MutableMap<List<String>, String>) {
         for (prop in obj.propertyList) {
+            if (JsonElementTree.isRootSchema(prop)) continue
             val path = prefix + prop.name
             when (val value = prop.value) {
                 is JsonStringLiteral -> result[path] = value.value

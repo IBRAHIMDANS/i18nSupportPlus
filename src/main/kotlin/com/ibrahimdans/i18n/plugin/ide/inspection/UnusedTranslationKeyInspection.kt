@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
+import com.ibrahimdans.i18n.extensions.localization.json.JsonElementTree
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.review.ReviewMigration
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
@@ -38,6 +39,8 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
             override fun visitElement(element: PsiElement) {
                 val entry = TranslationPsi.entryOf(element) ?: return
                 if (entry.literal == null) return
+                // A root `$schema` (Paraglide's message files) is no key, so never an unused one.
+                if (element is JsonProperty && JsonElementTree.isRootSchema(element)) return
                 // JSON references sit on the property's name, YAML ones on the key-value itself.
                 val named = if (TranslationPsi.isYaml(element)) element else entry.keyElement
                 check(element, named, entry.keyElement, holder, heads)

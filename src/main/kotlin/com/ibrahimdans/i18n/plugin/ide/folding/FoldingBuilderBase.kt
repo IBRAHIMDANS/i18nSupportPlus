@@ -9,6 +9,7 @@ import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.PluralGroup
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.tree.PropertyReference
+import com.ibrahimdans.i18n.plugin.utils.InlangMessageRenderer
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ellipsis
@@ -72,7 +73,8 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
                             }
                             FoldingDescriptor(node, foldRange, null,
                                 PluralGroup.displayableValue(resolved.reference.element)
-                                    ?.value()?.text?.unQuote()?.renderIcu()?.ellipsis(config.foldingMaxLength) ?: "")
+                                    ?.value()?.text?.let(InlangMessageRenderer::preview)
+                                    ?.unQuote()?.renderIcu()?.ellipsis(config.foldingMaxLength) ?: "")
                         }
                 }
             }

@@ -17,6 +17,7 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.TextEditor
 import com.intellij.openapi.util.IconLoader
 import com.intellij.psi.PsiElement
+import com.intellij.psi.util.PsiTreeUtil
 import java.awt.event.MouseEvent
 import javax.swing.Icon
 
@@ -107,8 +108,9 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
 
         val tooltip = buildTooltip(statusLabel, statuses.map { (it.label to it.resolved) })
 
-        // Anchor on the leaf token to position the badge correctly
-        val anchor = element.firstChild ?: element
+        // Anchor on the first leaf token, as the platform requires: the literal's own token, or `m`
+        // in Paraglide's `m.hello`, whose first child is itself a reference expression.
+        val anchor = PsiTreeUtil.getDeepestFirst(element)
 
         // Navigation handler: trigger CreateKeyQuickFix when icon is clicked and key is missing/partial
         val navHandler: GutterIconNavigationHandler<PsiElement>? = if (resolvedCount < total) {

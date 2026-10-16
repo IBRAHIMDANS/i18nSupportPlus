@@ -11,6 +11,9 @@ import com.intellij.json.psi.JsonFile
 import com.intellij.json.psi.JsonObject
 import com.intellij.json.psi.JsonProperty
 import com.intellij.psi.search.searches.ReferencesSearch
+import org.jetbrains.yaml.YAMLUtil
+import org.jetbrains.yaml.psi.YAMLFile
+import org.jetbrains.yaml.psi.YAMLKeyValue
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -106,6 +109,48 @@ class LinkedMessageReferenceTest : PlatformBaseTest() {
             val file = myFixture.file as JsonFile
             Assertions.assertTrue(TranslationKeyUsages.indirectCount(property(file, "common", "save").nameElement) > 0)
             Assertions.assertEquals(0, TranslationKeyUsages.indirectCount(property(file, "common", "orphan").nameElement))
+        }
+    }
+
+    // ── YAML: the contributor is registered for it in `ymlConfig.xml` ─────────
+
+    /** Opens `locales/en.yaml` holding [value] — written as is, quotes included — as `button`. */
+    private fun openYaml(value: String) {
+        val text = "common:\n  save: Save\n  orphan: Orphan\nbutton: $value\n"
+        myFixture.configureFromExistingVirtualFile(addFileToProject("locales/en.yaml", text).virtualFile)
+    }
+
+    private fun yamlKey(vararg path: String): YAMLKeyValue =
+        YAMLUtil.getQualifiedKeyInFile(myFixture.file as YAMLFile, *path)!!
+
+    @ParameterizedTest
+    @ValueSource(strings = ["Click @:common.save", "'@.lower:common.save'", "\"Click @:(common.save)\""])
+    fun `a linked key in YAML resolves to its translation`(value: String) {
+        openYaml(value)
+        read {
+            val reference = referenceAt("common.save")
+            Assertions.assertEquals("common.save", reference?.linkedKey, "$value carries no linked reference")
+            Assertions.assertEquals("Save", reference!!.resolve()?.text?.unQuote())
+            Assertions.assertEquals("common.save", reference.rangeInElement.substring(reference.element.text))
+        }
+    }
+
+    @Test
+    fun `an unknown linked key in YAML is reported, a known one is not`() {
+        openYaml("Click @:common.save or @.upper:common.nope")
+        val reported = myFixture.doHighlighting().filter { it.description == unresolved }
+        Assertions.assertEquals(1, reported.size, "got ${reported.map { it.text }}")
+        Assertions.assertEquals("common.nope", reported.single().text)
+    }
+
+    @Test
+    fun `a YAML key only linked counts as used`() {
+        openYaml("Click @:common.save")
+        read {
+            Assertions.assertTrue(TranslationKeyUsages.indirectCount(yamlKey("common", "save").key!!) > 0)
+            Assertions.assertEquals(0, TranslationKeyUsages.indirectCount(yamlKey("common", "orphan").key!!))
+            val found = ReferencesSearch.search(yamlKey("common", "save")).findAll().filterIsInstance<LinkedMessageReference>()
+            Assertions.assertEquals(listOf("common.save"), found.map { it.linkedKey })
         }
     }
 
