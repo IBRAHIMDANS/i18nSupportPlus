@@ -198,6 +198,28 @@ class TranslationChangesDialogTest : PlatformBaseTest() {
         Assertions.assertEquals(listOf(MachineFill.Item("common:title", "Web app", current = "Web")), previews.single().proposals.map { it.item })
     }
 
+    /** `admin` holds no `en` file, so no lagging key leads to it: it is named all the same. */
+    @Test
+    fun `a module translating from another reference is named even without a file in the project reference`() = myFixture.runWithConfig(
+        config.copy(
+            modules = listOf(
+                ModuleConfig(name = "web", rootDirectory = "src/apps/web"),
+                ModuleConfig(name = "admin", rootDirectory = "src/apps/admin", referenceLocale = "fr"),
+            )
+        )
+    ) {
+        val webEn = addFileToProject("apps/web/locales/en/common.json", """{"title": "Web app"}""")
+        addFileToProject("apps/web/locales/fr/common.json", """{"title": "Web"}""")
+        addFileToProject("apps/admin/locales/fr/common.json", """{"title": "Administration"}""")
+        addFileToProject("apps/admin/locales/de/common.json", """{"title": "Verwaltung"}""")
+        val found = changes(webEn to """{"title": "Web"}""")
+
+        val plan = LaggingRetranslation.planOf(project, found)
+
+        Assertions.assertEquals(listOf("admin"), plan.otherReference.map { it.name })
+        Assertions.assertEquals(listOf("web"), plan.batches.map { it.module?.name }, "no batch for admin")
+    }
+
     @Test
     fun `the button shows on the lagging view only`() = myFixture.runWithConfig(config) {
         val en = addFileToProject("locales/en/common.json", """{"save": "Save all"}""")
