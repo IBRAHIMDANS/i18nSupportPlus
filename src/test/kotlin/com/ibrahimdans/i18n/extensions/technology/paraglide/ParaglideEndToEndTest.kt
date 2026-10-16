@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.actions.ExtractAnswer
 import com.ibrahimdans.i18n.plugin.ide.actions.ExtractI18nIntentionAction
+import com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler
 import com.ibrahimdans.i18n.plugin.ide.hint.HintProvider
 import com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages
 import com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection
@@ -15,10 +16,13 @@ import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.codeInsight.completion.CompletionType
+import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.TestDialog
 import com.intellij.openapi.ui.TestDialogManager
 import com.intellij.openapi.ui.TestInputDialog
+import com.intellij.psi.PsiManager
 import com.intellij.psi.search.PsiSearchHelper
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
@@ -167,5 +171,27 @@ class ParaglideEndToEndTest : PlatformBaseTest() {
         }
         val text = myFixture.editor.document.text
         assertTrue(text.contains("m.welcome_back()") && text.contains("from './src/paraglide/messages.js'"), text)
+    }
+
+    /** Shift+F6 on `m.greeting`: both message files and the call site follow, the compiled `greeting.js` does not. */
+    @Test
+    fun renameMovesTheMessageNotTheGeneratedCode() = myFixture.runWithConfig(config) {
+        open("src/main.ts")
+        val generated = text("src/paraglide/messages/greeting.js")
+        myFixture.editor.caretModel.moveToOffset(myFixture.editor.document.text.indexOf("m.greeting") + 4)
+        TestDialogManager.setTestInputDialog(object : TestInputDialog {
+            override fun show(message: String): String = "salutation"
+            override fun show(message: String, validator: com.intellij.openapi.ui.InputValidator?): String = "salutation"
+        })
+        TestDialogManager.setTestDialog { Messages.YES }
+        RenameI18nKeyHandler().invoke(project, myFixture.editor, myFixture.file, DataContext.EMPTY_CONTEXT)
+        assertTrue(myFixture.editor.document.text.contains("m.salutation({ name: \"Samuel\" })"), myFixture.editor.document.text)
+        assertTrue(text("messages/en.json").contains("\"salutation\": \"Hello {name}!\""), text("messages/en.json"))
+        assertTrue(text("messages/fr.json").contains("\"salutation\": \"Bonjour {name} !\""), text("messages/fr.json"))
+        Assertions.assertEquals(generated, text("src/paraglide/messages/greeting.js"), "Paraglide rewrites its own output")
+    }
+
+    private fun text(path: String): String = ReadAction.compute<String, RuntimeException> {
+        PsiManager.getInstance(project).findFile(myFixture.findFileInTempDir(path))!!.text
     }
 }
