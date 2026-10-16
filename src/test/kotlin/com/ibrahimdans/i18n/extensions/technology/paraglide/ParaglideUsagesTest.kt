@@ -2,11 +2,10 @@ package com.ibrahimdans.i18n.extensions.technology.paraglide
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection
-import com.ibrahimdans.i18n.plugin.ide.references.translation.TranslationToCodeReference
-import com.intellij.json.psi.JsonProperty
+import com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.intellij.openapi.application.ReadAction
-import com.intellij.psi.PsiManager
-import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.search.PsiSearchHelper
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
@@ -53,18 +52,20 @@ class ParaglideUsagesTest : PlatformBaseTest() {
         assertEquals(setOf("unused", "gone"), unused.toSet())
     }
 
-    /** From the JSON, the key's usages are the call site, not the generated function. */
+    /**
+     * The call sites a key's text search finds — what the usage count and *Unused key* add up — are
+     * the code's `m.hello`, never the generated `hello.js`, nor the alias `"user.profile.title"`.
+     */
     @Test
     fun theUsagesOfAKeyAreItsCallSites() {
         addProject()
-        val file = myFixture.findFileInTempDir("messages/fr.json")
-        val usages = ReadAction.compute<List<String>, RuntimeException> {
-            val json = PsiManager.getInstance(project).findFile(file)!!
-            val hello = PsiTreeUtil.findChildrenOfType(json, JsonProperty::class.java).first { it.name == "hello" }
-            hello.nameElement.references.filterIsInstance<TranslationToCodeReference>().single()
-                .multiResolve(false).mapNotNull { it.element }.map { "${it.containingFile.name}: ${it.text}" }
+        val config = Settings.getInstance(project).config()
+        val counts = ReadAction.compute<List<Int>, RuntimeException> {
+            listOf("hello", "unused", "user.profile.title", "user.gone").map { key ->
+                IndirectKeyUsages.textCount(key, config, config.searchScope(project), PsiSearchHelper.getInstance(project))
+            }
         }
-        assertEquals(listOf("Page.svelte: m.hello"), usages)
+        assertEquals(listOf(1, 0, 1, 0), counts)
     }
 
     @Test
