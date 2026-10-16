@@ -24,6 +24,7 @@ class ParaglideAnnotatorTest : PlatformBaseTest() {
     )
 
     private fun addMessages() {
+        if (myFixture.tempDirFixture.getFile("messages/en.json") != null) return
         myFixture.addFileToProject("messages/en.json", """{"hello": "Hello", "bye": "Bye", "user": {"profile": {"title": "Profile"}}}""")
         myFixture.addFileToProject("messages/fr.json", """{"hello": "Bonjour", "user": {"profile": {"title": "Profil"}}}""")
     }
@@ -53,8 +54,9 @@ class ParaglideAnnotatorTest : PlatformBaseTest() {
         assertEquals(listOf(unresolved to "missing"), reported("A.ts", ts("export const a = m.missing();")))
     }
 
+    /** Partial translation is reported only once its setting is on, as for any key. */
     @Test
-    fun aMessageMissingInALocaleIsPartiallyTranslated() {
+    fun aMessageMissingInALocaleIsPartiallyTranslated() = myFixture.runWithConfig(Config(partialTranslationInspectionEnabled = true)) {
         assertEquals(listOf(partial to "bye"), reported("A.ts", ts("export const a = m.bye();")))
     }
 
