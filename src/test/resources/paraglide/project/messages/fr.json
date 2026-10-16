@@ -1,0 +1,24 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "hello_world": "Bonjour le monde !",
+  "greeting": "Bonjour {name} !",
+  "order_pending": "Votre commande est en attente",
+  "order_paid": "Votre commande est payée",
+  "order_failed": "Votre commande a échoué",
+  "order_unknown": "Statut de commande inconnu",
+  "user": {
+    "profile": {
+      "title": "Profil utilisateur"
+    }
+  },
+  "cart_items": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Il y a un article dans votre panier.",
+        "countPlural=other": "Il y a {count} articles dans votre panier."
+      }
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.extensions.localization.php.PhpTranslationPsi
 import com.ibrahimdans.i18n.extensions.localization.yaml.YamlTranslationPsi
 import com.intellij.json.psi.JsonElementGenerator
 import com.intellij.json.psi.JsonFile
+import com.intellij.json.psi.JsonArray
 import com.intellij.json.psi.JsonObject
 import com.intellij.json.psi.JsonProperty
 import com.intellij.json.psi.JsonStringLiteral
@@ -49,8 +50,15 @@ object TranslationPsi {
 
     fun isPhp(element: PsiElement): Boolean = element.language.id == PHP_LANGUAGE
 
-    /** [element] read as a key-value of a translation file, or null when it is none. */
+    /**
+     * [element] read as a key-value of a translation file, or null when it is none.
+     *
+     * A JSON property inside an array is no key: it is the structure of a value — the
+     * `declarations` / `selectors` / `match` of a Paraglide message with variants, whose
+     * `"countPlural=one"` the inspections reported as unused keys.
+     */
     fun entryOf(element: PsiElement): TranslationEntry? = when {
+        element is JsonProperty && PsiTreeUtil.getParentOfType(element, JsonArray::class.java) != null -> null
         element is JsonProperty -> {
             val literal = element.value as? JsonStringLiteral
             TranslationEntry(element, element.name, element.nameElement, literal, literal?.value)

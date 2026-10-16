@@ -53,6 +53,15 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
         assertEquals(1, unusedWarnings("{\"form\": {\"\$schema\": \"x\"}}").size)
     }
 
+    /** A Paraglide message with variants: the `match` object inside its array holds no key, only the message does. */
+    @Test
+    fun testPropertiesInsideAnArrayAreNoKeys() {
+        val warnings = unusedWarnings(
+            "{\"cart\": [{\"selectors\": [\"n\"], \"match\": {\"n=one\": \"One\", \"n=other\": \"Many\"}}]}"
+        )
+        assertTrue(warnings.isEmpty(), "\$warnings")
+    }
+
     // A JSON file that is not a translation file: its keys are configuration, never unused keys.
     // A headless run (Qodana, inspect.sh) inspects every file of the project, not only the open ones.
 
