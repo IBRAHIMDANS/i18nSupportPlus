@@ -56,7 +56,7 @@ A setup wizard auto-configures it on first launch.
 | Transloco (Angular) | `translocoService.translate('key')`, `.selectTranslate('key')`, `{{ 'key' \| transloco }}` <sup>1</sup>, `*transloco="let t"` then `t('key')` <sup>4</sup> | No |
 | svelte-i18n | `$_('key')`, `_('key')` <sup>2</sup> | No |
 | i18n-js (React Native / Expo) | `t('key')`, `i18n.t('key')`, plain locale-keyed TS/JS catalogues, nested plurals <sup>3</sup> | No |
-| Paraglide JS (inlang) | `m.hello()`, `m["user.profile.title"]()`, once the file imports `m` from `…/paraglide/messages.js` <sup>5</sup> | Yes, `project.inlang/settings.json` |
+| Paraglide JS (inlang), preview | `m.hello()`, `m["user.profile.title"]()`, once the file imports `m` from `…/paraglide/messages.js` <sup>5</sup> | Yes, `project.inlang/settings.json` |
 
 `useTranslation` supports both string form (`useTranslation('ns')`) and array form (`useTranslation(['ns1', 'ns2'])`). The namespace can also come from an options object (`t('key', { ns: 'auth' })`) or from the key itself (`t('auth:key')`).
 
@@ -68,15 +68,17 @@ A setup wizard auto-configures it on first launch.
 
 <sup>4</sup> Transloco's service calls are recognised when the object they are called on names the service (`translocoService`, `transloco`): `translate` alone is too common a method name. Scoped keys resolve in their scope file: `admin.title` reads the key `title` of `i18n/admin/en.json`, a folder named after its scope next to the global locale files. The first segment is read as a scope only when such a folder exists, and only in a Transloco project. A scope set by the directive (`*transloco="let t; read: 'admin'"`, then `t('title')`) is read; the `[translocoRead]` input is not.
 
-<sup>5</sup> Paraglide compiles each message into a function, so the key is the member of the message object, not a
-string. It is read in a file importing that object from a path ending in `paraglide/messages` — `{ m }`,
+<sup>5</sup> **Preview**: every feature below is covered by tests on a project compiled by Paraglide JS 2.29, but has not
+been tried in a running IDE yet, nor in WebStorm. Paraglide compiles each message into a function, so the key is the
+member of the message object, not a string. It is read in a file importing that object from a path ending in `paraglide/messages` — `{ m }`,
 `{ m as msg }`, or Paraglide 1's `import * as m` — in `.js`, `.ts` and Svelte components (with the Svelte plugin).
 Annotation, completion after `m.` (with the messages not yet compiled), folding, hover and inlay hints, Ctrl+click to
-the message rather than the generated function, usages and *Extract I18n* (which writes `m.key({ name })` and adds
-the import) all work on it. The message files are read where `project.inlang/settings.json` puts them, one inlang
+the message rather than the generated function, usages, Shift+F6 (in every message file and call site, `m["a.b"]` when the new
+name is no identifier) and *Extract I18n* (which writes `m.key({ name })` and adds the import) all work on it. The message files are read where `project.inlang/settings.json` puts them, one inlang
 project per folder in a monorepo, and the generated folder is never counted as a use. Limits: a message with variants
-(a `match` array) is displayed as its catch-all branch and edited as raw JSON; `m[variable]` names no key; renaming
-from `m.hello` is not supported yet; Astro components are not tested. A ready-to-open project:
+(a `match` array) is displayed as its catch-all branch and edited as raw JSON; `m[variable]` names no key; in Svelte components
+only annotation, folding and usages are tested; Ctrl+click from a message file to its call sites finds none; Astro
+components are not tested. A ready-to-open project:
 [examples/paraglide-js](examples/paraglide-js/README.md).
 
 ## Supported Languages
