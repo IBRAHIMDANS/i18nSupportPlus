@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
 import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
@@ -210,6 +211,9 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
     /** The configuration the rows were loaded under; what the default group is called depends on it. */
     private var config: Config = Config()
+
+    /** The sources the rows were read from; whether the default group has a namespace to name depends on them. */
+    private var sources: List<LocalizationSource> = emptyList()
     private var currentFilter: String = ""
     private var currentNamespace: NamespaceFilter = NamespaceFilter.All
     private var currentStatus: StatusFilter = StatusFilter.ALL
@@ -247,7 +251,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             override fun getListCellRendererComponent(
                 list: JList<*>?, value: Any?, index: Int, selected: Boolean, focused: Boolean
             ): Component = super.getListCellRendererComponent(
-                list, (value as? NamespaceFilter)?.label(config) ?: value, index, selected, focused
+                list, (value as? NamespaceFilter)?.label(config, sources) ?: value, index, selected, focused
             )
         }
     }
@@ -457,8 +461,10 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         val namespaces = viewModel.namespaceFilters(rows)
         val root = resolveReviewRoot()
         val loadedReviews = viewModel.loadReviews(project, root, discovered, config, moduleConfig)
+        val loadedSources = TranslationDataLoader.findSources(project, moduleConfig)
 
         ApplicationManager.getApplication().invokeLater {
+            sources = loadedSources
             reviewRoot = root
             reviews = loadedReviews
             updateStatusCombo()
@@ -503,7 +509,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     private fun updateEmptyText() {
         val emptyText = table.emptyText
         val query = currentFilter.trim()
-        val namespace = if (currentNamespace == NamespaceFilter.All) null else currentNamespace.label(config)
+        val namespace = if (currentNamespace == NamespaceFilter.All) null else currentNamespace.label(config, sources)
         when {
             loading > 0 && allRows.isEmpty() -> emptyText.text = PluginBundle.message("toolwindow.table.empty.loading")
             query.isEmpty() && namespace == null && currentStatus == StatusFilter.ALL ->

@@ -21,7 +21,7 @@
 
 ### Fixes
 
-- [Stats] **A project with one message file per locale no longer shows a *translation (default)* namespace**: Paraglide's `messages/en.json`, next-intl or vue-i18n's `locales/en.json` read *Messages* in the Stats tab
+- [Stats] **A project with one message file per locale no longer shows a *translation (default)* namespace**: Paraglide's `messages/en.json`, next-intl or vue-i18n's `locales/en.json` read *Messages* in the Stats tab and in the table's namespace filter
 - [YAML] **A value written into a YAML file reads back as written**: `Note: soon` no longer becomes a nested key, `Save # now` no longer loses ` # now` to a comment, and `yes`, `null` or `123` stay text. A key added to a mapping keeps its indentation
 - [JSON] **A key added to a JSON file takes the file's own indentation, and sorting no longer reformats the whole file** (i18n Ally #1060, #755)
 - [Paraglide] **`project.inlang/settings.json` is no longer read as a translation file**, and **a message file is no longer compared with itself**: no more `baseLocale` reported as an unused key, nor every value of the reference locale as *not translated?*
