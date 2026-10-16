@@ -92,9 +92,12 @@ sealed interface NamespaceFilter {
     }
 }
 
-/** True when a source of [sources] holds a namespace, i.e. is not a file named after its locale alone. */
+/**
+ * False only when every source of [sources] is a file named after its locale alone; no source at all
+ * says nothing about the project, and keeps the configured name.
+ */
 internal fun carriesNamespaces(sources: List<LocalizationSource>): Boolean =
-    sources.any { !it.isLocaleNamedFile() }
+    sources.isEmpty() || sources.any { !it.isLocaleNamedFile() }
 
 /**
  * What the status combo filters on: "what is left to translate" without a trip through the
