@@ -70,10 +70,11 @@ internal object ParaglideCall {
         val project = file.project
         val scope = GlobalSearchScope.projectScope(project)
         val written = mutableListOf<String>()
-        PsiSearchHelper.getInstance(project).processAllFilesWithWord("paraglide", scope, { other ->
+        // The specifier is a string: a search of the code alone would never reach it.
+        PsiSearchHelper.getInstance(project).processAllFilesWithWordInLiterals("paraglide", scope) { other ->
             if (other != file) IMPORT.find(other.viewProvider.contents)?.let { written += it.groupValues[1] }
             written.none { !it.startsWith(".") }
-        }, true)
+        }
         // An alias (`$lib/…`, `@/…`) reads the same from every file; a relative path does not.
         written.firstOrNull { !it.startsWith(".") }?.let { return it }
         val from = file.virtualFile?.parent ?: return DEFAULT_SPECIFIER

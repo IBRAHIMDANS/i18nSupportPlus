@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.plugin.ide.launchActionAndWait
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.intellij.openapi.ui.TestDialogManager
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
 /**
@@ -23,7 +24,7 @@ class ExtractParaglideTest : ExtractionTestBase() {
             myFixture.configureByText(file, source)
             TestDialogManager.setTestInputDialog(predefinedTextInputDialog(key))
             myFixture.launchActionAndWait(myFixture.findSingleIntention(hint))
-            myFixture.checkResult(patched)
+            assertEquals(patched, myFixture.editor.document.text)
         }
 
     @Test
@@ -34,7 +35,7 @@ class ExtractParaglideTest : ExtractionTestBase() {
 
     @Test
     fun aTemplateLiteralPassesItsVariable() = extract(
-        "import { m } from './paraglide/messages.js';\nexport const greet = (name) => `Hello <caret>\${name}!`;",
+        "import { m } from './paraglide/messages.js';\nexport const greet = (name) => `Hel<caret>lo \${name}!`;",
         "import { m } from './paraglide/messages.js';\nexport const greet = (name) => m.greeting({ name });",
         key = "greeting"
     )
