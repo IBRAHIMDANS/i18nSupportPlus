@@ -47,6 +47,7 @@ open class JsLang : Lang {
          *    itself is more precise than matching a bare string literal.
          *  - vue-i18n's `<i18n-t keypath>` and `v-t` directive hold the key in template markup,
          *    outside any call.
+         *  - Paraglide's `m.hello()` holds no string at all: the key is the member's name.
          */
         private val SYNTAX_OWNED_EXTRACTORS: List<KeyExtractor> = listOf(
             REACT_INTL_EXTRACTOR,
@@ -57,6 +58,7 @@ open class JsLang : Lang {
             SvelteI18nExtractor(),
             VueI18nKeypathExtractor(),
             VueTDirectiveExtractor(),
+            ParaglideMessageExtractor(),
         )
     }
 
@@ -160,6 +162,7 @@ private fun frameworkOf(extractor: KeyExtractor): String? = when (extractor) {
     is SvelteI18nExtractor -> "svelte-i18n"
     is VueI18nKeypathExtractor, is VueTDirectiveExtractor -> "vue-i18n"
     is LinguiTransKeyExtractor -> "lingui"
+    is ParaglideMessageExtractor -> "paraglide"
     is XmlAttributeKeyExtractor -> "i18next"
     else -> null
 }
