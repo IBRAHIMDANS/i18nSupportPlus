@@ -234,6 +234,11 @@ class KeyResolutionFixtureTest : PlatformBaseTest() {
     }
 
     @Test
+    fun `the tooltip of a key without namespace names the default one`() = withSingle {
+        assertSays(tooltip("src/DefaultMissing.tsx"), "No namespace in the key: default 'common'", "Looked up in", "'missing' does not exist")
+    }
+
+    @Test
     fun `the tooltip of a missing first segment`() = withSingle {
         assertSays(tooltip("src/MissingKey.tsx"), "'nope' does not exist at the top of these files")
     }

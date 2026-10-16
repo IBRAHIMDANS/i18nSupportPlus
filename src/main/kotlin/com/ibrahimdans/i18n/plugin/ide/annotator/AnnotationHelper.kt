@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.annotator
 
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideTechnology
 import com.ibrahimdans.i18n.plugin.ide.annotator.KeyDiagnosis.NamespaceOrigin
 import com.ibrahimdans.i18n.plugin.ide.quickfix.CreateKeyDialogQuickFix
 import com.ibrahimdans.i18n.plugin.ide.quickfix.CreateMissingKeysQuickFix
@@ -144,15 +145,16 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
         val module = file.hostVirtualFile()?.let { ModuleSources.owner(config.modules, ModuleSources.FilePath.of(it, basePath)) }
         // Flat keys are never split, whatever the template says (RawKeyParser).
         val syntax = module?.takeUnless { config.usesFlatKeys() }?.let { KeyTemplate.parse(it.keyTemplate) }
-        val origin = when {
-            fullKey.ns != null -> if (syntax is KeySyntax.Namespaced) NamespaceOrigin.KEY_TEMPLATE else NamespaceOrigin.WRITTEN
-            !fullKey.namespaces.isNullOrEmpty() -> NamespaceOrigin.CALL
-            syntax == KeySyntax.NoNamespace -> NamespaceOrigin.KEY_TEMPLATE_DEFAULT
-            else -> NamespaceOrigin.DEFAULT
-        }
         val namespaces = fullKey.lookupNamespaces().ifEmpty { config.defaultNamespaces() }
         val sourceService = project.service<LocalizationSourceService>()
         val searched = sourceService.findReadSources(fullKey, file)
+        val origin = when {
+            fullKey.ns != null -> if (syntax is KeySyntax.Namespaced) NamespaceOrigin.KEY_TEMPLATE else NamespaceOrigin.WRITTEN
+            !fullKey.namespaces.isNullOrEmpty() -> NamespaceOrigin.CALL
+            module?.preset == PARAGLIDE || readsParaglideMessages(searched, project) -> NamespaceOrigin.NONE
+            syntax == KeySyntax.NoNamespace -> NamespaceOrigin.KEY_TEMPLATE_DEFAULT
+            else -> NamespaceOrigin.DEFAULT
+        }
         val outside = if (module == null || searched.isNotEmpty()) emptyList() else {
             sourceService.findNamespaceFiles(namespaces, project).filterNot { source ->
                 source.virtualFile()?.let { ModuleSources.contains(module, ModuleSources.FilePath.of(it, basePath)) } ?: true
@@ -171,9 +173,20 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
         )
     }
 
+    /** Every file [searched] is a message file of an inlang project: one per locale, no namespace. */
+    private fun readsParaglideMessages(searched: List<LocalizationSource>, project: Project): Boolean {
+        if (searched.isEmpty() || ParaglideTechnology.projects(project).isEmpty()) return false
+        val messages = ParaglideTechnology().findSourcesByConfiguration(project).mapTo(HashSet()) { it.displayPath }
+        return searched.all { it.displayPath in messages }
+    }
+
     private fun LocalizationSource.virtualFile() = (tree?.value() ?: host)?.containingFile?.virtualFile
 
     /** Opens the plugin's settings: modules, key templates, separators, translations root. */
+    private companion object {
+        const val PARAGLIDE = "paraglide"
+    }
+
     private class OpenSettingsFix : IntentionAction, LowPriorityAction {
         override fun getText(): String = PluginBundle.getMessage("annotator.diagnosis.open.settings")
         override fun getFamilyName(): String = text

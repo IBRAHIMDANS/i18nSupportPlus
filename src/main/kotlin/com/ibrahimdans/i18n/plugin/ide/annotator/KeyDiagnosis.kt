@@ -46,6 +46,9 @@ data class KeyDiagnosis(
 
         /** The module's key template (`{key}`) reads none: the default namespaces. */
         KEY_TEMPLATE_DEFAULT,
+
+        /** The message files hold no namespace, one file per locale (Paraglide): nothing to say about it. */
+        NONE,
     }
 
     /** The tooltip lines, in the IDE's language. */
@@ -61,10 +64,17 @@ data class KeyDiagnosis(
             NamespaceOrigin.CALL -> msg("annotator.diagnosis.ns.call", ns)
             NamespaceOrigin.DEFAULT -> msg("annotator.diagnosis.ns.default", ns)
             NamespaceOrigin.KEY_TEMPLATE_DEFAULT -> msg("annotator.diagnosis.ns.template.default", ns, keyTemplate.orEmpty())
+            NamespaceOrigin.NONE -> null
         }
-        val first = module?.let { msg("annotator.diagnosis.module", reading, it) } ?: reading
+        val first = when {
+            module == null -> reading
+            reading == null -> msg("annotator.diagnosis.module.only", module)
+            else -> msg("annotator.diagnosis.module", reading, module)
+        }
         val where = when {
             searched.isNotEmpty() -> msg("annotator.diagnosis.searched", files(searched))
+            origin == NamespaceOrigin.NONE ->
+                module?.let { msg("annotator.diagnosis.no.message.file.module", it) } ?: msg("annotator.diagnosis.no.message.file.project")
             module != null && outsideModule.isNotEmpty() ->
                 msg("annotator.diagnosis.outside.module", ns, module, files(outsideModule))
             module != null -> msg("annotator.diagnosis.no.file.module", ns, module)
