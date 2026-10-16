@@ -220,12 +220,81 @@ class TranslationChangesDialogTest : PlatformBaseTest() {
         Assertions.assertEquals(listOf("web"), plan.batches.map { it.module?.name }, "no batch for admin")
     }
 
+    private val twoReferences = config.copy(
+        modules = listOf(
+            ModuleConfig(name = "web", rootDirectory = "src/apps/web"),
+            ModuleConfig(name = "admin", rootDirectory = "src/apps/admin", referenceLocale = "fr"),
+        )
+    )
+
+    /** `web` translates from `en` and `admin` from `fr`; each changes its own reference. */
+    private fun twoReferenceChanges(): TranslationChanges {
+        val webEn = addFileToProject("apps/web/locales/en/common.json", """{"title": "Web app"}""")
+        addFileToProject("apps/web/locales/fr/common.json", """{"title": "Web"}""")
+        addFileToProject("apps/admin/locales/en/common.json", """{"heading": "Admin"}""")
+        val adminFr = addFileToProject("apps/admin/locales/fr/common.json", """{"heading": "Tableau d'administration"}""")
+        return changes(webEn to """{"title": "Web"}""", adminFr to """{"heading": "Administration"}""")
+    }
+
+    /**
+     * With `fr` chosen, the lagging locales are compared with `fr`: `admin`'s `en` is proposed from
+     * its `fr` text, and `web`, which translates from `en`, is left out and named.
+     */
+    @Test
+    fun `another reference chosen proposes the lagging locales of the modules translating from it`() = myFixture.runWithConfig(twoReferences) {
+        val found = twoReferenceChanges()
+        Assertions.assertEquals("en", found.referenceLocale, "the project's reference by default")
+        Assertions.assertEquals(listOf("en", "fr"), found.references)
+
+        val fr = ReadAction.compute<TranslationChanges, RuntimeException> { LocalTranslationChanges.against(project, found.changes, "fr") }
+
+        Assertions.assertEquals("fr", fr.referenceLocale)
+        Assertions.assertEquals(listOf(LaggingLocale("common", listOf("heading"), "en")), fr.lagging)
+        val plan = LaggingRetranslation.planOf(project, fr)
+        Assertions.assertEquals(listOf("admin"), plan.batches.map { it.module?.name })
+        Assertions.assertEquals(listOf("web"), plan.otherReference.map { it.name })
+        val previews = LaggingRetranslation.translate(plan.batches, engine, "fr", EmptyProgressIndicator())!!
+        Assertions.assertEquals(
+            listOf(MachineFill.Item("common:heading", "Tableau d'administration", current = "Admin")),
+            previews.single().proposals.map { it.item },
+            "translated from admin's fr"
+        )
+    }
+
+    @Test
+    fun `the project reference keeps the comparison of a single reference`() = myFixture.runWithConfig(twoReferences) {
+        val found = twoReferenceChanges()
+
+        val plan = LaggingRetranslation.planOf(project, found)
+
+        Assertions.assertEquals(listOf("web"), plan.batches.map { it.module?.name })
+        Assertions.assertEquals(listOf("admin"), plan.otherReference.map { it.name })
+        Assertions.assertEquals(found, ReadAction.compute<TranslationChanges, RuntimeException> { LocalTranslationChanges.against(project, found.changes, "en") })
+    }
+
+    @Test
+    fun `the dialog offers the references of the modules and compares with the one picked`() = myFixture.runWithConfig(twoReferences) {
+        val dialog = TranslationChangesDialog(project, twoReferenceChanges())
+        try {
+            Assertions.assertTrue(dialog.reference.isVisible)
+            Assertions.assertEquals("en", dialog.reference.selectedItem)
+            dialog.reference.selectedItem = "fr"
+            Assertions.assertEquals("fr", dialog.shown.referenceLocale)
+            Assertions.assertEquals(listOf(LaggingLocale("common", listOf("heading"), "en")), dialog.shown.lagging)
+            dialog.reference.selectedItem = "en"
+            Assertions.assertEquals(listOf(LaggingLocale("common", listOf("title"), "fr")), dialog.shown.lagging)
+        } finally {
+            Disposer.dispose(dialog.disposable)
+        }
+    }
+
     @Test
     fun `the button shows on the lagging view only`() = myFixture.runWithConfig(config) {
         val en = addFileToProject("locales/en/common.json", """{"save": "Save all"}""")
         addFileToProject("locales/fr/common.json", """{"save": "Enregistrer"}""")
         val dialog = TranslationChangesDialog(project, changes(en to """{"save": "Save"}"""))
         try {
+            Assertions.assertFalse(dialog.reference.isVisible, "a single reference: nothing to pick")
             Assertions.assertFalse(dialog.retranslate.isVisible, "all the changes: nothing to retranslate from there")
             dialog.showLaggingOnly(true)
             Assertions.assertTrue(dialog.retranslate.isVisible)
