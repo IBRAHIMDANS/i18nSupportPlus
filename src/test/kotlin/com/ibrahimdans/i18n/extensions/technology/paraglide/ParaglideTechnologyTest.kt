@@ -1,7 +1,10 @@
 package com.ibrahimdans.i18n.extensions.technology.paraglide
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.ide.inspection.UntranslatedValueInspection
+import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.components.service
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -60,5 +63,27 @@ class ParaglideTechnologyTest : PlatformBaseTest() {
         addFileToProject(".vscode/settings.json", settings("./messages/{locale}.json"))
         addFileToProject("messages/en.json", """{"a": "A"}""")
         assertTrue(sources().isEmpty())
+    }
+
+    /**
+     * A message file the scan finds and `settings.json` declares is one source, not two: listed twice,
+     * `en.json` found itself as the reference locale's file, and every value read as untranslated.
+     */
+    @Test
+    fun aDeclaredMessageFileIsOneSourceAndTheReferenceIsNotItsOwnCopy() {
+        addFileToProject("project.inlang/settings.json", settings("./messages/{locale}.json"))
+        // Sentences: a single word may well be the same in every language, and is never reported.
+        addFileToProject("messages/en.json", """{"hello": "Hello there world", "only": "Only in English"}""")
+        addFileToProject("messages/fr.json", """{"hello": "Hello there world"}""")
+        val paths = ReadAction.compute<List<String>, RuntimeException> {
+            project.service<LocalizationSourceService>().findAllSources(project).map { it.displayPath }
+        }
+        assertEquals(paths.distinct(), paths)
+        myFixture.enableInspections(UntranslatedValueInspection::class.java)
+        val untranslated = "Value identical to the reference locale: not translated?"
+        myFixture.configureFromExistingVirtualFile(myFixture.findFileInTempDir("messages/en.json"))
+        assertTrue(myFixture.doHighlighting().none { it.description == untranslated }, "the reference itself")
+        myFixture.configureFromExistingVirtualFile(myFixture.findFileInTempDir("messages/fr.json"))
+        assertEquals(1, myFixture.doHighlighting().count { it.description == untranslated }, "a value copied from en")
     }
 }

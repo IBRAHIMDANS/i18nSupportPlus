@@ -304,9 +304,10 @@ class LocalizationSourceService {
         cache.all?.let { cached -> if (allValid(cached)) return cached }
         val config = Settings.getInstance(project).config()
         val configured = configuredSources(project, config)
-        // A file whose namespace a technology states is listed once, under that namespace: the
-        // locale heuristic alone would also read a Transloco scope file as the default namespace.
-        val claimed = configured.filter { it.namespace != null }.mapTo(HashSet()) { it.displayPath }
+        // A file whose namespace or locale a technology states is listed once, as it states it: the
+        // locale heuristic alone would also read a Transloco scope file as the default namespace, and
+        // a Paraglide message file twice — so `en.json` found itself as its reference locale's file.
+        val claimed = configured.filter { it.namespace != null || it.locale != null }.mapTo(HashSet()) { it.displayPath }
         return (typedAllSources(project, config).filter { it.displayPath !in claimed } + configured).also { cache.all = it }
     }
 
