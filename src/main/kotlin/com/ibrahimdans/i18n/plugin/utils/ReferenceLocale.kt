@@ -20,9 +20,13 @@ internal object ReferenceLocale {
     /**
      * The locale wanted for [module], as the settings spell it, before it is matched against any
      * file: the module's own, then the preview locale, then the folding language, then `en`.
+     *
+     * No module stands for the lone configured one ([ModuleSources.lone]) when there is one: the
+     * tool window, *Fill* and the agents read such a project as one scope, while the key dialog
+     * takes the key's module. Both then translate from, record and compare the same locale.
      */
     fun wanted(module: ModuleConfig?, config: Config): String =
-        module?.referenceLocale?.takeIf { it.isNotBlank() }
+        (module ?: ModuleSources.lone(config.modules))?.referenceLocale?.takeIf { it.isNotBlank() }
             ?: config.previewLocale.takeIf { it.isNotBlank() }
             ?: config.foldingPreferredLanguage.takeIf { it.isNotBlank() }
             ?: DEFAULT

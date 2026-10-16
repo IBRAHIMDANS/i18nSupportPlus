@@ -30,4 +30,20 @@ class ReviewLocationTest {
         assertFalse(ReviewLocation.isReviewPath("/repo/locales/fr.json"))
         assertFalse(ReviewLocation.isReviewPath("/repo/.i18n-reviews-old/fr.json"))
     }
+
+    @Test
+    fun `a lone module and no module share the folder already there, the module's first`() {
+        val enabled = setOf("/repo/app", "/repo")
+        val on = { root: String -> root in enabled }
+        assertEquals("/repo/app", ReviewLocation.shared(listOf("/repo/app", "/repo"), "/repo", on))
+        assertEquals("/repo", ReviewLocation.shared(listOf("/repo/web", "/repo"), "/repo/web") { it == "/repo" })
+        assertEquals("/repo", ReviewLocation.shared(listOf(null, "/repo"), null) { it == "/repo" })
+    }
+
+    @Test
+    fun `without any folder, each scope keeps its own root, where a folder would be created`() {
+        assertEquals("/repo/app", ReviewLocation.shared(listOf("/repo/app", "/repo"), "/repo/app") { false })
+        assertEquals("/repo", ReviewLocation.shared(listOf("/repo/app", "/repo"), "/repo") { false })
+        assertNull(ReviewLocation.shared(listOf<String?>(null, null), null) { true })
+    }
 }

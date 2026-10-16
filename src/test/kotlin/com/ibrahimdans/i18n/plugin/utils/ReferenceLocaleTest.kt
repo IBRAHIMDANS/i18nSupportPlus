@@ -47,4 +47,21 @@ class ReferenceLocaleTest {
         assertNull(ReferenceLocale.declared(ModuleConfig(name = "web"), labels))
         assertEquals("en-US", ReferenceLocale.declared(ModuleConfig(name = "web", referenceLocale = "en"), labels))
     }
+
+    @Test
+    fun `without a module, the lone configured module's locale comes first`() {
+        val config = Config(previewLocale = "de", modules = listOf(ModuleConfig(name = "web", rootDirectory = "apps/web", referenceLocale = "fr")))
+        assertEquals("fr", ReferenceLocale.of(null, config, labels))
+    }
+
+    @Test
+    fun `without a module, several modules or a module without root leave the project-wide settings`() {
+        val two = Config(previewLocale = "de", modules = listOf(
+            ModuleConfig(name = "web", rootDirectory = "apps/web", referenceLocale = "fr"),
+            ModuleConfig(name = "admin", rootDirectory = "apps/admin", referenceLocale = "fr"),
+        ))
+        assertEquals("de", ReferenceLocale.of(null, two, labels))
+        val rootless = Config(previewLocale = "de", modules = listOf(ModuleConfig(name = "web", referenceLocale = "fr")))
+        assertEquals("de", ReferenceLocale.of(null, rootless, labels))
+    }
 }
