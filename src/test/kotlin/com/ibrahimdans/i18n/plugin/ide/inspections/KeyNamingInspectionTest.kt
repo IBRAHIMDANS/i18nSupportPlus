@@ -3,6 +3,8 @@ package com.ibrahimdans.i18n.plugin.ide.inspections
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.inspection.KeyNamingInspection
 import com.ibrahimdans.i18n.plugin.ide.inspection.KeyNamingInspection.Convention
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.intellij.codeInspection.ex.InspectionToolRegistrar
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.ui.InputValidator
@@ -96,11 +98,57 @@ class KeyNamingInspectionTest : PlatformBaseTest() {
         assertTrue(warnings("""{"itemCount_one": "{{count}} item", "itemCount_other": "{{count}} items"}""").isEmpty())
     }
 
+    /** A plural form renames its whole group, suffixes kept, in every locale and at the call writing the base. */
     @Test
-    fun aPluralFormIsReportedOnItsBaseWithoutRename() {
-        val warnings = warnings("""{"item_count_one": "a", "item_count_other": "b"}""")
+    fun renameMovesAPluralGroup() {
+        myFixture.addFileToProject("locales/fr/common.json", """{"item_count_one": "{{count}} article", "item_count_other": "{{count}} articles"}""")
+        myFixture.addFileToProject("src/Cart.js", "export const c = (t, count) => t('common:item_count', { count });")
+        answer("itemCount")
+
+        val warnings = warnings("""{"item_count_one": "{{count}} item", "item_count_other": "{{count}} items"}""")
         assertEquals(2, warnings.size, "$warnings")
+        val fix = myFixture.getAllQuickFixes().first { it.familyName == "Rename key…" }
+        assertEquals("Rename to 'itemCount'…", fix.text)
+        myFixture.launchAction(fix)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        assertEquals("""{"itemCount_one": "{{count}} item", "itemCount_other": "{{count}} items"}""", myFixture.editor.document.text)
+        assertEquals("""{"itemCount_one": "{{count}} article", "itemCount_other": "{{count}} articles"}""", text("locales/fr/common.json"))
+        assertEquals("export const c = (t, count) => t('common:itemCount', { count });", text("src/Cart.js"))
+    }
+
+    /** Where keys are flat, the whole property is renamed, each segment converted. */
+    @Test
+    fun renameMovesAFlatKey() = myFixture.runWithConfig(Config(defaultNs = "common", flatKeys = true)) {
+        myFixture.addFileToProject("locales/fr/common.json", """{"home.page_title": "Accueil"}""")
+        myFixture.addFileToProject("src/Home.js", "export const h = (t) => t('home.page_title');")
+        answer("home.pageTitle")
+
+        assertEquals(listOf("Key 'home.page_title' does not follow the camelCase convention"), warnings("""{"home.page_title": "Home"}"""))
+        val fix = myFixture.getAllQuickFixes().single { it.familyName == "Rename key…" }
+        assertEquals("Rename to 'home.pageTitle'…", fix.text)
+        myFixture.launchAction(fix)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        assertEquals("""{"home.pageTitle": "Home"}""", myFixture.editor.document.text)
+        assertEquals("""{"home.pageTitle": "Accueil"}""", text("locales/fr/common.json"))
+        assertEquals("export const h = (t) => t('home.pageTitle');", text("src/Home.js"))
+    }
+
+    /** A nested file's name holding the key separator is reachable by no key path: no rename. */
+    @Test
+    fun aNestedNameHoldingTheSeparatorHasNoRename() {
+        warnings("""{"home.page_title": "b"}""")
         assertTrue(myFixture.getAllQuickFixes().none { it.familyName == "Rename key…" })
+    }
+
+    /** The rename dialog answers [name], its confirmation yes. */
+    private fun answer(name: String) {
+        TestDialogManager.setTestInputDialog(object : TestInputDialog {
+            override fun show(message: String): String = name
+            override fun show(message: String, validator: InputValidator?): String = name
+        })
+        TestDialogManager.setTestDialog { Messages.YES }
     }
 
     @Test

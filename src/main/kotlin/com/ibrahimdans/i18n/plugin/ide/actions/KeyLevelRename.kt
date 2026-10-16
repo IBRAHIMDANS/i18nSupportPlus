@@ -14,6 +14,7 @@ import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.review.ReviewMigration
 import com.ibrahimdans.i18n.plugin.review.ReviewMove
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
+import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.ibrahimdans.i18n.plugin.utils.unQuote
@@ -49,6 +50,10 @@ import com.intellij.psi.util.PsiTreeUtil
  * confirmation. A level whose new name already exists next to it is refused rather than merged.
  *
  * The reviews of every key under the level follow it ([Plan.reviews]), per locale and module.
+ *
+ * A level naming a plural group (`itemCount` for `itemCount_one` / `itemCount_other`) moves every
+ * form, suffixes kept. Where keys are flat, a level is a whole key (`home.title`): it is never cut
+ * at the key separator.
  */
 internal class KeyLevelRename(
     private val project: Project,
@@ -80,24 +85,31 @@ internal class KeyLevelRename(
 
     /** The level's property value in each source holding it: the nodes the rename moves. */
     private val levelNodes: List<PsiElement> by lazy {
-        sources.mapNotNull { source -> nodeAt(source, path) }
+        sources.flatMap { source -> nodesAt(source, path) }
     }
+
+    /** The separator a written key is cut at, or null when keys are flat and a key is one segment. */
+    private val separator: String? = config.keySeparator.takeUnless { config.usesFlatKeys() || it.isEmpty() }
 
     /** Builds the plan for [newName]; needs a read action. */
     fun plan(newName: String): Plan {
-        val conflict = sources.any { nodeAt(it, path.dropLast(1) + newName) != null }
+        val conflict = sources.any { nodesAt(it, path.dropLast(1) + newName).isNotEmpty() }
         if (conflict || levelNodes.isEmpty()) return Plan(emptyList(), levelNodes.size, 0, emptyList(), conflict)
         val fileEdits = levelNodes.mapNotNull { renamedProperty(it, newName) }
         val found = codeEdits(newName)
-        val reviews = levelNodes.mapNotNull { node -> ReviewMigration.moveOf(node) { it.dropLast(1) + newName } }.distinct()
-        return Plan((fileEdits + found.edits).distinct(), fileEdits.size, found.edits.size, found.dynamic, false, reviews)
+        val reviews = levelNodes.mapNotNull { node -> ReviewMigration.moveOf(node) { it.dropLast(1) + renamed(it.last(), newName) } }.distinct()
+        return Plan((fileEdits + found.edits).distinct(), fileEdits.map { it.document }.distinct().size, found.edits.size, found.dynamic, false, reviews)
     }
 
-    private fun nodeAt(source: LocalizationSource, keyPath: List<String>): PsiElement? {
-        val ref = Resolver.resolveCompositeKey(keyPath.map { Literal(it) }, source) ?: return null
-        if (ref.unresolved.isNotEmpty()) return null
-        return ref.element?.value()
-    }
+    /** The node at [keyPath] in [source], or the forms of the plural group it names. */
+    private fun nodesAt(source: LocalizationSource, keyPath: List<String>): List<PsiElement> =
+        Resolver.resolve(keyPath.map { Literal(it) }, source, config.pluralSeparator)
+            .filter { it.unresolved.isEmpty() }
+            .mapNotNull { it.element?.value() }
+
+    /** A property [name] of the level renamed: the level's own, or one of its plural forms, suffix kept. */
+    private fun renamed(name: String, newName: String): String =
+        if (name != levelName && name.startsWith(levelName)) newName + name.removePrefix(levelName) else newName
 
     private fun renamedProperty(node: PsiElement, newName: String): Edit? {
         val property = TranslationPsi.propertyOf(node, strict = false) ?: node.parent ?: return null
@@ -105,7 +117,8 @@ internal class KeyLevelRename(
         val document = documentOf(nameElement) ?: return null
         val raw = nameElement.text
         val quote = raw.firstOrNull()?.takeIf { it in QUOTES && raw.length > 1 && raw.last() == it }
-        return Edit(document, nameElement.textRange, if (quote != null) "$quote$newName$quote" else newName)
+        val renamed = renamed(if (quote != null) raw.substring(1, raw.length - 1) else raw, newName)
+        return Edit(document, nameElement.textRange, if (quote != null) "$quote$renamed$quote" else renamed)
     }
 
     private class Found(val edits: List<Edit>, val dynamic: List<String>)
@@ -139,19 +152,25 @@ internal class KeyLevelRename(
                 true
             },
             config.searchScope(project),
-            levelName,
+            searchWord,
             UsageSearchContext.ANY,
             true
         )
         return Found(edits.toList(), dynamic.toList())
     }
 
+    /**
+     * The word the code search looks for: the level's name, or its longest word when it holds
+     * other characters — a flat key such as `home.title` is no word of the index.
+     */
+    private val searchWord: String get() = levelName.split(NON_WORD).maxByOrNull { it.length }?.takeIf { it.isNotEmpty() } ?: levelName
+
     private fun underLevel(element: PsiElement): Boolean = levelNodes.any { PsiTreeUtil.isAncestor(it, element, false) }
 
     /** True when a dynamic key's static text spells the level at its place: `button.${action}`. */
     private fun writesLevel(key: String): Boolean {
         val bare = if (config.nsSeparator.isNotEmpty() && key.contains(config.nsSeparator)) key.substringAfter(config.nsSeparator) else key
-        val segments = bare.split(config.keySeparator)
+        val segments = separator?.let { bare.split(it) } ?: listOf(bare)
         return segments.size > path.size - 1 && segments.take(path.size) == path
     }
 
@@ -171,11 +190,12 @@ internal class KeyLevelRename(
         val quoted = text.length > 1 && text.first() in QUOTES && text.last() == text.first()
         val key = if (quoted) text.substring(1, text.length - 1) else text
         val nsPart = if (fullKey.ns != null && config.nsSeparator.isNotEmpty() && key.contains(config.nsSeparator)) key.substringBefore(config.nsSeparator) + config.nsSeparator else ""
-        val segments = key.removePrefix(nsPart).split(config.keySeparator).toMutableList()
+        val written = key.removePrefix(nsPart)
+        val segments = (separator?.let { written.split(it) } ?: listOf(written)).toMutableList()
         val writtenIndex = levelIndex - prefixSize
         if (segments.getOrNull(writtenIndex) != levelName) return null
         segments[writtenIndex] = newName
-        val renamed = nsPart + segments.joinToString(config.keySeparator)
+        val renamed = nsPart + segments.joinToString(separator ?: "")
         val document = documentOf(literal) ?: return null
         return Edit(document, literal.textRange, if (quoted) "${text.first()}$renamed${text.last()}" else renamed)
     }
@@ -223,16 +243,19 @@ internal class KeyLevelRename(
         private const val DYNAMIC = "\${"
         private const val KEY_PREFIX = "keyPrefix"
         private const val USE_TRANSLATION = "useTranslation"
+        private val NON_WORD = Regex("[^A-Za-z0-9_$]+")
 
         /**
          * The level [property] stands for — a key-value of a translation file, holding other keys or
          * a value — in that file's namespace, or null when the file is no translation source.
+         * [plural] names the group of a plural form instead: `itemCount` for `itemCount_one`.
          */
-        fun inTranslationFile(property: PsiElement): KeyLevelRename? {
+        fun inTranslationFile(property: PsiElement, plural: Boolean = false): KeyLevelRename? {
             val file = property.containingFile ?: return null
             val source = TranslationFileScope.sourceOf(file) ?: return null
             val config = Settings.getInstance(file.project).config()
-            val path = TranslationFileKeys.pathOf(property).takeIf { it.isNotEmpty() } ?: return null
+            val path = TranslationFileKeys.pathOf(property).takeIf { it.isNotEmpty() }
+                ?.let { if (plural) it.dropLast(1) + PluralKey.stripSuffix(it.last(), config.pluralSeparator) else it } ?: return null
             val namespace = TranslationDataLoader.extractNamespace(source, config.defaultNamespaces().first())
             return KeyLevelRename(file.project, listOf(namespace), path, config, file)
         }

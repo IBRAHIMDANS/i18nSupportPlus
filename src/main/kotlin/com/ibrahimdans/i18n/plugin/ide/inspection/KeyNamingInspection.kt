@@ -30,8 +30,11 @@ import java.text.Normalizer
  * own, which a segment must match whole. An invalid pattern reports nothing.
  *
  * *Rename to '…'…* opens the key rename with the name converted to the convention filled in: the key
- * moves in every locale and at every call site, as Shift+F6 does. Not offered on a plural form,
- * whose siblings must move together, nor where keys are flat.
+ * moves in every locale and at every call site, as Shift+F6 does. On a plural form the whole group
+ * moves (`item_count_one` and `item_count_other` become `itemCount_one` and `itemCount_other`, and
+ * `t('item_count', { count })` becomes `t('itemCount', { count })`). Where keys are flat the whole
+ * property is renamed, each segment converted. Not offered on a nested-file name holding the key
+ * separator, which no key path can reach.
  */
 class KeyNamingInspection : LocalInspectionTool() {
 
@@ -64,12 +67,17 @@ class KeyNamingInspection : LocalInspectionTool() {
                 val segments = if (config.keySeparator.isEmpty()) listOf(base) else base.split(config.keySeparator)
                 if (segments.all { it.isEmpty() || rule.matches(it) }) return
                 val plural = base != entry.name
-                val renamable = !plural && !config.usesFlatKeys() && segments.size == 1
-                val fixes = if (renamable) arrayOf<LocalQuickFix>(RenameKeyFix(base, rule.convert(base), entry.literal != null)) else emptyArray()
+                val flat = config.usesFlatKeys()
+                val renamable = flat || segments.size == 1
+                val fixes = if (renamable) arrayOf<LocalQuickFix>(RenameKeyFix(base, converted(rule, segments, config.keySeparator), entry.literal != null, plural)) else emptyArray()
                 holder.registerProblem(entry.keyElement, rule.problem(entry.name), *fixes)
             }
         }
     }
+
+    /** [segments] converted one by one, those already following [rule] kept, joined back; null when one cannot be. */
+    private fun converted(rule: Rule, segments: List<String>, separator: String): String? =
+        segments.map { if (it.isEmpty() || rule.matches(it)) it else rule.convert(it) ?: return null }.joinToString(separator)
 
     /** The naming conventions offered, each with the name the options and the messages show; none for a custom pattern. */
     enum class Convention(val label: String?) {
@@ -123,9 +131,15 @@ class KeyNamingInspection : LocalInspectionTool() {
 /**
  * Opens the key rename ([RenameI18nKeyHandler.renameLevel]) on the reported key [name], its
  * [converted] spelling filled in when the convention gives one: the user confirms or edits the
- * name, and the key moves in every locale and call site.
+ * name, and the key moves in every locale and call site. On a [plural] form, the rename takes the
+ * group's base: every form moves, suffixes kept.
  */
-private class RenameKeyFix(private val name: String, private val converted: String?, private val leaf: Boolean) : LocalQuickFix {
+private class RenameKeyFix(
+    private val name: String,
+    private val converted: String?,
+    private val leaf: Boolean,
+    private val plural: Boolean,
+) : LocalQuickFix {
 
     override fun getName(): String =
         if (converted != null) PluginBundle.message("inspection.keyNaming.fix.name", converted) else familyName
@@ -145,7 +159,7 @@ private class RenameKeyFix(private val name: String, private val converted: Stri
      */
     override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
         val property = TranslationPsi.propertyOf(descriptor.psiElement ?: return, strict = false) ?: return
-        val level = KeyLevelRename.inTranslationFile(property) ?: return
+        val level = KeyLevelRename.inTranslationFile(property, plural) ?: return
         ApplicationManager.getApplication().invokeLater({
             if (property.isValid) RenameI18nKeyHandler().renameLevel(project, level, converted ?: name, leaf)
         }, project.disposed)
