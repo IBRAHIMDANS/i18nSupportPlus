@@ -93,7 +93,10 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
 
     private fun resolveAllTranslations(hovered: PsiElement): String? {
         val project = hovered.project
-        val (sourceElement, fullKey) = EditTranslationAtCaretAction.keyAt(hovered) ?: return null
+        // The hovered token, or the element up to two levels above it holding the key: Paraglide's
+        // `m.hello` is claimed as a whole, below which `hello` is a mere identifier.
+        val (sourceElement, fullKey) = generateSequence(hovered) { it.parent }.take(3)
+            .firstNotNullOfOrNull(EditTranslationAtCaretAction::keyAt) ?: return null
 
         val sources = project.service<LocalizationSourceService>().findReadSources(fullKey, sourceElement)
         if (sources.isEmpty()) return null

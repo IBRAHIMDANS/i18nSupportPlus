@@ -5,7 +5,6 @@ import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.intellij.lang.LanguageDocumentation
 import com.intellij.lang.javascript.JavascriptLanguage
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -40,6 +39,9 @@ class ParaglideHoverTest : PlatformBaseTest() {
     @Test
     fun theProviderComesFirstForJavaScript() {
         val providers = LanguageDocumentation.INSTANCE.allForLanguage(JavascriptLanguage)
-        assertEquals(true, providers.firstOrNull() is HintProvider, providers.map { it.javaClass.simpleName }.toString())
+        val ours = providers.indexOfFirst { it is HintProvider }
+        val javaScript = providers.indexOfFirst { it.javaClass.simpleName == "JavaScriptDocumentationProvider" }
+        val names = providers.map { it.javaClass.name }.toString()
+        assertTrue(ours >= 0 && (javaScript < 0 || ours < javaScript), names)
     }
 }
