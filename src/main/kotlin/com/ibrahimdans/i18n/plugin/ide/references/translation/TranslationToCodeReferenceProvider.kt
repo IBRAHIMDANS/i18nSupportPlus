@@ -74,10 +74,10 @@ class ReferencesAccumulator(
     fun process() = {
         entry: PsiElement, _:Int ->
         // Paraglide's generated code names every message: never a use (see ParaglideOutdir).
-        if (entry.containingFile?.virtualFile?.let(ParaglideOutdir::contains) == true) return@process true
+        val generated = entry.containingFile?.virtualFile?.let(ParaglideOutdir::contains) == true
         val languages = Extensions.LANG.extensionList
         val text = entry.text.unQuote()
-        if (namesKey(text) && underExpectedNamespace(entry, text, languages)) {
+        if (!generated && namesKey(text) && underExpectedNamespace(entry, text, languages)) {
             val entryRef = languages.stream().map {lang -> lang.resolveLiteral(entry)}.filter {it!=null}.findFirst()
             entryRef.ifPresent { res.add(it) }
         }
