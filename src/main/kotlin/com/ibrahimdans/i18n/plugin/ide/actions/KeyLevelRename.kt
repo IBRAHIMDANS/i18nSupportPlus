@@ -294,7 +294,8 @@ internal class KeyLevelRename(
             val key = PARAGLIDE_MESSAGE.extract(member).keyElements.singleOrNull()?.text ?: return null
             val config = Settings.getInstance(member.project).config()
             val path = if (config.keySeparator.isEmpty()) listOf(key) else key.split(config.keySeparator)
-            return KeyLevelRename(member.project, config.defaultNamespaces(), path, config, member)
+            // A message file has no namespace: an empty list lets the lookup reach every message file.
+            return KeyLevelRename(member.project, emptyList(), path, config, member)
         }
 
         /** Whether [file] belongs to a Paraglide project: its module's preset says so, or an inlang project exists. */
@@ -312,6 +313,8 @@ internal class KeyLevelRename(
             val config = Settings.getInstance(file.project).config()
             val path = TranslationFileKeys.pathOf(property).takeIf { it.isNotEmpty() }
                 ?.let { if (plural) it.dropLast(1) + PluralKey.stripSuffix(it.last(), config.pluralSeparator) else it } ?: return null
+            // A Paraglide message file is named after its locale, not a namespace: every locale's file must follow.
+            if (isParaglideProject(file)) return KeyLevelRename(file.project, emptyList(), path, config, file)
             val namespace = TranslationDataLoader.extractNamespace(source, config.defaultNamespaces().first())
             return KeyLevelRename(file.project, listOf(namespace), path, config, file)
         }

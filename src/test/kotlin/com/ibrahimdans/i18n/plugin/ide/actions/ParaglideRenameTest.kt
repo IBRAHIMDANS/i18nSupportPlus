@@ -10,7 +10,7 @@ import com.intellij.openapi.ui.TestDialogManager
 import com.intellij.openapi.ui.TestInputDialog
 import com.intellij.psi.PsiManager
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -67,7 +67,8 @@ class ParaglideRenameTest : PlatformBaseTest() {
         assertTrue(text("src/Other.ts").contains("m.greeting()"), text("src/Other.ts"))
         assertTrue(text("messages/en.json").contains("\"greeting\": \"Hello\""), text("messages/en.json"))
         assertTrue(text("messages/fr.json").contains("\"greeting\": \"Bonjour\""), text("messages/fr.json"))
-        assertEquals("export const hello = () => 'Hello';", text("src/paraglide/messages/hello.js"), "the generated code is left to Paraglide")
+        // Qualified: BasePlatformTestCase inherits JUnit 3's assertEquals(message, expected, actual), which would win here.
+        Assertions.assertEquals("export const hello = () => 'Hello';", text("src/paraglide/messages/hello.js"), "the generated code is left to Paraglide")
     }
 
     /** A name that is no identifier switches the call sites to the index form. */
@@ -104,4 +105,5 @@ class ParaglideRenameTest : PlatformBaseTest() {
         assertTrue(text("src/Other.ts").contains("m.greeting()"), text("src/Other.ts"))
         assertTrue(text("messages/fr.json").contains("\"greeting\""), text("messages/fr.json"))
     }
+
 }
