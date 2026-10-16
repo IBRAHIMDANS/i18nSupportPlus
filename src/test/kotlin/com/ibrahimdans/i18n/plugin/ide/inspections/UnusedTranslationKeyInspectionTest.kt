@@ -60,6 +60,8 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
             "{\"cart\": [{\"selectors\": [\"n\"], \"match\": {\"n=one\": \"One\", \"n=other\": \"Many\"}}]}"
         )
         assertTrue(warnings.isEmpty(), "\$warnings")
+    }
+
     /** Paraglide's inlang settings configure the project: never translation keys, while its message files still are. */
     @Test
     fun testInlangSettingsAreNotTranslations() {
