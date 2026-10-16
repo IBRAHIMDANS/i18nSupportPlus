@@ -60,6 +60,12 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
             "{\"cart\": [{\"selectors\": [\"n\"], \"match\": {\"n=one\": \"One\", \"n=other\": \"Many\"}}]}"
         )
         assertTrue(warnings.isEmpty(), "\$warnings")
+    /** Paraglide's inlang settings configure the project: never translation keys, while its message files still are. */
+    @Test
+    fun testInlangSettingsAreNotTranslations() {
+        val settings = """{"baseLocale": "en", "locales": ["en"], "plugin.inlang.messageFormat": {"pathPattern": "./messages/{locale}.json"}}"""
+        assertTrue(unusedWarningsFromFile(settings, "project.inlang/settings.json").isEmpty())
+        assertEquals(1, unusedWarningsFromFile("""{"hello": "Hello"}""", "messages/en.json").size)
     }
 
     // A JSON file that is not a translation file: its keys are configuration, never unused keys.

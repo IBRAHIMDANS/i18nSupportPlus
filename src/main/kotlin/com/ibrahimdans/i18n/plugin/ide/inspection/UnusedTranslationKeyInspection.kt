@@ -83,6 +83,8 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
      * plain: every key of `package.json` and `tsconfig.json` reported as an unused translation.
      */
     private fun mayHoldTranslations(file: PsiFile): Boolean {
+        // An inlang project's `project.inlang/settings.json` (Paraglide) configures, it translates nothing.
+        if (file.originalFile.virtualFile?.parent?.name == INLANG_PROJECT) return false
         if (TranslationFileScope.sourceOf(file) != null) return true
         if (TOOL_CONFIGURATION.matches(file.name)) return false
         val config = Settings.getInstance(file.project).config()
@@ -91,6 +93,8 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
 
     private companion object {
         val MESSAGE: String get() = PluginBundle.message("inspection.unused.message")
+
+        const val INLANG_PROJECT = "project.inlang"
 
         /** The configuration files of the JavaScript and PHP tools, which hold keys that are not translations. */
         val TOOL_CONFIGURATION = Regex(
