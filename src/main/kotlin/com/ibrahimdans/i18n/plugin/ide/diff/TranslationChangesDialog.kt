@@ -16,6 +16,7 @@ import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.progress.ProgressIndicator
@@ -138,6 +139,13 @@ internal object LaggingRetranslation {
     /** The keys to retranslate in one [module] — null for the project as a whole — `locale -> items`. */
     data class Batch(val module: ModuleConfig?, val itemsByLocale: Map<String, List<MachineFill.Item>>)
 
+    /**
+     * What [batchesOf] proposes, and the modules left out of it: each translates from another
+     * locale than the reference the comparison took for the project, so the diff cannot say which
+     * of their locales lag ([TranslationChanges.referenceLocale] is project-wide).
+     */
+    data class Plan(val batches: List<Batch>, val otherReference: List<ModuleConfig>)
+
     /** What one module's preview shows. */
     data class Preview(val module: ModuleConfig?, val proposals: List<MachineFill.Proposal>)
 
@@ -160,13 +168,20 @@ internal object LaggingRetranslation {
         val title = PluginBundle.message("diff.translation.retranslate.title")
         ProgressManager.getInstance().run(object : Task.Modal(project, title, true) {
             private var previews: List<Preview>? = null
+            private var otherReference: List<ModuleConfig> = emptyList()
 
             override fun run(indicator: ProgressIndicator) {
-                previews = translate(batchesOf(project, found), provider, reference, indicator)
+                val plan = planOf(project, found)
+                otherReference = plan.otherReference
+                previews = translate(plan.batches, provider, reference, indicator)
             }
 
             override fun onSuccess() {
                 val ready = previews ?: return
+                if (otherReference.isNotEmpty()) {
+                    val names = otherReference.joinToString(", ") { moduleName(it) }
+                    Messages.showInfoMessage(project, PluginBundle.message("diff.translation.retranslate.other.reference", reference, names), title)
+                }
                 if (ready.isEmpty()) {
                     Messages.showInfoMessage(project, PluginBundle.message("diff.translation.retranslate.nothing", reference), title)
                     return
@@ -212,27 +227,42 @@ internal object LaggingRetranslation {
 
     private fun moduleName(module: ModuleConfig) = module.name.ifBlank { module.rootDirectory }
 
+    /** [planOf]'s batches. */
+    fun batchesOf(project: Project, found: TranslationChanges): List<Batch> = planOf(project, found).batches
+
     /**
      * [found]'s lagging keys by module, each with what to translate per locale. With fewer than two
      * modules the project is one scope, as *Fill Missing Translations* takes it. Reads the
      * translation files: not on the EDT for a real project.
+     *
+     * The lagging keys were found against the project-wide reference: a module whose own reference
+     * ([ReferenceLocale.of] on its locales) is another one is left out and named in
+     * [Plan.otherReference] — retranslating it would overwrite its source locale from a translation.
      */
-    fun batchesOf(project: Project, found: TranslationChanges): List<Batch> {
-        val reference = found.referenceLocale ?: return emptyList()
-        if (found.lagging.isEmpty()) return emptyList()
+    fun planOf(project: Project, found: TranslationChanges): Plan {
+        val reference = found.referenceLocale ?: return Plan(emptyList(), emptyList())
+        if (found.lagging.isEmpty()) return Plan(emptyList(), emptyList())
         val config = Settings.getInstance(project).config()
         val modules = Settings.getInstance(project).modules.filter { it.rootDirectory.isNotBlank() }
-        val scopes: List<ModuleConfig?> = if (modules.size < 2) listOf(null) else ownersOf(project, found, reference, modules, config)
+        val owners: List<ModuleConfig?> = if (modules.size < 2) listOf(null) else ownersOf(project, found, reference, modules, config)
+        val (scopes, otherReference) = owners.partition { module -> module == null || referenceOf(project, module, config) == reference }
         // The reference text each lagging key had after the change: a module holding another one is not where it changed.
         val changed = found.changes
             .filter { it.locale == reference && it.kind != TranslationChange.Kind.REMOVED }
             .associate { (it.namespace to it.path) to it.after.orEmpty() }
-        return scopes.mapNotNull { module ->
+        val batches = scopes.mapNotNull { module ->
             val translations = TranslationDataLoader.loadAllTranslations(project, module)
             val items = itemsOf(found.lagging, changed, translations, reference, config)
             if (items.isEmpty()) null else Batch(module, items)
         }
+        return Plan(batches, otherReference.filterNotNull())
     }
+
+    /** The locale [module] translates from, among its own files. */
+    private fun referenceOf(project: Project, module: ModuleConfig, config: Config): String? =
+        ReadAction.compute<String?, RuntimeException> {
+            ReferenceLocale.of(module, config, TranslationDataLoader.discoverLocales(project, module))
+        }
 
     /**
      * The modules owning a [reference] file of a namespace some key lags in — null among them for a
