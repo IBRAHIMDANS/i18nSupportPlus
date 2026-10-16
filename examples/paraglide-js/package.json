@@ -1,0 +1,16 @@
+{
+  "name": "paraglide-js-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "compile": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide",
+    "dev": "npm run compile && vite",
+    "build": "npm run compile && tsc && vite build"
+  },
+  "devDependencies": {
+    "@inlang/paraglide-js": "^2.29.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.1.0"
+  }
+}

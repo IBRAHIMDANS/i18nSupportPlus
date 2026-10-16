@@ -28,6 +28,7 @@
 
 ### Documentation
 
+- [Examples] **A Paraglide JS example project**, [examples/paraglide-js](examples/paraglide-js/README.md): Vite and TypeScript, English and French in the inlang message format, with the cases a manual check in the sandbox IDE needs — a root `$schema`, a nested key read as `m["user.profile.title"]`, a message with variants, one missing in French and one unknown at its call site, the `{ m as msg }` and `import * as m` imports, messages passed along without being called, and an `m` of another module that must stay unread
 - [Docs] **Coming from I18n Support, i18n Ally Next or Sherlock?** [docs/COMPARISON.md](docs/COMPARISON.md) now covers I18n Support, the plugin this one started from — what carries over, what is new, and that its project settings are read as they are, under the same name and file — and compares the plugin with the VS Code extensions i18n Ally Next and Sherlock, each claim sourced and dated
 - [Docs] **The Marketplace page presents the plugin as the maintained successor of I18n Support**: a fork of it, installed separately rather than as an update, that reads its project settings back as they are, with a link to [Coming from I18n Support?](docs/COMPARISON.md#coming-from-i18n-support)
 

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "hello_world": "Hello World!",
+  "greeting": "Hello {name}!",
+  "order_pending": "Your order is pending",
+  "order_paid": "Your order is paid",
+  "order_failed": "Your order failed",
+  "order_unknown": "Unknown order status",
+  "user": {
+    "profile": {
+      "title": "User Profile"
+    }
+  },
+  "cart_items": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "There is one item in your cart.",
+        "countPlural=other": "There are {count} items in your cart."
+      }
+    }
+  ],
+  "only_in_english": "Not translated yet"
+}
