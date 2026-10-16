@@ -16,20 +16,22 @@ import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
-import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import java.awt.BorderLayout
 import java.awt.Dimension
+import java.awt.FlowLayout
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -39,6 +41,10 @@ import javax.swing.table.DefaultTableModel
  * The translation changes as a table — key, locale, change, before, after — with a switch to the
  * locales left behind the reference, the follow-up a review usually asks for. On that view,
  * *Retranslate Lagging…* machine-translates them again ([LaggingRetranslation]).
+ *
+ * When configured modules translate from different locales ([TranslationChanges.references]), a
+ * combo picks the reference the lagging locales are compared with: the project's by default, and
+ * *Retranslate Lagging…* then works on the modules translating from the one chosen.
  *
  * [dialogTitle] says what the changes are compared with: the working copy by default, a branch
  * when they come from one.
@@ -52,17 +58,27 @@ class TranslationChangesDialog(
     private val model = object : DefaultTableModel() {
         override fun isCellEditable(row: Int, column: Int) = false
     }
-    private val laggingOnly = JBCheckBox(PluginBundle.message("diff.translation.lagging.only", found.lagging.size))
+
+    /** The comparison shown: [found], or the same changes against the locale [reference] picks. */
+    internal var shown: TranslationChanges = found
+        private set
+
+    private val laggingOnly = JBCheckBox()
+
+    /** Shown only when the modules translate from several locales. */
+    internal val reference = ComboBox(found.references.toTypedArray()).apply {
+        isVisible = found.references.size > 1
+        selectedItem = found.referenceLocale
+        addActionListener { (selectedItem as? String)?.let { compareWith(it) } }
+    }
 
     /** Shown on the lagging view only: what it lists is what it retranslates. */
     internal val retranslate = JButton(PluginBundle.message("diff.translation.retranslate")).apply {
-        toolTipText = PluginBundle.message("diff.translation.retranslate.tooltip", found.referenceLocale ?: "")
-        addActionListener { LaggingRetranslation.start(project, found) }
+        addActionListener { LaggingRetranslation.start(project, shown) }
     }
 
     init {
         title = dialogTitle
-        laggingOnly.isEnabled = found.lagging.isNotEmpty()
         laggingOnly.addActionListener { fill() }
         fill()
         init()
@@ -71,7 +87,14 @@ class TranslationChangesDialog(
     override fun createCenterPanel(): JComponent = JPanel(BorderLayout()).apply {
         add(JPanel(BorderLayout()).apply {
             add(laggingOnly, BorderLayout.WEST)
-            add(retranslate, BorderLayout.EAST)
+            add(JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0)).apply {
+                add(JBLabel(PluginBundle.message("diff.translation.reference")).apply {
+                    labelFor = reference
+                    isVisible = reference.isVisible
+                })
+                add(reference)
+                add(retranslate)
+            }, BorderLayout.EAST)
         }, BorderLayout.NORTH)
         add(JBScrollPane(JBTable(model)).apply { preferredSize = Dimension(820, 420) }, BorderLayout.CENTER)
     }
@@ -82,13 +105,32 @@ class TranslationChangesDialog(
         fill()
     }
 
+    /**
+     * The same changes compared with [locale]: the lagging locales and *Retranslate Lagging…* follow
+     * it. Reads the translation files under a modal progress.
+     */
+    internal fun compareWith(locale: String) {
+        if (locale == shown.referenceLocale) return
+        shown = ProgressManager.getInstance().runProcessWithProgressSynchronously<TranslationChanges, RuntimeException>(
+            { ReadAction.compute<TranslationChanges, RuntimeException> { LocalTranslationChanges.against(project, found.changes, locale) } },
+            PluginBundle.message("diff.translation.reference.progress", locale),
+            false,
+            project
+        )
+        fill()
+    }
+
     private fun fill() {
         model.setRowCount(0)
-        retranslate.isVisible = laggingOnly.isSelected && found.lagging.isNotEmpty() && found.referenceLocale != null
+        laggingOnly.text = PluginBundle.message("diff.translation.lagging.only", shown.lagging.size)
+        laggingOnly.isEnabled = shown.lagging.isNotEmpty()
+        if (!laggingOnly.isEnabled) laggingOnly.isSelected = false
+        retranslate.toolTipText = PluginBundle.message("diff.translation.retranslate.tooltip", shown.referenceLocale ?: "")
+        retranslate.isVisible = laggingOnly.isSelected && shown.lagging.isNotEmpty() && shown.referenceLocale != null
         if (laggingOnly.isSelected) {
             model.setColumnIdentifiers(arrayOf(keyColumn(), localeColumn(), changeColumn()))
-            val behind = PluginBundle.message("diff.translation.kind.lagging", found.referenceLocale ?: "")
-            found.lagging.forEach { model.addRow(arrayOf(keyOf(it.namespace, it.path), it.locale, behind)) }
+            val behind = PluginBundle.message("diff.translation.kind.lagging", shown.referenceLocale ?: "")
+            shown.lagging.forEach { model.addRow(arrayOf(keyOf(it.namespace, it.path), it.locale, behind)) }
         } else {
             model.setColumnIdentifiers(
                 arrayOf(
@@ -97,7 +139,7 @@ class TranslationChangesDialog(
                     PluginBundle.message("diff.translation.column.after")
                 )
             )
-            found.changes.forEach {
+            shown.changes.forEach {
                 model.addRow(arrayOf(keyOf(it.namespace, it.path), it.locale, kindOf(it.kind), it.before.orEmpty(), it.after.orEmpty()))
             }
         }
@@ -141,8 +183,8 @@ internal object LaggingRetranslation {
 
     /**
      * What [batchesOf] proposes, and the modules left out of it: each translates from another
-     * locale than the reference the comparison took for the project, so the diff cannot say which
-     * of their locales lag ([TranslationChanges.referenceLocale] is project-wide).
+     * locale than the reference the comparison took, so the diff cannot say which of their locales
+     * lag against it ([TranslationChanges.referenceLocale] is one for the whole comparison).
      */
     data class Plan(val batches: List<Batch>, val otherReference: List<ModuleConfig>)
 
@@ -235,10 +277,10 @@ internal object LaggingRetranslation {
      * modules the project is one scope, as *Fill Missing Translations* takes it. Reads the
      * translation files: not on the EDT for a real project.
      *
-     * The lagging keys were found against the project-wide reference: a configured module whose own
-     * reference ([ReferenceLocale.of] on its locales) is another one is left out and named in
-     * [Plan.otherReference], whether or not it holds a file in the project's reference —
-     * retranslating it would overwrite its source locale from a translation.
+     * The lagging keys were found against one reference, the project's unless the dialog picked
+     * another: a configured module whose own reference ([LocalTranslationChanges.referenceOf]) is
+     * another one is left out and named in [Plan.otherReference], whether or not it holds a file in
+     * that reference — retranslating it would overwrite its source locale from a translation.
      */
     fun planOf(project: Project, found: TranslationChanges): Plan {
         val reference = found.referenceLocale ?: return Plan(emptyList(), emptyList())
@@ -246,7 +288,7 @@ internal object LaggingRetranslation {
         val config = Settings.getInstance(project).config()
         val modules = Settings.getInstance(project).modules.filter { it.rootDirectory.isNotBlank() }
         // Every configured module, not only those holding a lagging key: one with no file in the project's reference is named too.
-        val otherReference = if (modules.size < 2) emptyList() else modules.filter { referenceOf(project, it, config) != reference }
+        val otherReference = if (modules.size < 2) emptyList() else modules.filter { LocalTranslationChanges.referenceOf(project, it, config) != reference }
         val scopes: List<ModuleConfig?> = if (modules.size < 2) listOf(null)
         else ownersOf(project, found, reference, modules, config).filter { it !in otherReference }
         // The reference text each lagging key had after the change: a module holding another one is not where it changed.
@@ -260,12 +302,6 @@ internal object LaggingRetranslation {
         }
         return Plan(batches, otherReference)
     }
-
-    /** The locale [module] translates from, among its own files. */
-    private fun referenceOf(project: Project, module: ModuleConfig, config: Config): String? =
-        ReadAction.compute<String?, RuntimeException> {
-            ReferenceLocale.of(module, config, TranslationDataLoader.discoverLocales(project, module))
-        }
 
     /**
      * The modules owning a [reference] file of a namespace some key lags in — null among them for a

@@ -2,11 +2,14 @@ package com.ibrahimdans.i18n.plugin.ide.diff
 
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileKeys
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vcs.changes.Change
@@ -15,8 +18,18 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.PsiManager
 
-/** The translation changes of the working copy, and the locales that did not follow them. */
-data class TranslationChanges(val changes: List<TranslationChange>, val lagging: List<LaggingLocale>, val referenceLocale: String?)
+/**
+ * The translation changes of the working copy, and the locales that did not follow them in
+ * [referenceLocale]. [references] are the reference locales the comparison can take instead — the
+ * project's first, then each other one a configured module translates from — empty when the
+ * modules declare no other one.
+ */
+data class TranslationChanges(
+    val changes: List<TranslationChange>,
+    val lagging: List<LaggingLocale>,
+    val referenceLocale: String?,
+    val references: List<String> = emptyList(),
+)
 
 /**
  * The translations a set of VCS changes touches — by default the working copy's, read from the VCS
@@ -61,16 +74,45 @@ object LocalTranslationChanges {
         return FileVersions(namespace, source.localeLabel(), beforeLeaves, TranslationFileKeys.translationLeaves(after))
     }
 
-    /** The changes of [files], and the locales of the project that did not follow them. */
-    fun compare(project: Project, files: List<FileVersions>): TranslationChanges {
-        val changes = TranslationDiff.changes(files)
+    /**
+     * The changes of [files], and the locales of the project that did not follow them in
+     * [reference] — by default the project's reference locale. Needs a read action.
+     */
+    fun compare(project: Project, files: List<FileVersions>, reference: String? = null): TranslationChanges =
+        against(project, TranslationDiff.changes(files), reference)
+
+    /**
+     * [changes], and the locales of the project that did not follow them in [reference] — by
+     * default the project's reference locale: what the changes dialog shows again when another
+     * reference is chosen. Needs a read action.
+     */
+    fun against(project: Project, changes: List<TranslationChange>, reference: String? = null): TranslationChanges {
         val config = Settings.getInstance(project).config()
         val defaultNamespace = config.defaultNamespaces().first()
         val localesByNamespace = project.service<LocalizationSourceService>().findAllSources(project)
             .groupBy({ TranslationDataLoader.extractNamespace(it, defaultNamespace) }, { it.localeLabel() })
             .mapValues { (_, locales) -> locales.toSet() }
-        val reference = ReferenceLocale.of(null, config, localesByNamespace.values.flatten().distinct())
+        val projectReference = ReferenceLocale.of(null, config, localesByNamespace.values.flatten().distinct())
             ?: return TranslationChanges(changes, emptyList(), null)
-        return TranslationChanges(changes, TranslationDiff.lagging(changes, reference, localesByNamespace, config.pluralSeparator), reference)
+        val chosen = reference ?: projectReference
+        val lagging = TranslationDiff.lagging(changes, chosen, localesByNamespace, config.pluralSeparator)
+        return TranslationChanges(changes, lagging, chosen, referencesOf(project, projectReference, config))
     }
+
+    /**
+     * [projectReference], then each other locale a configured module translates from — empty with
+     * fewer than two modules, where the project is one scope, or when they all share it.
+     */
+    private fun referencesOf(project: Project, projectReference: String, config: Config): List<String> {
+        val modules = Settings.getInstance(project).modules.filter { it.rootDirectory.isNotBlank() }
+        if (modules.size < 2) return emptyList()
+        val references = (listOf(projectReference) + modules.mapNotNull { referenceOf(project, it, config) }).distinct()
+        return if (references.size > 1) references else emptyList()
+    }
+
+    /** The locale [module] translates from, among its own files. */
+    fun referenceOf(project: Project, module: ModuleConfig, config: Config): String? =
+        ReadAction.compute<String?, RuntimeException> {
+            ReferenceLocale.of(module, config, TranslationDataLoader.discoverLocales(project, module))
+        }
 }

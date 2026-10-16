@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.extensions.lang.js
 
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
+import com.ibrahimdans.i18n.plugin.utils.ModulePresets
 import com.ibrahimdans.i18n.plugin.utils.type
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.lang.Language
@@ -15,7 +16,9 @@ import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.lang.javascript.psi.ecma6.JSStringTemplateExpression
 import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.lang.javascript.psi.JSThisExpression
+import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.util.TextRange
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 
@@ -64,8 +67,22 @@ internal class JsTranslationExtractor: TranslationExtractor {
     }
 
     override fun call(element: PsiElement): (argument: String, variables: List<MessageVariable>) -> String {
+        if (ParaglideCall.applies(element)) {
+            val messages = ParaglideCall.objectName(element)
+            return { argument, variables -> ParaglideCall.call(messages, argument.unQuote(), MessageVariables.inputs(variables)) }
+        }
         val function = translationFunction(element)
         return { argument, variables -> "$function($argument${MessageVariables.options(variables)})" }
+    }
+
+    /** Paraglide: the call just written needs the message object, imported once if the file lacks it. */
+    override fun postProcess(editor: Editor, offset: Int) {
+        val project = editor.project ?: return
+        val documents = PsiDocumentManager.getInstance(project)
+        documents.commitDocument(editor.document)
+        val file = documents.getPsiFile(editor.document) ?: return
+        val element = file.findElementAt(offset) ?: return
+        if (ModulePresets.presetOf(element) == ParaglideCall.PRESET) ParaglideCall.addImport(file, editor.document)
     }
 
     /** The template literal or the concatenation [element] belongs to, else its own literal. */
