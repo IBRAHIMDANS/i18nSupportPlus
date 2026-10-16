@@ -235,17 +235,20 @@ internal object LaggingRetranslation {
      * modules the project is one scope, as *Fill Missing Translations* takes it. Reads the
      * translation files: not on the EDT for a real project.
      *
-     * The lagging keys were found against the project-wide reference: a module whose own reference
-     * ([ReferenceLocale.of] on its locales) is another one is left out and named in
-     * [Plan.otherReference] — retranslating it would overwrite its source locale from a translation.
+     * The lagging keys were found against the project-wide reference: a configured module whose own
+     * reference ([ReferenceLocale.of] on its locales) is another one is left out and named in
+     * [Plan.otherReference], whether or not it holds a file in the project's reference —
+     * retranslating it would overwrite its source locale from a translation.
      */
     fun planOf(project: Project, found: TranslationChanges): Plan {
         val reference = found.referenceLocale ?: return Plan(emptyList(), emptyList())
         if (found.lagging.isEmpty()) return Plan(emptyList(), emptyList())
         val config = Settings.getInstance(project).config()
         val modules = Settings.getInstance(project).modules.filter { it.rootDirectory.isNotBlank() }
-        val owners: List<ModuleConfig?> = if (modules.size < 2) listOf(null) else ownersOf(project, found, reference, modules, config)
-        val (scopes, otherReference) = owners.partition { module -> module == null || referenceOf(project, module, config) == reference }
+        // Every configured module, not only those holding a lagging key: one with no file in the project's reference is named too.
+        val otherReference = if (modules.size < 2) emptyList() else modules.filter { referenceOf(project, it, config) != reference }
+        val scopes: List<ModuleConfig?> = if (modules.size < 2) listOf(null)
+        else ownersOf(project, found, reference, modules, config).filter { it !in otherReference }
         // The reference text each lagging key had after the change: a module holding another one is not where it changed.
         val changed = found.changes
             .filter { it.locale == reference && it.kind != TranslationChange.Kind.REMOVED }
@@ -255,7 +258,7 @@ internal object LaggingRetranslation {
             val items = itemsOf(found.lagging, changed, translations, reference, config)
             if (items.isEmpty()) null else Batch(module, items)
         }
-        return Plan(batches, otherReference.filterNotNull())
+        return Plan(batches, otherReference)
     }
 
     /** The locale [module] translates from, among its own files. */
