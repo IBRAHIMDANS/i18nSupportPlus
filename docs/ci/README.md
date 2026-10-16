@@ -15,6 +15,8 @@ for someone to open the file.
 | A call not passing a variable its message needs | `I18nInterpolationArguments` |
 | A key or namespace the code uses and no file holds | the plugin's annotator, through `Annotator` |
 | A key no code uses (opt-in) | `I18nUnusedKey` |
+| A reviewed value whose reference text changed since (opt-in, needs `.i18n-reviews/`) | `I18nStaleTranslation` |
+| A key not following the project's naming convention (opt-in) | `I18nKeyNaming` |
 
 The plugin reads the project's settings from `.idea/i18nSettings.xml` (translation root, namespaces,
 modules): commit that file, or the run uses the defaults.

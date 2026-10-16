@@ -30,6 +30,10 @@ include:
   # - name: I18nUnusedKey             # a key no code refers to
   # - name: I18nUntranslatedValue     # a value copied from the reference locale
   # - name: I18nEmptyValue
+  # Needs `.i18n-reviews/` in the module: silent without it.
+  # - name: I18nStaleTranslation      # a reviewed value whose reference text changed since
+  # Off by default: set the convention in the inspection options of the profile first.
+  # - name: I18nKeyNaming             # a key not following the project's naming convention
 
 # The plugin reads its settings from `.idea/i18nSettings.xml`: commit it, or the run uses the defaults.
 
