@@ -1,6 +1,8 @@
 package com.ibrahimdans.i18n.plugin.review
 
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.guessProjectDir
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -28,8 +30,27 @@ object ReviewLocation {
      * The directory [module]'s reviews folder hangs under: its root directory, relative to the project
      * as `ModuleSources` reads it, or the project's directory when there is no module or it names no
      * root. Null when that directory does not exist.
+     *
+     * With a lone configured module ([ModuleSources.lone]), that module and no module are one scope:
+     * the tool window, *Fill* and the agents ask without it, the key dialog, the inspection and the
+     * key moves with it. Both read the folder already there — the module's, else the project's — so
+     * that reviews written by one are read by the other, wherever they were written; neither moves.
      */
     fun rootOf(project: Project, module: ModuleConfig?): VirtualFile? {
+        val own = ownRootOf(project, module)
+        val lone = ModuleSources.lone(Settings.getInstance(project).modules) ?: return own
+        if (module != null && module != lone) return own
+        return shared(listOf(ownRootOf(project, lone), project.guessProjectDir()), own) { directoryOf(it) != null }
+    }
+
+    /**
+     * The first of [candidates] where reviews are on ([enabled]), else [own]: where a scope with no
+     * folder yet would create it. Pure, tested on its own.
+     */
+    internal fun <T : Any> shared(candidates: List<T?>, own: T?, enabled: (T) -> Boolean): T? =
+        candidates.filterNotNull().firstOrNull(enabled) ?: own
+
+    private fun ownRootOf(project: Project, module: ModuleConfig?): VirtualFile? {
         if (module == null || module.rootDirectory.isBlank()) return project.guessProjectDir()
         val path = rootPathOf(module, project.basePath) ?: return null
         return LocalFileSystem.getInstance().findFileByPath(path)?.takeIf { it.isDirectory }

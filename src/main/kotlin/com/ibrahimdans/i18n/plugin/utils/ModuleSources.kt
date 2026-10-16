@@ -54,6 +54,13 @@ internal object ModuleSources {
     fun owner(modules: List<ModuleConfig>, file: FilePath): ModuleConfig? =
         modules.filter { rootOf(it).isNotEmpty() && contains(it, file) }.maxByOrNull { rootOf(it).length }
 
+    /**
+     * The one module of [modules] with a root directory — the only one [owner] can name — or null when
+     * there are none or several. With it, the tool window, *Fill* and the agents still read the project
+     * as one scope, but they take its reference locale and its reviews as the key dialog does.
+     */
+    fun lone(modules: List<ModuleConfig>): ModuleConfig? = modules.filter { rootOf(it).isNotEmpty() }.singleOrNull()
+
     /** Whether [module]'s root directory holds [file]. A module without one holds nothing. */
     fun contains(module: ModuleConfig, file: FilePath): Boolean {
         val root = rootOf(module)
