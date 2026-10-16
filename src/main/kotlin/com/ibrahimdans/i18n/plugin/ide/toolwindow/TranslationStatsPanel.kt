@@ -10,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader.extractL
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader.extractNamespace
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.intellij.openapi.application.ApplicationManager
@@ -93,12 +94,18 @@ internal fun parseTranslationKey(fullKey: String, config: Config = Config()): Pa
     KeySpelling.namespaceOf(fullKey) to KeySpelling.segmentsOf(fullKey, config)
 
 /**
- * The locale the missing keys are looked up in: the one [module] declares, when its files hold it,
- * otherwise the most translated one — a better guess than the project-wide settings for a table
- * of coverage.
+ * The locale the missing keys are looked up in: the one [module] declares — or, with no module, the
+ * lone configured one among [modules] ([ModuleSources.lone]), as everywhere else — when its files
+ * hold it, otherwise the most translated one — a better guess than the project-wide settings for a
+ * table of coverage.
  */
-internal fun selectReferenceLocale(stats: List<LocaleStats>, module: ModuleConfig? = null): String? =
-    ReferenceLocale.declared(module, stats.map { it.locale }) ?: stats.maxByOrNull { it.translated }?.locale
+internal fun selectReferenceLocale(
+    stats: List<LocaleStats>,
+    module: ModuleConfig? = null,
+    modules: List<ModuleConfig> = emptyList(),
+): String? =
+    ReferenceLocale.declared(module ?: ModuleSources.lone(modules), stats.map { it.locale })
+        ?: stats.maxByOrNull { it.translated }?.locale
 
 /** Columns before the locales: the row's namespace, then how many keys it holds. */
 private const val LEADING_COLUMNS = 2
@@ -288,7 +295,7 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
      * reference file — reading the gap rather than closing it.
      */
     private fun showMissingKeysPopup(rowLabel: String, cell: LocaleStats, at: RelativePoint) {
-        val referenceLocale = selectReferenceLocale(report?.total?.byLocale.orEmpty(), moduleConfig) ?: return
+        val referenceLocale = selectReferenceLocale(report?.total?.byLocale.orEmpty(), moduleConfig, config.modules) ?: return
         val translations = report?.translations.orEmpty()
 
         val listModel = DefaultListModel<UntranslatedKey>()

@@ -63,6 +63,23 @@ class TranslationStatsPanelTest {
     }
 
     @Test
+    fun `selectReferenceLocale takes the reference of the lone configured module`() {
+        val stats = listOf(LocaleStats("de", 10, 6, 4, 60.0), LocaleStats("en", 10, 10, 0, 100.0))
+        val lone = ModuleConfig(name = "web", rootDirectory = "web", referenceLocale = "de")
+        assertEquals("de", selectReferenceLocale(stats, modules = listOf(lone)))
+    }
+
+    @Test
+    fun `selectReferenceLocale ignores module references when several modules are configured`() {
+        val stats = listOf(LocaleStats("de", 10, 6, 4, 60.0), LocaleStats("en", 10, 10, 0, 100.0))
+        val modules = listOf(
+            ModuleConfig(name = "web", rootDirectory = "web", referenceLocale = "de"),
+            ModuleConfig(name = "api", rootDirectory = "api", referenceLocale = "de"),
+        )
+        assertEquals("en", selectReferenceLocale(stats, modules = modules))
+    }
+
+    @Test
     fun `selectReferenceLocale returns null for empty list`() {
         assertNull(selectReferenceLocale(emptyList()))
     }
