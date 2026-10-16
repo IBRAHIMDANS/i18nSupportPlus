@@ -44,10 +44,53 @@ class ExtractDefaultValueTest : ExtractionTestBase() {
     fun anI18nextModuleWritesItToo() =
         extract(module(writeDefaultValue = true, preset = "i18next"), "const a = i18n.t('account:save', 'Save changes');")
 
-    /** react-intl's `formatMessage(descriptor, values)` has no second string argument to receive it. */
+    /**
+     * react-intl's `formatMessage(descriptor, values)` has no second string argument to receive it,
+     * and the extraction writes `t('key')`, never a `formatMessage` or a `<FormattedMessage>` whose
+     * descriptor could take a `defaultMessage`: the option stays i18next's.
+     */
     @Test
     fun anotherFrameworkKeepsTheCall() =
         extract(module(writeDefaultValue = true, preset = "react-intl"), "const a = i18n.t('account:save');")
+
+    /**
+     * Extracts the text at the caret of [source] as [key] in a project without any translation
+     * file: the prompts ask for the key, then create its file.
+     */
+    private fun extractWithoutFiles(module: ModuleConfig, source: String, patched: String, key: String = "account:save") =
+        myFixture.runWithConfig(config("json").copy(modules = listOf(module))) {
+            myFixture.configureByText("save.js", source)
+            TestDialogManager.setTestInputDialog(predefinedTextInputDialog(key))
+            myFixture.launchActionAndWait(myFixture.findSingleIntention(hint))
+
+            myFixture.checkResult(patched)
+        }
+
+    @Test
+    fun withoutTranslationFilesThePromptsWriteItToo() {
+        extractWithoutFiles(module(writeDefaultValue = true), "const a = 'Save <caret>changes';", "const a = i18n.t('account:save', 'Save changes');")
+        val created = myFixture.tempDirFixture.getFile("account.json")
+        assertTrue(created != null && String(created.contentsToByteArray()).contains("\"Save changes\""))
+    }
+
+    @Test
+    fun withoutTranslationFilesTheVariablesGoInTheDefaultValueOption() =
+        extractWithoutFiles(
+            module(writeDefaultValue = true),
+            "export const greeting = (user) => 'Hel<caret>lo ' + user.name + '!';",
+            "export const greeting = (user) => i18n.t('account:greeting', { defaultValue: 'Hello {{name}}!', name: user.name });",
+            "account:greeting"
+        )
+
+    @Test
+    fun withoutTranslationFilesOffThePromptsKeepTheCall() =
+        extractWithoutFiles(module(writeDefaultValue = false), "const a = 'Save <caret>changes';", "const a = i18n.t('account:save');")
+
+    @Test
+    fun withoutTranslationFilesAnotherFrameworkKeepsTheCall() =
+        extractWithoutFiles(
+            module(writeDefaultValue = true, preset = "react-intl"), "const a = 'Save <caret>changes';", "const a = i18n.t('account:save');"
+        )
 
     @Test
     fun inJsxTheCallKeepsItsBraces() =
