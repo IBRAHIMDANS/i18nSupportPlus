@@ -74,7 +74,7 @@ class ExtractI18nIntentionAction : PsiElementBaseIntentionAction(), IntentionAct
             .expireWith(project)
             .expireWhen { editor.isDisposed || !element.isValid }
             .finishOnUiThread(ModalityState.defaultModalityState()) { model ->
-                if (model.namespaces.isEmpty()) return@finishOnUiThread createKey(editor, project, element, extractor, text)
+                if (model.namespaces.isEmpty()) return@finishOnUiThread createKey(editor, project, extractor, element, model)
                 val range = editor.document.createRangeMarker(extractor.textRange(element))
                 val answer = opener(project, model, element)
                 if (answer != null) apply(editor, project, extractor, range, model, answer)
@@ -118,10 +118,12 @@ class ExtractI18nIntentionAction : PsiElementBaseIntentionAction(), IntentionAct
 
     /**
      * The prompts of a project without any translation file: a key, then the file it creates —
-     * see [KeyCreator].
+     * see [KeyCreator]. The call is the one the dialog would write for that key, through
+     * [ExtractKeyModel.reusePreview]: the module's default value included, `t('key', 'Text')`.
      */
-    private fun createKey(editor: Editor, project: Project, element: PsiElement, extractor: TranslationExtractor, text: String) {
+    private fun createKey(editor: Editor, project: Project, extractor: TranslationExtractor, element: PsiElement, model: ExtractKeyModel) {
         val document = editor.document
+        val text = model.text
         val requestResult = request.key(project, text)
         if (requestResult.isCancelled) return
         if (requestResult.key == null) {
@@ -132,10 +134,10 @@ class ExtractI18nIntentionAction : PsiElementBaseIntentionAction(), IntentionAct
             return
         }
         val i18nKey = requestResult.key
-        val template = CallTemplate.template(extractor, element)
+        val call = model.reusePreview(i18nKey.source)
         val range = extractor.textRange(element)
         keyCreator.createKey(project, i18nKey, text, editor) {
-            document.replaceString(range.startOffset, range.endOffset, template("'${i18nKey.source}'"))
+            document.replaceString(range.startOffset, range.endOffset, call)
             extractor.postProcess(editor, range.startOffset)
         }
         editor.caretModel.primaryCaret.removeSelection()
