@@ -25,6 +25,7 @@
 - [JSON] **A key added to a JSON file takes the file's own indentation, and sorting no longer reformats the whole file** (i18n Ally #1060, #755)
 - [Paraglide] **`project.inlang/settings.json` is no longer read as a translation file**, and **a message file is no longer compared with itself**: no more `baseLocale` reported as an unused key, nor every value of the reference locale as *not translated?*
 - [Paraglide] **An unknown message no longer mentions a `translation` namespace**: its tooltip says which message files were searched and what is missing, as Paraglide's files have no namespace
+- [Navigation] **Ctrl+click on a key of a file named after its locale leads to its calls**: from `messages/fr.json` (Paraglide, next-intl, vue-i18n), *Go to Declaration* and *Find Usages* list `t('hello')` and `m.hello()` again, instead of nothing
 - [JSON] **A root `$schema`, and the objects inside an array, are no longer read as keys**: no more `$schema` or `"countPlural=one"` in the tool window, the completion, the statistics or *Unused translation key*
 - [Rename] **Renaming a key works on files a VCS keeps read-only**: the files are checked out first instead of failing halfway
 - [Reviews] **With a single module configured, every view compares the same reference locale and reads the same `.i18n-reviews/` folder**
