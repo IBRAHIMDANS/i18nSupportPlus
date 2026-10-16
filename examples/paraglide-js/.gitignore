@@ -1,0 +1,4 @@
+node_modules
+dist
+# Compiled by `npm run compile`: Paraglide writes one function per message here.
+src/paraglide
