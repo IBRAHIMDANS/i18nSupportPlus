@@ -111,6 +111,27 @@ class LocalizationSourceService {
             return subtag.uppercase() in ISO_COUNTRIES ||
                 subtag.lowercase().replaceFirstChar { it.uppercase() } in ISO_SCRIPTS
         }
+
+        /**
+         * Decides whether to include a file in the "all sources" scan.
+         * - Configured root: include only files whose path starts with basePath/translationsRoot.
+         * - No root configured: heuristic — parent dir or stem must look like a locale code.
+         */
+        internal fun isIncluded(file: VirtualFile, translationsRoot: String, basePath: String): Boolean {
+            return if (translationsRoot.isNotBlank()) {
+                isUnderRoot(file, translationsRoot, basePath)
+            } else {
+                val parent = file.parent?.name ?: return false
+                val stem = file.nameWithoutExtension
+                looksLikeLocale(parent) || looksLikeLocale(stem)
+            }
+        }
+
+        /** True when [file] lies inside basePath/[translationsRoot] — `locales2/` is not under `locales`. */
+        internal fun isUnderRoot(file: VirtualFile, translationsRoot: String, basePath: String): Boolean {
+            val rootPath = "$basePath/$translationsRoot".trimEnd('/')
+            return file.path == rootPath || file.path.startsWith("$rootPath/")
+        }
     }
 
     /**
@@ -433,27 +454,6 @@ class LocalizationSourceService {
             locale = template?.locale,
             namespace = template?.namespace
         )
-    }
-
-    /**
-     * Decides whether to include a file in the "all sources" scan.
-     * - Configured root: include only files whose path starts with basePath/translationsRoot.
-     * - No root configured: heuristic — parent dir or stem must look like a locale code.
-     */
-    private fun isIncluded(file: VirtualFile, translationsRoot: String, basePath: String): Boolean {
-        return if (translationsRoot.isNotBlank()) {
-            isUnderRoot(file, translationsRoot, basePath)
-        } else {
-            val parent = file.parent?.name ?: return false
-            val stem = file.nameWithoutExtension
-            looksLikeLocale(parent) || looksLikeLocale(stem)
-        }
-    }
-
-    /** True when [file] lies inside basePath/[translationsRoot] — `locales2/` is not under `locales`. */
-    private fun isUnderRoot(file: VirtualFile, translationsRoot: String, basePath: String): Boolean {
-        val rootPath = "$basePath/$translationsRoot".trimEnd('/')
-        return file.path == rootPath || file.path.startsWith("$rootPath/")
     }
 
     private fun findSourcesByConfiguration(project: Project): List<LocalizationSource> {
