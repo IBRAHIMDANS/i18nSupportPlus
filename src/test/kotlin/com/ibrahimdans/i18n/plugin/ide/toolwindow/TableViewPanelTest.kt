@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.FillMissingTranslationsAction
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
@@ -19,6 +20,7 @@ import com.intellij.openapi.ui.TestDialogManager
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.ui.table.JBTable
 import io.mockk.every
+import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import org.junit.jupiter.api.AfterEach
@@ -135,6 +137,37 @@ class TableViewPanelTest : PlatformBaseTest() {
         assertEquals(filter.label, rendered.text)
         assertFalse(rendered.text.contains("NamespaceFilter"), "a data class toString would leak here")
     }
+
+    @Test
+    fun `with one file per locale the combo names the default group neutrally`() {
+        // Paraglide's messages/en.json, next-intl, vue-i18n's locales/en.json: no file carries a
+        // namespace, so `translation (default)` named a setting the project never uses.
+        assertEquals(PluginBundle.message("toolwindow.table.namespace.none"), renderedDefault(
+            source("messages/en.json", "en.json", "messages"), source("messages/fr.json", "fr.json", "messages"),
+        ))
+    }
+
+    @Test
+    fun `with namespaced files the combo keeps the configured default`() {
+        assertEquals(NamespaceFilter.Default.label(Config()), renderedDefault(
+            source("locales/en/common.json", "common.json", "en"), source("locales/en/translation.json", "translation.json", "en"),
+        ))
+    }
+
+    /** How the combo spells [NamespaceFilter.Default] once the panel loaded rows read from [sources]. */
+    private fun renderedDefault(vararg sources: LocalizationSource): String {
+        stubTranslations()
+        every { TranslationDataLoader.findSources(project, null) } returns sources.toList()
+        val panel = TableViewPanel(project)
+        loadedTable(panel)
+        @Suppress("UNCHECKED_CAST")
+        val combo = find(panel, JComboBox::class.java)!! as JComboBox<NamespaceFilter>
+        val rendered = combo.renderer.getListCellRendererComponent(JList<NamespaceFilter>(), NamespaceFilter.Default, 0, false, false) as JLabel
+        return rendered.text
+    }
+
+    private fun source(displayPath: String, name: String, parent: String) =
+        LocalizationSource(tree = null, name = name, parent = parent, displayPath = displayPath, localization = mockk())
 
     @Test
     fun `only the locale columns are editable`() {
