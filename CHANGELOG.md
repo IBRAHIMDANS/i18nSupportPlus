@@ -27,6 +27,7 @@
 ### Tests
 
 - [Astro] **`t('key')` in `.astro` components is covered, and documented** (i18n Ally #1063, #1347): `AstroCallsTest` checks the `---` frontmatter and `{…}` template expressions — annotation of a resolved and a missing key, navigation to the value, completion and folding all work, with no production code: the Astro plugin parses both contexts into JavaScript PSI, which the extensions registered for JavaScript already read. That plugin is not bundled in IntelliJ Ultimate (a `.astro` file is plain text without it), so it is added as a test dependency only, and the README states the requirement
+- [Inspections] **The stale-translation inspection is covered in YAML and in a monorepo**: `StaleTranslationInspectionTest` checks that a YAML value approved on a source that changed since is underlined and an up-to-date one is not, and that in a monorepo each module compares with its own reference locale and its own `.i18n-reviews/` folder, a module without one staying silent
 
 ### Documentation
 
