@@ -45,6 +45,14 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
         assertTrue(warnings.isNotEmpty())
     }
 
+    /** A Paraglide message file starts with `$schema`: no key, so never an unused one. A nested one still is. */
+    @Test
+    fun testRootSchemaNotFlagged() {
+        val warnings = unusedWarnings("{\"\$schema\": \"https://inlang.com/schema/inlang-message-format\", \"greeting\": \"Hello!\"}")
+        assertEquals(1, warnings.size, "only greeting: \$warnings")
+        assertEquals(1, unusedWarnings("{\"form\": {\"\$schema\": \"x\"}}").size)
+    }
+
     // A JSON file that is not a translation file: its keys are configuration, never unused keys.
     // A headless run (Qodana, inspect.sh) inspects every file of the project, not only the open ones.
 
