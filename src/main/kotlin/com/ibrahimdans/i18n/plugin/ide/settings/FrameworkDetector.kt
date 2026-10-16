@@ -15,6 +15,9 @@ object FrameworkDetector {
      * A Nuxt project depends on `@nuxtjs/i18n`, which bundles `vue-i18n` without the project
      * declaring it.
      *
+     * Paraglide is given away by its compiler or one of its framework adapters, never by
+     * `@inlang/sdk`, which other inlang tools depend on too.
+     *
      * Laravel is a Composer package: `laravel/framework` is matched in `composer.json`. Composer names
      * are `vendor/package`, which no npm dependency spells unscoped, so one table serves both manifests.
      */
@@ -28,6 +31,7 @@ object FrameworkDetector {
         "svelte-i18n" to listOf("svelte-i18n"),
         "i18n-js" to listOf("i18n-js"),
         "next-intl" to listOf("next-intl"),
+        "paraglide" to listOf("@inlang/paraglide-js", "@inlang/paraglide-sveltekit", "@inlang/paraglide-next", "@inlang/paraglide-astro"),
         "laravel" to listOf("laravel/framework")
     )
 
@@ -42,6 +46,7 @@ object FrameworkDetector {
         "svelte-i18n" to "svelte-i18n",
         "i18n-js" to "i18n-js (React Native / Expo)",
         "next-intl" to "next-intl",
+        "paraglide" to "Paraglide JS (inlang)",
         "laravel" to "Laravel (PHP)"
     )
 
