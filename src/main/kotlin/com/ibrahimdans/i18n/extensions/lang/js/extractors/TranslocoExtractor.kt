@@ -74,6 +74,11 @@ class TranslocoPipeExtractor : KeyExtractor {
  * The directive publishing the function closest to the call decides: an inner `*transloco="let t"`
  * without `read` hides an outer one, and the call is then left to the generic `t` extraction.
  * A directive naming its function otherwise (`let tr`) is matched on that name.
+ *
+ * The prefix may also come from the `[translocoRead]` input on the directive's tag
+ * (`<ng-container *transloco="let t" [translocoRead]="'admin'">`), read only when its value is a
+ * string literal: a bound expression is not known before runtime, and the call is then left to the
+ * generic `t` extraction. A `read:` in the directive wins over the input.
  */
 class TranslocoReadExtractor : KeyExtractor {
 
@@ -104,14 +109,21 @@ class TranslocoReadExtractor : KeyExtractor {
         val method = call.methodExpression as? JSReferenceExpression ?: return null
         if (method.qualifier != null) return null
         val name = method.referenceName ?: return null
-        val directive = enclosingTags(call).firstNotNullOfOrNull { directiveOf(it, name) } ?: return null
-        return READ.find(directive)?.groupValues?.get(2)?.takeIf { it.isNotBlank() }
+        val tag = enclosingTags(call).firstOrNull { publishes(it, name) } ?: return null
+        val directive = tag.getAttribute(DIRECTIVE)?.value.orEmpty()
+        return (READ.find(directive)?.groupValues?.get(2) ?: readInputOf(tag))?.takeIf { it.isNotBlank() }
     }
 
-    /** The `*transloco` value of [tag], when it publishes a function called [name]. */
-    private fun directiveOf(tag: XmlTag, name: String): String? {
-        val value = tag.getAttribute(DIRECTIVE)?.value ?: return null
-        return value.takeIf { LET.findAll(it).any { match -> match.groupValues[1] == name } }
+    /** Whether the `*transloco` of [tag] publishes a function called [name]. */
+    private fun publishes(tag: XmlTag, name: String): Boolean {
+        val value = tag.getAttribute(DIRECTIVE)?.value ?: return false
+        return LET.findAll(value).any { match -> match.groupValues[1] == name }
+    }
+
+    /** The `[translocoRead]` of [tag] when it binds a string literal (`"'admin'"`), or null. */
+    private fun readInputOf(tag: XmlTag): String? {
+        val value = tag.getAttribute(READ_INPUT)?.value?.trim() ?: return null
+        return LITERAL.matchEntire(value)?.groupValues?.get(2)
     }
 
     /** The tags enclosing [element], innermost first, reached through the template's injection host if any. */
@@ -126,5 +138,7 @@ class TranslocoReadExtractor : KeyExtractor {
         const val DIRECTIVE = "*transloco"
         val LET = Regex("""\blet\s+([\w$]+)""")
         val READ = Regex("""\bread\s*:\s*(['"])(.*?)\1""")
+        const val READ_INPUT = "[translocoRead]"
+        val LITERAL = Regex("""(['"])([^'"]*)\1""")
     }
 }
