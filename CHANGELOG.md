@@ -30,6 +30,7 @@
 
 - [Astro] **`t('key')` in `.astro` components is covered, and documented** (i18n Ally #1063, #1347): `AstroCallsTest` checks the `---` frontmatter and `{…}` template expressions — annotation of a resolved and a missing key, navigation to the value, completion and folding all work, with no production code: the Astro plugin parses both contexts into JavaScript PSI, which the extensions registered for JavaScript already read. That plugin is not bundled in IntelliJ Ultimate (a `.astro` file is plain text without it), so it is added as a test dependency only, and the README states the requirement
 - [vue-i18n] **Linked messages (`@:key`) in YAML translation files are covered**: `LinkedMessageReferenceTest` now checks an `en.yaml` too — a linked key (plain, single- or double-quoted value) resolves to its translation, an unknown one is reported, and a key only linked counts as used and shows in Find Usages. No production change: the YAML registration already worked
+- [Inspections] **Every inspection of the plugin is checked for its name and description, not 8 of them**: `InspectionDisplayNameTest` no longer holds a hand-written table — it takes every inspection the registrar holds in the *i18n Support Plus* group and checks that its name comes from the bundle (a `key=` present in it, not overridden by a literal) and that `inspectionDescriptions/<shortName>.html` exists and is not empty. Each `shortName` declared in `plugin.xml` must be registered there, so a new inspection is covered without being listed
 
 ### Documentation
 
