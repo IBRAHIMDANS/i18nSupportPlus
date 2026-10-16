@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.references.translation
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideOutdir
 import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.tree.KeyComposer
@@ -72,6 +73,8 @@ class ReferencesAccumulator(
      */
     fun process() = {
         entry: PsiElement, _:Int ->
+        // Paraglide's generated code names every message: never a use (see ParaglideOutdir).
+        if (entry.containingFile?.virtualFile?.let(ParaglideOutdir::contains) == true) return@process true
         val languages = Extensions.LANG.extensionList
         val text = entry.text.unQuote()
         if (namesKey(text) && underExpectedNamespace(entry, text, languages)) {

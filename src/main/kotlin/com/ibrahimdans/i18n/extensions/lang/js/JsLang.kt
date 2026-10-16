@@ -49,6 +49,8 @@ open class JsLang : Lang {
          *    outside any call.
          *  - Paraglide's `m.hello()` holds no string at all: the key is the member's name.
          */
+        private val PARAGLIDE_MESSAGE = ParaglideMessageExtractor()
+
         private val SYNTAX_OWNED_EXTRACTORS: List<KeyExtractor> = listOf(
             REACT_INTL_EXTRACTOR,
             DefineMessagesExtractor(),
@@ -58,7 +60,7 @@ open class JsLang : Lang {
             SvelteI18nExtractor(),
             VueI18nKeypathExtractor(),
             VueTDirectiveExtractor(),
-            ParaglideMessageExtractor(),
+            PARAGLIDE_MESSAGE,
         )
     }
 
@@ -150,7 +152,8 @@ open class JsLang : Lang {
         val typeName = entry.node.elementType.toString()
         return if (setOf("JS:STRING_LITERAL", "JS:STRING_TEMPLATE_EXPRESSION").contains (typeName)) entry
             else if (typeName == "JS:STRING_TEMPLATE_PART") entry.parent
-            else null
+            // Paraglide's `m.hello`: the key is the member's name, an identifier rather than a string.
+            else entry.parent?.takeIf { typeName == "JS:IDENTIFIER" && PARAGLIDE_MESSAGE.canExtract(it) }
     }
 }
 
