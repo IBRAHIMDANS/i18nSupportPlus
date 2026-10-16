@@ -170,6 +170,34 @@ class TranslationChangesDialogTest : PlatformBaseTest() {
         Assertions.assertTrue("\"Administration\"" in text(adminFr), text(adminFr))
     }
 
+    /**
+     * `admin` translates from `fr`: the lagging keys were found against the project's `en`, so its
+     * `fr` — its source — would be overwritten from a translation. It is left out and named instead.
+     */
+    @Test
+    fun `a module translating from another reference is left out and named`() = myFixture.runWithConfig(
+        config.copy(
+            modules = listOf(
+                ModuleConfig(name = "web", rootDirectory = "src/apps/web"),
+                ModuleConfig(name = "admin", rootDirectory = "src/apps/admin", referenceLocale = "fr"),
+            )
+        )
+    ) {
+        val webEn = addFileToProject("apps/web/locales/en/common.json", """{"title": "Web app"}""")
+        addFileToProject("apps/web/locales/fr/common.json", """{"title": "Web"}""")
+        val adminEn = addFileToProject("apps/admin/locales/en/common.json", """{"heading": "Admin panel"}""")
+        addFileToProject("apps/admin/locales/fr/common.json", """{"heading": "Administration"}""")
+        val found = changes(webEn to """{"title": "Web"}""", adminEn to """{"heading": "Admin"}""")
+        Assertions.assertEquals("en", found.referenceLocale)
+
+        val plan = LaggingRetranslation.planOf(project, found)
+
+        Assertions.assertEquals(listOf("web"), plan.batches.map { it.module?.name }, "web translates from en: compared to its own")
+        Assertions.assertEquals(listOf("admin"), plan.otherReference.map { it.name }, "admin translates from fr: reported")
+        val previews = LaggingRetranslation.translate(plan.batches, engine, "en", EmptyProgressIndicator())!!
+        Assertions.assertEquals(listOf(MachineFill.Item("common:title", "Web app", current = "Web")), previews.single().proposals.map { it.item })
+    }
+
     @Test
     fun `the button shows on the lagging view only`() = myFixture.runWithConfig(config) {
         val en = addFileToProject("locales/en/common.json", """{"save": "Save all"}""")
