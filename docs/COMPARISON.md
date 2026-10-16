@@ -86,6 +86,7 @@ a notification offers the setup wizard when the project opens.
 | vue-i18n `<i18n-t keypath>`, `v-t` | Resolved, navigable, checked; completion, folding and a constant `:keypath` | — | — | — |
 | vue-i18n linked messages `@:key` | Yes | — | — | Yes |
 | next-intl `useTranslations` / `getTranslations` | Yes | — | — | next-intl listed in its [source](https://github.com/lokalise/i18n-ally/tree/main/src/frameworks) |
+| Paraglide JS (inlang) `m.hello()` | Yes<sup>next</sup>: resolved, completed, folded, navigable to the message, usages counted, extracted as `m.key()`; `project.inlang/settings.json` read | Open request ([#404](https://github.com/marhali/easy-i18n/issues/404)) | — | Open request ([#1330](https://github.com/lokalise/i18n-ally/issues/1330)) |
 | Transloco | Service, pipe, structural directive and its `read`, scopes | Preset: service and attribute directive | — | Yes |
 | Laravel `__()`, `trans()`, `trans_choice()`, `@lang` | Yes, `package::file.key` included | Preset: `__`, `trans`, `trans_choice` | Yes, Blade included | Yes |
 | Your own `translate()` wrapper | Key assistance rules, per-module call template, the extracted text as default value (`t({key}, {text})`)<sup>next</sup> | Editor rules, flavor template | — | Custom framework, refactor templates |
@@ -158,6 +159,7 @@ IDEs.
 | Translations outdated by a changed source text | Where reviews are kept<sup>next</sup>: source text recorded with each decision, changed ones flagged in the table, the key dialog and an inspection, retranslated in one go. Everywhere: the locales a change of the reference left behind, in the working copy or against a branch, retranslated in one go<sup>next</sup> | Snapshot of the source text per key, compared on demand ([announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)) | — |
 | Machine translation | Ollama, OpenAI-compatible API, DeepL, LibreTranslate, Google; opt-in | Google (default), DeepL, Baidu, LibreTranslate, OpenAI, Ollama, the editor's built-in model through Copilot ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/translation.md)) | The command opens an inlang Cloud page, announced as coming, and points to the inlang CLI ([source](https://github.com/opral/sherlock/blob/main/src/commands/cloud.ts)) |
 | AI agents (MCP) | Tools on the IDE's MCP server; stale translations listed and retranslated<sup>next</sup> | — | — |
+| Paraglide JS `m.hello()` | Yes<sup>next</sup>, from the `project.inlang` settings | — | Its own format: the m-function matcher plugin reads `m.hello()` ([README](https://github.com/opral/sherlock)) |
 | Your own translation function | Key assistance rules, call template | Custom framework in YAML ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/custom-framework.md)) | — (matcher plugins exist for `m()`, `t()` and next-intl) |
 | Migration from i18n Ally | Settings table [below](#from-i18n-ally) | Command that renames the `i18n-ally.*` settings, custom framework and reviews files ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/migration.md)) | — |
 
