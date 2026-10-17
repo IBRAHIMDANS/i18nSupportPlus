@@ -136,10 +136,10 @@ class TranslationDialog(
      * the field shows the key whole and the namespace is the key's own.
      */
     private val initialNamespace: String? =
-        if (mode == Mode.CREATE) DialogViewModel.initialCreateState(fullKey, nsSeparator).first else null
+        if (mode == Mode.CREATE) DialogViewModel.initialCreateState(fullKey, nsSeparator, Settings.getInstance(project).config().keySeparator).first else null
 
     private val keyField = JBTextField(
-        if (mode == Mode.CREATE) DialogViewModel.initialCreateState(fullKey, nsSeparator).second else fullKey.source
+        if (mode == Mode.CREATE) DialogViewModel.initialCreateState(fullKey, nsSeparator, Settings.getInstance(project).config().keySeparator).second else fullKey.source
     )
     private val keyStatusLabel = JBLabel()
     private val namespacePrefixLabel = JBLabel()

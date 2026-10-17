@@ -228,17 +228,29 @@ class DialogViewModelRulesTest {
 
     @Test
     fun `a key written with its namespace opens on that namespace, the field without the prefix`() {
-        assertEquals("deposit-box" to "title", DialogViewModel.initialCreateState(key("deposit-box:title", "deposit-box"), ":"))
+        assertEquals("deposit-box" to "title", DialogViewModel.initialCreateState(key("deposit-box:title", "deposit-box"), ":", "."))
     }
 
     @Test
     fun `a key under a hook namespace opens on the hook's`() {
-        assertEquals("auth" to "login.title", DialogViewModel.initialCreateState(key("login.title", null, listOf("auth", "common")), ":"))
+        assertEquals("auth" to "login.title", DialogViewModel.initialCreateState(key("login.title", null, listOf("auth", "common")), ":", "."))
     }
 
     @Test
     fun `a key saying nothing opens as Add translation does`() {
-        assertEquals(null to "", DialogViewModel.initialCreateState(FullKey(source = "", ns = null, compositeKey = emptyList()), ":"))
-        assertEquals(null to "menu.home", DialogViewModel.initialCreateState(key("menu.home", null), ":"))
+        assertEquals(null to "", DialogViewModel.initialCreateState(FullKey(source = "", ns = null, compositeKey = emptyList()), ":", "."))
+        assertEquals(null to "menu.home", DialogViewModel.initialCreateState(key("menu.home", null), ":", "."))
+    }
+
+    @Test
+    fun `a key under a hook prefix opens with the prefix in the field`() {
+        val prefixed = key("title", null).copy(keyPrefix = listOf(Literal("Home")), keyPrefixSource = "Home")
+        assertEquals(null to "Home.title", DialogViewModel.initialCreateState(prefixed, ":", "."))
+    }
+
+    @Test
+    fun `a nested hook prefix is written as the hook writes it`() {
+        val prefixed = key("caption", null).copy(keyPrefix = listOf(Literal("Overview"), Literal("help")), keyPrefixSource = "Overview.help")
+        assertEquals(null to "Overview.help.caption", DialogViewModel.initialCreateState(prefixed, ":", "."))
     }
 }
