@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- [Keys] **A hook's key prefix resolves in a flat-keys project** ([#577](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/577)): with *Treat keys as flat*, `t('help.caption')` under next-intl's `useTranslations('OverviewActions')` or react-i18next's `keyPrefix: 'OverviewActions'` is read as `OverviewActions.help.caption`. It was looked up as `help.caption` nested in an `OverviewActions` object, and reported as unresolved
+
 ## 1.13.1 - 2026-10-17
 
 ### Fixes
