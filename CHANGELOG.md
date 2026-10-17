@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.14.0 - 2026-10-17
+
 ### Features
 
 - [universe:i18n] **The application's own hook of a Meteor universe:i18n project takes a key prefix** ([#577](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/577)): once `.meteor/packages` declares `universe:i18n`, `useTranslator('OverviewActions')` — or `useTranslation('OverviewActions')`, unless the file imports it from an i18next package — then `t('help.caption')` reads the key `OverviewActions.help.caption`. The argument was read as react-i18next's namespace, a file the project does not have. See the [README](README.md#supported-frameworks)
