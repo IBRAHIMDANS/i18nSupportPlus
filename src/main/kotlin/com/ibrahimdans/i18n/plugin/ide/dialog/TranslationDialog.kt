@@ -116,7 +116,13 @@ class TranslationDialog(
     private val variableWarnings = LinkedHashMap<LocalizationSource, JBLabel>()
     private val variableWarningRows = LinkedHashMap<LocalizationSource, Row>()
 
-    private val nsSeparator: String = Settings.getInstance(project).config().nsSeparator
+    /**
+     * Empty when the project stores flat keys: the parser never splits such a key, so a namespace
+     * prepended to it was written as part of the key itself (`translation:menu.home`). The combo
+     * still picks the files the key goes to; the key only names itself.
+     */
+    private val nsSeparator: String =
+        Settings.getInstance(project).config().let { if (it.usesFlatKeys()) "" else it.nsSeparator }
 
     /**
      * Empty when the project stores flat keys: there is then nothing to split, and a dot inside
@@ -329,7 +335,7 @@ class TranslationDialog(
         // so it never pays for the project-wide read behind existingKeys().
         keysInNamespace = if (mode == Mode.CREATE) viewModel.existingKeys(namespace) else emptySet()
         namespacePrefixLabel.text =
-            if (mode == Mode.CREATE && !namespace.isNullOrBlank()) "$namespace$nsSeparator" else ""
+            if (mode == Mode.CREATE && !namespace.isNullOrBlank() && nsSeparator.isNotEmpty()) "$namespace$nsSeparator" else ""
 
         sourcesHost.removeAll()
         sourcesHost.add(buildSourceRows(sourcesMap), BorderLayout.CENTER)
@@ -467,7 +473,7 @@ class TranslationDialog(
     private fun keyText(): String {
         val typed = keyField.text.orEmpty().trim()
         val namespace = selectedNamespace()
-        return if (mode == Mode.CREATE && !namespace.isNullOrBlank()) {
+        return if (mode == Mode.CREATE && !namespace.isNullOrBlank() && nsSeparator.isNotEmpty()) {
             typed.removePrefix("$namespace$nsSeparator")
         } else {
             typed
@@ -808,6 +814,11 @@ class TranslationDialog(
 
     /** The value shown for [locale], for tests. */
     internal fun valueOf(locale: String): String? = textAreas.entries.firstOrNull { it.key.localeLabel() == locale }?.value?.text
+
+    /** Types [text] into the key field, for tests. */
+    internal fun setKey(text: String) {
+        keyField.text = text
+    }
 
     internal fun setValue(locale: String, value: String) {
         textAreas.entries.first { it.key.localeLabel() == locale }.value.text = value
