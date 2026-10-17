@@ -430,11 +430,16 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
          * field, without that namespace's prefix. A key reaching the dialog from the editor
          * (`t('deposit-box:title')`) used to land whole in the field, under a combo left on
          * its first entry: the prefix read twice, and the wrong namespace was selected.
+         *
+         * A hook's key prefix leads the field, joined with [keySeparator]: under next-intl's
+         * `useTranslations('Home')`, `t('title')` is the key `Home.title`. The field showed `title`
+         * alone, so the key was created at the root of the file, where the call never reads it.
          */
-        internal fun initialCreateState(fullKey: FullKey, nsSeparator: String): Pair<String?, String> {
+        internal fun initialCreateState(fullKey: FullKey, nsSeparator: String, keySeparator: String): Pair<String?, String> {
             val namespace = fullKey.allNamespaces().firstOrNull()
-            val text = if (namespace != null && nsSeparator.isNotEmpty()) fullKey.source.removePrefix("$namespace$nsSeparator") else fullKey.source
-            return namespace to text
+            val written = if (namespace != null && nsSeparator.isNotEmpty()) fullKey.source.removePrefix("$namespace$nsSeparator") else fullKey.source
+            val prefix = fullKey.keyPrefixSource?.takeIf { it.isNotBlank() && keySeparator.isNotEmpty() && written.isNotEmpty() }
+            return namespace to (prefix?.let { "$it$keySeparator$written" } ?: written)
         }
     }
 }

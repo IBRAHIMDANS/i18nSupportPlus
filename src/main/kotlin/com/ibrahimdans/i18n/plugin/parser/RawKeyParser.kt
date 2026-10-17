@@ -28,6 +28,7 @@ class RawKeyParser(private val project: Project) {
         val config = Settings.getInstance(project).config()
         val flatKeys = config.usesFlatKeys()
         if (flatKeys) return KeyParserBuilder.withoutTokenizer().build().parse(rawKey, true, config.firstComponentNs)
+            ?.let { flatPrefixed(it, config.keySeparator) }
 
         val syntax = caller?.let { keySyntaxOf(config, it) }
         val templateSeparator = (syntax as? KeySyntax.Namespaced)?.nsSeparator
@@ -50,6 +51,18 @@ class RawKeyParser(private val project: Project) {
             else -> parser.parse(rawKey)?.let { key -> scoped(key, rawKey, parser) ?: key }
         }
         return key?.let { withFallbacks(it, config) }
+    }
+
+    /**
+     * [key] with its hook's prefix joined to it into one flat key: under next-intl's
+     * `useTranslations('OverviewActions')` or react-i18next's `keyPrefix`, `t('help.caption')` names
+     * the property `OverviewActions.help.caption` of a flat file. The prefix led the composite key
+     * as a segment of its own, so the key was looked up as `help.caption` nested in an
+     * `OverviewActions` object, which a flat file never holds.
+     */
+    private fun flatPrefixed(key: FullKey, keySeparator: String): FullKey {
+        if (key.keyPrefix.isEmpty() || keySeparator.isEmpty()) return key
+        return key.copy(compositeKey = listOf(Literal(key.compositeKey.joinToString(keySeparator) { it.text })))
     }
 
     /**

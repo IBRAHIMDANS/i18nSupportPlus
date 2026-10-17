@@ -1,9 +1,11 @@
 package com.ibrahimdans.i18n.extensions.lang.js.extractors
 
+import com.ibrahimdans.i18n.extensions.technology.universe.UniverseI18n
 import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.unQuote
+import com.intellij.lang.ecmascript6.psi.ES6ImportDeclaration
 import com.intellij.lang.javascript.psi.JSArrayLiteralExpression
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSDestructuringElement
@@ -14,7 +16,9 @@ import com.intellij.lang.javascript.psi.JSObjectLiteralExpression
 import com.intellij.lang.javascript.psi.JSParenthesizedExpression
 import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.lang.javascript.psi.JSVariable
+import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
@@ -29,6 +33,10 @@ import com.intellij.psi.util.PsiTreeUtil
  *  - next-intl `useTranslations('Home')`, and its Server Component twin
  *    `await getTranslations('Home' | { namespace: 'Home' })`: messages live in one file per locale,
  *    and the argument is the path of the object holding the keys — a key prefix, not a namespace.
+ *
+ * In a project using Meteor's universe:i18n ([UniverseI18n]), the application's own hook —
+ * `useTranslator(prefix)` as its documentation writes it, or `useTranslation(prefix)` when it is not
+ * react-i18next's — takes a key prefix too.
  */
 class ReactUseTranslationHookExtractor: KeyExtractor {
 
@@ -38,6 +46,8 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
         const val GET_TRANSLATIONS = "getTranslations"
         val NEXT_INTL_HOOKS = setOf(USE_TRANSLATIONS, GET_TRANSLATIONS)
         val HOOKS = NEXT_INTL_HOOKS + USE_TRANSLATION
+        const val USE_TRANSLATOR = "useTranslator"
+        val UNIVERSE_HOOKS = setOf(USE_TRANSLATOR)
         const val AWAIT = "await"
     }
 
@@ -47,19 +57,19 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
             ?: element.parent as? JSLiteralExpression
             ?: return false
         if (!literal.isQuotedLiteral) return false
-        return resolveHook(element)?.methodExpression?.text in HOOKS
+        return resolveHook(element)?.methodExpression?.text in hooksOf(element.project)
     }
 
     override fun extract(element: PsiElement): RawKey {
         val hook = resolveHook(element)
-        val isNextIntl = hook?.methodExpression?.text in NEXT_INTL_HOOKS
+        val prefixed = hook?.let(::prefixesKeys) == true
         val hookArguments = hook?.arguments.orEmpty()
         val firstArgumentStrings = hookArguments.firstOrNull()?.let {
-            if (isNextIntl) listOfNotNull(nextIntlNamespace(it)) else stringsOf(it)
+            if (prefixed) listOfNotNull(nextIntlNamespace(it)) else stringsOf(it)
         }.orEmpty()
 
-        val hookNamespaces = if (isNextIntl) emptyList() else firstArgumentStrings
-        val prefix = if (isNextIntl) firstArgumentStrings.firstOrNull() else keyPrefixOption(hookArguments.getOrNull(1))
+        val hookNamespaces = if (prefixed) emptyList() else firstArgumentStrings
+        val prefix = if (prefixed) firstArgumentStrings.firstOrNull() else keyPrefixOption(hookArguments.getOrNull(1))
 
         // i18next: an explicit `t(key, { ns })` option overrides the hook default namespace.
         val optionsNamespaces = OptionsExtractor.extractNamespaces(element)
@@ -69,6 +79,29 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
             prefix?.takeIf { it.isNotBlank() }?.let { listOf(KeyElement.literal(it)) }.orEmpty()
         )
     }
+
+    /** The hooks recognised in [project]: universe:i18n's only where it is used. */
+    private fun hooksOf(project: Project): Set<String> =
+        if (UniverseI18n.isUsedIn(project)) HOOKS + UNIVERSE_HOOKS else HOOKS
+
+    /**
+     * True when [hook]'s first argument is a key prefix rather than namespaces: next-intl's hooks,
+     * and in a universe:i18n project the application's own — `useTranslation` included, unless the
+     * file imports it from an i18next package.
+     */
+    private fun prefixesKeys(hook: JSCallExpression): Boolean {
+        val name = hook.methodExpression?.text
+        if (name in NEXT_INTL_HOOKS) return true
+        if (!UniverseI18n.isUsedIn(hook.project)) return false
+        return name in UNIVERSE_HOOKS || (name == USE_TRANSLATION && !importsI18nextHook(hook.containingFile))
+    }
+
+    /** True when [file] imports `useTranslation` from `react-i18next`, `next-i18next` or the like. */
+    private fun importsI18nextHook(file: PsiFile): Boolean =
+        PsiTreeUtil.findChildrenOfType(file, ES6ImportDeclaration::class.java).any { declaration ->
+            declaration.fromClause?.referenceText?.trim('\'', '"', '`')?.contains("i18next") == true &&
+                declaration.importSpecifiers.any { it.text.trim().startsWith(USE_TRANSLATION) }
+        }
 
     /** The quoted strings a hook argument carries: a single literal, or an array of them. */
     private fun stringsOf(argument: PsiElement): List<String> = when (argument) {
@@ -143,7 +176,7 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
             ?.let { resolveDestructuringElement(it) }
             ?.let { it.initializer as? JSCallExpression }
             ?: callOf((definition as? JSVariable)?.initializer)
-        if (viaRef != null && viaRef.methodExpression?.text in HOOKS) return viaRef
+        if (viaRef != null && viaRef.methodExpression?.text in hooksOf(call.project)) return viaRef
 
         // Fallback: scope walk when reference resolution goes to type declarations
         return resolveHookViaScopeWalk(call)
@@ -162,7 +195,7 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
         return PsiTreeUtil.findChildrenOfType(scope, JSVariable::class.java)
             .filter { it.name == fnName }
             .firstNotNullOfOrNull { variable ->
-                callOf(variable.initializer)?.takeIf { it.methodExpression?.text in NEXT_INTL_HOOKS }
+                callOf(variable.initializer)?.takeIf { it.methodExpression?.text in hooksOf(tCall.project) - USE_TRANSLATION }
             }
     }
 }

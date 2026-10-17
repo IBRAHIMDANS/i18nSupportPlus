@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Features
+
+- [universe:i18n] **The application's own hook of a Meteor universe:i18n project takes a key prefix** ([#577](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/577)): once `.meteor/packages` declares `universe:i18n`, `useTranslator('OverviewActions')` — or `useTranslation('OverviewActions')`, unless the file imports it from an i18next package — then `t('help.caption')` reads the key `OverviewActions.help.caption`. The argument was read as react-i18next's namespace, a file the project does not have. See the [README](README.md#supported-frameworks)
+
+### Fixes
+
+- [Keys] **A hook's key prefix resolves in a flat-keys project** ([#577](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/577)): with *Treat keys as flat*, `t('help.caption')` under next-intl's `useTranslations('OverviewActions')` or react-i18next's `keyPrefix: 'OverviewActions'` is read as `OverviewActions.help.caption`. It was looked up as `help.caption` nested in an `OverviewActions` object, and reported as unresolved
+- [Dialog] **A key created from the code under a hook's key prefix is created under it**: under `useTranslations('Home')` or `keyPrefix: 'Home'`, *Create i18n key…* and *Edit Translation* on a missing `t('title')` open on `Home.title`. The field read `title`, and the key was created at the root of the file, where the call never reads it
+
 ## 1.13.1 - 2026-10-17
 
 ### Fixes
