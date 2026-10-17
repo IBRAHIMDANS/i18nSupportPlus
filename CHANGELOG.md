@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.13.1 - 2026-10-17
+
 ### Fixes
 
 - [Dialog] **A key created from the translation dialog in a flat-keys project is written as typed** ([#577](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/577)): the namespace picked in the dialog — `translation` when none is configured — was prepended to the key, so `OverviewActions.help.caption` was written `"translation:OverviewActions.help.caption"`. The namespace now only chooses the files the key goes to
