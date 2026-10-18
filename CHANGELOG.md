@@ -8,6 +8,10 @@
 - [Review] **Reply to a review comment, and resolve it**: each entry of a review thread offers *Reply*, and the reply is shown indented under it; an entry with a text offers *Resolve*, which folds the discussion into one greyed line until *Reopen*. Resolving decides nothing: the key keeps its review state. Both are optional fields of the thread entry (`parent`, `resolved`), the file stays in version 1
 - [Settings] **Key assistance rules can be imported from i18n Ally**: *Import from i18n Ally…*, under the rules, reads the project's `.vscode/i18n-ally-custom-framework.yml` (or a file you pick) and shows what it takes over before adding anything. Each `usageMatchRegex` that is a plain call on the key — `t(`, `i18n.t(`, `$t(`, `__(` — becomes a trigger rule for `js` (JavaScript, TypeScript, React, Vue) or `php`; each `refactorTemplates` entry is proposed as a module's *call template* (`$t('$1')` → `$t({key})`), left for you to set. A regex a rule cannot express, an unsupported language, `monopoly` and a rule already declared are listed as not imported, with the reason. See the [README](README.md#key-assistance-rules)
 
+### Fixes
+
+- [Translation] **The translation dialog's *Translate* button and *Instruction* field are in French**: with the IDE in French, the per-locale *Translate* button, its tooltip, the message when no other locale has a value to translate from, and the *Instruction* field with its hint and comment showed in English. The bundle test now reads the French file itself, so a key missing from it fails the build
+
 ## 1.15.0 - 2026-10-18
 
 ### Features
