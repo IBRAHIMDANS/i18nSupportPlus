@@ -5,15 +5,18 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
 import com.ibrahimdans.i18n.plugin.review.ReviewSource
+import com.ibrahimdans.i18n.plugin.review.ReviewSources
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.review.shown
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.openapi.project.DumbService
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
 
 /**
@@ -21,6 +24,9 @@ import com.intellij.psi.PsiElementVisitor
  * module's reference locale changed since — what the table and the key dialog show as *To review
  * (source changed since the decision)*: `fr.json: "save": "Enregistrer"` approved on `Save`, the
  * reference now reading `Save and close`.
+ *
+ * The source compared is the text the key is translated from ([ReviewSources]): a plural form the reference
+ * lacks (`ru`'s `item_few`) compares with the reference's `item_other`.
  *
  * Silent where the module keeps no reviews (no `.i18n-reviews/` folder), in the reference file
  * itself, and on a review that recorded no source. Reads the reviews through [ReviewStore], whose
@@ -53,12 +59,19 @@ class StaleTranslationInspection : LocalInspectionTool() {
         val defaults = config.defaultNamespaces()
         val namespace = TranslationDataLoader.extractNamespace(source, defaults.first())
 
-        return referenceValueVisitor(holder) { literal, value, reference ->
-            val key = ReviewKey(namespace, TranslationFileKeys.keyOf(literal))
-            val review = reviews[ReviewKey.fromSpelling(key.spelling(defaults), defaults.first())] ?: return@referenceValueVisitor
-            val current = reference.takeIf { it.isNotEmpty() }?.let { ReviewSource.of(referenceLocale, it) }
-            if (shown(review, value.takeIf { it.isNotEmpty() }, current) != ShownReview.SOURCE_CHANGED) return@referenceValueVisitor
-            holder.registerProblem(literal, PluginBundle.message("inspection.stale.message", referenceLocale))
+        // Not [referenceValueVisitor]: it skips a key the reference lacks, a plural form's included.
+        val references: Map<String, String> by lazy { TranslationFileKeys.referenceTranslations(file) }
+        return object : PsiElementVisitor() {
+            override fun visitElement(element: PsiElement) {
+                val entry = TranslationPsi.entryOf(element) ?: return
+                val literal = entry.literal ?: return
+                val value = entry.text?.takeIf { it.isNotEmpty() } ?: return
+                val path = TranslationFileKeys.keyOf(literal)
+                val review = reviews[ReviewKey.fromSpelling(ReviewKey(namespace, path).spelling(defaults), defaults.first())] ?: return
+                val current = ReviewSources.sourceTextOf(path, config.pluralSeparator, references::get)?.let { ReviewSource.of(referenceLocale, it) }
+                if (shown(review, value, current) != ShownReview.SOURCE_CHANGED) return
+                holder.registerProblem(literal, PluginBundle.message("inspection.stale.message", referenceLocale))
+            }
         }
     }
 

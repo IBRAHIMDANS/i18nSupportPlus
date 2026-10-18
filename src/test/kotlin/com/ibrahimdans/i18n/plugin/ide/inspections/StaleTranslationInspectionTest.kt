@@ -141,6 +141,45 @@ class StaleTranslationInspectionTest : PlatformBaseTest() {
         assertTrue(warnings.isEmpty(), "$warnings")
     }
 
+    /** Reviews on for the project, `common:item_few` approved in `ru` on [value], against [source]. */
+    private fun approveFew(value: String, source: ReviewSource?) {
+        WriteCommandAction.runWriteCommandAction(project) {
+            store().enable(root())
+            store().decide(root(), "ru", ReviewKey("common", "item_few"), ReviewState.APPROVED, value, source = source)
+        }
+    }
+
+    /** English has no `few`: the Russian form, translated from `item_other`, is stale once that one changes. */
+    @Test
+    fun aPluralFormTheReferenceLacksIsReportedWhenItsOtherFormChanged() {
+        addFileToProject("locales/en/common.json", """{"item_one": "{{count}} item", "item_other": "{{count}} items in all"}""")
+        addFileToProject("locales/ru/common.json", """{"item_one": "{{count}} элемент", "item_few": "{{count}} элемента"}""")
+        approveFew("{{count}} элемента", ReviewSource.of("en", "{{count}} items"))
+
+        assertEquals(listOf(message), warnings("locales/ru/common.json"))
+    }
+
+    @Test
+    fun aPluralFormApprovedOnTheCurrentOtherFormIsNotReported() {
+        addFileToProject("locales/en/common.json", """{"item_one": "{{count}} item", "item_other": "{{count}} items"}""")
+        addFileToProject("locales/ru/common.json", """{"item_one": "{{count}} элемент", "item_few": "{{count}} элемента"}""")
+        approveFew("{{count}} элемента", ReviewSource.of("en", "{{count}} items"))
+
+        val warnings = warnings("locales/ru/common.json")
+        assertTrue(warnings.isEmpty(), "$warnings")
+    }
+
+    /** A review written before sources were recorded stays unknown: never stale at once. */
+    @Test
+    fun aPluralFormReviewedWithoutSourceIsNeverReported() {
+        addFileToProject("locales/en/common.json", """{"item_one": "{{count}} item", "item_other": "{{count}} items in all"}""")
+        addFileToProject("locales/ru/common.json", """{"item_one": "{{count}} элемент", "item_few": "{{count}} элемента"}""")
+        approveFew("{{count}} элемента", null)
+
+        val warnings = warnings("locales/ru/common.json")
+        assertTrue(warnings.isEmpty(), "$warnings")
+    }
+
     @Test
     fun aYamlValueWhoseSourceChangedIsUnderlined() {
         addFileToProject("locales/en/common.yaml", "save: Save and close\ncancel: Cancel\n")

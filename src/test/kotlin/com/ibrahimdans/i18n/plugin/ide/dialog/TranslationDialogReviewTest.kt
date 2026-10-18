@@ -93,8 +93,8 @@ class TranslationDialogReviewTest : PlatformBaseTest() {
         reviewer = { "Alice <alice@example.com>" }
     }
 
-    private fun withDialog(block: (TranslationDialog) -> Unit) {
-        val dialog = TranslationDialog(project, KeysSynchronizer().buildFullKey("common:greeting", config), Mode.EDIT)
+    private fun withDialog(fullKey: String = "common:greeting", block: (TranslationDialog) -> Unit) {
+        val dialog = TranslationDialog(project, KeysSynchronizer().buildFullKey(fullKey, config), Mode.EDIT)
         try {
             block(dialog)
         } finally {
@@ -227,6 +227,40 @@ class TranslationDialogReviewTest : PlatformBaseTest() {
         // The dialog reads values through the PSI, which an undo leaves to the next commit.
         PsiDocumentManager.getInstance(project).commitAllDocuments()
         withDialog { dialog -> Assertions.assertEquals(label(ShownReview.SOURCE_CHANGED), dialog.reviewStateOf("fr")) }
+    }
+
+    /**
+     * `ru`'s `item_few` approved against [fewSource]; English has no `few`, its `item_other` reads
+     * `{{count}} items in all` now.
+     */
+    private fun seedPluralReview(fewSource: ReviewSource?) {
+        addFileToProject("locales/en/common.json", """{"item_one": "{{count}} item", "item_other": "{{count}} items in all"}""")
+        addFileToProject("locales/ru/common.json", """{"item_one": "{{count}} элемент", "item_few": "{{count}} элемента"}""")
+        val root = reviewRoot(enabled = true)
+        WriteAction.runAndWait<RuntimeException> {
+            store().decide(root, "ru", ReviewKey("common", "item_few"), ReviewState.APPROVED, "{{count}} элемента", source = fewSource)
+        }
+    }
+
+    @Test
+    fun `a plural form English lacks turns stale when English other changes`() = myFixture.runWithConfig(config) {
+        seedPluralReview(ReviewSource.of("en", "{{count}} items"))
+
+        withDialog("common:item_few") { dialog -> Assertions.assertEquals(label(ShownReview.SOURCE_CHANGED), dialog.reviewStateOf("ru")) }
+    }
+
+    @Test
+    fun `a plural form approved on English other as it reads now is not stale`() = myFixture.runWithConfig(config) {
+        seedPluralReview(ReviewSource.of("en", "{{count}} items in all"))
+
+        withDialog("common:item_few") { dialog -> Assertions.assertEquals(label(ShownReview.APPROVED), dialog.reviewStateOf("ru")) }
+    }
+
+    @Test
+    fun `a plural form approved before sources were recorded is never stale`() = myFixture.runWithConfig(config) {
+        seedPluralReview(null)
+
+        withDialog("common:item_few") { dialog -> Assertions.assertEquals(label(ShownReview.APPROVED), dialog.reviewStateOf("ru")) }
     }
 
     /**
