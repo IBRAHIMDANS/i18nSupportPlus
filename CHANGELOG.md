@@ -2,9 +2,6 @@
 
 ## Unreleased
 
-### Fixes
-
-- [Reviews] **A plural form the reference locale lacks turns stale when the reference's `other` form changes**: Russian `item_few` and `item_many` are translated from English `item_other`, and are now compared with it. They had no source at all, so their approval held whatever the English text became. The table, the key dialog, the *Stale translation* inspection and *Retranslate Stale Translations* read the same source. *Fill Missing Translations* and *Translate* record it for a form translated from `other`. A review recorded without a source is not flagged
 ### Features
 
 - [Inspections] **A key absent from the reference locale is reported** (*Translation key absent from the reference locale*, disabled by default): `user.nmae` in `fr/common.json`, which `en/common.json` does not hold — a key renamed in the reference only, or a typo — is underlined on its name. Quick fixes remove it from the locale or add it, empty, to the reference locale. Plural forms are compared as a group, so `ru`'s `item_few` is not reported when `en` has `item_one` / `item_other`; the reference file and ignored locales are never reported
@@ -14,6 +11,7 @@
 ### Fixes
 
 - [Review] **A comment of a review thread keeps the fields a later version of the plugin wrote on it**: when a colleague on a newer version adds a field to an entry of a review thread in `.i18n-reviews/<locale>.json`, rewriting the file from this version kept the entry but dropped that field. It is now written back as it was read, as the unknown fields of a review already were
+- [Reviews] **A plural form the reference locale lacks turns stale when the reference's `other` form changes**: Russian `item_few` and `item_many` are translated from English `item_other`, and are now compared with it. They had no source at all, so their approval held whatever the English text became. The table, the key dialog, the *Stale translation* inspection and *Retranslate Stale Translations* read the same source. *Fill Missing Translations* and *Translate* record it for a form translated from `other`. A review recorded without a source is not flagged
 
 ## 1.14.0 - 2026-10-17
 
