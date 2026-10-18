@@ -68,7 +68,7 @@ a notification offers the setup wizard when the project opens.
 | | I18n Support Plus | Easy I18n | i18n Ally (JetBrains) | i18n Ally (VS Code) |
 |---|---|---|---|---|
 | Editor | WebStorm, IntelliJ IDEA Ultimate, PhpStorm 2025.2+ (needs the bundled JavaScript plugin) | Any IntelliJ-based IDE 2025.2+ | IntelliJ-based IDEs 2024.1–2024.2 | VS Code |
-| Code languages | JS, TS, JSX, TSX, Vue SFC, Angular templates, Svelte, PHP, Blade, Astro with the Astro plugin<sup>next</sup> | HTML/XML, JS(X), TS(X), Vue, Svelte, PHP, Ruby, Rust, Go, Dart, Python, Kotlin, Java ([Marketplace](https://plugins.jetbrains.com/plugin/16316-easy-i18n)) | JS, TS, React, Vue, PHP, Blade, Twig ([Marketplace](https://plugins.jetbrains.com/plugin/17212-i18n-ally)) | Per framework, including Flutter, Rails and Ember ([wiki](https://github.com/lokalise/i18n-ally/wiki/Supported-Frameworks)) |
+| Code languages | JS, TS, JSX, TSX, Vue SFC, Angular templates, Svelte, PHP, Blade, Astro with the Astro plugin | HTML/XML, JS(X), TS(X), Vue, Svelte, PHP, Ruby, Rust, Go, Dart, Python, Kotlin, Java ([Marketplace](https://plugins.jetbrains.com/plugin/16316-easy-i18n)) | JS, TS, React, Vue, PHP, Blade, Twig ([Marketplace](https://plugins.jetbrains.com/plugin/17212-i18n-ally)) | Per framework, including Flutter, Rails and Ember ([wiki](https://github.com/lokalise/i18n-ally/wiki/Supported-Frameworks)) |
 | Translation files | JSON, JSON5, YAML, PO/POT, TS/JS catalogues, Laravel PHP arrays | JSON, JSON5, YAML, Properties | JSON, JS/TS, PHP, PO/POT, XLIFF 1/2, YAML | JSON, YAML, JSON5; INI, properties, POT and read-only JS/TS/PHP when enabled ([wiki](https://github.com/lokalise/i18n-ally/wiki/Locale-Formats)) |
 | Laravel PHP array files (`lang/en/*.php`) | Yes, read and written, the file name as namespace; package keys (`package::file.key`) read from the overrides in `lang/vendor/` | Preset reads `resources/lang/{locale}.json` ([presets](https://marhali.github.io/easy-i18n/configuration/presets/)) | Yes | Read-only |
 | Monorepo, one configuration per app | Modules (root, path template, key template, preset) | Modules, since 5.0 ([migration](https://marhali.github.io/easy-i18n/migration/v5/)) | — | Multi-root workspaces |
@@ -86,10 +86,10 @@ a notification offers the setup wizard when the project opens.
 | vue-i18n `<i18n-t keypath>`, `v-t` | Resolved, navigable, checked; completion, folding and a constant `:keypath` | — | — | — |
 | vue-i18n linked messages `@:key` | Yes | — | — | Yes |
 | next-intl `useTranslations` / `getTranslations` | Yes | — | — | next-intl listed in its [source](https://github.com/lokalise/i18n-ally/tree/main/src/frameworks) |
-| Paraglide JS (inlang) `m.hello()` | Yes<sup>next</sup>: resolved, completed, folded, navigable to the message, usages counted, renamed, extracted as `m.key()`; `project.inlang/settings.json` read | Open request ([#404](https://github.com/marhali/easy-i18n/issues/404)) | — | Open request ([#1330](https://github.com/lokalise/i18n-ally/issues/1330)) |
+| Paraglide JS (inlang) `m.hello()` | Yes: resolved, completed, folded, navigable to the message, usages counted, renamed, extracted as `m.key()`; `project.inlang/settings.json` read | Open request ([#404](https://github.com/marhali/easy-i18n/issues/404)) | — | Open request ([#1330](https://github.com/lokalise/i18n-ally/issues/1330)) |
 | Transloco | Service, pipe, structural directive and its `read`, scopes | Preset: service and attribute directive | — | Yes |
 | Laravel `__()`, `trans()`, `trans_choice()`, `@lang` | Yes, `package::file.key` included | Preset: `__`, `trans`, `trans_choice` | Yes, Blade included | Yes |
-| Your own `translate()` wrapper | Key assistance rules, per-module call template, the extracted text as default value (`t({key}, {text})`)<sup>next</sup> | Editor rules, flavor template | — | Custom framework, refactor templates |
+| Your own `translate()` wrapper | Key assistance rules, per-module call template, the extracted text as default value (`t({key}, {text})`) | Editor rules, flavor template | — | Custom framework, refactor templates |
 
 ### Reading keys in the code
 
@@ -121,10 +121,10 @@ a notification offers the setup wizard when the project opens.
 | Unused keys | Inspection, Scan Orphans, Cleanup Unused Keys | — | — | Usage Report: keys not in use |
 | Keys used outside the code | Keep list (exact, prefix, glob) | — | — | `keysInUse` |
 | Locales left out of the checks | Yes | — | — | `ignoredLocales`: locales ignored altogether |
-| Value checks | Empty, duplicate, placeholders, ICU, markup, copied from reference, punctuation, length; key names against a naming convention, renamed by a quick fix<sup>next</sup> | Duplicate filter | — | — |
+| Value checks | Empty, duplicate, placeholders, ICU, markup, copied from reference, punctuation, length; key names against a naming convention, renamed by a quick fix | Duplicate filter | — | — |
 | CSV / XLIFF export and import | Yes, with preview | — | — | — |
-| Translation changes of a branch | Compare with a Git branch; the locales left behind the reference retranslated in one go<sup>next</sup> | — | — | — |
-| Review: approve, request changes, comment | Per key and locale in the table and the key dialog, stored in `.i18n-reviews/`; machine translations marked to review; reviews follow renamed, moved and deleted keys; a translation whose source changed since its review flagged in the table, the key dialog and an inspection, and retranslated in one go<sup>next</sup> | — | — | Approve, request changes, comment, suggest a value, from the editor, side panel and Editor UI; stored in `.vscode/i18n-ally-reviews.yml` ([wiki](https://github.com/lokalise/i18n-ally/wiki/Review-&-Collaboration-System), [source](https://github.com/lokalise/i18n-ally/blob/main/src/core/types.ts)) |
+| Translation changes of a branch | Compare with a Git branch; the locales left behind the reference retranslated in one go | — | — | — |
+| Review: approve, request changes, comment | Per key and locale in the table and the key dialog, stored in `.i18n-reviews/`; machine translations marked to review; reviews follow renamed, moved and deleted keys; a translation whose source changed since its review flagged in the table, the key dialog and an inspection, and retranslated in one go | — | — | Approve, request changes, comment, suggest a value, from the editor, side panel and Editor UI; stored in `.vscode/i18n-ally-reviews.yml` ([wiki](https://github.com/lokalise/i18n-ally/wiki/Review-&-Collaboration-System), [source](https://github.com/lokalise/i18n-ally/blob/main/src/core/types.ts)) |
 | Checks in CI | Inspections in Qodana or a headless IDE, ready-made configuration | — | — | — |
 
 ### Machine translation
@@ -135,7 +135,7 @@ a notification offers the setup wizard when the project opens.
 | Opt-in | Yes: nothing is sent until enabled for the project | — | — | No: Google is the default engine |
 | Placeholders and tags kept | Masked before sending | — | — | — |
 | Plural forms of the target language | Yes | — | — | — |
-| AI agents (Codex, Claude, any MCP client) | Tools on the IDE's MCP server: the agent reads the missing keys and writes them through the plugin — never over an existing value but a stale one<sup>next</sup>, placeholders and plural forms checked, one undo ([setup](../README.md#ai-agents-mcp)) | — | — | — ([#1328](https://github.com/lokalise/i18n-ally/issues/1328), open) |
+| AI agents (Codex, Claude, any MCP client) | Tools on the IDE's MCP server: the agent reads the missing keys and writes them through the plugin — never over an existing value but a stale one, placeholders and plural forms checked, one undo ([setup](../README.md#ai-agents-mcp)) | — | — | — ([#1328](https://github.com/lokalise/i18n-ally/issues/1328), open) |
 | Preview before writing | Yes, one undo, the engine that translated each proposal | — | — | Can save as review candidates |
 | Fill a whole locale | Yes, every locale at once | — | — | `fulfill-keys` |
 | Glossary | Terms kept as written for every engine; translated terms sent to the OpenAI-compatible prompt and as a DeepL glossary | — | — | — |
@@ -156,10 +156,10 @@ IDEs.
 | Unused keys | Inspection, Scan Orphans, Cleanup Unused Keys | Usage report: idle keys | — |
 | Extract a hardcoded string | Dialog, file or folder at once | Quick fix, per file, and the whole project at once ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/extraction.md), [announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)) | One click |
 | Review | Tool window table and key dialog, `.i18n-reviews/` | Gutter and comment threads in the translation file, `.vscode/i18n-ally-next-reviews.yml` ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/review.md)) | — |
-| Translations outdated by a changed source text | Where reviews are kept<sup>next</sup>: source text recorded with each decision, changed ones flagged in the table, the key dialog and an inspection, retranslated in one go. Everywhere: the locales a change of the reference left behind, in the working copy or against a branch, retranslated in one go<sup>next</sup> | Snapshot of the source text per key, compared on demand ([announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)) | — |
+| Translations outdated by a changed source text | Where reviews are kept: source text recorded with each decision, changed ones flagged in the table, the key dialog and an inspection, retranslated in one go. Everywhere: the locales a change of the reference left behind, in the working copy or against a branch, retranslated in one go | Snapshot of the source text per key, compared on demand ([announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)) | — |
 | Machine translation | Ollama, OpenAI-compatible API, DeepL, LibreTranslate, Google; opt-in | Google (default), DeepL, Baidu, LibreTranslate, OpenAI, Ollama, the editor's built-in model through Copilot ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/translation.md)) | The command opens an inlang Cloud page, announced as coming, and points to the inlang CLI ([source](https://github.com/opral/sherlock/blob/main/src/commands/cloud.ts)) |
-| AI agents (MCP) | Tools on the IDE's MCP server; stale translations listed and retranslated<sup>next</sup> | — | — |
-| Paraglide JS `m.hello()` | Yes<sup>next</sup>, from the `project.inlang` settings | — | Its own format: the m-function matcher plugin reads `m.hello()` ([README](https://github.com/opral/sherlock)) |
+| AI agents (MCP) | Tools on the IDE's MCP server; stale translations listed and retranslated | — | — |
+| Paraglide JS `m.hello()` | Yes, from the `project.inlang` settings | — | Its own format: the m-function matcher plugin reads `m.hello()` ([README](https://github.com/opral/sherlock)) |
 | Your own translation function | Key assistance rules, call template | Custom framework in YAML ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/custom-framework.md)) | — (matcher plugins exist for `m()`, `t()` and next-intl) |
 | Migration from i18n Ally | Settings table [below](#from-i18n-ally) | Command that renames the `i18n-ally.*` settings, custom framework and reviews files ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/migration.md)) | — |
 
@@ -169,7 +169,7 @@ IDEs.
   option: it is a JetBrains plugin.
 - **i18n Ally Next detects translations left behind by a changed source text** and offers to translate them again,
   one by one or all at once ([announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)).
-  I18n Support Plus records the source text<sup>next</sup> only in modules keeping reviews; elsewhere it catches the locales a change
+  I18n Support Plus records the source text only in modules keeping reviews; elsewhere it catches the locales a change
   of the reference leaves behind, in the working copy or against a branch, not a translation outdated by an older change.
 - **i18n Ally reviews from the editor**: approvals, requested changes, comments and suggested values in the gutter, the side panel and its Editor UI,
   stored in the repository ([wiki](https://github.com/lokalise/i18n-ally/wiki/Review-&-Collaboration-System)).
@@ -199,7 +199,7 @@ IDEs.
 | `i18n-ally.keysInUse` | *Keys used outside the code* |
 | `i18n-ally.ignoredLocales` | *Locales not checked for missing keys* (the locale stays visible) |
 | `i18n-ally.translate.engines` | *Settings → Tools → i18n Support Plus → Machine Translation*: engines tried in order |
-| `i18n-ally.refactor.templates` | The module's *Call template* (`translate({key})`, `t({key}, {text})` with the text as default value<sup>next</sup>) |
+| `i18n-ally.refactor.templates` | The module's *Call template* (`translate({key})`, `t({key}, {text})` with the text as default value) |
 | `i18n-ally.sortKeys` | *Sort keys alphabetically* |
 | Custom framework (`.vscode/i18n-ally-custom-framework.yml`) | *Key assistance rules*: a trigger per function name |
 

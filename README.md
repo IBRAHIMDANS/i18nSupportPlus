@@ -71,14 +71,14 @@ A setup wizard auto-configures it on first launch.
 
 <sup>5</sup> Paraglide compiles each message into a function, so the key is the
 member of the message object, not a string. It is read in a file importing that object from a path ending in `paraglide/messages` — `{ m }`,
-`{ m as msg }`, or Paraglide 1's `import * as m` — in `.js`, `.ts` and Svelte components (with the Svelte plugin).
+`{ m as msg }`, or Paraglide 1's `import * as m` — in `.js`, `.ts`, Svelte components (with the Svelte plugin) and Astro components (with the Astro plugin).
 Annotation, completion after `m.` (with the messages not yet compiled), folding, hover and inlay hints, Ctrl+click to
-the message rather than the generated function, usages, Shift+F6 (in every message file and call site, `m["a.b"]` when the new
+the message rather than the generated function, and from a message file to its call sites, usages, Shift+F6 (in every message file and call site, `m["a.b"]` when the new
 name is no identifier) and *Extract I18n* (which writes `m.key({ name })` and adds the import) all work on it. The message files are read where `project.inlang/settings.json` puts them, one inlang
 project per folder in a monorepo, and the generated folder is never counted as a use. Limits: a message with variants
 (a `match` array) is displayed as its catch-all branch and edited as raw JSON; `m[variable]` names no key; in Svelte components
-only annotation, folding and usages are tested; Ctrl+click from a message file to its call sites finds none; Astro
-components are not tested. A ready-to-open project:
+only annotation, folding and usages are tested, in Astro components annotation, completion and the navigation from a
+message file, in the frontmatter and in template expressions. A ready-to-open project:
 [examples/paraglide-js](examples/paraglide-js/README.md).
 
 <sup>6</sup> universe:i18n ships no React hook since its v2: its documentation has the application write one, and the plugin reads the argument of `useTranslator` — or of `useTranslation`, unless the file imports it from an i18next package — as a key prefix once `.meteor/packages` declares `universe:i18n`. `i18n.__()`, `getTranslation()` and `*.i18n.json` files are not read yet.

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Paraglide] **`m.hello()` in Astro components is covered**: with the Astro plugin installed, a message called in the `---` frontmatter or in a `{…}` template expression — `import { m }` or Paraglide 1's `import * as m` — is resolved, an unknown one is underlined as *Unresolved key*, completion after `m.` offers the messages, and Ctrl+click on a message in a message file reaches its call sites in the component. It already worked; it is now tested, and the README no longer says Astro components are untested
+
 ## 1.14.0 - 2026-10-17
 
 ### Features
