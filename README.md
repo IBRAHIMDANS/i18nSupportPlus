@@ -439,7 +439,7 @@ Rules make other calls behave like `t`: a **trigger** (`translate`, `i18n.transl
 |---------|---------|-------------|
 | Extract translation sorted by key | `false` | Insert extracted keys in alphabetical order |
 | Sort keys alphabetically | `false` | Keep JSON translation files sorted after every key creation |
-| Key order | Ignore case | Order used by the two settings above and by *Sort i18n Keys Alphabetically*: *Ignore case* (`apple`, `Banana`, `cherry`) or *Character code, like the IDE* (`Banana`, `apple`, `cherry`), the order of the IDE's *Sort properties alphabetically* |
+| Key order | Ignore case | Order used by the two settings above and by *Sort i18n Keys Alphabetically*: *Ignore case* (`apple`, `Banana`, `cherry`), *Character code, like the IDE* (`Banana`, `apple`, `cherry`), the order of the IDE's *Sort properties alphabetically*, or *Natural* (`item1`, `Item2`, `item10`), case ignored and numbers compared by value |
 
 ### Inspections
 
