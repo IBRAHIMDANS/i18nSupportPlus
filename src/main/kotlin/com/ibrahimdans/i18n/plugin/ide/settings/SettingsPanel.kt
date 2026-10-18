@@ -213,6 +213,7 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                 val text = when (value as? KeyOrder) {
                     KeyOrder.IGNORE_CASE -> PluginBundle.message("settings.key.order.ignore_case")
                     KeyOrder.CHARACTER_CODE -> PluginBundle.message("settings.key.order.character_code")
+                    KeyOrder.NATURAL -> PluginBundle.message("settings.key.order.natural")
                     null -> null
                 }
                 return super.getListCellRendererComponent(list, text, index, isSelected, cellHasFocus)
