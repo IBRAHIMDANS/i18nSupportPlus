@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- [Review] **A comment of a review thread keeps the fields a later version of the plugin wrote on it**: when a colleague on a newer version adds a field to an entry of a review thread in `.i18n-reviews/<locale>.json`, rewriting the file from this version kept the entry but dropped that field. It is now written back as it was read, as the unknown fields of a review already were
+
 ## 1.14.0 - 2026-10-17
 
 ### Features

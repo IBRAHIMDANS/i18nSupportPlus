@@ -97,13 +97,19 @@ enum class ReviewEventKind(val id: String) {
     }
 }
 
-/** One entry of a thread: flat, no replies, nothing to resolve — a later decision supersedes it. */
+/**
+ * One entry of a thread: flat, no replies, nothing to resolve — a later decision supersedes it.
+ *
+ * [extra] holds the properties of the entry this version does not know, as raw JSON by name, as
+ * [Review.extra] does for a review: [ReviewCodec] writes them back as they were read.
+ */
 data class ReviewEvent(
     val id: String,
     val kind: ReviewEventKind,
     val by: String,
     val at: String,
-    val text: String = ""
+    val text: String = "",
+    val extra: Map<String, String> = emptyMap()
 )
 
 /**
