@@ -106,10 +106,13 @@ object ReviewActions {
         }
     }
 
-    /** [text] added to [cell]'s thread, its decision unchanged. False when [text] is blank or the cell has no value. */
+    /**
+     * [text] added to [cell]'s thread, its decision unchanged, in reply to the entry [parent] when
+     * given. False when [text] is blank or the cell has no value.
+     */
     fun comment(
         project: Project, root: VirtualFile, cell: ReviewCell, text: String, defaultNamespace: String = defaultNamespace(project),
-        referenceLocale: String? = null
+        referenceLocale: String? = null, parent: String? = null
     ): Boolean {
         if (text.isBlank() || cell.value.isEmpty()) return false
         val store = ReviewStore.getInstance(project)
@@ -118,9 +121,20 @@ object ReviewActions {
             val at = timestamp(store)
             store.update(root, cell.locale) {
                 ReviewEdits.comment(
-                    it, ReviewKey.fromSpelling(cell.key, defaultNamespace), cell.value, by, at, text.trim(), sourceOf(cell, referenceLocale)
+                    it, ReviewKey.fromSpelling(cell.key, defaultNamespace), cell.value, by, at, text.trim(), sourceOf(cell, referenceLocale), parent
                 )
             }
+        }
+    }
+
+    /** The entry [id] of [cell]'s thread [resolved], or open again; its decision unchanged. See [ReviewEdits.resolve]. */
+    fun resolve(
+        project: Project, root: VirtualFile, cell: ReviewCell, id: String, resolved: Boolean, defaultNamespace: String = defaultNamespace(project)
+    ): Boolean {
+        val store = ReviewStore.getInstance(project)
+        val commandName = PluginBundle.message(if (resolved) "review.command.resolve" else "review.command.reopen")
+        return write(project, commandName) {
+            store.update(root, cell.locale) { ReviewEdits.resolve(it, ReviewKey.fromSpelling(cell.key, defaultNamespace), id, resolved) }
         }
     }
 

@@ -228,6 +228,38 @@ class ReviewModelTest {
     }
 
     @Test
+    fun `a reply names the entry it answers`() {
+        val requested = ReviewEdits.decide(emptyMap(), key, ReviewState.CHANGES_REQUESTED, "Chariot", "Alice", "T1", "Say Panier")
+        val replied = ReviewEdits.comment(requested, key, "Chariot", "Bob", "T2", "Why?", parent = "r1")
+
+        assertEquals(ReviewEvent("r2", ReviewEventKind.COMMENT, "Bob", "T2", "Why?", parent = "r1"), replied.getValue(key).thread.last())
+        assertEquals(ReviewState.CHANGES_REQUESTED, replied.getValue(key).state)
+    }
+
+    @Test
+    fun `resolving an entry changes nothing else, and it opens again`() {
+        val requested = ReviewEdits.decide(emptyMap(), key, ReviewState.CHANGES_REQUESTED, "Chariot", "Alice", "T1", "Say Panier")
+        val commented = ReviewEdits.comment(requested, key, "Chariot", "Bob", "T2", "Hm")
+
+        val resolved = ReviewEdits.resolve(commented, key, "r1", true)
+        val review = resolved.getValue(key)
+        assertEquals(listOf(true, false), review.thread.map { it.resolved })
+        assertEquals(commented.getValue(key).copy(thread = commented.getValue(key).thread.map { it.copy(resolved = it.id == "r1") }), review)
+        // The last decision still wins.
+        assertEquals(ShownReview.CHANGES_REQUESTED, shown(review, "Chariot"))
+
+        assertEquals(commented, ReviewEdits.resolve(resolved, key, "r1", false))
+    }
+
+    @Test
+    fun `resolving an unknown key or entry changes nothing`() {
+        val requested = ReviewEdits.decide(emptyMap(), key, ReviewState.CHANGES_REQUESTED, "Chariot", "Alice", "T1", "Say Panier")
+
+        assertEquals(requested, ReviewEdits.resolve(requested, key, "r9", true))
+        assertEquals(requested, ReviewEdits.resolve(requested, ReviewKey("common", "other"), "r1", true))
+    }
+
+    @Test
     fun `a comment on a key never reviewed marks it to review`() {
         val review = ReviewEdits.comment(emptyMap(), key, value, "Bob", "T1", "Is this right?").getValue(key)
         assertEquals(ReviewState.TO_REVIEW, review.state)

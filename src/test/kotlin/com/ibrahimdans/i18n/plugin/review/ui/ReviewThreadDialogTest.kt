@@ -119,6 +119,60 @@ class ReviewThreadDialogTest : PlatformBaseTest() {
     }
 
     @Test
+    fun aReplyIsRecordedUnderTheEntryItAnswersAndTheFieldForgetsIt() = withDialog(enabledRoot()) { dialog ->
+        dialog.input.text = "Is this right?"
+        Assertions.assertTrue(dialog.postComment())
+        val first = dialog.review()!!.thread.last().id
+
+        dialog.reply(first)
+        Assertions.assertEquals(first, dialog.replyingTo())
+        dialog.input.text = "Yes"
+        Assertions.assertTrue(dialog.postComment())
+
+        Assertions.assertEquals(first, dialog.review()!!.thread.last().parent)
+        Assertions.assertNull(dialog.replyingTo(), "the next comment replies to nothing")
+        dialog.reply("r404")
+        Assertions.assertNull(dialog.replyingTo(), "no such entry")
+    }
+
+    @Test
+    fun resolvingAnEntryKeepsTheStateAndReopeningOpensIt() = withDialog(enabledRoot()) { dialog ->
+        dialog.input.text = "Typo"
+        Assertions.assertTrue(dialog.requestChanges())
+        val id = dialog.review()!!.thread.last().id
+
+        Assertions.assertTrue(dialog.resolve(id, true))
+        Assertions.assertTrue(dialog.review()!!.thread.single().resolved)
+        Assertions.assertEquals(ShownReview.CHANGES_REQUESTED, dialog.shownReview(), "resolving decides nothing")
+
+        Assertions.assertTrue(dialog.resolve(id, false))
+        Assertions.assertFalse(dialog.review()!!.thread.single().resolved)
+    }
+
+    @Test
+    fun repliesAreIndentedUnderTheirDiscussionAndAResolvedOneIsOneGreyedLine() {
+        val thread = listOf(
+            ReviewEvent("r1", ReviewEventKind.REQUEST_CHANGE, "Alice", "2026-10-11T14:02:11Z", "Typo"),
+            ReviewEvent("r2", ReviewEventKind.COMMENT, "Bob", "2026-10-11T15:00:00Z", "Where?", parent = "r1"),
+            ReviewEvent("r3", ReviewEventKind.COMMENT, "Alice", "2026-10-11T16:00:00Z", "Here", parent = "r2"),
+            ReviewEvent("r4", ReviewEventKind.COMMENT, "Carol", "2026-10-11T17:00:00Z", "Orphan", parent = "r99"),
+        )
+
+        val html = ReviewThreadDialog.threadHtml(thread, "Acceuil")
+        Assertions.assertEquals(2, Regex("margin-left").findAll(html).count(), "r2 and r3, one level under r1: $html")
+        Assertions.assertTrue(html.indexOf("Typo") < html.indexOf("Where?") && html.indexOf("Where?") < html.indexOf("Here"), html)
+        Assertions.assertTrue(html.contains(ReviewThreadDialog.REPLY_LINK + "r3"), html)
+        Assertions.assertTrue(html.contains(ReviewThreadDialog.RESOLVE_LINK + "r1"), html)
+        Assertions.assertFalse(html.contains(ReviewThreadDialog.RESOLVE_LINK + "r2"), "a reply is resolved with its discussion")
+        Assertions.assertFalse(ReviewThreadDialog.threadHtml(thread).contains(ReviewThreadDialog.REPLY_LINK), "no link without a value")
+
+        val resolved = ReviewThreadDialog.threadHtml(listOf(thread[0].copy(resolved = true)) + thread.drop(1), "Acceuil")
+        Assertions.assertFalse(resolved.contains("Typo") || resolved.contains("Where?") || resolved.contains("Here"), resolved)
+        Assertions.assertTrue(resolved.contains(ReviewThreadDialog.REOPEN_LINK + "r1"), resolved)
+        Assertions.assertTrue(resolved.contains("Orphan"), "an entry whose parent is unknown stands on its own")
+    }
+
+    @Test
     fun openShowsNothingWhereReviewsAreOff() {
         // The test project's directory has no reviews folder.
         Assertions.assertFalse(ReviewThreadDialog.open(project, null, "menu.home", "fr", "Accueil"))

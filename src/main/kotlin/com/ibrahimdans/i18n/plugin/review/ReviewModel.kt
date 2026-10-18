@@ -98,10 +98,13 @@ enum class ReviewEventKind(val id: String) {
 }
 
 /**
- * One entry of a thread: flat, no replies, nothing to resolve — a later decision supersedes it.
+ * One entry of a thread. [parent] is the id of the entry it replies to, null for an entry of its own;
+ * [resolved] says the discussion it opens is over. Resolving decides nothing: the review keeps its
+ * state, the last decision still wins.
  *
  * [suggestion] is the value a change request proposes instead, null when it proposes none: the
- * review dialog offers to apply it. Optional in the file, as every field added after the first format.
+ * review dialog offers to apply it. All three are optional in the file, as every field added after
+ * the first format.
  *
  * [extra] holds the properties of the entry this version does not know, as raw JSON by name, as
  * [Review.extra] does for a review: [ReviewCodec] writes them back as they were read.
@@ -113,6 +116,8 @@ data class ReviewEvent(
     val at: String,
     val text: String = "",
     val suggestion: String? = null,
+    val parent: String? = null,
+    val resolved: Boolean = false,
     val extra: Map<String, String> = emptyMap()
 )
 
@@ -235,24 +240,38 @@ object ReviewEdits {
     /**
      * [text] added to [key]'s thread, its decision unchanged — and so the source it was made against:
      * recording [source] on it would hide a source changed since. A key never reviewed is marked to
-     * review on [value] and [source]: a comment is a call to look at it.
+     * review on [value] and [source]: a comment is a call to look at it. [parent] is the id of the
+     * entry the comment replies to, null when it replies to none.
      */
     fun comment(
         reviews: Map<ReviewKey, Review>, key: ReviewKey, value: String, by: String, at: String, text: String,
-        source: ReviewSource? = null
+        source: ReviewSource? = null, parent: String? = null
     ): Map<ReviewKey, Review> {
         require(text.isNotBlank()) { "a comment needs a text" }
         val previous = reviews[key]
             ?: Review(ReviewState.TO_REVIEW, ReviewHash.of(value), by, at, Review.ORIGIN_MANUAL, source = source)
-        return reviews + (key to previous.copy(thread = previous.thread.appended(ReviewEventKind.COMMENT, by, at, text)))
+        val thread = previous.thread.appended(ReviewEventKind.COMMENT, by, at, text, parent = parent)
+        return reviews + (key to previous.copy(thread = thread))
+    }
+
+    /**
+     * The entry [id] of [key]'s thread marked [resolved], or open again. Nothing else changes — the
+     * decision, its author, its date — and no entry is added: resolving is no decision. Reviews as
+     * they are when the key or the entry is unknown.
+     */
+    fun resolve(reviews: Map<ReviewKey, Review>, key: ReviewKey, id: String, resolved: Boolean): Map<ReviewKey, Review> {
+        val previous = reviews[key] ?: return reviews
+        if (previous.thread.none { it.id == id }) return reviews
+        val thread = previous.thread.map { if (it.id == id) it.copy(resolved = resolved) else it }
+        return reviews + (key to previous.copy(thread = thread))
     }
 
     /** The thread with one more entry, its id one above the highest `r<n>` of the thread. */
     private fun List<ReviewEvent>.appended(
-        kind: ReviewEventKind, by: String, at: String, text: String, suggestion: String? = null
+        kind: ReviewEventKind, by: String, at: String, text: String, suggestion: String? = null, parent: String? = null
     ): List<ReviewEvent> {
         val next = (mapNotNull { it.id.removePrefix(ID_PREFIX).toIntOrNull() }.maxOrNull() ?: 0) + 1
-        return this + ReviewEvent(ID_PREFIX + next, kind, by, at, text, suggestion)
+        return this + ReviewEvent(ID_PREFIX + next, kind, by, at, text, suggestion, parent)
     }
 
     private const val ID_PREFIX = "r"
