@@ -333,6 +333,13 @@
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.MissingTranslationKeyInspection"/>
         <localInspection
             groupName="i18n Support Plus"
+            key="inspection.orphan.key.display.name"
+            shortName="I18nOrphanKey"
+            enabledByDefault="false"
+            level="WARNING"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.OrphanTranslationKeyInspection"/>
+        <localInspection
+            groupName="i18n Support Plus"
             key="inspection.stale.display.name"
             shortName="I18nStaleTranslation"
             enabledByDefault="true"
