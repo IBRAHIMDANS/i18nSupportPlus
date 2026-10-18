@@ -35,7 +35,8 @@ import com.google.gson.JsonParser
  *
  * `sourceLocale` and `sourceHash` ([Review.source]) are optional, and left out when unknown: a file
  * written before them reads and writes back unchanged, still in [VERSION] 1 — a version that does
- * not know them reads the file all the same. The properties of an entry this version does not know
+ * not know them reads the file all the same. So is `suggestion` on a thread entry
+ * ([ReviewEvent.suggestion]). The properties of an entry this version does not know
  * are written back after the others, as they were read ([Review.extra]); so are those of an entry of
  * its thread ([ReviewEvent.extra]).
  */
@@ -115,6 +116,7 @@ object ReviewCodec {
         return ReviewEvent(
             json.string("id") ?: return null, ReviewEventKind.of(json.string("kind")),
             json.string("by").orEmpty(), json.string("at").orEmpty(), json.string("text").orEmpty(),
+            json.string(SUGGESTION),
             json.entrySet().filter { it.key !in KNOWN_EVENT }.associate { (name, value) -> name to value.toString() }
         )
     }
@@ -140,6 +142,8 @@ object ReviewCodec {
         addProperty("by", event.by)
         addProperty("at", event.at)
         addProperty("text", event.text)
+        // Never written when absent: an entry read from an older file is written back as it was.
+        event.suggestion?.let { addProperty(SUGGESTION, it) }
         event.extra.forEach { (name, raw) -> if (name !in KNOWN_EVENT) add(name, JsonParser.parseString(raw)) }
     }
 
@@ -148,10 +152,11 @@ object ReviewCodec {
 
     private const val SOURCE_LOCALE = "sourceLocale"
     private const val SOURCE_HASH = "sourceHash"
+    private const val SUGGESTION = "suggestion"
 
     /** The properties of an entry this version reads; any other one is kept in [Review.extra]. */
     private val KNOWN = setOf("status", "hash", "by", "at", "origin", "thread", SOURCE_LOCALE, SOURCE_HASH)
 
     /** The properties of a thread entry this version reads; any other one is kept in [ReviewEvent.extra]. */
-    private val KNOWN_EVENT = setOf("id", "kind", "by", "at", "text")
+    private val KNOWN_EVENT = setOf("id", "kind", "by", "at", "text", SUGGESTION)
 }

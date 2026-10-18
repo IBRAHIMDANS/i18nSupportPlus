@@ -100,6 +100,9 @@ enum class ReviewEventKind(val id: String) {
 /**
  * One entry of a thread: flat, no replies, nothing to resolve — a later decision supersedes it.
  *
+ * [suggestion] is the value a change request proposes instead, null when it proposes none: the
+ * review dialog offers to apply it. Optional in the file, as every field added after the first format.
+ *
  * [extra] holds the properties of the entry this version does not know, as raw JSON by name, as
  * [Review.extra] does for a review: [ReviewCodec] writes them back as they were read.
  */
@@ -109,6 +112,7 @@ data class ReviewEvent(
     val by: String,
     val at: String,
     val text: String = "",
+    val suggestion: String? = null,
     val extra: Map<String, String> = emptyMap()
 )
 
@@ -210,17 +214,20 @@ object ReviewEdits {
 
     /**
      * [key]'s decision set to [state] on [value] and [source], [text] added to the thread. Requesting
-     * changes without saying which is refused: the translator would have nothing to act on.
+     * changes without saying which is refused: the translator would have nothing to act on. A change
+     * request may propose the value to write instead, [suggestion]; a blank one, or one on another
+     * decision, is not recorded.
      */
     fun decide(
         reviews: Map<ReviewKey, Review>, key: ReviewKey, state: ReviewState, value: String,
-        by: String, at: String, text: String = "", source: ReviewSource? = null
+        by: String, at: String, text: String = "", source: ReviewSource? = null, suggestion: String? = null
     ): Map<ReviewKey, Review> {
         require(state != ReviewState.CHANGES_REQUESTED || text.isNotBlank()) { "a change request needs a comment" }
         val previous = reviews[key]
+        val proposed = suggestion?.takeIf { state == ReviewState.CHANGES_REQUESTED && it.isNotBlank() }
         return reviews + (key to Review(
             state, ReviewHash.of(value), by, at, previous?.origin ?: Review.ORIGIN_MANUAL,
-            previous?.thread.orEmpty().appended(ReviewEventKind.of(state), by, at, text),
+            previous?.thread.orEmpty().appended(ReviewEventKind.of(state), by, at, text, proposed),
             source ?: previous?.source, previous?.extra.orEmpty()
         ))
     }
@@ -241,9 +248,11 @@ object ReviewEdits {
     }
 
     /** The thread with one more entry, its id one above the highest `r<n>` of the thread. */
-    private fun List<ReviewEvent>.appended(kind: ReviewEventKind, by: String, at: String, text: String): List<ReviewEvent> {
+    private fun List<ReviewEvent>.appended(
+        kind: ReviewEventKind, by: String, at: String, text: String, suggestion: String? = null
+    ): List<ReviewEvent> {
         val next = (mapNotNull { it.id.removePrefix(ID_PREFIX).toIntOrNull() }.maxOrNull() ?: 0) + 1
-        return this + ReviewEvent(ID_PREFIX + next, kind, by, at, text)
+        return this + ReviewEvent(ID_PREFIX + next, kind, by, at, text, suggestion)
     }
 
     private const val ID_PREFIX = "r"

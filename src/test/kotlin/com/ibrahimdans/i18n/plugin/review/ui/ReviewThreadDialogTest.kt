@@ -88,6 +88,37 @@ class ReviewThreadDialogTest : PlatformBaseTest() {
     }
 
     @Test
+    fun aSuggestedValueIsShownWithALinkToApplyItWhileTheCellHoldsAnother() {
+        val request = ReviewEvent("r1", ReviewEventKind.REQUEST_CHANGE, "Alice", "2026-10-11T14:02:11Z", "Typo", "<Accueil>")
+        val link = ReviewThreadDialog.APPLY_LINK + "r1"
+
+        val html = ReviewThreadDialog.threadHtml(listOf(request), "Acceuil")
+        Assertions.assertTrue(html.contains(PluginBundle.message("review.dialog.suggested", "&lt;Accueil&gt;")), html)
+        Assertions.assertTrue(html.contains(link), html)
+        Assertions.assertFalse(ReviewThreadDialog.threadHtml(listOf(request), "<Accueil>").contains(link), "the value is the suggestion already")
+        Assertions.assertFalse(ReviewThreadDialog.threadHtml(listOf(request)).contains(link), "nothing to write over without a value")
+    }
+
+    @Test
+    fun aChangeRequestCarriesTheSuggestedValueAndApplyingItMarksTheKeyToReview() {
+        addFileToProject("locales/fr/translation.json", """{"menu":{"home":"Acceuil"}}""")
+        val root = enabledRoot()
+        val typo = ReviewCell("menu.home", "fr", "Acceuil")
+        withDialog(root, typo) { dialog ->
+            dialog.input.text = "Typo"
+            dialog.suggestionField.text = "Accueil"
+            Assertions.assertTrue(dialog.requestChanges())
+        }
+
+        withDialog(root, typo) { dialog ->
+            val id = dialog.review()!!.thread.last().id
+            Assertions.assertTrue(dialog.applySuggestion(id))
+            Assertions.assertEquals(ReviewState.TO_REVIEW, dialog.review()?.state)
+            Assertions.assertFalse(dialog.applySuggestion("r404"), "no such entry")
+        }
+    }
+
+    @Test
     fun openShowsNothingWhereReviewsAreOff() {
         // The test project's directory has no reviews folder.
         Assertions.assertFalse(ReviewThreadDialog.open(project, null, "menu.home", "fr", "Accueil"))

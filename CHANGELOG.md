@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Review] **A change request can suggest the value to write, and the translator applies it in one click**: *Request Changes* in the review dialog takes an optional *Suggested value*. The thread shows it under the request with *Apply suggestion*, which writes it as the translation and marks the key *To review*; one Ctrl+Z takes back both. The suggestion is an optional field of the thread entry in `.i18n-reviews/<locale>.json`, which stays in version 1
+
 ## 1.15.0 - 2026-10-18
 
 ### Features

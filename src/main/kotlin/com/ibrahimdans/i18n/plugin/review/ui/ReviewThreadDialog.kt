@@ -16,6 +16,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
+import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
@@ -26,6 +27,7 @@ import javax.swing.Action
 import javax.swing.JComponent
 import javax.swing.JEditorPane
 import javax.swing.JPanel
+import javax.swing.event.HyperlinkEvent
 
 /**
  * The review of one key in one locale: its value now, what the review means for it, the thread,
@@ -33,8 +35,10 @@ import javax.swing.JPanel
  * *Comment*.
  *
  * A decision closes the dialog; a comment stays, the thread reloaded under it. *Request Changes*
- * takes the text of the field and refuses an empty one. Every write is one command (see
- * [ReviewActions]). Nothing can be decided on a locale without a value: the buttons are disabled.
+ * takes the text of the field and refuses an empty one, and the suggested value when one is typed:
+ * the change request then offers *Apply suggestion* in the thread, which writes it as the value and
+ * marks the key to review — then closes the dialog, as a decision does, its value being stale.
+ * Every write is one command (see [ReviewActions]). Nothing can be decided on a locale without a value: the buttons are disabled.
  *
  * Opened from the table's *Comments…* and, through [open], from wherever a key and a locale are
  * known — the key dialog's *Review…* link.
@@ -64,6 +68,9 @@ class ReviewThreadDialog(
         wrapStyleWord = true
     }
 
+    /** The value a change request proposes instead; left empty, it proposes none. */
+    internal val suggestionField = JBTextField()
+
     private val hasValue = cell.value.isNotEmpty()
 
     private val approveAction = decision("review.action.approve") { approve() }
@@ -81,6 +88,11 @@ class ReviewThreadDialog(
         title = PluginBundle.message("review.dialog.title", cell.key, cell.locale)
         setCancelButtonText(PluginBundle.message("review.dialog.close"))
         listOf(approveAction, requestAction, markAction, commentAction).forEach { it.isEnabled = hasValue }
+        threadPane.addHyperlinkListener { e ->
+            if (e.eventType != HyperlinkEvent.EventType.ACTIVATED) return@addHyperlinkListener
+            val id = e.description.removePrefix(APPLY_LINK)
+            if (e.description.startsWith(APPLY_LINK) && applySuggestion(id)) close(OK_EXIT_CODE)
+        }
         init()
         reload()
     }
@@ -112,6 +124,7 @@ class ReviewThreadDialog(
         val thread = JBScrollPane(threadPane).apply { preferredSize = Dimension(JBUI.scale(520), JBUI.scale(220)) }
         val footer = FormBuilder.createFormBuilder()
             .addLabeledComponentFillVertically(PluginBundle.message("review.dialog.new.comment"), JBScrollPane(input))
+            .addLabeledComponent(PluginBundle.message("review.dialog.suggestion"), suggestionField)
             .panel
         return JPanel(BorderLayout(0, JBUI.scale(8))).apply {
             add(header, BorderLayout.NORTH)
@@ -137,7 +150,17 @@ class ReviewThreadDialog(
             setErrorText(PluginBundle.message("review.request.changes.empty"), input)
             return false
         }
-        return written(ReviewActions.requestChanges(project, root, listOf(cell), text, defaultNamespace, referenceLocale))
+        return written(
+            ReviewActions.requestChanges(project, root, listOf(cell), text, defaultNamespace, referenceLocale, suggestionField.text)
+        )
+    }
+
+    /** Writes the value the thread entry [id] suggests, and marks the key to review on it. */
+    internal fun applySuggestion(id: String): Boolean {
+        val suggestion = review()?.thread?.firstOrNull { it.id == id }?.suggestion ?: return false
+        val ok = ReviewActions.applySuggestion(project, root, cell, suggestion, defaultNamespace, referenceLocale)
+        if (!ok) setErrorText(PluginBundle.message("review.apply.suggestion.failed", cell.key, cell.locale))
+        return ok
     }
 
     /** Adds the field's text to the thread and keeps the dialog open on it. */
@@ -167,7 +190,7 @@ class ReviewThreadDialog(
         val shown = shownReview()
         stateLabel.text = if (shown == ShownReview.NONE) PluginBundle.message("review.dialog.state.none") else ReviewBadge.label(shown)
         stateLabel.icon = ReviewBadge.icon(shown)
-        threadPane.text = threadHtml(review?.thread.orEmpty())
+        threadPane.text = threadHtml(review?.thread.orEmpty(), cell.value)
         threadPane.caretPosition = threadPane.document.length
     }
 
@@ -200,13 +223,26 @@ class ReviewThreadDialog(
         internal fun eventLine(event: ReviewEvent): String =
             PluginBundle.message("review.dialog.event", event.by, ReviewBadge.eventKind(event.kind), ReviewBadge.date(event.at))
 
-        /** The thread, oldest first, every text escaped. */
-        internal fun threadHtml(thread: List<ReviewEvent>): String {
+        /** The link of the thread that applies the suggestion of the entry whose id follows it. */
+        internal const val APPLY_LINK = "apply:"
+
+        /**
+         * The thread, oldest first, every text escaped. A suggested value is shown under its entry,
+         * with a link to apply it while the cell holds a [value] and not that one already.
+         */
+        internal fun threadHtml(thread: List<ReviewEvent>, value: String = ""): String {
             if (thread.isEmpty()) return "<html><i>${escape(PluginBundle.message("review.dialog.thread.empty"))}</i></html>"
             return "<html>" + thread.joinToString("") { event ->
                 val text = if (event.text.isBlank()) "" else "<br>" + escape(event.text)
-                "<p><b>${escape(eventLine(event))}</b>$text</p>"
+                "<p><b>${escape(eventLine(event))}</b>$text${suggestionHtml(event, value)}</p>"
             } + "</html>"
+        }
+
+        private fun suggestionHtml(event: ReviewEvent, value: String): String {
+            val suggestion = event.suggestion ?: return ""
+            val line = "<br><i>${escape(PluginBundle.message("review.dialog.suggested", suggestion))}</i>"
+            if (value.isEmpty() || suggestion == value) return line
+            return "$line <a href=\"$APPLY_LINK${escape(event.id)}\">${escape(PluginBundle.message("review.dialog.apply.suggestion"))}</a>"
         }
 
         private fun escape(text: String): String = StringUtil.escapeXmlEntities(text).replace("\n", "<br>")

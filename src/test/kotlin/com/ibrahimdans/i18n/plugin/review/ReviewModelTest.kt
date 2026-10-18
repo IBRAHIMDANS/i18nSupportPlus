@@ -197,6 +197,26 @@ class ReviewModelTest {
     }
 
     @Test
+    fun `a change request records the value it suggests on its thread entry`() {
+        val requested = ReviewEdits.decide(emptyMap(), key, ReviewState.CHANGES_REQUESTED, "Chariot", "Alice", "T1", "Say Panier", suggestion = value)
+
+        val review = requested.getValue(key)
+        assertEquals(ReviewEvent("r1", ReviewEventKind.REQUEST_CHANGE, "Alice", "T1", "Say Panier", value), review.thread.last())
+        assertEquals(ShownReview.CHANGES_REQUESTED, shown(review, "Chariot"))
+        // Once the suggestion is the value, the request reads as fixed: shown() knows nothing of suggestions.
+        assertEquals(ShownReview.FIXED_SINCE_REQUEST, shown(review, value))
+    }
+
+    @Test
+    fun `a blank suggestion, or one on another decision, is not recorded`() {
+        val blank = ReviewEdits.decide(emptyMap(), key, ReviewState.CHANGES_REQUESTED, "Chariot", "Alice", "T1", "Say Panier", suggestion = " ")
+        val approved = ReviewEdits.decide(emptyMap(), key, ReviewState.APPROVED, value, "Alice", "T1", suggestion = "Caddie")
+
+        assertNull(blank.getValue(key).thread.last().suggestion)
+        assertNull(approved.getValue(key).thread.last().suggestion)
+    }
+
+    @Test
     fun `a comment leaves the decision as it is`() {
         val approved = ReviewEdits.decide(emptyMap(), key, ReviewState.APPROVED, value, "Alice", "T1")
         val commented = ReviewEdits.comment(approved, key, value, "Bob", "T2", "Nice")

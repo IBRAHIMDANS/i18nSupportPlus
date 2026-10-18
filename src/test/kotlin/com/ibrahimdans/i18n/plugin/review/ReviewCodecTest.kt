@@ -198,7 +198,9 @@ class ReviewCodecTest {
     fun `the properties of a later version on a thread entry are written back as they were read`() {
         val review = ReviewCodec.read(laterEvents).getValue(ReviewKey("common", "cart.title"))
 
-        assertEquals(listOf("suggestion", "resolved", "anchor"), review.thread.first().extra.keys.toList())
+        // `suggestion` is this version's own now; the others stay as they were read.
+        assertEquals("Panier", review.thread.first().suggestion)
+        assertEquals(listOf("resolved", "anchor"), review.thread.first().extra.keys.toList())
         assertEquals(emptyMap<String, String>(), review.thread.last().extra)
         assertEquals(laterEvents, ReviewCodec.write(ReviewCodec.read(laterEvents)))
         assertEquals(1, ReviewCodec.VERSION)
@@ -217,6 +219,28 @@ class ReviewCodecTest {
         val written = ReviewCodec.write(commented)
         assertTrue("\"suggestion\": \"Panier\"" in written, written)
         assertTrue("\"resolved\": false" in written, written)
+    }
+
+    @Test
+    fun `a suggestion is read and written after the text, still in version 1`() {
+        val withSuggestion = canonical.replace(
+            "          \"text\": \"« Panier » plutôt que « Chariot »\"\n",
+            "          \"text\": \"« Panier » plutôt que « Chariot »\",\n          \"suggestion\": \"Panier\"\n"
+        )
+        val thread = ReviewCodec.read(withSuggestion).getValue(ReviewKey("common", "cart.title")).thread
+
+        assertEquals(listOf("Panier", null), thread.map { it.suggestion })
+        assertEquals(emptyMap<String, String>(), thread.first().extra)
+        assertEquals(withSuggestion, ReviewCodec.write(ReviewCodec.read(withSuggestion)))
+        assertEquals(1, ReviewCodec.VERSION)
+    }
+
+    @Test
+    fun `a file written before the suggestion reads without one and writes none`() {
+        val written = ReviewCodec.write(ReviewCodec.read(canonical))
+
+        assertEquals(canonical, written)
+        assertFalse("suggestion" in written, "no empty suggestion may be written")
     }
 
     @Test
