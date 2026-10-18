@@ -179,6 +179,46 @@ class ReviewCodecTest {
         assertTrue("\"assignee\": \"Carol\"" in ReviewCodec.write(approved))
     }
 
+    private val laterEvents = canonical.replace(
+        "          \"text\": \"« Panier » plutôt que « Chariot »\"\n",
+        """
+        |          "text": "« Panier » plutôt que « Chariot »",
+        |          "suggestion": "Panier",
+        |          "resolved": false,
+        |          "anchor": {
+        |            "start": 0,
+        |            "end": 7,
+        |            "note": null
+        |          }
+        |
+        """.trimMargin()
+    )
+
+    @Test
+    fun `the properties of a later version on a thread entry are written back as they were read`() {
+        val review = ReviewCodec.read(laterEvents).getValue(ReviewKey("common", "cart.title"))
+
+        assertEquals(listOf("suggestion", "resolved", "anchor"), review.thread.first().extra.keys.toList())
+        assertEquals(emptyMap<String, String>(), review.thread.last().extra)
+        assertEquals(laterEvents, ReviewCodec.write(ReviewCodec.read(laterEvents)))
+        assertEquals(1, ReviewCodec.VERSION)
+    }
+
+    @Test
+    fun `an entry added to the thread leaves the others' unknown properties untouched`() {
+        val key = ReviewKey("common", "cart.title")
+        val reviews = ReviewCodec.read(laterEvents)
+
+        val commented = ReviewEdits.comment(reviews, key, "Panier", "Bob", "T3", "OK")
+        val thread = commented.getValue(key).thread
+
+        assertEquals(reviews.getValue(key).thread, thread.dropLast(1))
+        assertEquals(emptyMap<String, String>(), thread.last().extra)
+        val written = ReviewCodec.write(commented)
+        assertTrue("\"suggestion\": \"Panier\"" in written, written)
+        assertTrue("\"resolved\": false" in written, written)
+    }
+
     @Test
     fun `an entry missing its status or hash is skipped, the others kept`() {
         val text = """
