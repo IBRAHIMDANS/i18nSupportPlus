@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.io.File
 import java.util.Locale
+import java.util.Properties
 import java.util.ResourceBundle
 
 /**
@@ -34,12 +35,23 @@ class PluginBundleTest {
     /** The English bundle, loaded with a locale no translation exists for. */
     private fun baseBundle(): ResourceBundle = bundle(Locale.ROOT)
 
+    /**
+     * The keys the file of [locale] itself holds. A [ResourceBundle]'s `keySet()` also holds its
+     * parent's, the base bundle's: compared with the base, every key would always be there.
+     */
+    private fun ownKeys(locale: Locale): Set<String> {
+        val resource = "${BUNDLE.replace('.', '/')}_$locale.properties"
+        val stream = PluginBundleTest::class.java.classLoader.getResourceAsStream(resource)
+            ?: error("no $resource on the test classpath")
+        return stream.reader(Charsets.UTF_8).use { Properties().apply { load(it) } }.stringPropertyNames()
+    }
+
     @Test
     fun `every translated bundle covers exactly the base keys`() {
         val base = baseBundle().keySet()
 
         for (locale in LOCALES) {
-            val translated = bundle(locale).keySet()
+            val translated = ownKeys(locale)
             assertEquals(
                 emptySet<String>(), base - translated,
                 "keys missing from I18nBundle_$locale.properties — they would silently fall back to English"
