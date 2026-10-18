@@ -213,6 +213,85 @@ class TableViewModelReviewTest {
         assertNull(stale.sourceOf("menu.home", ""), "an empty source is no source")
     }
 
+    // ── Plural forms the reference lacks ──────────────────────────────────────
+
+    /** English has `one` / `other`, Russian adds `few`: `item_few` is translated from `item_other`. */
+    private fun pluralRows(other: String) = listOf(
+        TranslationRow("item_one", mapOf("en" to "{{count}} item", "ru" to "{{count}} элемент")),
+        TranslationRow("item_few", mapOf("ru" to "{{count}} элемента")),
+        TranslationRow("item_other", mapOf("en" to other, "ru" to "{{count}} элементов")),
+    )
+
+    /** `ru` approved on its values: `item_few` against [fewSource] in `en`, `item_one` against its own form. */
+    private fun pluralReviews(rows: List<TranslationRow>, fewSource: ReviewSource?, pluralSeparator: String = "-") = TableReviews(
+        mapOf("ru" to mapOf(
+            ReviewKey("translation", "item_few") to review(ReviewState.APPROVED, "{{count}} элемента").copy(source = fewSource),
+            ReviewKey("translation", "item_one") to review(ReviewState.APPROVED, "{{count}} элемент").copy(source = ReviewSource.of("en", "{{count}} item")),
+        )),
+        "translation",
+        referenceLocale = "en",
+        pluralSeparator = pluralSeparator,
+        rowOf = { key -> rows.firstOrNull { it.key == key } },
+    )
+
+    @Test
+    fun `a plural form the reference lacks reads the reference's other form as its source`() {
+        val rows = pluralRows("{{count}} items in all")
+        val reviews = pluralReviews(rows, ReviewSource.of("en", "{{count}} items"))
+        val few = rows[1]
+
+        assertEquals("{{count}} items in all", reviews.sourceText(few))
+        assertEquals(ShownReview.SOURCE_CHANGED, reviews.shownOf(few, "ru"), "English `other` changed since the approval")
+        assertEquals(listOf(few), viewModel.filterByStatus(StatusFilter.SOURCE_CHANGED, rows, listOf("ru"), reviews))
+    }
+
+    @Test
+    fun `a plural form approved on the reference's other as it reads now is not stale`() {
+        val rows = pluralRows("{{count}} items")
+
+        assertEquals(ShownReview.APPROVED, pluralReviews(rows, ReviewSource.of("en", "{{count}} items")).shownOf(rows[1], "ru"))
+    }
+
+    @Test
+    fun `a key the reference holds keeps its own source, whatever its other form says`() {
+        val rows = pluralRows("{{count}} items in all")
+        val reviews = pluralReviews(rows, ReviewSource.of("en", "{{count}} items"))
+
+        assertEquals("{{count}} item", reviews.sourceText(rows[0]))
+        assertEquals(ShownReview.APPROVED, reviews.shownOf(rows[0], "ru"))
+    }
+
+    @Test
+    fun `a plural form approved before sources were recorded is never stale`() {
+        val rows = pluralRows("{{count}} items in all")
+
+        assertEquals(ShownReview.APPROVED, pluralReviews(rows, null).shownOf(rows[1], "ru"))
+    }
+
+    @Test
+    fun `a legacy numeric form reads the reference's widest count, whatever the plural separator`() {
+        for (separator in listOf("-", "_")) {
+            val rows = listOf(
+                TranslationRow("item${separator}1", mapOf("en" to "{{count}} item", "ru" to "{{count}} элемент")),
+                TranslationRow("item${separator}2", mapOf("en" to "{{count}} items in all", "ru" to "{{count}} элемента")),
+                TranslationRow("item${separator}5", mapOf("ru" to "{{count}} элементов")),
+            )
+            val reviews = TableReviews(
+                mapOf("ru" to mapOf(
+                    ReviewKey("translation", "item${separator}5") to review(ReviewState.APPROVED, "{{count}} элементов")
+                        .copy(source = ReviewSource.of("en", "{{count}} items")),
+                )),
+                "translation",
+                referenceLocale = "en",
+                pluralSeparator = separator,
+                rowOf = { key -> rows.firstOrNull { it.key == key } },
+            )
+
+            assertEquals("{{count}} items in all", reviews.sourceText(rows[2]), separator)
+            assertEquals(ShownReview.SOURCE_CHANGED, reviews.shownOf(rows[2], "ru"), separator)
+        }
+    }
+
     @Test
     fun `without reviews nothing is stale and no Source changed filter is offered`() {
         assertFalse(StatusFilter.SOURCE_CHANGED in viewModel.statusFilters(TableReviews.OFF))

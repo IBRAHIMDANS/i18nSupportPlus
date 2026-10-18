@@ -13,6 +13,7 @@ import com.ibrahimdans.i18n.plugin.review.Review
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
 import com.ibrahimdans.i18n.plugin.review.ReviewSource
+import com.ibrahimdans.i18n.plugin.review.ReviewSources
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.tree.PluralCategories
@@ -238,26 +239,25 @@ internal object MachineFill {
 
     /**
      * The stale translations of [target] in [translations] (`key -> locale -> value`), sorted: each
-     * key whose [target] value is the one its review was decided on while its source — the same key
-     * in [reviews]' reference locale — changed since ([ShownReview.SOURCE_CHANGED], as the table shows
-     * it). Each one is translated again from that source, the value it replaces kept as [Item.current];
-     * an ICU plural is listed with why it is not translated, as *Fill* does. None where reviews are
-     * off, nor in the reference locale itself.
+     * key whose [target] value is the one its review was decided on while its source — the key it is
+     * translated from in [reviews]' reference locale, see [ReviewSources] — changed since
+     * ([ShownReview.SOURCE_CHANGED], as the table shows it). Each one is translated again from that
+     * source, the value it replaces kept as [Item.current]; an ICU plural is listed with why it is not
+     * translated, as *Fill* does. None where reviews are off, nor in the reference locale itself.
      *
-     * A plural form is translated from the same form of the source — a stale value always has one —
-     * never from `other`, so no item here [needs review][Item.needsReview]: such an item is marked
-     * without source and keeps the one of its previous review, which would leave it stale after its
-     * retranslation. A form the source lacks has no source that could change: it is never stale.
+     * A plural form the source lacks (`item_few` against an English `item_one` / `item_other`) is
+     * translated again from the source's `other`, and [needs review][Item.needsReview] as *Fill* has it.
      */
     fun staleItemsOf(translations: Map<String, Map<String, String>>, reviews: TableReviews, target: String): List<Item> {
         val reference = reviews.referenceLocale
         if (!reviews.enabled || reference == null || reference == target) return emptyList()
         return translations.mapNotNull { (key, values) ->
             val current = values[target]?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-            val source = values[reference]?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val source = ReviewSources.sourceTextOf(key, reviews.pluralSeparator) { translations[it]?.get(reference) }
+                ?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
             if (reviews.shownOf(key, target, current, source) != ShownReview.SOURCE_CHANGED) return@mapNotNull null
             if (PluralTranslationPlan.isIcuPlural(source)) Item(key, source, skipped = PluginBundle.message("action.fill.icu"), current = current)
-            else Item(key, source, current = current)
+            else Item(key, source, needsReview = values[reference].isNullOrEmpty(), current = current)
         }.sortedBy { it.key }
     }
 
@@ -319,12 +319,12 @@ internal object MachineFill {
     private const val UNKNOWN_ENGINE = "unknown"
 
     /**
-     * The source [item] was translated from, read in [locale]: its text, as sent to the engine. None
-     * for a plural form translated from `other` — that text is another key's, and a review compares
-     * the source of the same key — nor for an item never sent.
+     * The source [item] was translated from, read in [locale]: its text, as sent to the engine — for a
+     * plural form translated from `other`, that form's, the source [ReviewSources] compares it with
+     * since. None for an item never sent.
      */
     fun reviewSourceOf(item: Item, locale: String): ReviewSource? =
-        if (item.needsReview || item.skipped != null) null else ReviewSource.of(locale, item.source)
+        if (item.skipped != null) null else ReviewSource.of(locale, item.source)
 
     /** The source each of [proposals] was translated from, `locale -> key -> source`, read in [source]. See [reviewSourceOf]. */
     fun reviewSourcesOf(proposals: List<Proposal>, source: String): Map<String, Map<String, ReviewSource>> =

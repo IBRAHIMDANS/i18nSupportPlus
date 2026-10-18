@@ -13,6 +13,7 @@ import com.ibrahimdans.i18n.plugin.review.Review
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
 import com.ibrahimdans.i18n.plugin.review.ReviewSource
+import com.ibrahimdans.i18n.plugin.review.ReviewSources
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.review.shown
@@ -169,6 +170,13 @@ class TableReviews(
      * the locale a decision records its source in. Null when none matches: no source is known then.
      */
     val referenceLocale: String? = null,
+    /** The module's `Config.pluralSeparator`: how a legacy numeric plural form is spelled. */
+    val pluralSeparator: String = Config().pluralSeparator,
+    /**
+     * The row of a key, among the rows loaded now: where a plural form the reference lacks finds its
+     * `other` form ([ReviewSources]). Read at each call, so that it follows the rows of the day.
+     */
+    private val rowOf: (String) -> TranslationRow? = { null },
 ) {
     /** Per key, the source text last hashed and its [ReviewSource]: one hash per key and text. */
     private val sources = ConcurrentHashMap<String, Pair<String, ReviewSource>>()
@@ -196,8 +204,18 @@ class TableReviews(
     fun shownOf(row: TranslationRow, locale: String): ShownReview =
         shownOf(row.key, locale, row.values[locale], sourceText(row))
 
-    /** The text [row] holds in [referenceLocale], whatever locales are shown; null when it has none. */
-    fun sourceText(row: TranslationRow?): String? = referenceLocale?.let { row?.values?.get(it) }
+    /**
+     * The text [row] is translated from in [referenceLocale], whatever locales are shown: its own, or
+     * its plural group's `other` form's when the reference lacks its category ([ReviewSources]); null
+     * when it has none.
+     */
+    fun sourceText(row: TranslationRow?): String? {
+        val locale = referenceLocale ?: return null
+        row ?: return null
+        return ReviewSources.sourceTextOf(row.key, pluralSeparator) { key ->
+            (if (key == row.key) row else rowOf(key))?.values?.get(locale)
+        }
+    }
 
     /**
      * [text], the source [key] holds now, as a [ReviewSource] in [referenceLocale]; null when either
@@ -391,18 +409,20 @@ class TableViewModel {
     /**
      * The reviews of [locales] under [root], or [TableReviews.OFF] when there is no root or it has
      * no reviews folder, read against [moduleConfig]'s reference locale ([ReferenceLocale.of], the
-     * choice every decision records its source with). Reads files: off the EDT, or on it for a
+     * choice every decision records its source with). [rowOf] finds a key's row among those loaded,
+     * where a plural form reads its `other` form's source. Reads files: off the EDT, or on it for a
      * reload (the store caches them).
      */
     fun loadReviews(
         project: Project, root: VirtualFile?, locales: List<String>, config: Config, moduleConfig: ModuleConfig? = null,
+        rowOf: (String) -> TranslationRow? = { null },
     ): TableReviews {
         if (root == null) return TableReviews.OFF
         val store = ReviewStore.getInstance(project)
         if (!store.isEnabled(root)) return TableReviews.OFF
         return TableReviews(
             locales.associateWith { store.reviews(root, it) }, config.defaultNamespaces().first(),
-            referenceLocale = ReferenceLocale.of(moduleConfig, config, locales),
+            referenceLocale = ReferenceLocale.of(moduleConfig, config, locales), pluralSeparator = config.pluralSeparator, rowOf = rowOf,
         )
     }
 

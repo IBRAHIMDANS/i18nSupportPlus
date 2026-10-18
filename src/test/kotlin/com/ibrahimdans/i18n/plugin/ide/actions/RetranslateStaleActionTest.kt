@@ -96,6 +96,31 @@ class RetranslateStaleActionTest : PlatformBaseTest() {
         Assertions.assertEquals(emptyList<MachineFill.Item>(), MachineFill.staleItemsOf(translations, TableReviews.OFF, "fr"), "nothing without reviews")
     }
 
+    /** English has no `few`: the Russian form decided on `item_other` is retranslated from it once it changed. */
+    @Test
+    fun `a plural form the reference lacks is retranslated from its other form, for review`() {
+        val translations = mapOf(
+            "common:item_one" to mapOf("en" to "{{count}} item", "ru" to "{{count}} элемент"),
+            "common:item_few" to mapOf("ru" to "{{count}} элемента"),
+            "common:item_other" to mapOf("en" to "{{count}} items in all", "ru" to "{{count}} элементов"),
+        )
+        val approvedRu = { value: String, source: String ->
+            Review(ReviewState.APPROVED, ReviewHash.of(value), "Alice", "2026-10-01T10:00:00Z", source = ReviewSource.of("en", source))
+        }
+        val reviews = TableReviews(
+            mapOf("ru" to mapOf(
+                ReviewKey("common", "item_one") to approvedRu("{{count}} элемент", "{{count}} item"),
+                ReviewKey("common", "item_few") to approvedRu("{{count}} элемента", "{{count}} items"),
+            )),
+            "translation", referenceLocale = "en"
+        )
+
+        Assertions.assertEquals(
+            listOf(MachineFill.Item("common:item_few", "{{count}} items in all", needsReview = true, current = "{{count}} элемента")),
+            MachineFill.staleItemsOf(translations, reviews, "ru")
+        )
+    }
+
     @Test
     fun `an ICU plural is listed, never sent`() {
         val items = listOf(MachineFill.Item("common:count", "{n, plural, one {# file} other {# files}}", skipped = icu, current = "{n, plural, other {# fichiers}}"))

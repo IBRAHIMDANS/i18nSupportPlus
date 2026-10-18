@@ -9,8 +9,10 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.ReviewBadge
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
+import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewSource
+import com.ibrahimdans.i18n.plugin.review.ReviewSources
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.review.shown
@@ -411,10 +413,10 @@ class TranslationDialog(
     }
 
     /**
-     * What [source]'s stored value is compared against: the same key, as stored, in the reference
-     * locale of [source]'s module — [ReferenceLocale.of] over that module's locales, as the table
-     * reads it — as its locale and its text. Null for the reference locale itself, and when the
-     * reference holds no value.
+     * What [source]'s stored value is compared against: the key it is translated from ([ReviewSources]:
+     * the same key, or a plural form's `other`), as stored, in the reference locale of [source]'s
+     * module — [ReferenceLocale.of] over that module's locales, as the table reads it — as its locale
+     * and its text. Null for the reference locale itself, and when the reference holds no value.
      */
     private fun currentSourceOf(source: LocalizationSource): Pair<String, String>? {
         val module = moduleOf(source)
@@ -422,8 +424,13 @@ class TranslationDialog(
         val config = Settings.getInstance(project).config()
         val reference = ReferenceLocale.of(module, config, inModule.map { it.localeLabel() }.distinct()) ?: return null
         if (source.localeLabel() == reference) return null
-        val text = inModule.firstOrNull { it.localeLabel() == reference }?.let { sources[it] }
-        return text?.takeIf { it.isNotEmpty() }?.let { reference to it }
+        val last = fullKey.compositeKey.lastOrNull() ?: return null
+        val text = ReviewSources.sourceTextOf(last.text, config.pluralSeparator) { segment ->
+            val values = if (segment == last.text) sources
+            else viewModel.loadTranslations(fullKey.copy(compositeKey = fullKey.compositeKey.dropLast(1) + Literal(segment)))
+            values.entries.firstOrNull { it.key.localeLabel() == reference && moduleOf(it.key) == module }?.value
+        }
+        return text?.let { reference to it }
     }
 
     /**
@@ -605,9 +612,9 @@ class TranslationDialog(
         }
 
         // What each target locale is asked for: the source text, or a note saying why not. The text
-        // is kept as the proposal's source only when it is the key's own: an `other` form standing in
-        // for a missing one is another key's, which the table never compares — no source, in v1.
-        val asSource = { text: String -> if (donor != null) ReviewSource.of(source.first, text) else null }
+        // is the proposal's source, an `other` form standing in for a missing one included: the one
+        // the table and this dialog compare the form with since ([ReviewSources]).
+        val asSource = { text: String -> ReviewSource.of(source.first, text) }
         val notes = mutableListOf<String>()
         val requests = targets.mapNotNull { (locale, area) ->
             if (plural == null) return@mapNotNull MachineRequest(locale, area, source.second, asSource(source.second))
@@ -622,7 +629,7 @@ class TranslationDialog(
                         form == null -> { notes += PluginBundle.message("dialog.translation.translate.no.such.form", locale, plural.first); null }
                         else -> {
                             if (form.needsReview) notes += PluginBundle.message("dialog.translation.translate.review", locale, plural.first)
-                            MachineRequest(locale, area, form.source, if (form.needsReview) null else asSource(form.source))
+                            MachineRequest(locale, area, form.source, asSource(form.source))
                         }
                     }
                 }
@@ -840,8 +847,8 @@ class TranslationDialog(
 
     /**
      * A machine translation as *Translate* proposed it: its [text], its [origin] (`machine:<engine>`)
-     * and the [source] it was translated from — the locale and text of the request — null when that
-     * text was not the key's own.
+     * and the [source] it was translated from — the locale and text of the request, a plural form's
+     * `other` when it stood in for a missing form ([ReviewSources]).
      */
     internal data class MachineProposal(val text: String, val origin: String, val source: ReviewSource? = null)
 

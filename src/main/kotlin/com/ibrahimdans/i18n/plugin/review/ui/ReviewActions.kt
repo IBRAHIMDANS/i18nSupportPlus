@@ -19,8 +19,9 @@ import java.time.temporal.ChronoUnit
  * A locale cell a decision is made on: [key] spelled as the tool window spells it ([com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling]),
  * [value] the value the cell holds now — the one the decision is recorded against. An empty
  * [value] is a locale without entry: there is nothing to review, every action skips it.
- * [source] is the value the key holds now in the module's reference locale, recorded with the
- * decision; null or empty when unknown or absent — the key then keeps the source it had.
+ * [source] is the value the key is translated from now in the module's reference locale — its own,
+ * or a plural form's `other`, see [com.ibrahimdans.i18n.plugin.review.ReviewSources] — recorded with
+ * the decision; null or empty when unknown or absent — the key then keeps the source it had.
  */
 data class ReviewCell(val key: String, val locale: String, val value: String, val source: String? = null)
 

@@ -138,7 +138,7 @@ class TranslationAgentToolsTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `a plural form the agent translated from other is marked without source`() = myFixture.runWithConfig(config) {
+    fun `a plural form the agent translated from other is marked with the source of other`() = myFixture.runWithConfig(config) {
         seed()
         myFixture.addFileToProject("locales/ru/common.json", "{}")
         val root = myFixture.tempDirFixture.findOrCreateDir("app")
@@ -150,7 +150,10 @@ class TranslationAgentToolsTest : PlatformBaseTest() {
         Assertions.assertEquals(listOf("common:item_few", "common:item_one"), result.written)
         val reviews = store.reviews(root, "ru")
         Assertions.assertEquals(ReviewSource.of("en", "{{count}} item"), reviews.getValue(ReviewKey("common", "item_one")).source)
-        Assertions.assertNull(reviews.getValue(ReviewKey("common", "item_few")).source, "read from `other`, another key's text")
+        Assertions.assertEquals(
+            ReviewSource.of("en", "{{count}} items"), reviews.getValue(ReviewKey("common", "item_few")).source,
+            "read from `other`, the source the table compares the form with"
+        )
     }
 
     @Test

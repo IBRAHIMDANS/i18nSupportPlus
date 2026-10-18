@@ -10,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.review.ReviewHash
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
 import com.ibrahimdans.i18n.plugin.review.ReviewSource
+import com.ibrahimdans.i18n.plugin.review.ReviewSources
 import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
@@ -437,12 +438,14 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `each proposal's source is the text sent, none for a plural form from other or a skipped item`() {
+    fun `each proposal's source is the text sent, the other form's for a form from other, none for a skipped item`() {
         val proposals = MachineFill.translate(MachineFill.itemsOf(plural, "en", "ru", "."), engine { Translation.Done("[ru] $it") }, "en", "ru", EmptyProgressIndicator())!! +
             MachineFill.Proposal(MachineFill.Item("common:count", "{n, plural, one {# file} other {# files}}", skipped = icu), Translation.Failed(icu), "ru")
 
         Assertions.assertEquals(
             mapOf("ru" to mapOf(
+                "files:file_few" to ReviewSource.of("en", "{{count}} files"),
+                "files:file_many" to ReviewSource.of("en", "{{count}} files"),
                 "files:file_one" to ReviewSource.of("en", "{{count}} file"),
                 "files:file_other" to ReviewSource.of("en", "{{count}} files"),
             )),
@@ -469,21 +472,31 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
         val save = reviews.getValue(ReviewKey("common", "save"))
         Assertions.assertEquals(ReviewSource.of("en", "Save"), save.source)
         Assertions.assertEquals(ReviewSource.of("en", "{{count}} file"), reviews.getValue(ReviewKey("common", "file_one")).source)
-        Assertions.assertNull(reviews.getValue(ReviewKey("common", "file_few")).source, "a form translated from other has no source")
+        val few = reviews.getValue(ReviewKey("common", "file_few"))
+        Assertions.assertEquals(ReviewSource.of("en", "{{count}} files"), few.source, "a form translated from other records other's source")
 
-        fun currentSource(key: String) = TranslationDataLoader.loadAllTranslations(project, null)[key]?.get("en")?.let { ReviewSource.of("en", it) }
+        // The source as the table and the inspection read it: the key's own, or its group's `other`.
+        fun currentSource(key: String): ReviewSource? {
+            val translations = TranslationDataLoader.loadAllTranslations(project, null)
+            return ReviewSources.sourceTextOf(key, config.pluralSeparator) { translations[it]?.get("en") }?.let { ReviewSource.of("en", it) }
+        }
         Assertions.assertEquals(ShownReview.TO_REVIEW, shown(save, "[ru] Save", currentSource("common:save")))
+        Assertions.assertEquals(ShownReview.TO_REVIEW, shown(few, "[ru] {{count}} files", currentSource("common:file_few")))
 
         WriteCommandAction.runWriteCommandAction(project) {
             val document = PsiDocumentManager.getInstance(project).getDocument(en)!!
-            document.setText(document.text.replace("\"Save\"", "\"Save all\""))
+            document.setText(document.text.replace("\"Save\"", "\"Save all\"").replace("\"{{count}} files\"", "\"{{count}} files in all\""))
             PsiDocumentManager.getInstance(project).commitDocument(document)
         }
 
         Assertions.assertEquals(ShownReview.SOURCE_CHANGED, shown(save, "[ru] Save", currentSource("common:save")))
         Assertions.assertEquals(
-            ShownReview.TO_REVIEW, shown(reviews.getValue(ReviewKey("common", "file_few")), "[ru] {{count}} files", currentSource("common:file_few")),
-            "without source, never stale"
+            ShownReview.SOURCE_CHANGED, shown(few, "[ru] {{count}} files", currentSource("common:file_few")),
+            "English `other` changed: the Russian `few` translated from it is stale"
+        )
+        Assertions.assertEquals(
+            ShownReview.TO_REVIEW, shown(few.copy(source = null), "[ru] {{count}} files", currentSource("common:file_few")),
+            "a review written before, without source, never turns stale"
         )
     }
 }

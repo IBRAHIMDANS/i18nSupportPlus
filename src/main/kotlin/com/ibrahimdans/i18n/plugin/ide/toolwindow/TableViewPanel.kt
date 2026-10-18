@@ -460,7 +460,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         locales = discovered
         val namespaces = viewModel.namespaceFilters(rows)
         val root = resolveReviewRoot()
-        val loadedReviews = viewModel.loadReviews(project, root, discovered, config, moduleConfig)
+        val loadedReviews = viewModel.loadReviews(project, root, discovered, config, moduleConfig) { rowsByKey[it] }
         val loadedSources = TranslationDataLoader.findSources(project, moduleConfig)
 
         ApplicationManager.getApplication().invokeLater {
@@ -741,7 +741,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      */
     internal fun reloadReviews() {
         if (project.isDisposed) return
-        reviews = viewModel.loadReviews(project, reviewRoot, locales, config, moduleConfig)
+        reviews = viewModel.loadReviews(project, reviewRoot, locales, config, moduleConfig) { rowsByKey[it] }
         updateStatusCombo()
         if (currentStatus.readsReviews) applyFilters() else table.repaint()
     }
