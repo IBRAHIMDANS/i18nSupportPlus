@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Inspections] **A key absent from the reference locale is reported** (*Translation key absent from the reference locale*, disabled by default): `user.nmae` in `fr/common.json`, which `en/common.json` does not hold — a key renamed in the reference only, or a typo — is underlined on its name. Quick fixes remove it from the locale or add it, empty, to the reference locale. Plural forms are compared as a group, so `ru`'s `item_few` is not reported when `en` has `item_one` / `item_other`; the reference file and ignored locales are never reported
+
 ## 1.14.0 - 2026-10-17
 
 ### Features

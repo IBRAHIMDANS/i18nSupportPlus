@@ -1,0 +1,9 @@
+<html>
+<body>
+<p>Reports, in a locale file, every key that the reference locale's file for the same namespace does not hold.</p>
+<p>Example: <code>fr/common.json</code> holds <code>user.nmae</code>, <code>en/common.json</code> does not: a key renamed in the reference only, or a typo in the locale. The code asks for the reference's spelling, so the translation is never shown.</p>
+<p>The reference file itself and the locales not checked for missing keys are never reported. Plural forms are compared as a group, so <code>ru</code> holding <code>item_few</code> is right when <code>en</code> has <code>item_one</code> and <code>item_other</code>. Quick fixes remove the key from the locale, or add it to the reference locale with an empty value.</p>
+<!-- tooltip end -->
+<p>Disabled by default. Runs in the editor and headless, in Qodana or <code>inspect.sh</code>.</p>
+</body>
+</html>
