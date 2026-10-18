@@ -244,6 +244,7 @@ Enabled under **Settings > Editor > Inspections > i18n Support Plus**:
 | Placeholder consistency across locales | A `{name}` or `%s` placeholder present in one locale and not in another, or an unbalanced brace |
 | ICU message format validation | Unbalanced braces, a `plural` block without `one`/`other`, … |
 | Unused translation key | A key of a translation file no code refers to, unless the settings keep it (*Keys used outside the code*); quick fixes: delete it, or keep it |
+| Translation key absent from the reference locale | A key of a locale that the reference locale's file does not hold — renamed in the reference only, or mistyped — plural forms compared as a group (off by default); quick fixes: remove it from the locale, or add it empty to the reference |
 | Translation reviewed on a source that changed since | Where a module keeps reviews, a value still the one reviewed while the key's reference text changed since (weak warning) |
 | Key naming convention | A key not following the project's convention — camelCase, snake_case, kebab-case or a pattern of your own — segment by segment, plural suffixes aside (off by default); quick fix: rename it in every locale and call site |
 
