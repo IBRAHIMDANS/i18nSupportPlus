@@ -9,6 +9,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader.extractLocale
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader.extractNamespace
+import com.ibrahimdans.i18n.plugin.review.ReviewLocation
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
@@ -108,6 +109,40 @@ internal fun selectReferenceLocale(
     ReferenceLocale.declared(module ?: ModuleSources.lone(modules), stats.map { it.locale })
         ?: stats.maxByOrNull { it.translated }?.locale
 
+/** What a locale cell says about its reviews: the keys to review there, and how many of them are stale. */
+internal data class ReviewCount(val toReview: Int, val sourceChanged: Int)
+
+/**
+ * The [ReviewCount] of every cell of [report], by row group (null for the total row) then locale;
+ * empty where [reviews] are off, so a module without a reviews folder shows nothing new.
+ *
+ * A key counts as the table's *To review* and *Source changed* filters keep it with only that
+ * locale shown — the filters themselves, so the two tabs cannot disagree on what is left to review.
+ * Like them, it counts keys, each plural form its own: a review is kept per form.
+ */
+internal fun reviewCounts(
+    report: CoverageReport,
+    reviews: TableReviews,
+    viewModel: TableViewModel = TableViewModel(),
+): Map<NamespaceFilter?, Map<String, ReviewCount>> {
+    if (!reviews.enabled) return emptyMap()
+    val rows = report.translations.map { (key, values) -> TranslationRow(key, values) }
+    return report.rows.associate { row ->
+        val inRow = row.group?.let { viewModel.filterByNamespace(it, rows) } ?: rows
+        row.group to report.locales.associateWith { locale ->
+            ReviewCount(
+                toReview = viewModel.filterByStatus(StatusFilter.TO_REVIEW, inRow, listOf(locale), reviews).size,
+                sourceChanged = viewModel.filterByStatus(StatusFilter.SOURCE_CHANGED, inRow, listOf(locale), reviews).size,
+            )
+        }
+    }
+}
+
+/** The tooltip line [count] reads as: the keys to review, and the stale ones among them when there are. */
+internal fun reviewTooltip(count: ReviewCount): String =
+    if (count.sourceChanged > 0) PluginBundle.message("toolwindow.stats.cell.tooltip.review.stale", count.toReview, count.sourceChanged)
+    else PluginBundle.message("toolwindow.stats.cell.tooltip.review", count.toReview)
+
 /** Columns before the locales: the row's namespace, then how many keys it holds. */
 private const val LEADING_COLUMNS = 2
 
@@ -123,6 +158,9 @@ private const val LEADING_COLUMNS = 2
  * that namespace in that locale, so the list stays short. Each key navigates to its
  * position in the reference locale file.
  *
+ * Where the module has reviews (a `.i18n-reviews/` folder), a locale cell's tooltip also counts
+ * its keys to review, and the stale ones among them — see [reviewCounts].
+ *
  * When [moduleConfig] is non-null, only translations from that module are analyzed.
  */
 class TranslationStatsPanel(private val project: Project, private val moduleConfig: ModuleConfig? = null) : JPanel(BorderLayout()) {
@@ -134,13 +172,19 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
     }
     private val table = object : JBTable(tableModel) {
         override fun getToolTipText(e: MouseEvent): String? {
-            val cell = cellAt(rowAtPoint(e.point), columnAtPoint(e.point)) ?: return null
-            return if (cell.untranslated > 0) PluginBundle.message("toolwindow.stats.cell.tooltip.missing", cell.translated, cell.total, cell.missing, cell.empty)
+            val row = rowAtPoint(e.point)
+            val cell = cellAt(row, columnAtPoint(e.point)) ?: return null
+            val coverage = if (cell.untranslated > 0) PluginBundle.message("toolwindow.stats.cell.tooltip.missing", cell.translated, cell.total, cell.missing, cell.empty)
             else PluginBundle.message("toolwindow.stats.cell.tooltip.complete", cell.total)
+            val review = report?.rows?.getOrNull(row)?.let { reviewCounts[it.group]?.get(cell.locale) } ?: return coverage
+            return "<html>$coverage<br>${reviewTooltip(review)}</html>"
         }
     }
     private val statusLabel = JBLabel(PluginBundle.message("toolwindow.stats.loading"))
     private var report: CoverageReport? = null
+
+    /** What [reviewCounts] read for [report]; empty where the module has no reviews. */
+    private var reviewCounts: Map<NamespaceFilter?, Map<String, ReviewCount>> = emptyMap()
 
     /** The configuration the report was computed under; what the default group is called depends on it. */
     private var config: Config = Config()
@@ -210,9 +254,14 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
                 val report = TranslationStatsAnalyzer.report(project, moduleConfig)
                 val config = Settings.getInstance(project).config()
                 val sources = TranslationDataLoader.findSources(project, moduleConfig)
+                // Read as the table reads them, against the locales of this report.
+                val viewModel = TableViewModel()
+                val reviews = viewModel.loadReviews(project, ReviewLocation.rootOf(project, moduleConfig), report.locales, config, moduleConfig)
+                val counts = reviewCounts(report, reviews, viewModel)
                 ApplicationManager.getApplication().invokeLater {
                     this.config = config
                     this.sources = sources
+                    this.reviewCounts = counts
                     rebuildTable(report)
                 }
             } finally {
