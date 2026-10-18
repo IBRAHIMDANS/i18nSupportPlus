@@ -13,19 +13,23 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
+import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.Dimension
+import java.awt.FlowLayout
 import java.awt.event.ActionEvent
 import javax.swing.AbstractAction
 import javax.swing.Action
 import javax.swing.JComponent
 import javax.swing.JEditorPane
 import javax.swing.JPanel
+import javax.swing.event.HyperlinkEvent
 
 /**
  * The review of one key in one locale: its value now, what the review means for it, the thread,
@@ -33,8 +37,13 @@ import javax.swing.JPanel
  * *Comment*.
  *
  * A decision closes the dialog; a comment stays, the thread reloaded under it. *Request Changes*
- * takes the text of the field and refuses an empty one. Every write is one command (see
- * [ReviewActions]). Nothing can be decided on a locale without a value: the buttons are disabled.
+ * takes the text of the field and refuses an empty one, and the suggested value when one is typed:
+ * the change request then offers *Apply suggestion* in the thread, which writes it as the value and
+ * marks the key to review — then closes the dialog, as a decision does, its value being stale.
+ * Each entry of the thread offers *Reply* — the next comment then answers it, shown indented under
+ * the entry its discussion starts from — and an entry with a text *Resolve*: it is then shown as one
+ * greyed line, its replies hidden, until *Reopen*. Resolving decides nothing: the state stays.
+ * Every write is one command (see [ReviewActions]). Nothing can be decided on a locale without a value: the buttons are disabled.
  *
  * Opened from the table's *Comments…* and, through [open], from wherever a key and a locale are
  * known — the key dialog's *Review…* link.
@@ -64,6 +73,18 @@ class ReviewThreadDialog(
         wrapStyleWord = true
     }
 
+    /** The value a change request proposes instead; left empty, it proposes none. */
+    internal val suggestionField = JBTextField()
+
+    /** The entry the next comment replies to, null when it replies to none. */
+    private var replyTo: ReviewEvent? = null
+    private val replyLabel = JBLabel()
+    private val replyPanel = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0)).apply {
+        isVisible = false
+        add(replyLabel)
+        add(ActionLink(PluginBundle.message("review.dialog.reply.cancel")) { reply(null) })
+    }
+
     private val hasValue = cell.value.isNotEmpty()
 
     private val approveAction = decision("review.action.approve") { approve() }
@@ -81,6 +102,9 @@ class ReviewThreadDialog(
         title = PluginBundle.message("review.dialog.title", cell.key, cell.locale)
         setCancelButtonText(PluginBundle.message("review.dialog.close"))
         listOf(approveAction, requestAction, markAction, commentAction).forEach { it.isEnabled = hasValue }
+        threadPane.addHyperlinkListener { e ->
+            if (e.eventType == HyperlinkEvent.EventType.ACTIVATED) follow(e.description)
+        }
         init()
         reload()
     }
@@ -111,7 +135,9 @@ class ReviewThreadDialog(
             .panel
         val thread = JBScrollPane(threadPane).apply { preferredSize = Dimension(JBUI.scale(520), JBUI.scale(220)) }
         val footer = FormBuilder.createFormBuilder()
+            .addComponent(replyPanel)
             .addLabeledComponentFillVertically(PluginBundle.message("review.dialog.new.comment"), JBScrollPane(input))
+            .addLabeledComponent(PluginBundle.message("review.dialog.suggestion"), suggestionField)
             .panel
         return JPanel(BorderLayout(0, JBUI.scale(8))).apply {
             add(header, BorderLayout.NORTH)
@@ -137,23 +163,66 @@ class ReviewThreadDialog(
             setErrorText(PluginBundle.message("review.request.changes.empty"), input)
             return false
         }
-        return written(ReviewActions.requestChanges(project, root, listOf(cell), text, defaultNamespace, referenceLocale))
+        return written(
+            ReviewActions.requestChanges(project, root, listOf(cell), text, defaultNamespace, referenceLocale, suggestionField.text)
+        )
     }
 
-    /** Adds the field's text to the thread and keeps the dialog open on it. */
+    /** Writes the value the thread entry [id] suggests, and marks the key to review on it. */
+    internal fun applySuggestion(id: String): Boolean {
+        val suggestion = review()?.thread?.firstOrNull { it.id == id }?.suggestion ?: return false
+        val ok = ReviewActions.applySuggestion(project, root, cell, suggestion, defaultNamespace, referenceLocale)
+        if (!ok) setErrorText(PluginBundle.message("review.apply.suggestion.failed", cell.key, cell.locale))
+        return ok
+    }
+
+    /**
+     * Adds the field's text to the thread — in reply to the entry [reply] chose, if any — and keeps
+     * the dialog open on it.
+     */
     internal fun postComment(): Boolean {
         val text = input.text
         if (text.isBlank()) {
             setErrorText(PluginBundle.message("review.comment.empty"), input)
             return false
         }
-        val ok = written(ReviewActions.comment(project, root, cell, text, defaultNamespace, referenceLocale))
+        val ok = written(ReviewActions.comment(project, root, cell, text, defaultNamespace, referenceLocale, replyTo?.id))
         if (ok) {
             input.text = ""
             setErrorText(null)
+            reply(null)
             reload()
         }
         return ok
+    }
+
+    /** Makes the next comment a reply to the entry [id] — none when null or unknown — and says so above the field. */
+    internal fun reply(id: String?) {
+        replyTo = id?.let { wanted -> review()?.thread?.firstOrNull { it.id == wanted } }
+        replyLabel.text = replyTo?.let { PluginBundle.message("review.dialog.replying", it.by) }.orEmpty()
+        replyPanel.isVisible = replyTo != null
+        if (replyTo != null) input.requestFocusInWindow()
+    }
+
+    /** The id of the entry the next comment replies to. */
+    internal fun replyingTo(): String? = replyTo?.id
+
+    /** Marks the entry [id] [resolved], or open again, and shows the thread so. */
+    internal fun resolve(id: String, resolved: Boolean): Boolean {
+        val ok = written(ReviewActions.resolve(project, root, cell, id, resolved, defaultNamespace))
+        if (ok) reload()
+        return ok
+    }
+
+    /** Runs the link of the thread [link] names: `<action>:<entry id>`. */
+    private fun follow(link: String) {
+        val id = link.substringAfter(':')
+        when (link.substringBefore(':') + ":") {
+            APPLY_LINK -> if (applySuggestion(id)) close(OK_EXIT_CODE)
+            REPLY_LINK -> reply(id)
+            RESOLVE_LINK -> resolve(id, true)
+            REOPEN_LINK -> resolve(id, false)
+        }
     }
 
     /** [ok] as is; when false, the field says the review file could not be written. */
@@ -167,7 +236,7 @@ class ReviewThreadDialog(
         val shown = shownReview()
         stateLabel.text = if (shown == ShownReview.NONE) PluginBundle.message("review.dialog.state.none") else ReviewBadge.label(shown)
         stateLabel.icon = ReviewBadge.icon(shown)
-        threadPane.text = threadHtml(review?.thread.orEmpty())
+        threadPane.text = threadHtml(review?.thread.orEmpty(), cell.value)
         threadPane.caretPosition = threadPane.document.length
     }
 
@@ -200,13 +269,67 @@ class ReviewThreadDialog(
         internal fun eventLine(event: ReviewEvent): String =
             PluginBundle.message("review.dialog.event", event.by, ReviewBadge.eventKind(event.kind), ReviewBadge.date(event.at))
 
-        /** The thread, oldest first, every text escaped. */
-        internal fun threadHtml(thread: List<ReviewEvent>): String {
+        /** The links of the thread, each followed by the id of the entry it acts on. */
+        internal const val APPLY_LINK = "apply:"
+        internal const val REPLY_LINK = "reply:"
+        internal const val RESOLVE_LINK = "resolve:"
+        internal const val REOPEN_LINK = "reopen:"
+
+        /**
+         * The thread, oldest first, every text escaped. A reply is indented under the entry its
+         * discussion starts from — one level, however deep it answers; one whose parent is unknown
+         * stands on its own. A resolved entry is one greyed line, its replies hidden.
+         *
+         * A suggested value is shown under its entry. While the cell holds a [value], the links act
+         * on the thread: *Reply* on every entry, *Resolve* or *Reopen* on one with a text, and
+         * *Apply suggestion* when the value is not the suggested one already.
+         */
+        internal fun threadHtml(thread: List<ReviewEvent>, value: String = ""): String {
             if (thread.isEmpty()) return "<html><i>${escape(PluginBundle.message("review.dialog.thread.empty"))}</i></html>"
-            return "<html>" + thread.joinToString("") { event ->
-                val text = if (event.text.isBlank()) "" else "<br>" + escape(event.text)
-                "<p><b>${escape(eventLine(event))}</b>$text</p>"
+            val byId = thread.associateBy { it.id }
+            val discussions = thread.groupBy { startOf(it, byId).id }
+            return "<html>" + thread.filter { startOf(it, byId) == it }.joinToString("") { start ->
+                if (start.resolved) return@joinToString resolvedHtml(start, value)
+                val replies = discussions[start.id].orEmpty().filter { it != start }
+                entryHtml(start, value, canResolve = true) +
+                    replies.joinToString("") { "<div style=\"margin-left: 20px\">${entryHtml(it, value, canResolve = false)}</div>" }
             } + "</html>"
+        }
+
+        /** The entry [event]'s discussion starts from: its farthest known parent, itself when it replies to none. */
+        private fun startOf(event: ReviewEvent, byId: Map<String, ReviewEvent>): ReviewEvent {
+            var current = event
+            val seen = mutableSetOf(event.id)
+            while (true) {
+                val parent = current.parent?.let { byId[it] } ?: return current
+                // A hand edit may loop the parents: every entry of the loop then stands on its own.
+                if (!seen.add(parent.id)) return event
+                current = parent
+            }
+        }
+
+        private fun entryHtml(event: ReviewEvent, value: String, canResolve: Boolean): String {
+            val text = if (event.text.isBlank()) "" else "<br>" + escape(event.text)
+            val links = if (value.isEmpty()) "" else buildString {
+                append("<br>").append(link(REPLY_LINK, event, "review.dialog.reply"))
+                if (canResolve && event.text.isNotBlank()) append(" ").append(link(RESOLVE_LINK, event, "review.dialog.resolve"))
+            }
+            return "<p><b>${escape(eventLine(event))}</b>$text${suggestionHtml(event, value)}$links</p>"
+        }
+
+        private fun resolvedHtml(event: ReviewEvent, value: String): String {
+            val reopen = if (value.isEmpty()) "" else " " + link(REOPEN_LINK, event, "review.dialog.reopen")
+            return "<p><font color=\"#808080\">${escape(PluginBundle.message("review.dialog.resolved", eventLine(event)))}</font>$reopen</p>"
+        }
+
+        private fun link(action: String, event: ReviewEvent, labelKey: String): String =
+            "<a href=\"$action${escape(event.id)}\">${escape(PluginBundle.message(labelKey))}</a>"
+
+        private fun suggestionHtml(event: ReviewEvent, value: String): String {
+            val suggestion = event.suggestion ?: return ""
+            val line = "<br><i>${escape(PluginBundle.message("review.dialog.suggested", suggestion))}</i>"
+            if (value.isEmpty() || suggestion == value) return line
+            return "$line " + link(APPLY_LINK, event, "review.dialog.apply.suggestion")
         }
 
         private fun escape(text: String): String = StringUtil.escapeXmlEntities(text).replace("\n", "<br>")

@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.review.ui
 
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.review.ReviewEdits
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
@@ -62,24 +63,56 @@ object ReviewActions {
         decide(project, root, cells, ReviewState.TO_REVIEW, "", defaultNamespace, referenceLocale, PluginBundle.message("review.command.mark"))
 
     /**
-     * Changes requested on [cells], [text] saying which. Refused — false, nothing written — when
-     * [text] is blank: the translator would have nothing to act on.
+     * Changes requested on [cells], [text] saying which, [suggestion] the value proposed instead —
+     * null or blank when none. Refused — false, nothing written — when [text] is blank: the
+     * translator would have nothing to act on.
      */
     fun requestChanges(
         project: Project, root: VirtualFile, cells: List<ReviewCell>, text: String, defaultNamespace: String = defaultNamespace(project),
-        referenceLocale: String? = null
+        referenceLocale: String? = null, suggestion: String? = null
     ): Boolean {
         if (text.isBlank()) return false
         return decide(
             project, root, cells, ReviewState.CHANGES_REQUESTED, text.trim(), defaultNamespace, referenceLocale,
-            PluginBundle.message("review.command.request.changes")
+            PluginBundle.message("review.command.request.changes"), suggestion
         )
     }
 
-    /** [text] added to [cell]'s thread, its decision unchanged. False when [text] is blank or the cell has no value. */
+    /**
+     * [suggestion] — what a change request proposed — written as [cell]'s value, and the key marked
+     * to review on it: the value changed since the request, someone has to look at it again. One
+     * command for both files, so that one Ctrl+Z takes back the value and the mark together. False,
+     * nothing written, when the cell has no value, already holds [suggestion], or the translation
+     * file cannot be found.
+     *
+     * The value is written as the tool window's cell edit writes it, in the files of the module
+     * whose reviews live under [root] — the whole project when none does.
+     */
+    fun applySuggestion(
+        project: Project, root: VirtualFile, cell: ReviewCell, suggestion: String, defaultNamespace: String = defaultNamespace(project),
+        referenceLocale: String? = null
+    ): Boolean {
+        if (cell.value.isEmpty() || suggestion.isEmpty() || suggestion == cell.value) return false
+        val store = ReviewStore.getInstance(project)
+        val module = moduleOf(project, root)
+        return write(project, PluginBundle.message("review.command.apply.suggestion")) {
+            if (!TableViewModel().saveValue(project, cell.key, cell.locale, suggestion, module)) return@write false
+            store.update(root, cell.locale) {
+                ReviewEdits.decide(
+                    it, ReviewKey.fromSpelling(cell.key, defaultNamespace), ReviewState.TO_REVIEW, suggestion,
+                    store.reviewer(root), timestamp(store), source = sourceOf(cell, referenceLocale)
+                )
+            }
+        }
+    }
+
+    /**
+     * [text] added to [cell]'s thread, its decision unchanged, in reply to the entry [parent] when
+     * given. False when [text] is blank or the cell has no value.
+     */
     fun comment(
         project: Project, root: VirtualFile, cell: ReviewCell, text: String, defaultNamespace: String = defaultNamespace(project),
-        referenceLocale: String? = null
+        referenceLocale: String? = null, parent: String? = null
     ): Boolean {
         if (text.isBlank() || cell.value.isEmpty()) return false
         val store = ReviewStore.getInstance(project)
@@ -88,9 +121,20 @@ object ReviewActions {
             val at = timestamp(store)
             store.update(root, cell.locale) {
                 ReviewEdits.comment(
-                    it, ReviewKey.fromSpelling(cell.key, defaultNamespace), cell.value, by, at, text.trim(), sourceOf(cell, referenceLocale)
+                    it, ReviewKey.fromSpelling(cell.key, defaultNamespace), cell.value, by, at, text.trim(), sourceOf(cell, referenceLocale), parent
                 )
             }
+        }
+    }
+
+    /** The entry [id] of [cell]'s thread [resolved], or open again; its decision unchanged. See [ReviewEdits.resolve]. */
+    fun resolve(
+        project: Project, root: VirtualFile, cell: ReviewCell, id: String, resolved: Boolean, defaultNamespace: String = defaultNamespace(project)
+    ): Boolean {
+        val store = ReviewStore.getInstance(project)
+        val commandName = PluginBundle.message(if (resolved) "review.command.resolve" else "review.command.reopen")
+        return write(project, commandName) {
+            store.update(root, cell.locale) { ReviewEdits.resolve(it, ReviewKey.fromSpelling(cell.key, defaultNamespace), id, resolved) }
         }
     }
 
@@ -104,9 +148,13 @@ object ReviewActions {
         return ReviewSource.of(referenceLocale, text)
     }
 
+    /** The configured module whose reviews live under [root]; null — the whole project — when none. */
+    private fun moduleOf(project: Project, root: VirtualFile): ModuleConfig? =
+        Settings.getInstance(project).config().modules.firstOrNull { ReviewLocation.rootOf(project, it) == root }
+
     private fun decide(
         project: Project, root: VirtualFile, cells: List<ReviewCell>, state: ReviewState, text: String,
-        defaultNamespace: String, referenceLocale: String?, commandName: String,
+        defaultNamespace: String, referenceLocale: String?, commandName: String, suggestion: String? = null,
     ): Boolean {
         val withValue = cells.filter { it.value.isNotEmpty() }.distinct()
         if (withValue.isEmpty()) return false
@@ -119,7 +167,7 @@ object ReviewActions {
                 store.update(root, locale) { reviews ->
                     inLocale.fold(reviews) { acc, cell ->
                         ReviewEdits.decide(
-                            acc, ReviewKey.fromSpelling(cell.key, defaultNamespace), state, cell.value, by, at, text, sourceOf(cell, referenceLocale)
+                            acc, ReviewKey.fromSpelling(cell.key, defaultNamespace), state, cell.value, by, at, text, sourceOf(cell, referenceLocale), suggestion
                         )
                     }
                 }

@@ -197,6 +197,26 @@ class ReviewModelTest {
     }
 
     @Test
+    fun `a change request records the value it suggests on its thread entry`() {
+        val requested = ReviewEdits.decide(emptyMap(), key, ReviewState.CHANGES_REQUESTED, "Chariot", "Alice", "T1", "Say Panier", suggestion = value)
+
+        val review = requested.getValue(key)
+        assertEquals(ReviewEvent("r1", ReviewEventKind.REQUEST_CHANGE, "Alice", "T1", "Say Panier", value), review.thread.last())
+        assertEquals(ShownReview.CHANGES_REQUESTED, shown(review, "Chariot"))
+        // Once the suggestion is the value, the request reads as fixed: shown() knows nothing of suggestions.
+        assertEquals(ShownReview.FIXED_SINCE_REQUEST, shown(review, value))
+    }
+
+    @Test
+    fun `a blank suggestion, or one on another decision, is not recorded`() {
+        val blank = ReviewEdits.decide(emptyMap(), key, ReviewState.CHANGES_REQUESTED, "Chariot", "Alice", "T1", "Say Panier", suggestion = " ")
+        val approved = ReviewEdits.decide(emptyMap(), key, ReviewState.APPROVED, value, "Alice", "T1", suggestion = "Caddie")
+
+        assertNull(blank.getValue(key).thread.last().suggestion)
+        assertNull(approved.getValue(key).thread.last().suggestion)
+    }
+
+    @Test
     fun `a comment leaves the decision as it is`() {
         val approved = ReviewEdits.decide(emptyMap(), key, ReviewState.APPROVED, value, "Alice", "T1")
         val commented = ReviewEdits.comment(approved, key, value, "Bob", "T2", "Nice")
@@ -205,6 +225,38 @@ class ReviewModelTest {
         assertEquals(ReviewState.APPROVED, review.state)
         assertEquals("Alice", review.by)
         assertEquals(ReviewEvent("r2", ReviewEventKind.COMMENT, "Bob", "T2", "Nice"), review.thread.last())
+    }
+
+    @Test
+    fun `a reply names the entry it answers`() {
+        val requested = ReviewEdits.decide(emptyMap(), key, ReviewState.CHANGES_REQUESTED, "Chariot", "Alice", "T1", "Say Panier")
+        val replied = ReviewEdits.comment(requested, key, "Chariot", "Bob", "T2", "Why?", parent = "r1")
+
+        assertEquals(ReviewEvent("r2", ReviewEventKind.COMMENT, "Bob", "T2", "Why?", parent = "r1"), replied.getValue(key).thread.last())
+        assertEquals(ReviewState.CHANGES_REQUESTED, replied.getValue(key).state)
+    }
+
+    @Test
+    fun `resolving an entry changes nothing else, and it opens again`() {
+        val requested = ReviewEdits.decide(emptyMap(), key, ReviewState.CHANGES_REQUESTED, "Chariot", "Alice", "T1", "Say Panier")
+        val commented = ReviewEdits.comment(requested, key, "Chariot", "Bob", "T2", "Hm")
+
+        val resolved = ReviewEdits.resolve(commented, key, "r1", true)
+        val review = resolved.getValue(key)
+        assertEquals(listOf(true, false), review.thread.map { it.resolved })
+        assertEquals(commented.getValue(key).copy(thread = commented.getValue(key).thread.map { it.copy(resolved = it.id == "r1") }), review)
+        // The last decision still wins.
+        assertEquals(ShownReview.CHANGES_REQUESTED, shown(review, "Chariot"))
+
+        assertEquals(commented, ReviewEdits.resolve(resolved, key, "r1", false))
+    }
+
+    @Test
+    fun `resolving an unknown key or entry changes nothing`() {
+        val requested = ReviewEdits.decide(emptyMap(), key, ReviewState.CHANGES_REQUESTED, "Chariot", "Alice", "T1", "Say Panier")
+
+        assertEquals(requested, ReviewEdits.resolve(requested, key, "r9", true))
+        assertEquals(requested, ReviewEdits.resolve(requested, ReviewKey("common", "other"), "r1", true))
     }
 
     @Test

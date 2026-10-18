@@ -184,7 +184,7 @@ class ReviewCodecTest {
         """
         |          "text": "« Panier » plutôt que « Chariot »",
         |          "suggestion": "Panier",
-        |          "resolved": false,
+        |          "resolved": true,
         |          "anchor": {
         |            "start": 0,
         |            "end": 7,
@@ -198,7 +198,10 @@ class ReviewCodecTest {
     fun `the properties of a later version on a thread entry are written back as they were read`() {
         val review = ReviewCodec.read(laterEvents).getValue(ReviewKey("common", "cart.title"))
 
-        assertEquals(listOf("suggestion", "resolved", "anchor"), review.thread.first().extra.keys.toList())
+        // `suggestion` and `resolved` are this version's own now; the others stay as they were read.
+        assertEquals("Panier", review.thread.first().suggestion)
+        assertTrue(review.thread.first().resolved)
+        assertEquals(listOf("anchor"), review.thread.first().extra.keys.toList())
         assertEquals(emptyMap<String, String>(), review.thread.last().extra)
         assertEquals(laterEvents, ReviewCodec.write(ReviewCodec.read(laterEvents)))
         assertEquals(1, ReviewCodec.VERSION)
@@ -216,7 +219,61 @@ class ReviewCodecTest {
         assertEquals(emptyMap<String, String>(), thread.last().extra)
         val written = ReviewCodec.write(commented)
         assertTrue("\"suggestion\": \"Panier\"" in written, written)
-        assertTrue("\"resolved\": false" in written, written)
+        assertTrue("\"resolved\": true" in written, written)
+    }
+
+    @Test
+    fun `a suggestion is read and written after the text, still in version 1`() {
+        val withSuggestion = canonical.replace(
+            "          \"text\": \"« Panier » plutôt que « Chariot »\"\n",
+            "          \"text\": \"« Panier » plutôt que « Chariot »\",\n          \"suggestion\": \"Panier\"\n"
+        )
+        val thread = ReviewCodec.read(withSuggestion).getValue(ReviewKey("common", "cart.title")).thread
+
+        assertEquals(listOf("Panier", null), thread.map { it.suggestion })
+        assertEquals(emptyMap<String, String>(), thread.first().extra)
+        assertEquals(withSuggestion, ReviewCodec.write(ReviewCodec.read(withSuggestion)))
+        assertEquals(1, ReviewCodec.VERSION)
+    }
+
+    @Test
+    fun `a file written before the suggestion and the replies reads without them and writes none`() {
+        val reviews = ReviewCodec.read(canonical)
+        val written = ReviewCodec.write(reviews)
+
+        reviews.values.flatMap { it.thread }.forEach {
+            assertNull(it.parent)
+            assertFalse(it.resolved)
+        }
+        assertEquals(canonical, written)
+        listOf("suggestion", "parent", "resolved").forEach { assertFalse(it in written, "no empty $it may be written") }
+    }
+
+    @Test
+    fun `a reply and a resolved entry are read and written after the text, still in version 1`() {
+        val replied = canonical.replace(
+            "          \"text\": \"« Panier » plutôt que « Chariot »\"\n",
+            "          \"text\": \"« Panier » plutôt que « Chariot »\",\n          \"resolved\": true\n"
+        ).replace(
+            "          \"text\": \"\"\n",
+            "          \"text\": \"\",\n          \"parent\": \"r1\"\n"
+        )
+        val thread = ReviewCodec.read(replied).getValue(ReviewKey("common", "cart.title")).thread
+
+        assertEquals(listOf(null, "r1"), thread.map { it.parent })
+        assertEquals(listOf(true, false), thread.map { it.resolved })
+        assertEquals(replied, ReviewCodec.write(ReviewCodec.read(replied)))
+    }
+
+    @Test
+    fun `an entry resolved false reads as open and leaves the field out`() {
+        val open = canonical.replace(
+            "          \"text\": \"\"\n",
+            "          \"text\": \"\",\n          \"resolved\": false\n"
+        )
+
+        assertFalse(ReviewCodec.read(open).getValue(ReviewKey("common", "cart.title")).thread.last().resolved)
+        assertEquals(canonical, ReviewCodec.write(ReviewCodec.read(open)))
     }
 
     @Test

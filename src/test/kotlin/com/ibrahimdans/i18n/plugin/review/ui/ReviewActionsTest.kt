@@ -8,9 +8,17 @@ import com.ibrahimdans.i18n.plugin.review.ReviewLocation
 import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
+import com.ibrahimdans.i18n.plugin.review.ShownReview
+import com.ibrahimdans.i18n.plugin.review.shown
+import com.intellij.json.psi.JsonFile
+import com.intellij.json.psi.JsonObject
+import com.intellij.json.psi.JsonStringLiteral
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.PsiManager
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import java.time.Instant
@@ -150,5 +158,53 @@ class ReviewActionsTest : PlatformBaseTest() {
         val off = myFixture.tempDirFixture.findOrCreateDir("other")
         Assertions.assertFalse(ReviewActions.approve(project, off, cells, ns))
         Assertions.assertNull(ReviewLocation.directoryOf(off), "no folder may be created by a decision")
+    }
+
+    /** The value at [key] in the JSON file [path] of the test project, its documents committed first. */
+    private fun valueAt(path: String, vararg key: String): String? {
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+        return ReadAction.compute<String?, RuntimeException> {
+            val vf = myFixture.findFileInTempDir(path) ?: return@compute null
+            val file = PsiManager.getInstance(project).findFile(vf) as? JsonFile ?: return@compute null
+            var node = file.topLevelValue as? JsonObject ?: return@compute null
+            for (i in 0 until key.size - 1) node = node.findProperty(key[i])?.value as? JsonObject ?: return@compute null
+            (node.findProperty(key.last())?.value as? JsonStringLiteral)?.value
+        }
+    }
+
+    @Test
+    fun applyingASuggestionWritesTheValueMarksTheKeyToReviewAndOneUndoTakesBothBack() {
+        addFileToProject("locales/fr/translation.json", """{"menu":{"home":"Acceuil"}}""")
+        val root = enabledRoot()
+        val cell = ReviewCell("menu.home", "fr", "Acceuil")
+        Assertions.assertTrue(ReviewActions.requestChanges(project, root, listOf(cell), "Typo", ns, suggestion = "Accueil"))
+        val requested = store().reviews(root, "fr")
+        Assertions.assertEquals("Accueil", requested.getValue(ReviewKey(ns, "menu.home")).thread.last().suggestion)
+
+        Assertions.assertTrue(ReviewActions.applySuggestion(project, root, cell, "Accueil", ns))
+
+        Assertions.assertEquals("Accueil", valueAt("locales/fr/translation.json", "menu", "home"))
+        val review = store().reviews(root, "fr").getValue(ReviewKey(ns, "menu.home"))
+        Assertions.assertEquals(ReviewState.TO_REVIEW, review.state)
+        Assertions.assertEquals(ReviewHash.of("Accueil"), review.hash)
+        Assertions.assertEquals(ShownReview.TO_REVIEW, shown(review, "Accueil"))
+
+        // One Ctrl+Z takes back the value and the mark together.
+        UndoManager.getInstance(project).undo(null)
+
+        Assertions.assertEquals("Acceuil", valueAt("locales/fr/translation.json", "menu", "home"))
+        Assertions.assertEquals(requested, store().reviews(root, "fr"))
+    }
+
+    @Test
+    fun aSuggestionTheCellHoldsAlreadyOrWithoutTranslationFileWritesNothing() {
+        addFileToProject("locales/fr/translation.json", """{"menu":{"home":"Accueil"}}""")
+        val root = enabledRoot()
+
+        Assertions.assertFalse(ReviewActions.applySuggestion(project, root, ReviewCell("menu.home", "fr", "Accueil"), "Accueil", ns))
+        Assertions.assertFalse(ReviewActions.applySuggestion(project, root, ReviewCell("menu.home", "de", "Start"), "Startseite", ns))
+
+        Assertions.assertTrue(store().reviews(root, "fr").isEmpty())
+        Assertions.assertTrue(store().reviews(root, "de").isEmpty())
     }
 }
