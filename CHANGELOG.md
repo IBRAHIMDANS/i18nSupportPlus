@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Stats] **The *Stats* tab counts the translations left to review**: in a module with a `.i18n-reviews/` folder, hovering a locale cell tells how many of its keys are to review, and how many of them were decided on a source text changed since: the keys the table's *To review* and *Source changed* filters list for that locale. Nothing changes in a project without reviews
+
 ## 1.14.0 - 2026-10-17
 
 ### Features
