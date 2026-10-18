@@ -423,6 +423,17 @@ Rules make other calls behave like `t`: a **trigger** (`translate`, `i18n.transl
 
 ![Settings — key assistance rules](docs/img/settings-rules.png)
 
+**Migrating from i18n Ally.** *Import from i18n Ally…*, under the rules, reads the project's `.vscode/i18n-ally-custom-framework.yml` — or the file you pick when there is none — and shows what it would add before adding anything:
+
+| i18n Ally | Here |
+|-----------|------|
+| `usageMatchRegex` that is a plain call on the key — `` [^\w\d]t\(['"`]({key})['"`] ``, `i18n\.t\(`, `\$t\(`, `__\(` | A trigger rule (`t`, `i18n.t`, `$t`, `__`), one per language |
+| `languageIds` | The rule language: `js` for `javascript`, `typescript`, `javascriptreact`, `typescriptreact` and `vue`; `php` for `php`. Other languages are reported |
+| `refactorTemplates` | A proposed *call template* (`$t('$1')` → `$t({key})`, the `{…}` of `{$t('$1')}` dropped), listed for you to set on a module: the import never changes a module |
+| `monopoly`, `scopeRangeRegex` | Reported: no equivalent |
+
+The import is partial by design: a rule names a function, whose calls the plugin resolves — which is what gives completion, navigation and rename — while i18n Ally matches free text. Any other regex (an alternation, a key not passed first, JSX attributes…) is listed as not imported, with the reason, as are rules that an existing one already declares. The rules are added to the list once confirmed, and saved with *Apply*.
+
 ### Folding and preview
 
 ![Settings — folding, extraction, gettext, inspections](docs/img/settings-folding.png)

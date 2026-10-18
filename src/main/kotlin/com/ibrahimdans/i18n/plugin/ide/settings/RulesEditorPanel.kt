@@ -1,14 +1,26 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
 import com.ibrahimdans.i18n.plugin.ide.settings.rules.EditorRuleState
+import com.ibrahimdans.i18n.plugin.ide.settings.rules.FrameworkImport
+import com.ibrahimdans.i18n.plugin.ide.settings.rules.I18nAllyFrameworkImport
+import com.ibrahimdans.i18n.plugin.ide.settings.rules.NotImportedReason
 import com.ibrahimdans.i18n.plugin.rules.KeyRules
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.intellij.ide.DataManager
+import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.fileChooser.FileChooser
+import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
+import com.intellij.openapi.project.guessProjectDir
+import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.ui.JBColor
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
+import java.awt.FlowLayout
 import javax.swing.DefaultComboBoxModel
 import javax.swing.DefaultListCellRenderer
+import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JLabel
 import javax.swing.JList
@@ -26,6 +38,9 @@ import com.intellij.ui.dsl.builder.panel
  * The language, the constraint and the match mode are lists of what the rules engine reads, for
  * the same reason: a free-text `filepath` or `regexp` was stored as written and made the rule
  * silently ignored. A regex that does not compile is flagged under the value.
+ *
+ * *Import from i18n Ally…* takes over a project's `.vscode/i18n-ally-custom-framework.yml`: it
+ * shows what [I18nAllyFrameworkImport] makes of it and adds the rules only once confirmed.
  */
 internal class RulesEditorPanel(private val settings: Settings) : ItemEditorPanel<EditorRuleState>() {
 
@@ -72,20 +87,16 @@ internal class RulesEditorPanel(private val settings: Settings) : ItemEditorPane
         rule.copy(negated = value)
     }
 
+    private val importButton = JButton(PluginBundle.message("settings.rules.import.i18nAlly")).apply {
+        name = "rules.import.i18nAlly"
+        addActionListener { importI18nAllyFramework() }
+    }
+
     init {
-        editor = ListEditorPanel(
-            items = settings.rules,
-            detailForm = detailForm(),
-            newItem = ::newRule,
-            labelOf = ::label,
-            listName = "rules.list",
-            addLabel = PluginBundle.message("settings.rules.add"),
-            addName = "rules.add",
-            removeLabel = PluginBundle.message("settings.rules.remove"),
-            removeName = "rules.remove",
-            onSelectionChanged = ::bind
-        )
+        editor = newEditor()
         add(editor, BorderLayout.CENTER)
+        val importRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, IMPORT_ROW_GAP)).apply { add(importButton) }
+        add(importRow, BorderLayout.SOUTH)
 
         bind(null)
         editor.selectFirst()
@@ -94,9 +105,23 @@ internal class RulesEditorPanel(private val settings: Settings) : ItemEditorPane
         // scrolls. The width is not ours to pick — it is whatever the detail form inside needs.
         // Pinning it narrower does not scroll the overflow, it cuts it off the right edge, which
         // is how the field comments reached the screen mid-sentence. Measured last, after the
-        // form has been populated, for the same reason as in the modules editor.
-        preferredSize = Dimension(maxOf(EDITOR_MIN_WIDTH, editor.preferredSize.width), EDITOR_HEIGHT)
+        // form has been populated, for the same reason as in the modules editor. The import row
+        // comes on top of that height, so that it does not take it from the list.
+        preferredSize = Dimension(maxOf(EDITOR_MIN_WIDTH, editor.preferredSize.width), EDITOR_HEIGHT + importRow.preferredSize.height)
     }
+
+    private fun newEditor() = ListEditorPanel(
+        items = settings.rules,
+        detailForm = detailForm(),
+        newItem = ::newRule,
+        labelOf = ::label,
+        listName = "rules.list",
+        addLabel = PluginBundle.message("settings.rules.add"),
+        addName = "rules.add",
+        removeLabel = PluginBundle.message("settings.rules.remove"),
+        removeName = "rules.remove",
+        onSelectionChanged = ::bind
+    )
 
     private fun detailForm(): JPanel = panel {
         row(PluginBundle.message("settings.rules.col.id")) { cell(idField) }
@@ -143,6 +168,82 @@ internal class RulesEditorPanel(private val settings: Settings) : ItemEditorPane
         valueProblem.isVisible = rule != null && rule.matchMode == KeyRules.MatchMode.REGEX &&
             rule.constraintType != KeyRules.Constraint.NONE && runCatching { Regex(rule.value) }.isFailure
         valueProblem.text = if (valueProblem.isVisible) PluginBundle.message("settings.rules.value.invalidRegex") else ""
+    }
+
+    /**
+     * Reads the project's i18n Ally framework — or the file the user picks when there is none —
+     * shows the report and adds the rules once confirmed. They reach the settings on *Apply*, as
+     * any other edit of the list.
+     */
+    private fun importI18nAllyFramework() {
+        val project = CommonDataKeys.PROJECT.getData(DataManager.getInstance().getDataContext(importButton))
+        val title = PluginBundle.message("settings.rules.import.title")
+        val projectDir = project?.guessProjectDir()
+        val file = projectDir?.findFileByRelativePath(I18nAllyFrameworkImport.CONFIG_PATH)
+            ?: FileChooser.chooseFile(
+                FileChooserDescriptorFactory.createSingleFileNoJarsDescriptor()
+                    .withFileFilter { it.extension?.lowercase() in YAML_EXTENSIONS }
+                    .withTitle(PluginBundle.message("settings.rules.import.chooser", I18nAllyFrameworkImport.CONFIG_PATH)),
+                project,
+                projectDir
+            )
+            ?: return
+        val text = runCatching { VfsUtilCore.loadText(file) }.getOrDefault("")
+        val plan = when (val result = I18nAllyFrameworkImport.plan(text, settings.rules)) {
+            is FrameworkImport.Invalid -> {
+                val message = if (result.line > 0) PluginBundle.message("settings.rules.import.invalid", file.presentableUrl, result.line)
+                    else PluginBundle.message("settings.rules.import.empty", file.presentableUrl)
+                Messages.showErrorDialog(project, message, title)
+                return
+            }
+            is FrameworkImport.Plan -> result
+        }
+        if (plan.rules.isEmpty()) {
+            Messages.showInfoMessage(project, report(plan), title)
+            return
+        }
+        val confirmed = Messages.showOkCancelDialog(
+            project,
+            report(plan),
+            title,
+            PluginBundle.message("settings.rules.import.confirm"),
+            Messages.getCancelButton(),
+            Messages.getQuestionIcon()
+        ) == Messages.OK
+        if (!confirmed) return
+        settings.rules.addAll(plan.rules)
+        // The list editor shows the items it was built with: a new one picks up the imported rules.
+        remove(editor)
+        editor = newEditor()
+        add(editor, BorderLayout.CENTER)
+        bind(null)
+        editor.selectFirst()
+        revalidate()
+        repaint()
+    }
+
+    private fun report(plan: FrameworkImport.Plan): String = buildList {
+        add(PluginBundle.message("settings.rules.import.rules", plan.rules.size))
+        plan.rules.forEach { add("  ${it.trigger} (${it.language})") }
+        if (plan.callTemplates.isNotEmpty()) {
+            add("")
+            add(PluginBundle.message("settings.rules.import.templates"))
+            plan.callTemplates.forEach { add("  $it") }
+        }
+        if (plan.notImported.isNotEmpty()) {
+            add("")
+            add(PluginBundle.message("settings.rules.import.skipped"))
+            plan.notImported.forEach { add("  ${it.entry} — ${reasonLabel(it.reason)}") }
+        }
+    }.joinToString("\n")
+
+    private fun reasonLabel(reason: NotImportedReason): String = when (reason) {
+        NotImportedReason.UNSUPPORTED_LANGUAGE -> PluginBundle.message("settings.rules.import.reason.language")
+        NotImportedReason.NOT_A_FUNCTION_CALL -> PluginBundle.message("settings.rules.import.reason.regex")
+        NotImportedReason.NO_SUPPORTED_LANGUAGE -> PluginBundle.message("settings.rules.import.reason.noLanguage")
+        NotImportedReason.DUPLICATE_RULE -> PluginBundle.message("settings.rules.import.reason.duplicate")
+        NotImportedReason.TEMPLATE_NOT_A_CALL -> PluginBundle.message("settings.rules.import.reason.template")
+        NotImportedReason.NOT_APPLICABLE -> PluginBundle.message("settings.rules.import.reason.notApplicable")
     }
 
     private fun boundCombo(label: String, labelOf: (String) -> String, apply: (EditorRuleState, String) -> EditorRuleState): JComboBox<String> {
@@ -198,6 +299,9 @@ internal class RulesEditorPanel(private val settings: Settings) : ItemEditorPane
         /** The language ids the integrations ask the rules about; empty means every language. */
         val LANGUAGES = listOf("", "js", "php")
 
+        /** The extensions offered when the project has no i18n Ally framework where i18n Ally reads it. */
+        val YAML_EXTENSIONS = setOf("yml", "yaml")
+
         /** Rules are ordered against each other, not scored: three digits are plenty. */
         const val MAX_PRIORITY = 999
 
@@ -206,5 +310,8 @@ internal class RulesEditorPanel(private val settings: Settings) : ItemEditorPane
 
         /** How much of the item list is visible before it scrolls. */
         const val EDITOR_HEIGHT = 240
+
+        /** Gap above and below the import button, apart from the list buttons. */
+        const val IMPORT_ROW_GAP = 4
     }
 }
