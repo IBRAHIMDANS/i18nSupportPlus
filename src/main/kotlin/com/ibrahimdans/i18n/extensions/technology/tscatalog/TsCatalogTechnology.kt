@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.SOURCE_ROOT
 import com.ibrahimdans.i18n.Technology
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.pathToRoot
 import com.intellij.lang.javascript.psi.JSArgumentList
