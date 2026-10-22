@@ -15,6 +15,7 @@
 ### Refactoring
 
 - [Internal] A `core` Gradle module holds the code that needs no IntelliJ Platform: 28 files (keys, plurals, ICU rendering, layout presets, module templates, What's New, key rules…) and their 16 unit test classes, which now run without starting the platform (`./gradlew :core:test`). The module declares no platform dependency, so a `com.intellij` import there fails the build; the plugin ships it as `lib/core.jar` — no behaviour change
+- [Internal] Machine translation is cancelled through a platform-free `Cancellation`; `TranslationProvider` moves to `core`, with an HTTP transport on the JDK client for use outside the IDE — no behaviour change
 
 ## 1.15.0 - 2026-10-18
 
