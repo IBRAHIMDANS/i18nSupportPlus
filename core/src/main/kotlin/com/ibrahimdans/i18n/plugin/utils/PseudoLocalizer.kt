@@ -16,7 +16,7 @@ package com.ibrahimdans.i18n.plugin.utils
  * Deterministic: the same message always gives the same result, so regenerating an unchanged file
  * changes nothing.
  */
-internal object PseudoLocalizer {
+object PseudoLocalizer {
 
     /** One `·` for every [PADDING_RATIO] letters of text, rounded up. */
     private const val PADDING_RATIO = 0.3

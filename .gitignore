@@ -2,6 +2,7 @@
 /.idea/**
 /.gradle/**
 /build/**
+/core/build/**
 /out/**
 /examples/simple/.idea/**
 /examples/react-i18n-using-hooks/node_modules/**

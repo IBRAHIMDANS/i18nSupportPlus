@@ -22,7 +22,7 @@ fun String.ellipsis(maxLen:Int): String =
     }
 
 /** How many characters [displayValue] keeps before cutting a value off. */
-internal const val DISPLAY_VALUE_MAX_LENGTH = 200
+const val DISPLAY_VALUE_MAX_LENGTH = 200
 
 /**
  * Normalizes a raw translation value for single-line display — the Table View cells,
@@ -31,7 +31,7 @@ internal const val DISPLAY_VALUE_MAX_LENGTH = 200
  * and truncates to [maxLength] with an ellipsis. Callers keep the raw value at hand
  * (a tooltip, the lookup strings) for whatever the line cuts off.
  */
-internal fun displayValue(raw: String, maxLength: Int = DISPLAY_VALUE_MAX_LENGTH): String {
+fun displayValue(raw: String, maxLength: Int = DISPLAY_VALUE_MAX_LENGTH): String {
     val collapsed = raw.replace(Regex("\\s+"), " ").trim()
     return if (collapsed.length <= maxLength) collapsed else collapsed.take(maxLength) + "…"
 }

@@ -4,7 +4,7 @@ package com.ibrahimdans.i18n.extensions.lang.js
  * What the hardcoded-text inspections agree is text to translate, whatever the template syntax:
  * [HardcodedJsxTextInspection] for JSX, [HardcodedVueTextInspection] for Vue templates.
  */
-internal object HardcodedTextRules {
+object HardcodedTextRules {
 
     /**
      * The attributes whose value is shown to the user — or read out by a screen reader — any other
