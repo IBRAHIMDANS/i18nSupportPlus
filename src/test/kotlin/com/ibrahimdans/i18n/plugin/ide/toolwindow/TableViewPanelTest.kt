@@ -9,10 +9,10 @@ import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.intellij.openapi.command.WriteCommandAction
+import com.ibrahimdans.i18n.plugin.translate.Cancellation
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
-import com.intellij.openapi.progress.ProgressIndicator
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.ui.TestDialog
@@ -303,7 +303,7 @@ class TableViewPanelTest : PlatformBaseTest() {
 
             FillMissingTranslationsAction.machineTranslator = {
                 object : TranslationProvider {
-                    override fun translate(request: TranslationRequest, indicator: ProgressIndicator?) = emptyList<Translation>()
+                    override fun translate(request: TranslationRequest, cancellation: Cancellation?) = emptyList<Translation>()
                 }
             }
             val item = panel.fillMenuItem(2)
@@ -324,7 +324,7 @@ class TableViewPanelTest : PlatformBaseTest() {
         try {
             FillMissingTranslationsAction.machineTranslator = {
                 object : TranslationProvider {
-                    override fun translate(request: TranslationRequest, indicator: ProgressIndicator?) = emptyList<Translation>()
+                    override fun translate(request: TranslationRequest, cancellation: Cancellation?) = emptyList<Translation>()
                 }
             }
             val root = myFixture.tempDirFixture.findOrCreateDir("app")

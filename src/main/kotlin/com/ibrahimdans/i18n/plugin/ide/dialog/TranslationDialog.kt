@@ -25,6 +25,7 @@ import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
+import com.ibrahimdans.i18n.plugin.translate.asCancellation
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
@@ -644,7 +645,7 @@ class TranslationDialog(
                 requests.map { (locale, _, text) ->
                     indicator?.checkCanceled()
                     indicator?.text = PluginBundle.message("dialog.translation.translate.progress", locale)
-                    provider.translate(TranslationRequest(listOf(text), source.first, locale, context, instruction), indicator).single()
+                    provider.translate(TranslationRequest(listOf(text), source.first, locale, context, instruction), indicator?.asCancellation()).single()
                 }
             },
             PluginBundle.message("dialog.translation.translate.button"),
