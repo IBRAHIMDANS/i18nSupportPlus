@@ -123,6 +123,20 @@ class HttpTranslationProviderTest {
         assertEquals(1, second.calls.size, "only the failed text goes to the second engine")
     }
 
+    private class Cancelled : RuntimeException()
+
+    @Test
+    fun `a cancellation stops between two texts`() {
+        val transport = FakeTransport { ok("""{"translations":[{"text":"un"}]}""") }
+        var checks = 0
+        val cancelOnSecond = Cancellation { if (++checks == 2) throw Cancelled() }
+
+        Assertions.assertThrows(Cancelled::class.java) {
+            HttpTranslationProvider(preset("deepl").copy(batch = null), "k", transport).translate(request.copy(texts = listOf("one", "two", "three")), cancelOnSecond)
+        }
+        assertEquals(1, transport.calls.size, "the second text is never sent")
+    }
+
     private fun deeplAnswer(body: String): HttpTransport.Response {
         val texts = JsonParser.parseString(body).asJsonObject["text"].asJsonArray.map { it.asString }
         return ok(texts.joinToString(",", """{"translations":[""", "]}") { """{"text":"FR ${it.replace("\"", "\\\"")}"}""" })

@@ -8,6 +8,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
+import com.ibrahimdans.i18n.plugin.translate.Cancellation
 import com.ibrahimdans.i18n.plugin.translate.TranslatedBy
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
@@ -36,7 +37,7 @@ class TranslationChangesDialogTest : PlatformBaseTest() {
     private val config = Config(defaultNs = "translation")
 
     private val engine = object : TranslationProvider {
-        override fun translate(request: TranslationRequest, indicator: ProgressIndicator?): List<Translation> =
+        override fun translate(request: TranslationRequest, cancellation: Cancellation?): List<Translation> =
             request.texts.map { Translation.Done("[${request.target}] $it", TranslatedBy("DeepL", false)) }
     }
 

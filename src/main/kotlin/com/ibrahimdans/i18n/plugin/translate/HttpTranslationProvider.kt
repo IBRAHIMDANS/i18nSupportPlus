@@ -10,10 +10,7 @@ import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProcessCanceledException
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.util.io.HttpRequests
 import java.io.IOException
-import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.security.MessageDigest
 
@@ -146,20 +143,6 @@ data class BatchConfig(
     val maxSize: Int
 )
 
-/** One HTTP exchange, so tests never reach the network. */
-fun interface HttpTransport {
-    data class Response(val status: Int, val body: String)
-
-    fun post(url: String, headers: Map<String, String>, body: String): Response
-
-    /**
-     * Another verb — `GET`, `PUT` — for what an engine needs besides translating: a DeepL glossary.
-     * A transport that only knows [post] refuses the others as a network error.
-     */
-    fun request(method: String, url: String, headers: Map<String, String>, body: String?): Response =
-        if (method == "POST") post(url, headers, body.orEmpty()) else throw IOException("HTTP $method is not supported here")
-}
-
 /**
  * Any engine reachable by one JSON POST per text — DeepL, LibreTranslate, Google Cloud, every
  * OpenAI-compatible endpoint (Ollama, OpenAI, Mistral…) — configured by an [EngineConfig].
@@ -171,7 +154,7 @@ fun interface HttpTransport {
 class HttpTranslationProvider(
     private val engine: EngineConfig,
     private val apiKey: String,
-    private val transport: HttpTransport = PlatformHttpTransport
+    private val transport: HttpTransport = IdeHttpTransport
 ) : TranslationProvider {
 
     /**
@@ -183,17 +166,17 @@ class HttpTranslationProvider(
     private val deepl: DeeplGlossary? = engine.takeIf { it.nativeGlossary == DeeplGlossary.KIND }
         ?.let { DeeplGlossary.of(it, it.remoteGlossary ?: InMemoryGlossaryStore(), transport, ::headers) { message -> glossaryWarnings(message) } }
 
-    override fun translate(request: TranslationRequest, indicator: ProgressIndicator?): List<Translation> {
+    override fun translate(request: TranslationRequest, cancellation: Cancellation?): List<Translation> {
         val glossary = deepl?.let { PairGlossary(it, request.source, request.target) }
         val batch = engine.batch
         if (batch == null || request.texts.size < 2) {
             return request.texts.map { text ->
-                indicator?.checkCanceled()
+                cancellation?.check()
                 translateOne(text, request, glossary)
             }
         }
         return request.texts.chunked(batch.maxSize.coerceAtLeast(1)).flatMap { chunk ->
-            indicator?.checkCanceled()
+            cancellation?.check()
             translateBatch(chunk, request, batch, glossary)
         }
     }
@@ -615,35 +598,4 @@ class DeeplGlossary private constructor(
 
         private fun encode(value: String): String = java.net.URLEncoder.encode(value, Charsets.UTF_8)
     }
-}
-
-/** The platform's HTTP client: the IDE's proxy settings apply. */
-object PlatformHttpTransport : HttpTransport {
-
-    private const val CONNECT_TIMEOUT_MS = 10_000
-    private const val READ_TIMEOUT_MS = 60_000
-    private const val JSON = "application/json"
-
-    override fun post(url: String, headers: Map<String, String>, body: String): HttpTransport.Response =
-        request("POST", url, headers, body)
-
-    override fun request(method: String, url: String, headers: Map<String, String>, body: String?): HttpTransport.Response =
-        when (method) {
-            "POST" -> HttpRequests.post(url, JSON)
-            "PUT" -> HttpRequests.put(url, JSON)
-            "GET" -> HttpRequests.request(url)
-            else -> throw IOException("HTTP $method is not supported here")
-        }
-            .tuner { connection -> headers.forEach { (name, value) -> connection.setRequestProperty(name, value) } }
-            .connectTimeout(CONNECT_TIMEOUT_MS)
-            .readTimeout(READ_TIMEOUT_MS)
-            .throwStatusCodeException(false)
-            .connect { request ->
-                if (body != null) request.write(body)
-                val connection = request.connection as HttpURLConnection
-                val status = connection.responseCode
-                val text = if (status in 200..299) request.readString()
-                else connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                HttpTransport.Response(status, text)
-            }
 }

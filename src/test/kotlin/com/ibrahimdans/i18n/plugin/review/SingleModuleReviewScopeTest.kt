@@ -14,13 +14,13 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.mcp.TranslationAgentTools
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewActions
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewCell
+import com.ibrahimdans.i18n.plugin.translate.Cancellation
 import com.ibrahimdans.i18n.plugin.translate.TranslatedBy
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.guessProjectDir
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
@@ -137,7 +137,7 @@ class SingleModuleReviewScopeTest : PlatformBaseTest() {
             val requests = mutableListOf<TranslationRequest>()
             TranslationDialog.machineTranslator = {
                 object : TranslationProvider {
-                    override fun translate(request: TranslationRequest, indicator: ProgressIndicator?): List<Translation> {
+                    override fun translate(request: TranslationRequest, cancellation: Cancellation?): List<Translation> {
                         requests += request
                         return listOf(Translation.Done("Bonjour", TranslatedBy("DeepL", local = false)))
                     }
