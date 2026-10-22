@@ -1,26 +1,25 @@
 package com.ibrahimdans.i18n.plugin.tree
 
-import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.TranslationSource
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
-import com.intellij.psi.PsiElement
 
 /**
- * Property reference represents PsiElement and it's path from translation root
+ * Property reference represents a translation node of type [N] and it's path from translation root
  */
-data class PropertyReference(
+data class PropertyReference<N>(
     val path: List<Literal>,
-    val element: Tree<PsiElement>?,
+    val element: Tree<N>?,
     val unresolved: List<Literal>,
-    val localizationSource: LocalizationSource,
+    val localizationSource: TranslationSource<N, *>,
     val isPlural: Boolean = false
 )
 
 /**
- * Key resolving utils
+ * Key resolving utils over trees of [T] nodes
  */
 interface CompositeKeyResolver<T> {
 
-    fun resolve(compositeKey: List<Literal>, localizationSource: LocalizationSource, pluralSeparator: String): List<PropertyReference> =
+    fun resolve(compositeKey: List<Literal>, localizationSource: TranslationSource<T, *>, pluralSeparator: String): List<PropertyReference<T>> =
         resolveCompositeKeys(compositeKey, localizationSource).flatMap {
             tryToResolvePlural(it, pluralSeparator, localizationSource)
         }
@@ -30,7 +29,7 @@ interface CompositeKeyResolver<T> {
      * When a wildcard `*` is encountered, expands to all children of the current node
      * and continues resolving the remaining key segments on each child.
      */
-    fun resolveCompositeKeys(compositeKey: List<Literal>, localizationSource: LocalizationSource): List<PropertyReference> {
+    fun resolveCompositeKeys(compositeKey: List<Literal>, localizationSource: TranslationSource<T, *>): List<PropertyReference<T>> {
         val initial = listOf(PropertyReference(listOf(), localizationSource.tree, listOf(), localizationSource))
         return compositeKey.foldIndexed(initial) { index, refs, key ->
             refs.flatMap { propertyReference ->
@@ -65,7 +64,7 @@ interface CompositeKeyResolver<T> {
      * Returns a single PropertyReference by composite key (first match), or null if no match is found in this localization source.
      * For wildcard-aware multi-result resolution, use [resolveCompositeKeys].
      */
-    fun resolveCompositeKey(compositeKey: List<Literal>, localizationSource: LocalizationSource): PropertyReference? {
+    fun resolveCompositeKey(compositeKey: List<Literal>, localizationSource: TranslationSource<T, *>): PropertyReference<T>? {
         return resolveCompositeKeys(compositeKey, localizationSource).firstOrNull()
     }
 
@@ -83,7 +82,7 @@ interface CompositeKeyResolver<T> {
      * }
      * PropertyReference for this case is PropertyReference(path = ["root", "key"], element[key], unresolved = ["plural"])
      */
-    fun tryToResolvePlural(propertyReference: PropertyReference, pluralSeparator: String, localizationSource: LocalizationSource): List<PropertyReference> {
+    fun tryToResolvePlural(propertyReference: PropertyReference<T>, pluralSeparator: String, localizationSource: TranslationSource<T, *>): List<PropertyReference<T>> {
         return if (propertyReference.unresolved.size == 1 && propertyReference.element != null && propertyReference.element.isTree()) {
             val singleUnresolvedKey = propertyReference.unresolved[0]
             // Legacy i18next v3 format: key-1, key-2, key-5
@@ -104,14 +103,14 @@ interface CompositeKeyResolver<T> {
     }
 
     /**
-     * Returns PsiElement by composite key from file's root node
+     * Returns the node by composite key from file's root node
      */
-    fun resolveCompositeKeyProperty(compositeKey: List<Literal>, localizationSource: LocalizationSource): Tree<PsiElement>? =
+    fun resolveCompositeKeyProperty(compositeKey: List<Literal>, localizationSource: TranslationSource<T, *>): Tree<T>? =
         resolveCompositeKey(compositeKey, localizationSource)?.let { ref -> if (ref.unresolved.isNotEmpty()) null else ref.element }
 
     /**
      * Returns keys at current composite key position
      */
-    fun listCompositeKeyVariants(fixedKey: List<Literal>, prefix: String, localizationSource: LocalizationSource): List<Tree<PsiElement>> =
+    fun listCompositeKeyVariants(fixedKey: List<Literal>, prefix: String, localizationSource: TranslationSource<T, *>): List<Tree<T>> =
         resolveCompositeKeyProperty(fixedKey, localizationSource)?.findChildren(prefix) ?: listOf()
 }

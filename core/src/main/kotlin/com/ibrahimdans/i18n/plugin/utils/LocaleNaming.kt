@@ -1,13 +1,13 @@
 package com.ibrahimdans.i18n.plugin.utils
 
-import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.TranslationSource
 
 /**
  * The single rule deciding which part of a translation file's path carries its locale.
  *
  * Three consumers — the gutter icon tooltip, the Ctrl+hover popup and the tool window's
  * data loader — each held a private copy of the shape-only regex that #122 replaced with
- * the ISO-backed [LocalizationSourceService.looksLikeLocale]. The copies never got the
+ * the ISO-backed [LocaleNames.looksLikeLocale]. The copies never got the
  * correction, so `src/api/common.json` was still loaded under the locale `api`. They now
  * all come through here, and the ISO validation itself stays where #122 put it.
  *
@@ -24,13 +24,13 @@ import com.ibrahimdans.i18n.LocalizationSource
  * On `src/api/common.json` that is `common`, the file's own name, rather than `api`, a
  * source folder that never described a language.
  */
-internal fun LocalizationSource.localeLabel(): String {
+fun TranslationSource<*, *>.localeLabel(): String {
     // A module template states the locale: it is not guessed then.
     locale?.let { return it }
     val stem = name.substringBeforeLast('.')
     return when {
-        LocalizationSourceService.looksLikeLocale(stem) -> stem
-        LocalizationSourceService.looksLikeLocale(parent) -> parent
+        LocaleNames.looksLikeLocale(stem) -> stem
+        LocaleNames.looksLikeLocale(parent) -> parent
         else -> stem
     }
 }
@@ -39,9 +39,9 @@ internal fun LocalizationSource.localeLabel(): String {
  * True when the file's own name is its locale (`locales/en.json`), the "one file per locale"
  * layout. Such a file holds no namespace: everything inside it is the project's default one.
  */
-internal fun LocalizationSource.isLocaleNamedFile(): Boolean =
+fun TranslationSource<*, *>.isLocaleNamedFile(): Boolean =
     if (locale != null) namespace == null
-    else LocalizationSourceService.looksLikeLocale(name.substringBeforeLast('.'))
+    else LocaleNames.looksLikeLocale(name.substringBeforeLast('.'))
 
 /**
  * False when neither the stem nor the parent directory looks like a locale, i.e. when
@@ -49,11 +49,11 @@ internal fun LocalizationSource.isLocaleNamedFile(): Boolean =
  *
  * That fallback exists so a file a [Config.translationsRoot] sweeps in without a locale
  * anywhere in its path (`i18n/locales/my_page.json`, no `{locale}` segment at all) still
- * surfaces its content instead of it vanishing silently — see [LocalizationSourceService].
+ * surfaces its content instead of it vanishing silently — see `LocalizationSourceService`.
  * It was never meant to make that file's own name usable *as* a locale: the per-locale grid
  * (tool window table/tree, stats, CSV export/import, *Sync Keys*) compares real locales
  * against each other, and mixing in a column named after a namespace reports every other
  * locale as missing that "locale" for every single key, real orphan or not.
  */
-internal fun LocalizationSource.hasRecognizedLocale(): Boolean =
-    locale != null || LocalizationSourceService.looksLikeLocale(localeLabel())
+fun TranslationSource<*, *>.hasRecognizedLocale(): Boolean =
+    locale != null || LocaleNames.looksLikeLocale(localeLabel())

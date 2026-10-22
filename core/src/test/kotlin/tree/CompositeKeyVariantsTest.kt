@@ -2,7 +2,6 @@ package tree
 
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
-import com.intellij.json.JsonFileType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 

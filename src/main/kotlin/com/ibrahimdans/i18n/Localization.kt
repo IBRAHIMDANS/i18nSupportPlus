@@ -1,6 +1,5 @@
 package com.ibrahimdans.i18n
 
-import com.ibrahimdans.i18n.plugin.ConfigurationProperty
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.Tree
@@ -18,27 +17,13 @@ data class LocalizationFileType(val languageFileType: FileType, val auxExtension
     fun extensions(): List<String> = auxExtensions + languageFileType.defaultExtension
 }
 
-interface LocalizationConfig {
-    fun id(): String
-    fun props(): List<ConfigurationProperty>
-}
-
-data class LocalizationConfigImpl(
-    val configId: String,
-    val configProps: List<ConfigurationProperty> = emptyList()
-) : LocalizationConfig {
-    override fun id(): String = configId
-    override fun props(): List<ConfigurationProperty> = configProps
-}
-
-interface Localization <T: PsiElement> {
+interface Localization <T: PsiElement> : TranslationFormat {
     fun types(): List<LocalizationFileType>
     fun contentGenerator(): ContentGenerator
     fun referenceAssistant(): TranslationReferenceAssistant<T>
     fun elementsTree(file: PsiElement): Tree<PsiElement>?
     fun matches(localizationFileType:LocalizationFileType, file: VirtualFile?, fileNames: List<String>): Boolean
     fun icon(): Icon = AllIcons.FileTypes.Unknown
-    fun config(): LocalizationConfig
 
     /**
      * The namespace the keys of [file] are written under when this format decides it from the

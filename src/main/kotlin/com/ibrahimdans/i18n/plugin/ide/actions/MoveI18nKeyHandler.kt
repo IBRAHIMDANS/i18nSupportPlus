@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.TranslationSource
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
@@ -245,7 +246,7 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
             ?: element.references.filterIsInstance<I18nReference>().firstOrNull()
     }
 
-    private fun namespaceOf(source: LocalizationSource): String? =
+    private fun namespaceOf(source: TranslationSource<*, *>): String? =
         source.name.substringBeforeLast('.').ifBlank { null }
 
     /**

@@ -1,19 +1,12 @@
 package tree
 
-import com.ibrahimdans.i18n.*
-import com.ibrahimdans.i18n.plugin.key.FullKey
+import com.ibrahimdans.i18n.LocalizationConfigImpl
+import com.ibrahimdans.i18n.TranslationFormat
+import com.ibrahimdans.i18n.TranslationSource
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.tree.PropertyReference
 import com.ibrahimdans.i18n.plugin.tree.Tree
-import com.intellij.json.JsonFileType
-import com.intellij.lang.Language
-import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.patterns.PlatformPatterns
-import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiReference
-import io.mockk.every
-import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -29,71 +22,19 @@ internal class TestTree(private val value: String, private val children: List<Te
 
 internal fun root(tree: TestTree) = TestTree("", listOf(tree))
 
-internal fun localizationSource(tree: TestTree?): LocalizationSource {
-    return LocalizationSource(
-        treeAdapter(tree), "test", "parent", "test", testLocalization()
-    )
-}
+// A missing tree reads as an empty leaf, as the resolver meets it in an empty translation file.
+internal fun localizationSource(tree: TestTree?): TranslationSource<String, TranslationFormat> =
+    TranslationSource(tree ?: TestTree(""), "test", "parent", "test", testFormat)
 
-// Used to build LocalizationSource in CompositeKeyResolver tests; the stubbed localization
-// implementation details below (content generator, reference assistant, matches, etc.) are not exercised.
-fun testLocalization(): Localization<PsiElement> {
-    return object : Localization<PsiElement> {
-        override fun types(): List<LocalizationFileType> = emptyList()
-
-        override fun contentGenerator() = object : ContentGenerator {
-            override fun generateContent(compositeKey: List<Literal>, value: String) = ""
-            override fun getType() = JsonFileType.INSTANCE
-            override fun getLanguage(): Language = Language.ANY
-            override fun getDescription() = ""
-            override fun isSuitable(element: PsiElement) = false
-            override fun generateTranslationEntry(item: PsiElement, key: String, value: String) {}
-            override fun generate(element: PsiElement, fullKey: FullKey, unresolved: List<Literal>, translationValue: String?) {}
-        }
-
-        override fun referenceAssistant() = object : TranslationReferenceAssistant<PsiElement> {
-            override fun pattern() = PlatformPatterns.alwaysFalse<PsiElement>()
-            override fun references(element: PsiElement): List<PsiReference> = emptyList()
-        }
-
-        override fun elementsTree(file: PsiElement): Tree<PsiElement>? = null
-
-        override fun matches(localizationFileType: LocalizationFileType, file: VirtualFile?, fileNames: List<String>) = false
-
-        override fun config(): LocalizationConfig = LocalizationConfigImpl("test")
-    }
-}
-
-fun treeAdapter(tree: Tree<String>?): Tree<PsiElement> {
-    return object: Tree<PsiElement> {
-        override fun findChild(name: String): Tree<PsiElement>? {
-            return tree?.findChild(name)?.let{treeAdapter(it)}
-        }
-
-        override fun isTree(): Boolean {
-            return tree?.isTree() ?: false
-        }
-
-        override fun value(): PsiElement {
-            val mock = mockk<PsiElement>()
-            every {
-                mock.toString()
-            } returns (tree?.value() ?: "")
-            return mock
-        }
-
-        override fun findChildren(prefix: String): List<Tree<PsiElement>> {
-            return tree?.findChildren(prefix)?.mapNotNull {treeAdapter(it)} ?: listOf()
-        }
-    }
+// The format is not exercised by key resolution.
+internal val testFormat = object : TranslationFormat {
+    override fun config() = LocalizationConfigImpl("test")
 }
 
 /**
  * CompositeKeyResolver tests
  */
 internal class CompositeKeyResolverTest {
-
-    private val type = JsonFileType.INSTANCE
 
     @Test
     fun resolveElementByKey() {
@@ -257,8 +198,6 @@ internal class CompositeKeyResolverTest {
 
 internal class CompositeKeyResolverUnresolvedTest {
 
-    private val type = JsonFileType.INSTANCE
-
     @Test
     fun unresolvedPathIsNull() {
         val resolver: CompositeKeyResolver<String> = object: CompositeKeyResolver<String>{}
@@ -372,8 +311,8 @@ internal class CompositeKeyResolverUnresolvedTest {
         val resolver = object : CompositeKeyResolver<String> {
             override fun resolveCompositeKeys(
                 compositeKey: List<Literal>,
-                localizationSource: LocalizationSource
-            ): List<PropertyReference> = emptyList<PropertyReference>()
+                localizationSource: TranslationSource<String, *>
+            ): List<PropertyReference<String>> = emptyList()
         }
         val result = resolver.resolveCompositeKey(
             listOf(Literal("any")),

@@ -31,6 +31,7 @@ import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.xml.util.XmlStringUtil
 
@@ -93,7 +94,7 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
     /**
      * Annotates unresolved composite key
      */
-    fun unresolvedKey(fullKey: FullKey, mostResolvedReference: PropertyReference) {
+    fun unresolvedKey(fullKey: FullKey, mostResolvedReference: PropertyReference<PsiElement>) {
         val message = PluginBundle.getMessage("annotator.unresolved.key")
         val builder = holder
             .newAnnotation(errorSeverity, message)
@@ -111,7 +112,7 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
     /**
      * Annotates partially translated key and creates quick fix for it.
      */
-    fun annotatePartiallyTranslated(fullKey: FullKey, references: List<PropertyReference>) {
+    fun annotatePartiallyTranslated(fullKey: FullKey, references: List<PropertyReference<PsiElement>>) {
         references.minByOrNull { it.path.size }?.let {
             val builder = holder
                 .newAnnotation(errorSeverity, PluginBundle.getMessage("annotator.partially.translated"))
@@ -129,7 +130,7 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
      * `codeInsight.linkHandler` registered by the plugin, while the fix shows in the tooltip's
      * actions and under Alt+Enter with nothing to declare.
      */
-    private fun AnnotationBuilder.explained(message: String, fullKey: FullKey, reference: PropertyReference?): AnnotationBuilder {
+    private fun AnnotationBuilder.explained(message: String, fullKey: FullKey, reference: PropertyReference<PsiElement>?): AnnotationBuilder {
         val lines = diagnose(fullKey, holder.currentAnnotationSession.file, reference).explain()
         val html = (listOf(message) + lines).joinToString("<br/>") { XmlStringUtil.escapeString(it) }
         return tooltip(XmlStringUtil.wrapInHtml(html)).withFix(OpenSettingsFix())
@@ -140,7 +141,7 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
      * [LocalizationSourceService] calls, for the file the key is written in — so the tooltip
      * explains that lookup rather than a copy of it.
      */
-    private fun diagnose(fullKey: FullKey, file: PsiFile, reference: PropertyReference?): KeyDiagnosis {
+    private fun diagnose(fullKey: FullKey, file: PsiFile, reference: PropertyReference<PsiElement>?): KeyDiagnosis {
         val project = file.project
         val config = Settings.getInstance(project).config()
         val basePath = project.basePath ?: ""
