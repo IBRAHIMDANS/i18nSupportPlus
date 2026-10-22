@@ -9,7 +9,7 @@ package com.ibrahimdans.i18n.extensions.localization.yaml
  * written plain only when a plain scalar reads back as the same string, single-quoted otherwise,
  * and double-quoted when it holds what only escapes can carry (line breaks, control characters).
  */
-internal object YamlScalars {
+object YamlScalars {
 
     enum class Style { PLAIN, SINGLE, DOUBLE }
 
