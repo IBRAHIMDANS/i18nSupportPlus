@@ -20,6 +20,11 @@
 - [Internal] Placeholder detection (`MessagePlaceholders`) and `PlaceholderMask` move to `core`, one regex for the dialog and machine translation — no behaviour change
 - [Internal] The CSV and XLIFF codecs move to `core` with their own error messages, in English and French, still following the IDE language — no behaviour change
 - [Internal] Machine translation is cancelled through a platform-free `Cancellation`; `TranslationProvider` moves to `core`, with an HTTP transport on the JDK client for use outside the IDE — no behaviour change
+- [Internal] `core` reads JSON and YAML translation files without the PSI (`JsonTranslationTree`, `YamlTranslationTree` on jackson-core and snakeyaml-engine, both provided by the platform), keys, values and their offsets; a test checks they agree with the PSI trees on every fixture — not used by the plugin yet, no behaviour change
+- [Internal] Placeholder detection (`MessagePlaceholders`) and `PlaceholderMask` move to `core`, one regex for the dialog and machine translation — no behaviour change
+- [Internal] The key parser — `FullKey`, the tokenizer, `KeyParser` and the key normalizers — moves to `core`; the plugin passes in the completion placeholder it used to read itself — no behaviour change
+- [Internal] Machine translation is cancelled through a platform-free `Cancellation`; `TranslationProvider` moves to `core`, with an HTTP transport on the JDK client for use outside the IDE — no behaviour change
+- [Internal] `Config`, `KeyOrder`, `KeepList` and `SetupNeedDetector` move to `core`; the search scope a configuration implies becomes a plugin-side extension — no behaviour change
 
 ## 1.15.0 - 2026-10-18
 
