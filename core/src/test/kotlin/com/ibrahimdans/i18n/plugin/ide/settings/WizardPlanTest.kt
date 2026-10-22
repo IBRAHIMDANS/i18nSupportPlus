@@ -1,6 +1,5 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
-import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 
@@ -12,7 +11,7 @@ import org.junit.jupiter.api.Test
  * than either of them, presented as a reading. These tests pin down the two things that were
  * missing: whether a value is a guess, and where it came from.
  */
-class WizardPlanTest : PlatformBaseTest() {
+class WizardPlanTest {
 
     private val nested = listOf("locales/en/common.json", "locales/fr/common.json")
 

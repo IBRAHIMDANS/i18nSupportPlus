@@ -1,6 +1,6 @@
 package com.ibrahimdans.i18n.plugin.utils
 
-import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService.Companion.looksLikeLocale
+import com.ibrahimdans.i18n.plugin.utils.LocaleNames.looksLikeLocale
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -36,14 +36,14 @@ class LooksLikeLocaleTest {
 
     @Test
     fun acceptsLanguageWithScript() {
-        listOf("sr-Latn", "zh_Hans").forEach {
+        listOf("sr-Latn", "zh_Hans", "zh-Hant").forEach {
             assertTrue(looksLikeLocale(it), "expected '$it' to be a locale")
         }
     }
 
     @Test
     fun rejectsCommonDirectoryNames() {
-        listOf("web", "ios", "api", "src", "lib", "app", "bin", "doc", "out").forEach {
+        listOf("web", "ios", "api", "src", "lib", "app", "bin", "doc", "out", "common", "LC_MESSAGES").forEach {
             assertFalse(looksLikeLocale(it), "expected '$it' NOT to be a locale")
         }
     }
