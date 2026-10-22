@@ -8,6 +8,7 @@ import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.OrphanKeyDeleter
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
