@@ -1,6 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
-import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.LocaleNames
 
 /**
  * What the setup wizard is about to propose, and the evidence behind each value.
@@ -153,11 +153,11 @@ object WizardPlan {
         val extension = fileName.substringAfterLast('.', "")
 
         val folders = segments.dropLast(1).joinToString("/") {
-            if (LocalizationSourceService.looksLikeLocale(it)) LANG else it
+            if (LocaleNames.looksLikeLocale(it)) LANG else it
         }
         // A "one file per locale" layout names its files after locales, not namespaces —
         // `locales/fr.json` resolves through {lang}.json, never {ns}.json.
-        val name = if (LocalizationSourceService.looksLikeLocale(stem)) LANG else NS
+        val name = if (LocaleNames.looksLikeLocale(stem)) LANG else NS
         val file = if (extension.isEmpty()) name else "$name.$extension"
         return if (folders.isEmpty()) file else "$folders/$file"
     }

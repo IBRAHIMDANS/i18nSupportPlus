@@ -1,6 +1,5 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
-import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 
@@ -11,7 +10,7 @@ import org.junit.jupiter.api.Test
  * a sentence in the summary and no setting at all: ticking "react-intl" changed nothing, and
  * the project stayed unresolvable until the user found `flatKeys` on their own.
  */
-class WizardSettingsDeducerTest : PlatformBaseTest() {
+class WizardSettingsDeducerTest {
 
     private fun deduce(files: List<String>, frameworks: Set<String> = emptySet()) =
         WizardSettingsDeducer.deduce(files, frameworks)
@@ -100,9 +99,11 @@ class WizardSettingsDeducerTest : PlatformBaseTest() {
     /** The value Settings auto-picks must not count as a user choice. */
     @Test
     fun theAutoPickedFormatCountsAsUntouched() {
-        Assertions.assertTrue(WizardSettingsDeducer.isUntouchedPreferredLocalization(""))
+        Assertions.assertTrue(WizardSettingsDeducer.isUntouchedPreferredLocalization("", "json"))
+        Assertions.assertTrue(WizardSettingsDeducer.isUntouchedPreferredLocalization("json", "json"))
+        Assertions.assertTrue(WizardSettingsDeducer.isUntouchedPreferredLocalization("", null))
         Assertions.assertFalse(
-            WizardSettingsDeducer.isUntouchedPreferredLocalization("something-nobody-registers"),
+            WizardSettingsDeducer.isUntouchedPreferredLocalization("yaml", "json"),
             "an explicit choice must be left alone"
         )
     }

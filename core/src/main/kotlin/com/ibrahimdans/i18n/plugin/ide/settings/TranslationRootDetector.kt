@@ -1,6 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
-import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.LocaleNames
 
 /**
  * Derives "Translations root directory" from the files the setup wizard found.
@@ -78,7 +78,7 @@ object TranslationRootDetector {
      * folder named `lang` or `intl` must not be mistaken for a locale and stripped away.
      */
     private fun isBelowTheRoot(segment: String): Boolean =
-        segment == GETTEXT_MESSAGES_DIR || LocalizationSourceService.looksLikeLocale(segment)
+        segment == GETTEXT_MESSAGES_DIR || LocaleNames.looksLikeLocale(segment)
 
     private fun longestCommonPrefix(roots: List<List<String>>): List<String> {
         val shortest = roots.minOf { it.size }
