@@ -85,7 +85,7 @@ object XliffTranslationCodec {
                 .apply { setErrorHandler(SilentErrorHandler) }
                 .parse(InputSource(StringReader(text)))
         } catch (e: SAXException) {
-            throw IllegalArgumentException(PluginBundle.message("xliff.error.malformed", e.message ?: ""), e)
+            throw IllegalArgumentException(CoreMessages.message("xliff.error.malformed", e.message ?: ""), e)
         }
         val values = linkedMapOf<String, MutableMap<String, String>>()
         val locales = linkedSetOf<String>()
@@ -102,7 +102,7 @@ object XliffTranslationCodec {
                 values.getOrPut(key) { linkedMapOf() }[locale] = target
             }
         }
-        require(values.isNotEmpty()) { PluginBundle.message("xliff.error.no.unit") }
+        require(values.isNotEmpty()) { CoreMessages.message("xliff.error.no.unit") }
         val header = listOf(CsvTranslationCodec.KEY_COLUMN) + locales
         return listOf(header) + values.map { (key, byLocale) -> listOf(key) + locales.map { byLocale[it].orEmpty() } }
     }

@@ -76,7 +76,7 @@ object CsvTranslationCodec {
                     else -> field.append(c)
                 }
                 c == '"' -> {
-                    require(field.isEmpty()) { PluginBundle.message("csv.error.quote.inside.field", i) }
+                    require(field.isEmpty()) { CoreMessages.message("csv.error.quote.inside.field", i) }
                     inQuotes = true
                 }
                 c == ',' -> endField()
@@ -86,7 +86,7 @@ object CsvTranslationCodec {
             }
             i++
         }
-        require(!inQuotes) { PluginBundle.message("csv.error.unterminated.quote") }
+        require(!inQuotes) { CoreMessages.message("csv.error.unterminated.quote") }
         if (field.isNotEmpty() || record.isNotEmpty()) endRecord()
 
         // Drop trailing fully-empty records (file ending with a newline).
@@ -115,10 +115,10 @@ object CsvTranslationCodec {
         knownLocales: List<String>,
         records: List<List<String>>,
     ): ImportPlan {
-        require(records.isNotEmpty()) { PluginBundle.message("csv.error.no.header") }
+        require(records.isNotEmpty()) { CoreMessages.message("csv.error.no.header") }
         val header = records.first()
         require(header.firstOrNull() == KEY_COLUMN) {
-            PluginBundle.message("csv.error.first.column", KEY_COLUMN, header.firstOrNull() ?: "")
+            CoreMessages.message("csv.error.first.column", KEY_COLUMN, header.firstOrNull() ?: "")
         }
 
         val localeColumns = header.drop(1)
