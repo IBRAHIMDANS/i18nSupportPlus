@@ -2,7 +2,6 @@ package com.ibrahimdans.i18n.plugin.parser
 
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.KeyElementType
-import com.intellij.codeInsight.completion.CompletionInitializationContext
 
 /**
  * Key normalization utils interface
@@ -28,19 +27,11 @@ class ExpressionNormalizer: KeyNormalizer {
 }
 
 /**
- * Normalizes dummy key, used in key completion
+ * Normalizes dummy key, used in key completion: replaces [dummy], the identifier the IDE inserts at
+ * the caret, by its [trimmed] form.
  */
-class DummyTextNormalizer: KeyNormalizer {
+class DummyTextNormalizer(private val dummy: String, private val trimmed: String): KeyNormalizer {
     override fun normalize(element: KeyElement): KeyElement? {
-        return element.copy(
-            text = element.text.replace(
-                CompletionInitializationContext.DUMMY_IDENTIFIER,
-                CompletionInitializationContext.DUMMY_IDENTIFIER_TRIMMED
-            )
-        )
+        return element.copy(text = element.text.replace(dummy, trimmed))
     }
 }
-
-
-
-
