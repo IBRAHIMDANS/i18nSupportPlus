@@ -1,0 +1,13 @@
+{
+  "name": "tree-sitter-key-extraction-spike",
+  "private": true,
+  "type": "module",
+  "description": "Spike: read i18next keys from TSX without the IntelliJ PSI, using web-tree-sitter (WASM)",
+  "scripts": {
+    "extract": "node extract.mjs"
+  },
+  "dependencies": {
+    "tree-sitter-typescript": "^0.23.2",
+    "web-tree-sitter": "^0.25.10"
+  }
+}
