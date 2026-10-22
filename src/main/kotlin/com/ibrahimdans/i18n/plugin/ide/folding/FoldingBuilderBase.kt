@@ -27,7 +27,7 @@ import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 
-internal data class ElementToReferenceBinding(val psiElement: PsiElement, val reference: PropertyReference)
+internal data class ElementToReferenceBinding(val psiElement: PsiElement, val reference: PropertyReference<PsiElement>)
 
 /**
  * Provides folding mechanism for i18n keys

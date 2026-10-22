@@ -18,7 +18,7 @@ import com.intellij.util.ProcessingContext
 /**
  * Data class
  */
-data class ReferenceDescriptor(val reference: PropertyReference, val host: PsiElement?)
+data class ReferenceDescriptor(val reference: PropertyReference<PsiElement>, val host: PsiElement?)
 
 /**
  * I18nReference to translation

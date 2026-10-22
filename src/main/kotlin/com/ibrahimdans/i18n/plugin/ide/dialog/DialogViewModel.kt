@@ -55,8 +55,9 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
                 .ifEmpty { if (namespaces.isEmpty()) sourceService.findAllSources(project) else emptyList() }
             sources.associateWith { source ->
                 val ref = resolveCompositeKey(fullKey.compositeKey, source)
-                if (ref != null && ref.unresolved.isEmpty() && ref.element != null) {
-                    readPsiValue(ref.element.value())
+                val element = ref?.element
+                if (ref != null && ref.unresolved.isEmpty() && element != null) {
+                    readPsiValue(element.value())
                 } else {
                     null
                 }
@@ -175,13 +176,14 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
             {
                 ApplicationManager.getApplication().runWriteAction {
                     val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@runWriteAction
-                    if (ref.unresolved.isEmpty() && ref.element != null) {
+                    val element = ref.element
+                    if (ref.unresolved.isEmpty() && element != null) {
                         // Key exists — update value in place
-                        if (overwrite) updatePsiValue(ref.element.value(), value)
-                    } else if (ref.element != null) {
+                        if (overwrite) updatePsiValue(element.value(), value)
+                    } else if (element != null) {
                         // Key partially resolved — generate missing chain
-                        if (generator.isSuitable(ref.element.value())) {
-                            generator.generate(ref.element.value(), fullKey, ref.unresolved, value)
+                        if (generator.isSuitable(element.value())) {
+                            generator.generate(element.value(), fullKey, ref.unresolved, value)
                         }
                     }
                 }

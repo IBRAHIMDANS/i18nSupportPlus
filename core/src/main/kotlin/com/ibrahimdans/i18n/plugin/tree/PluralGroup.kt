@@ -1,7 +1,5 @@
 package com.ibrahimdans.i18n.plugin.tree
 
-import com.intellij.psi.PsiElement
-
 /**
  * Recognises a node whose children are *all* CLDR plural categories:
  *
@@ -30,7 +28,7 @@ object PluralGroup {
     private const val PREFERRED_CATEGORY = "other"
 
     /** True when [node] is an object made only of CLDR plural categories. */
-    fun isPluralGroup(node: Tree<PsiElement>?): Boolean {
+    fun <N> isPluralGroup(node: Tree<N>?): Boolean {
         if (node == null || !node.isTree()) return false
         val children = node.findChildren("")
         if (children.isEmpty()) return false
@@ -51,7 +49,7 @@ object PluralGroup {
      * while showing nothing — which is exactly what happened when i18n-js plurals started
      * resolving.
      */
-    fun displayableValue(node: Tree<PsiElement>?): Tree<PsiElement>? {
+    fun <N> displayableValue(node: Tree<N>?): Tree<N>? {
         if (node == null) return null
         if (node.isLeaf()) return node
         if (!isPluralGroup(node)) return null

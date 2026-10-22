@@ -120,8 +120,9 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
             .filter { namespace == null || TranslationDataLoader.extractNamespace(it) == namespace }
             .mapNotNull { source ->
                 val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@mapNotNull null
-                if (ref.unresolved.isNotEmpty() || ref.element == null) return@mapNotNull null
-                val value = ref.element.value()
+                val element = ref.element
+                if (ref.unresolved.isNotEmpty() || element == null) return@mapNotNull null
+                val value = element.value()
                 TranslationPsi.propertyOf(value)
             }
     }

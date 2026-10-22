@@ -1,9 +1,8 @@
 package com.ibrahimdans.i18n.plugin.utils
 
-import com.ibrahimdans.i18n.Localization
-import com.ibrahimdans.i18n.LocalizationSource
-import com.intellij.psi.PsiElement
-import io.mockk.mockk
+import com.ibrahimdans.i18n.LocalizationConfigImpl
+import com.ibrahimdans.i18n.TranslationFormat
+import com.ibrahimdans.i18n.TranslationSource
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -17,13 +16,16 @@ import org.junit.jupiter.api.Test
  */
 class LocaleNamingTest {
 
-    @Suppress("UNCHECKED_CAST")
-    private fun source(name: String, parent: String) = LocalizationSource(
+    private val format = object : TranslationFormat {
+        override fun config() = LocalizationConfigImpl("test")
+    }
+
+    private fun source(name: String, parent: String) = TranslationSource<Nothing, TranslationFormat>(
         tree = null,
         name = name,
         parent = parent,
         displayPath = "$parent/$name",
-        localization = mockk<Localization<*>>() as Localization<PsiElement>
+        localization = format
     )
 
     // ---- localeLabel ----
