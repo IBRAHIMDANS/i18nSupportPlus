@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.extensions.technology.i18next
 
 import com.ibrahimdans.i18n.*
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
 import com.ibrahimdans.i18n.plugin.utils.whenMatches
 import com.intellij.lang.javascript.JavascriptLanguage
 import com.intellij.lang.javascript.psi.JSArrayLiteralExpression

@@ -4,8 +4,6 @@ import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.ide.settings.rules.EditorRuleState
 import com.ibrahimdans.i18n.plugin.utils.default
 import com.ibrahimdans.i18n.plugin.utils.whenMatches
-import com.intellij.openapi.project.Project
-import com.intellij.psi.search.GlobalSearchScope
 
 /**
  * Configuration holder
@@ -78,13 +76,6 @@ data class Config (
      * three nested levels, so splitting on the key separator makes every key unresolvable.
      */
     fun usesFlatKeys(): Boolean = gettext || flatKeys
-
-    /**
-     * Gets project's search scope
-     */
-    fun searchScope(project: Project): GlobalSearchScope =
-        if (this.searchInProjectOnly) GlobalSearchScope.projectScope(project)
-        else GlobalSearchScope.allScope(project)
 
     /**
      * Returns the set of directory names to exclude from translation file scanning.
