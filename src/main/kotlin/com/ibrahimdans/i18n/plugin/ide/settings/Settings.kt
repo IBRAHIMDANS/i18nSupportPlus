@@ -12,7 +12,7 @@ import com.intellij.util.xmlb.XmlSerializerUtil
  * Plugin settings
  */
 @State(name = "i18nSettings", storages = [Storage("i18nSettings.xml")])
-class Settings : PersistentStateComponent<Settings> {
+class Settings : PersistentStateComponent<Settings>, ConfigStore {
 
     private val default: Config = Config()
 
@@ -56,7 +56,7 @@ class Settings : PersistentStateComponent<Settings> {
     /**
      * Returns plugin configuration
      */
-    fun config(): Config {
+    override fun config(): Config {
         if (preferredLocalization.isEmpty()) {
             preferredLocalization = Extensions.LOCALIZATION.extensionList.firstOrNull()?.config()?.id() ?: ""
         }
@@ -94,7 +94,7 @@ class Settings : PersistentStateComponent<Settings> {
         )
     }
 
-    fun setConfig(config: Config) {
+    override fun setConfig(config: Config) {
         searchInProjectOnly = config.searchInProjectOnly
         nsSeparator = config.nsSeparator
         keySeparator = config.keySeparator
