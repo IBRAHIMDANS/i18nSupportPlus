@@ -12,6 +12,10 @@
 
 - [Translation] **The translation dialog's *Translate* button and *Instruction* field are in French**: with the IDE in French, the per-locale *Translate* button, its tooltip, the message when no other locale has a value to translate from, and the *Instruction* field with its hint and comment showed in English. The bundle test now reads the French file itself, so a key missing from it fails the build
 
+### Refactoring
+
+- [Internal] A `core` Gradle module holds the code that needs no IntelliJ Platform: 28 files (keys, plurals, ICU rendering, layout presets, module templates, What's New, key rules…) and their 16 unit test classes, which now run without starting the platform (`./gradlew :core:test`). The module declares no platform dependency, so a `com.intellij` import there fails the build; the plugin ships it as `lib/core.jar` — no behaviour change
+
 ## 1.15.0 - 2026-10-18
 
 ### Features
