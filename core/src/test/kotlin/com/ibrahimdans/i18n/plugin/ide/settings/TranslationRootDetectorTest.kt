@@ -1,6 +1,5 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
-import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 
@@ -12,7 +11,7 @@ import org.junit.jupiter.api.Test
  * so every candidate was dropped, `translationsRoot` was left untouched and the wizard wrote
  * **nothing** — right after telling the user it had found 2 files and offering *Apply*.
  */
-class TranslationRootDetectorTest : PlatformBaseTest() {
+class TranslationRootDetectorTest {
 
     @Test
     fun flatLayoutYieldsItsFolder() {

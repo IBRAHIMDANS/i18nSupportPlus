@@ -1,7 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
-import com.ibrahimdans.i18n.Extensions
-import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.LocaleNames
 import java.io.File
 
 /**
@@ -69,7 +68,7 @@ object WizardSettingsDeducer {
     private fun deduceDefaultNamespace(relativeFilePaths: List<String>): String? {
         val counts = relativeFilePaths
             .map { it.stem() }
-            .filterNot { LocalizationSourceService.looksLikeLocale(it) }
+            .filterNot { LocaleNames.looksLikeLocale(it) }
             .groupingBy { it }
             .eachCount()
         if (counts.isEmpty()) return null
@@ -95,9 +94,12 @@ object WizardSettingsDeducer {
         return counts.filterValues { it == top }.keys.min()
     }
 
-    /** True when [current] still holds what nobody chose: the default, or the auto-picked id. */
-    fun isUntouchedPreferredLocalization(current: String): Boolean =
-        current.isEmpty() || current == Extensions.LOCALIZATION.extensionList.firstOrNull()?.config()?.id()
+    /**
+     * True when [current] still holds what nobody chose: the default, or [autoPickedId], the id
+     * Settings falls back to — the first registered localization, which the caller looks up.
+     */
+    fun isUntouchedPreferredLocalization(current: String, autoPickedId: String?): Boolean =
+        current.isEmpty() || current == autoPickedId
 
     private fun String.stem(): String = File(this).name.substringBeforeLast('.')
 
