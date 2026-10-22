@@ -58,6 +58,8 @@ dependencies {
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
 
+    implementation(project(":core"))
+
     // src/test/java/kotlinx/coroutines/debug/internal/DebugProbesImpl.java stubs
     // install$kotlinx_coroutines_core() missing from IU-253's bundled coroutines 1.8.0-intellij,
     // without breaking CancellableContinuation which changed binary signature in 1.9.0.
@@ -299,17 +301,6 @@ tasks {
                     org.jetbrains.changelog.Changelog.OutputType.MARKDOWN
                 )
             )
-        }
-    }
-
-    // The plugin reads its own version from this resource rather than asking the platform:
-    // PluginManagerCore.getPlugin is @Internal from 2026.2 on, and every public replacement is
-    // either internal as well or missing from 2025.1 — see PluginVersion.
-    processResources {
-        val pluginVersion = properties("pluginVersion")
-        inputs.property("pluginVersion", pluginVersion)
-        filesMatching("com/ibrahimdans/i18n/plugin-version.properties") {
-            expand("pluginVersion" to pluginVersion.get())
         }
     }
 

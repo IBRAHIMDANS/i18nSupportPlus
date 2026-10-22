@@ -135,10 +135,10 @@ object I18nextTypesGenerator {
         !text.startsWith(GENERATED_BY) && AUGMENTATION.containsMatchIn(text) && "CustomTypeOptions" in text
 
     /** [name] as a TypeScript property name: bare when it is an identifier, quoted otherwise. */
-    internal fun propertyName(name: String): String = if (IDENTIFIER.matches(name)) name else quote(name)
+    fun propertyName(name: String): String = if (IDENTIFIER.matches(name)) name else quote(name)
 
     /** [value] as a single-quoted TypeScript string literal. */
-    internal fun quote(value: String): String {
+    fun quote(value: String): String {
         val out = StringBuilder("'")
         for (c in value) {
             when (c) {
