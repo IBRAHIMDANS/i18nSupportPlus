@@ -26,6 +26,11 @@ private const val BUNDLE = "messages.I18nBundle"
 // resolves the bundle through a class loader looked up from the call stack.
 object PluginBundle : DynamicBundle(PluginBundle::class.java, BUNDLE) {
 
+    init {
+        // The code in core reads its strings without the platform: give it the IDE's language.
+        CoreMessages.locale = { DynamicBundle.getLocale() }
+    }
+
     /** The translated string for [key], with [params] substituted into its placeholders. */
     @Nls
     fun message(@PropertyKey(resourceBundle = BUNDLE) key: String, vararg params: Any): String =
