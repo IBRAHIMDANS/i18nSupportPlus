@@ -12,6 +12,7 @@ import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.KeyElementType
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
+import com.intellij.codeInsight.completion.CompletionInitializationContext
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 
@@ -38,7 +39,10 @@ class RawKeyParser(private val project: Project) {
         val nsSeparator = templateSeparator?.takeUnless { firstComponent } ?: config.nsSeparator
         val parser = KeyParserBuilder
             .withSeparators(nsSeparator, config.keySeparator)
-            .withDummyNormalizer()
+            .withDummyNormalizer(
+                CompletionInitializationContext.DUMMY_IDENTIFIER,
+                CompletionInitializationContext.DUMMY_IDENTIFIER_TRIMMED
+            )
             .withTemplateNormalizer()
             .build()
         val packaged = if (syntax == KeySyntax.NoNamespace) null else packageScoped(rawKey, parser, config.keySeparator)

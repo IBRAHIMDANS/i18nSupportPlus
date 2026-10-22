@@ -14,10 +14,11 @@ import com.ibrahimdans.i18n.plugin.parser.KeyNormalizer
 class KeyParserBuilder private constructor (private val tokenizer: Tokenizer, private val normalizers: List<KeyNormalizer>) {
 
     /**
-     * Builds one more step to KeyParser: adds dummy text normalizer
+     * Builds one more step to KeyParser: adds dummy text normalizer, replacing the completion
+     * identifier [dummy] by [trimmed]
      */
-    fun withDummyNormalizer(): KeyParserBuilder {
-        return KeyParserBuilder(tokenizer, normalizers + DummyTextNormalizer())
+    fun withDummyNormalizer(dummy: String, trimmed: String): KeyParserBuilder {
+        return KeyParserBuilder(tokenizer, normalizers + DummyTextNormalizer(dummy, trimmed))
     }
 
     /**
