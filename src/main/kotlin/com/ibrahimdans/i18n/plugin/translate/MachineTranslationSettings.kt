@@ -143,7 +143,7 @@ class MachineTranslationSettings : PersistentStateComponent<MachineTranslationSe
      * The engines as one provider, tried in order — null when the project has not opted in or
      * configured none, which callers read as "no machine translation here".
      */
-    fun provider(keys: ApiKeyStore = PasswordSafeApiKeys, transport: HttpTransport = PlatformHttpTransport): TranslationProvider? {
+    fun provider(keys: ApiKeyStore = PasswordSafeApiKeys, transport: HttpTransport = IdeHttpTransport): TranslationProvider? {
         if (!state.enabled || state.engines.isEmpty()) return null
         val glossary = GlossaryTerm.glossary(state.glossary)
         return TranslationEngines.provider(state.engines.map { it.toConfig(glossary) }, { keys.get(it.id) }, transport)

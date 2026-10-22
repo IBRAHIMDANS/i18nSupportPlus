@@ -15,6 +15,7 @@ import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.review.shown
+import com.ibrahimdans.i18n.plugin.translate.Cancellation
 import com.ibrahimdans.i18n.plugin.translate.TranslatedBy
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
@@ -47,7 +48,7 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
     private val requests = ConcurrentLinkedQueue<TranslationRequest>()
 
     private fun engine(answer: (String) -> Translation) = object : TranslationProvider {
-        override fun translate(request: TranslationRequest, indicator: ProgressIndicator?): List<Translation> {
+        override fun translate(request: TranslationRequest, cancellation: Cancellation?): List<Translation> {
             requests += request
             return request.texts.map(answer)
         }

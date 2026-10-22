@@ -2,7 +2,6 @@ package com.ibrahimdans.i18n.plugin.translate
 
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.intellij.openapi.progress.ProgressIndicator
 
 /**
  * The engines offered out of the box, read from `translate/engine-presets.json`: an OpenAI-compatible
@@ -22,7 +21,7 @@ object TranslationEngines {
     fun preset(id: String): EngineConfig? = presets.firstOrNull { it.id == id }
 
     /** [engines] as one provider, tried in order, each with the key [apiKeyOf] gives it. */
-    fun provider(engines: List<EngineConfig>, apiKeyOf: (EngineConfig) -> String, transport: HttpTransport = PlatformHttpTransport): TranslationProvider =
+    fun provider(engines: List<EngineConfig>, apiKeyOf: (EngineConfig) -> String, transport: HttpTransport = IdeHttpTransport): TranslationProvider =
         FallbackTranslationProvider(engines.map { engine ->
             val http = HttpTranslationProvider(engine, apiKeyOf(engine), transport)
             languageCodes(engine)?.let { LanguageCodeProvider(it, http) } ?: http
@@ -37,8 +36,8 @@ object TranslationEngines {
 
     /** [delegate] asked with the locales of the request rewritten by [codes]. */
     private class LanguageCodeProvider(private val codes: LanguageCodes, private val delegate: TranslationProvider) : TranslationProvider {
-        override fun translate(request: TranslationRequest, indicator: ProgressIndicator?): List<Translation> =
-            delegate.translate(request.copy(source = codes.source(request.source), target = codes.target(request.target)), indicator)
+        override fun translate(request: TranslationRequest, cancellation: Cancellation?): List<Translation> =
+            delegate.translate(request.copy(source = codes.source(request.source), target = codes.target(request.target)), cancellation)
     }
 
     /** One entry as written in the file: Gson leaves an absent field null, whatever Kotlin declares. */
