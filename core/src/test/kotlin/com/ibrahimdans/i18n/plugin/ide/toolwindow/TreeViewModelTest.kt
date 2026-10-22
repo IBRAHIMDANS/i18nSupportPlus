@@ -1,39 +1,33 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
-import com.intellij.openapi.project.Project
-import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.mockkObject
-import io.mockk.unmockkObject
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.utils.CoreMessages
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.util.Locale
 
 class TreeViewModelTest {
 
-    private val project = mockk<Project> {
-        // loadTranslations splits keys with the project's separators; defaults are what these cases use.
-        every { getService(Settings::class.java) } returns Settings()
-    }
     private val viewModel = TreeViewModel()
 
     @BeforeEach
     fun setUp() {
-        mockkObject(TranslationDataLoader)
+        // The default group's label is asserted in English.
+        CoreMessages.locale = { Locale.ENGLISH }
     }
 
     @AfterEach
     fun tearDown() {
-        unmockkObject(TranslationDataLoader)
+        CoreMessages.locale = Locale::getDefault
     }
 
     @Test
     fun `loadTranslations returns empty root when no translations exist`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns emptyMap()
+        val data = emptyMap<String, Map<String, String>>()
 
-        val root = viewModel.loadTranslations(project)
+        val root = viewModel.buildTree(data, Config())
 
         assertEquals("root", root.key)
         assertEquals("", root.fullPath)
@@ -42,12 +36,12 @@ class TreeViewModelTest {
 
     @Test
     fun `loadTranslations builds single-level keys`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+        val data = mapOf(
             "greeting" to mapOf("en" to "Hello", "fr" to "Bonjour"),
             "farewell" to mapOf("en" to "Goodbye", "fr" to "Au revoir")
         )
 
-        val root = viewModel.loadTranslations(project)
+        val root = viewModel.buildTree(data, Config())
 
         assertEquals(2, root.children.size)
         assertTrue(root.children.containsKey("greeting"))
@@ -62,13 +56,13 @@ class TreeViewModelTest {
 
     @Test
     fun `loadTranslations builds nested hierarchical tree`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+        val data = mapOf(
             "common.buttons.save" to mapOf("en" to "Save"),
             "common.buttons.cancel" to mapOf("en" to "Cancel"),
             "common.title" to mapOf("en" to "App")
         )
 
-        val root = viewModel.loadTranslations(project)
+        val root = viewModel.buildTree(data, Config())
 
         // root -> common -> buttons -> save, cancel
         //                -> title
@@ -100,11 +94,11 @@ class TreeViewModelTest {
 
     @Test
     fun `loadTranslations preserves multiple locale values on leaf nodes`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+        val data = mapOf(
             "nav.home" to mapOf("en" to "Home", "fr" to "Accueil", "de" to "Startseite")
         )
 
-        val root = viewModel.loadTranslations(project)
+        val root = viewModel.buildTree(data, Config())
         val home = root.children["nav"]!!.children["home"]!!
 
         assertEquals(3, home.values.size)
@@ -117,13 +111,13 @@ class TreeViewModelTest {
 
     @Test
     fun `loadTranslations groups keys under their namespace`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+        val data = mapOf(
             "common:actions.save" to mapOf("en" to "Save"),
             "common:appName" to mapOf("en" to "App"),
             "dashboard:title" to mapOf("en" to "Dashboard")
         )
 
-        val root = viewModel.loadTranslations(project)
+        val root = viewModel.buildTree(data, Config())
 
         assertEquals(setOf("common", "dashboard"), root.children.keys)
         val common = root.children.getValue("common")
@@ -140,14 +134,14 @@ class TreeViewModelTest {
 
     @Test
     fun `loadTranslations puts prefix-less keys in a default group when namespaces exist`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+        val data = mapOf(
             "common:appName" to mapOf("en" to "App"),
             "greeting" to mapOf("en" to "Hello")
         )
 
-        val root = viewModel.loadTranslations(project)
+        val root = viewModel.buildTree(data, Config())
 
-        // Settings() names a single default namespace, so the group says which one.
+        // Config() names a single default namespace, so the group says which one.
         val default = root.children.getValue("translation (default)")
         assertEquals(NamespaceFilter.Default, default.namespace)
         assertEquals(setOf("greeting"), default.children.keys)
@@ -156,14 +150,14 @@ class TreeViewModelTest {
 
     @Test
     fun `the default group comes first, the other groups and keys by name`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+        val data = mapOf(
             "navigation:menu" to mapOf("en" to "Menu"),
             "auth:login" to mapOf("en" to "Log in"),
             "greeting" to mapOf("en" to "Hello"),
             "auth:errors" to mapOf("en" to "Errors"),
         )
 
-        val root = viewModel.loadTranslations(project)
+        val root = viewModel.buildTree(data, Config())
 
         assertEquals(listOf("translation (default)", "auth", "navigation"), viewModel.orderedChildren(root).map { it.key })
         assertEquals(listOf("errors", "login"), viewModel.orderedChildren(root.children.getValue("auth")).map { it.key })
@@ -171,12 +165,12 @@ class TreeViewModelTest {
 
     @Test
     fun `loadTranslations does not group a single default namespace`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+        val data = mapOf(
             "menu.home" to mapOf("en" to "Home"),
             "greeting" to mapOf("en" to "Hello")
         )
 
-        val root = viewModel.loadTranslations(project)
+        val root = viewModel.buildTree(data, Config())
 
         assertEquals(setOf("menu", "greeting"), root.children.keys)
         assertTrue(root.children.values.all { it.namespace == null })
@@ -184,13 +178,13 @@ class TreeViewModelTest {
 
     @Test
     fun `describeTree aggregates completeness on the namespace group`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+        val data = mapOf(
             "common:actions.save" to mapOf("en" to "Save", "fr" to "Enregistrer"),
             "common:actions.cancel" to mapOf("en" to "Cancel"),
             "common:appName" to mapOf("en" to "App", "fr" to "App")
         )
 
-        val root = viewModel.loadTranslations(project)
+        val root = viewModel.buildTree(data, Config())
         val statuses = viewModel.describeTree(root, listOf("en", "fr"))
 
         val common = statuses.getValue("common:")
@@ -201,12 +195,12 @@ class TreeViewModelTest {
 
     @Test
     fun `filter keeps the namespace group of a matching key`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+        val data = mapOf(
             "common:actions.save" to mapOf("en" to "Save"),
             "dashboard:title" to mapOf("en" to "Dashboard")
         )
 
-        val root = viewModel.loadTranslations(project)
+        val root = viewModel.buildTree(data, Config())
         val filtered = viewModel.filter("save", root)
 
         assertEquals(setOf("common"), filtered.children.keys)

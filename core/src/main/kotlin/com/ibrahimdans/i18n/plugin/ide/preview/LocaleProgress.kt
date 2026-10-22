@@ -1,8 +1,8 @@
 package com.ibrahimdans.i18n.plugin.ide.preview
 
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.LocaleStats
+import com.ibrahimdans.i18n.plugin.utils.CoreMessages
 import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
-import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import kotlin.math.floor
 
 /**
@@ -12,7 +12,7 @@ import kotlin.math.floor
  * Pure: the widget computes the [LocaleStats] off the EDT and hands them over, so the wording is
  * tested without a status bar.
  */
-internal object LocaleProgress {
+object LocaleProgress {
 
     /**
      * The rate shown for [stats]: rounded down, so a locale missing one key out of a thousand
@@ -28,16 +28,16 @@ internal object LocaleProgress {
     fun text(setting: String, stats: List<LocaleStats>): String {
         val label = LocaleMatching.pick(setting, stats.map { it.locale })
         val current = stats.firstOrNull { it.locale == label }
-            ?: return PluginBundle.message("preview.locale.widget.text", setting)
-        return PluginBundle.message("preview.locale.widget.text.progress", setting, percentOf(current))
+            ?: return CoreMessages.message("preview.locale.widget.text", setting)
+        return CoreMessages.message("preview.locale.widget.text.progress", setting, percentOf(current))
     }
 
     /** The widget's tooltip: what the widget is for, then each locale with its rate, in [stats] order. */
     fun tooltip(stats: List<LocaleStats>): String {
-        val base = PluginBundle.message("preview.locale.widget.tooltip")
+        val base = CoreMessages.message("preview.locale.widget.tooltip")
         if (stats.isEmpty()) return base
         val lines = stats.joinToString("<br/>") {
-            PluginBundle.message("preview.locale.widget.tooltip.locale", it.locale, percentOf(it), it.translated, it.total)
+            CoreMessages.message("preview.locale.widget.tooltip.locale", it.locale, percentOf(it), it.translated, it.total)
         }
         return "<html>$base<br/><br/>$lines</html>"
     }

@@ -113,7 +113,7 @@ class TranslationStatsPanelTest {
         }
 
     /** Two namespaces, so the report has a total row above them; English is the reference. */
-    private val report = TranslationStatsAnalyzer.report(
+    private val report = TranslationCoverage.report(
         mapOf(
             "menu.home" to mapOf("en" to "Home page", "fr" to "Accueil", "de" to "Start"),
             "menu.about" to mapOf("en" to "About", "fr" to "À propos", "de" to "Über"),
