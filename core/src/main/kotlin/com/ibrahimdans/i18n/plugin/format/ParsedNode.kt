@@ -1,12 +1,7 @@
 package com.ibrahimdans.i18n.plugin.format
 
 import com.ibrahimdans.i18n.plugin.tree.Tree
-
-/**
- * A range of a parsed text, in chars: [start] included, [end] excluded — the convention of
- * `String.substring` and of the platform's `TextRange`.
- */
-data class TextSpan(val start: Int, val end: Int)
+import com.ibrahimdans.i18n.plugin.utils.TextSpan
 
 /**
  * One node of a translation file read without the PSI.

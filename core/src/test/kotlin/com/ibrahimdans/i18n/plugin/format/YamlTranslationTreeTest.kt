@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.format
 
 import com.ibrahimdans.i18n.plugin.tree.Tree
+import com.ibrahimdans.i18n.plugin.utils.TextSpan
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue

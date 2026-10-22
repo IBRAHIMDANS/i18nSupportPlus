@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.format
 
+import com.ibrahimdans.i18n.plugin.utils.TextSpan
 import org.snakeyaml.engine.v2.api.LoadSettings
 import org.snakeyaml.engine.v2.api.lowlevel.Compose
 import org.snakeyaml.engine.v2.common.FlowStyle
