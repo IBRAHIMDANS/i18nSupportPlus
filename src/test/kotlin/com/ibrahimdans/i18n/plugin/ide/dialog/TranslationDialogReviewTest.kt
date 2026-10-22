@@ -15,6 +15,7 @@ import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewThreadDialog
+import com.ibrahimdans.i18n.plugin.translate.Cancellation
 import com.ibrahimdans.i18n.plugin.translate.TranslatedBy
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
@@ -24,7 +25,6 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
-import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiDocumentManager
@@ -73,7 +73,7 @@ class TranslationDialogReviewTest : PlatformBaseTest() {
         val fr = addFileToProject("locales/fr/common.json", "{}")
         TranslationDialog.machineTranslator = {
             object : TranslationProvider {
-                override fun translate(request: TranslationRequest, indicator: ProgressIndicator?): List<Translation> =
+                override fun translate(request: TranslationRequest, cancellation: Cancellation?): List<Translation> =
                     listOf(Translation.Done("Bonjour", TranslatedBy("DeepL", local = false)))
             }
         }
@@ -137,7 +137,7 @@ class TranslationDialogReviewTest : PlatformBaseTest() {
     }
 
     private fun engine(answer: String, requests: MutableList<TranslationRequest> = mutableListOf()) = object : TranslationProvider {
-        override fun translate(request: TranslationRequest, indicator: ProgressIndicator?): List<Translation> {
+        override fun translate(request: TranslationRequest, cancellation: Cancellation?): List<Translation> {
             requests += request
             return listOf(Translation.Done(answer, TranslatedBy("DeepL", local = false)))
         }

@@ -1,7 +1,5 @@
 package com.ibrahimdans.i18n.plugin.translate
 
-import com.intellij.openapi.progress.ProgressIndicator
-
 /**
  * What to translate: [texts] from [source] to [target] locale, and what helps an engine pick the
  * right meaning — the key path and the reference value, say — in [context]. [instruction] is what the
@@ -41,10 +39,10 @@ sealed interface Translation {
  * A machine translation engine. One [Translation] per text of the request, in order: a failure is
  * per text, so a fallback engine is asked only for what the first one could not do.
  *
- * Blocking, network included: never called on the EDT. [indicator] cancels between texts.
+ * Blocking, network included: never called on the EDT. [cancellation] cancels between texts.
  */
 interface TranslationProvider {
-    fun translate(request: TranslationRequest, indicator: ProgressIndicator? = null): List<Translation>
+    fun translate(request: TranslationRequest, cancellation: Cancellation? = null): List<Translation>
 }
 
 /**
@@ -53,13 +51,13 @@ interface TranslationProvider {
  */
 class FallbackTranslationProvider(private val providers: List<TranslationProvider>) : TranslationProvider {
 
-    override fun translate(request: TranslationRequest, indicator: ProgressIndicator?): List<Translation> {
+    override fun translate(request: TranslationRequest, cancellation: Cancellation?): List<Translation> {
         val results = MutableList<Translation>(request.texts.size) { Translation.Failed("") }
         var pending = request.texts.indices.toList()
         for (provider in providers) {
             if (pending.isEmpty()) break
-            indicator?.checkCanceled()
-            val answers = provider.translate(request.copy(texts = pending.map { request.texts[it] }), indicator)
+            cancellation?.check()
+            val answers = provider.translate(request.copy(texts = pending.map { request.texts[it] }), cancellation)
             pending.zip(answers).forEach { (index, answer) -> results[index] = answer }
             pending = pending.filter { results[it] is Translation.Failed }
         }

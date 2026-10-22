@@ -4,10 +4,10 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.translate.Cancellation
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
-import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.util.Disposer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
@@ -30,7 +30,7 @@ class TranslationDialogMachineTranslationTest : PlatformBaseTest() {
     private val requests = mutableListOf<TranslationRequest>()
 
     private fun engine(answer: (TranslationRequest) -> Translation) = object : TranslationProvider {
-        override fun translate(request: TranslationRequest, indicator: ProgressIndicator?): List<Translation> {
+        override fun translate(request: TranslationRequest, cancellation: Cancellation?): List<Translation> {
             requests += request
             return listOf(answer(request))
         }

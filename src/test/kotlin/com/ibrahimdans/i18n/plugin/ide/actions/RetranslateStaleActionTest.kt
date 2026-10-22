@@ -15,6 +15,7 @@ import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
+import com.ibrahimdans.i18n.plugin.translate.Cancellation
 import com.ibrahimdans.i18n.plugin.translate.TranslatedBy
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
@@ -47,7 +48,7 @@ class RetranslateStaleActionTest : PlatformBaseTest() {
     private val requests = ConcurrentLinkedQueue<TranslationRequest>()
 
     private val engine = object : TranslationProvider {
-        override fun translate(request: TranslationRequest, indicator: ProgressIndicator?): List<Translation> {
+        override fun translate(request: TranslationRequest, cancellation: Cancellation?): List<Translation> {
             requests += request
             return request.texts.map { Translation.Done("[fr] $it", TranslatedBy("DeepL", false)) }
         }

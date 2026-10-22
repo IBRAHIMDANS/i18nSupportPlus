@@ -22,6 +22,7 @@ import com.ibrahimdans.i18n.plugin.translate.PluralTranslationPlan
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
+import com.ibrahimdans.i18n.plugin.translate.asCancellation
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -286,7 +287,7 @@ internal object MachineFill {
             val futures: List<Future<List<Translation>>> = calls.map { call ->
                 executor.submit<List<Translation>> {
                     if (indicator?.isCanceled == true) return@submit call.map { Translation.Failed("") }
-                    provider.translate(TranslationRequest(call.map { it.source }, source, target, contextOf(call)), indicator)
+                    provider.translate(TranslationRequest(call.map { it.source }, source, target, contextOf(call)), indicator?.asCancellation())
                 }
             }
             val translated = mutableMapOf<Item, Translation>()
