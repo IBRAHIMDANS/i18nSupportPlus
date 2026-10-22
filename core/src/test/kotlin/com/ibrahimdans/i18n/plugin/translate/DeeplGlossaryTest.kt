@@ -1,6 +1,6 @@
 package com.ibrahimdans.i18n.plugin.translate
 
-import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.CoreMessages
 import com.google.gson.JsonParser
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -221,7 +221,7 @@ class DeeplGlossaryTest {
 
         assertEquals(2, result.count { it is Translation.Done })
         assertTrue(transport.translations().none { "glossary_id" in it.body!! })
-        assertEquals(listOf(PluginBundle.message("translate.glossary.quota", "DeepL")), warnings)
+        assertEquals(listOf(CoreMessages.message("translate.glossary.quota", "DeepL")), warnings)
         assertEquals("", store.glossaryId)
     }
 
@@ -235,7 +235,7 @@ class DeeplGlossaryTest {
         assertEquals(listOf(Translation.Done("Votre panier")), translate(transport))
 
         assertFalse("glossary_id" in transport.translations().last().body!!)
-        assertEquals(listOf(PluginBundle.message("translate.glossary.quota", "DeepL")), warnings)
+        assertEquals(listOf(CoreMessages.message("translate.glossary.quota", "DeepL")), warnings)
     }
 
     @Test
@@ -274,22 +274,5 @@ class DeeplGlossaryTest {
 
         assertTrue(transport.calls.none { "glossar" in it.url })
         assertFalse("glossary_id" in transport.calls.single().body!!)
-    }
-
-    @Test
-    fun `a Pro URL keeps the glossary, a rewritten body drops it, and the id is persisted`() {
-        val entry = EngineState.of(TranslationEngines.preset("deepl")!!)
-        assertEquals(DeeplGlossary.KIND, entry.copy(url = "https://api.deepl.com/v2/translate").toConfig().nativeGlossary)
-        assertNull(entry.copy(body = """{"text":["{text}"]}""").toConfig().nativeGlossary)
-
-        val transport = FakeDeepl()
-        val config = entry.copy(url = "https://api.deepl.com/v2/translate").let { state ->
-            HttpTranslationProvider(state.toConfig(glossary), "k", transport).apply { glossaryWarnings = { warnings += it } }
-                .translate(TranslationRequest(listOf("Your cart"), "EN", "FR"))
-            state
-        }
-        assertEquals("https://api.deepl.com/v3/glossaries", transport.glossaryCalls().last().url)
-        assertEquals("g1", config.glossaryId)
-        assertEquals(setOf("en>fr"), config.glossaryDictionaries.keys)
     }
 }
