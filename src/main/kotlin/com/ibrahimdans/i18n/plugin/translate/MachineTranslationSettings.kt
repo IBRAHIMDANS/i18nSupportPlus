@@ -146,7 +146,7 @@ class MachineTranslationSettings : PersistentStateComponent<MachineTranslationSe
     fun provider(keys: ApiKeyStore = PasswordSafeApiKeys, transport: HttpTransport = IdeHttpTransport): TranslationProvider? {
         if (!state.enabled || state.engines.isEmpty()) return null
         val glossary = GlossaryTerm.glossary(state.glossary)
-        return TranslationEngines.provider(state.engines.map { it.toConfig(glossary) }, { keys.get(it.id) }, transport)
+        return TranslationEngines.provider(state.engines.map { it.toConfig(glossary) }, { keys.get(it.id) }, transport, IdeGlossaryWarning)
     }
 
     /**

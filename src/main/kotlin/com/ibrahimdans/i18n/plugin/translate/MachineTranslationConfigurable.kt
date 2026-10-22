@@ -48,7 +48,8 @@ class MachineTranslationConfigurable(private val project: Project) : SearchableC
     /** Translates a sample off the EDT, then reports on it. */
     private fun test(engine: EngineConfig, key: String, report: (String) -> Unit) {
         ApplicationManager.getApplication().executeOnPooledThread {
-            val message = testMessage(HttpTranslationProvider(engine, key))
+            val provider = HttpTranslationProvider(engine, key, IdeHttpTransport).apply { glossaryWarnings = IdeGlossaryWarning }
+            val message = testMessage(provider)
             ApplicationManager.getApplication().invokeLater({ report(message) }, ModalityState.any())
         }
     }

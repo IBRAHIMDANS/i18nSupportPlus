@@ -24,6 +24,7 @@
 - [Internal] Locale detection and the setup wizard's logic move to `core` — no behaviour change
 - [Internal] Key ranges are computed on a platform-free `TextSpan` in `core` — no behaviour change
 - [Internal] Key resolution runs on a platform-free `KeyContext` in `core`; `RawKeyParser` builds it — no behaviour change
+- [Internal] The HTTP translation engines, the DeepL glossary and the engine presets move to `core`; the plugin passes in the IDE's HTTP transport — no behaviour change
 
 ## 1.15.0 - 2026-10-18
 
