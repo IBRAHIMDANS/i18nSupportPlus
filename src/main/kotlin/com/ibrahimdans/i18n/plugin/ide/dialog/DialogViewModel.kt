@@ -10,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.MessagePlaceholders
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
@@ -319,22 +320,10 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
             if (fileName.endsWith(".json") || fileName.endsWith(".json5")) "{}\n" else ""
 
         /**
-         * Message variables, in the four shapes the plugin recognises:
-         * i18next's `{{count}}`, i18n-js' `%{count}`, ICU / react-intl's `{name}`, and printf's
-         * `%s` / `%1$s`.
-         *
-         * The `{{…}}` and `%{…}` alternatives come before the single-brace one on purpose: on
-         * `{{count}}` or `%{count}` it would match `{count}` and report a variable no translator
-         * ever typed.
-         */
-        private val VARIABLE_REGEX = Regex("""\{\{[^{}]+}}|%\{[^{}]+}|\{[^{}]+}|%[0-9]*\$?[sd]""")
-
-        /**
          * Where each message variable sits inside [text], so the dialog can highlight them in
-         * place without re-deriving the rule for itself.
+         * place without re-deriving the rule for itself. The shapes are [MessagePlaceholders]'.
          */
-        internal fun variableRanges(text: String): List<IntRange> =
-            VARIABLE_REGEX.findAll(text).map { it.range }.toList()
+        internal fun variableRanges(text: String): List<IntRange> = MessagePlaceholders.variableRanges(text)
 
         /**
          * The message variables [text] carries.
@@ -344,8 +333,8 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
          * would report a loss on a value that lost nothing.
          */
         internal fun messageVariables(text: String): Set<String> =
-            VARIABLE_REGEX.findAll(text)
-                .map { match -> match.value.filterNot { it.isWhitespace() } }
+            variableRanges(text)
+                .map { range -> text.substring(range).filterNot { it.isWhitespace() } }
                 .toSet()
 
         /**

@@ -1,6 +1,6 @@
 package com.ibrahimdans.i18n.plugin.translate
 
-import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
+import com.ibrahimdans.i18n.plugin.utils.MessagePlaceholders
 
 /**
  * Hides what a translation engine must not touch — variables, markup tags, ICU syntax — behind
@@ -10,7 +10,7 @@ import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
  * keeps XML tags in place with `tag_handling=xml`, and an LLM copies them when asked to, so each
  * protected piece becomes one such tag, numbered in order.
  *
- * - **Variables** are those [DialogViewModel.variableRanges] recognises (`{{x}}`, `%{x}`, `{x}`,
+ * - **Variables** are those [MessagePlaceholders.variableRanges] recognises (`{{x}}`, `%{x}`, `{x}`,
  *   `%s`, `%1$s`), plus `#` inside a plural branch. A translation may move them.
  * - **Markup** (`<0>`, `</0>`, `<b>`, `<br/>`) is masked tag by tag, the text between them left to
  *   translate. The tags must still nest correctly once restored.
@@ -69,7 +69,7 @@ object PlaceholderMask {
     /** Masks [text] from [start] to [end] into [out]; [inPlural] makes `#` a variable. */
     private fun scan(text: String, start: Int, end: Int, inPlural: Boolean, tokens: MutableList<Token>, out: StringBuilder) {
         // Ranges come relative to the slice: shifted back onto [text].
-        val variables = DialogViewModel.variableRanges(text.substring(start, end)).associate { it.first + start to it.last + start }
+        val variables = MessagePlaceholders.variableRanges(text.substring(start, end)).associate { it.first + start to it.last + start }
         var i = start
         while (i < end) {
             val c = text[i]
