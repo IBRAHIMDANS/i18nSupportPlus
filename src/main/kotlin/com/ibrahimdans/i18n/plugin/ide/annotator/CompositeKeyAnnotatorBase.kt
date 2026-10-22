@@ -63,18 +63,19 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
         )
         val sourceService = element.project.service<LocalizationSourceService>()
         val files = sourceService.findReadSources(fullKey, element)
+        val ns = fullKey.ns
         if (files.isEmpty()) {
-            if (fullKey.ns == null) {
+            if (ns == null) {
                 annotationHelper.unresolvedDefaultNs(fullKey)
             } else {
-                annotationHelper.unresolvedNs(fullKey, fullKey.ns)
+                annotationHelper.unresolvedNs(fullKey, ns)
             }
         }
         else {
-            if (fullKey.ns != null) {
+            if (ns != null) {
                 val nsFiles = sourceService.findNamespaceFiles(fullKey.allNamespaces(), element.project)
                 if (nsFiles.isEmpty()) {
-                    annotationHelper.unresolvedNs(fullKey, fullKey.ns)
+                    annotationHelper.unresolvedNs(fullKey, ns)
                     return
                 }
             }
