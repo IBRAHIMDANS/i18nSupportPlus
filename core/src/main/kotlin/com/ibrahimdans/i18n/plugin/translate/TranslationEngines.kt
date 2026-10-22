@@ -20,10 +20,18 @@ object TranslationEngines {
 
     fun preset(id: String): EngineConfig? = presets.firstOrNull { it.id == id }
 
-    /** [engines] as one provider, tried in order, each with the key [apiKeyOf] gives it. */
-    fun provider(engines: List<EngineConfig>, apiKeyOf: (EngineConfig) -> String, transport: HttpTransport = IdeHttpTransport): TranslationProvider =
+    /**
+     * [engines] as one provider, tried in order, each with the key [apiKeyOf] gives it and every
+     * request through [transport]. [glossaryWarnings] hears what [HttpTranslationProvider.glossaryWarnings] does.
+     */
+    fun provider(
+        engines: List<EngineConfig>,
+        apiKeyOf: (EngineConfig) -> String,
+        transport: HttpTransport,
+        glossaryWarnings: (String) -> Unit = {}
+    ): TranslationProvider =
         FallbackTranslationProvider(engines.map { engine ->
-            val http = HttpTranslationProvider(engine, apiKeyOf(engine), transport)
+            val http = HttpTranslationProvider(engine, apiKeyOf(engine), transport).also { it.glossaryWarnings = glossaryWarnings }
             languageCodes(engine)?.let { LanguageCodeProvider(it, http) } ?: http
         })
 

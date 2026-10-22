@@ -1,15 +1,10 @@
 package com.ibrahimdans.i18n.plugin.translate
 
-import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.CoreMessages
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import com.intellij.notification.NotificationGroupManager
-import com.intellij.notification.NotificationType
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.progress.ProcessCanceledException
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.security.MessageDigest
@@ -150,18 +145,21 @@ data class BatchConfig(
  * Each text goes through [PlaceholderMask] first: the engine only ever sees `<x id="N"/>` where a
  * variable, a tag or ICU syntax stood, and a translation losing one is refused. Nothing throws but
  * a cancellation: a network error, a refused key or an unreadable answer is a [Translation.Failed].
+ *
+ * [transport] has no default: inside the IDE it is the plugin's, which follows the IDE's proxy.
  */
 class HttpTranslationProvider(
     private val engine: EngineConfig,
     private val apiKey: String,
-    private val transport: HttpTransport = IdeHttpTransport
+    private val transport: HttpTransport
 ) : TranslationProvider {
 
     /**
-     * Says the engine's glossary could not be used: the translation went on without it. A balloon by
-     * default; not a constructor parameter, which would take the transport's trailing lambda.
+     * Says the engine's glossary could not be used: the translation went on without it. Silent by
+     * default — the plugin shows a balloon; not a constructor parameter, which would take the
+     * transport's trailing lambda.
      */
-    internal var glossaryWarnings: (String) -> Unit = { DeeplGlossary.warnUser(it) }
+    var glossaryWarnings: (String) -> Unit = {}
 
     private val deepl: DeeplGlossary? = engine.takeIf { it.nativeGlossary == DeeplGlossary.KIND }
         ?.let { DeeplGlossary.of(it, it.remoteGlossary ?: InMemoryGlossaryStore(), transport, ::headers) { message -> glossaryWarnings(message) } }
@@ -269,18 +267,19 @@ class HttpTranslationProvider(
     private fun post(url: String, body: String): Posted {
         val response = try {
             transport.post(url, headers(), body)
-        } catch (e: ProcessCanceledException) {
-            throw e
         } catch (e: SocketTimeoutException) {
-            return Posted.Failed(failed("translate.error.timeout", engine.name))
+            return Posted.Failed(failed(CoreMessages.message("translate.error.timeout", engine.name)))
         } catch (e: IOException) {
-            return Posted.Failed(failed("translate.error.network", engine.name, e.message.orEmpty()))
+            return Posted.Failed(failed(CoreMessages.message("translate.error.network", engine.name, e.message.orEmpty())))
         }
         return when (response.status) {
             in 200..299 -> Posted.Answered(response.body)
-            401, 403 -> Posted.Failed(failed("translate.error.key", engine.name), response.status)
-            429 -> Posted.Failed(failed("translate.error.rate", engine.name), response.status)
-            else -> Posted.Failed(failed("translate.error.status", engine.name, response.status, response.body.take(200)), response.status)
+            401, 403 -> Posted.Failed(failed(CoreMessages.message("translate.error.key", engine.name)), response.status)
+            429 -> Posted.Failed(failed(CoreMessages.message("translate.error.rate", engine.name)), response.status)
+            else -> Posted.Failed(
+                failed(CoreMessages.message("translate.error.status", engine.name, response.status, response.body.take(200))),
+                response.status
+            )
         }
     }
 
@@ -302,7 +301,7 @@ class HttpTranslationProvider(
         val translated = if (engine.unescapeHtml) unescapeHtml(raw.trim()) else raw.trim()
         return when (val restored = PlaceholderMask.unmask(translated, masked)) {
             is PlaceholderMask.Unmasked.Restored -> Translation.Done(restored.text, TranslatedBy(engine.name, engine.local))
-            is PlaceholderMask.Unmasked.Rejected -> failed("translate.error.placeholders", engine.name)
+            is PlaceholderMask.Unmasked.Rejected -> failed(CoreMessages.message("translate.error.placeholders", engine.name))
         }
     }
 
@@ -314,11 +313,12 @@ class HttpTranslationProvider(
             is Posted.Failed -> return response.failure
             is Posted.Answered -> response.body
         }
-        val raw = read(body, engine.responsePath) ?: return failed("translate.error.response", engine.name, engine.responsePath)
+        val raw = read(body, engine.responsePath) ?: return failed(CoreMessages.message("translate.error.response", engine.name, engine.responsePath))
         return restore(raw, masked)
     }
 
-    private fun failed(key: String, vararg params: Any) = Translation.Failed(PluginBundle.message(key, *params))
+    // The key is spelled out at each call, so CoreMessagesTest finds it in the bundles.
+    private fun failed(message: String) = Translation.Failed(message)
 
     companion object {
         private val PLACEHOLDER = Regex("""\{(text|source|target|context|glossary|instruction|apiKey)}""")
@@ -332,7 +332,7 @@ class HttpTranslationProvider(
         fun instructionPrompt(instruction: String): String =
             instruction.trim().trimEnd('.').takeIf { it.isNotEmpty() }?.let { " Also follow this instruction from the user: $it." }.orEmpty()
 
-        internal fun fill(template: String, values: Map<String, String>, encode: (String) -> String): String =
+        fun fill(template: String, values: Map<String, String>, encode: (String) -> String): String =
             PLACEHOLDER.replace(template) { match -> values[match.groupValues[1]]?.let(encode) ?: match.value }
 
         /** The value at [path] (`translations[0].text`) in the JSON [body], or null when it is not a string there. */
@@ -357,7 +357,7 @@ class HttpTranslationProvider(
         internal fun stripFences(text: String): String = FENCE.replace(text.trim(), "")
 
         /** Content for inside a JSON string: the template writes the quotes. */
-        internal fun escapeJson(value: String): String = buildString {
+        fun escapeJson(value: String): String = buildString {
             for (c in value) when (c) {
                 '"' -> append("\\\"")
                 '\\' -> append("\\\\")
@@ -407,7 +407,8 @@ class InMemoryGlossaryStore(
  * when its entries changed.
  *
  * Nothing here costs a translation: a refusal — quota (456), a pair DeepL has no glossary for, a
- * network error — is reported once through [warn], and the texts go without a glossary.
+ * network error — is reported once through [warn] (the plugin: a balloon and the log), and the texts
+ * go without a glossary.
  *
  * API: https://developers.deepl.com/api-reference/multilingual-glossaries (v3; `glossary_id` in
  * `/v2/translate` needs `source_lang`; glossary languages have no variant: `EN` serves `EN-US`).
@@ -448,18 +449,16 @@ class DeeplGlossary private constructor(
             if (pair in refused) return null
             return try {
                 ensure(pair, from, to, entries)
-            } catch (e: ProcessCanceledException) {
-                throw e
             } catch (e: Refused) {
                 refused += pair
                 warn(when (e.status) {
-                    456 -> PluginBundle.message("translate.glossary.quota", engine.name)
-                    else -> PluginBundle.message("translate.glossary.refused", engine.name, e.status, e.detail.take(200))
+                    456 -> CoreMessages.message("translate.glossary.quota", engine.name)
+                    else -> CoreMessages.message("translate.glossary.refused", engine.name, e.status, e.detail.take(200))
                 })
                 null
             } catch (e: IOException) {
                 refused += pair
-                warn(PluginBundle.message("translate.glossary.refused", engine.name, 0, e.message.orEmpty()))
+                warn(CoreMessages.message("translate.glossary.refused", engine.name, 0, e.message.orEmpty()))
                 null
             }
         }
@@ -479,13 +478,11 @@ class DeeplGlossary private constructor(
      */
     fun exists(id: String): Boolean = try {
         call("GET", "$endpoint/${encode(id)}", null).status != 404
-    } catch (e: ProcessCanceledException) {
-        throw e
     } catch (e: IOException) {
         true
     }
 
-    fun warnLost() = warn(PluginBundle.message("translate.glossary.lost", engine.name))
+    fun warnLost() = warn(CoreMessages.message("translate.glossary.lost", engine.name))
 
     private fun ensure(pair: String, from: String, to: String, entries: String): String {
         val digest = digest(entries)
@@ -558,7 +555,6 @@ class DeeplGlossary private constructor(
         private const val NAME_PREFIX = "i18n Support Plus "
         private val TRANSLATE_PATH = Regex("""/v2/translate/?$""")
         private val UNFIT = Regex("""[\t\n\r]""")
-        private val LOG = Logger.getInstance(DeeplGlossary::class.java)
 
         /** [engine]'s glossary, or null when its URL is not DeepL's `…/v2/translate` — a gateway in front. */
         fun of(
@@ -578,15 +574,6 @@ class DeeplGlossary private constructor(
             val trimmed = body.trimEnd()
             if (!trimmed.endsWith("}")) return body
             return trimmed.dropLast(1).trimEnd() + ", \"glossary_id\": \"" + HttpTranslationProvider.escapeJson(id) + "\"}"
-        }
-
-        /** A balloon of the plugin's group, and the log. */
-        fun warnUser(message: String) {
-            LOG.warn(message)
-            if (ApplicationManager.getApplication() == null) return
-            NotificationGroupManager.getInstance().getNotificationGroup("i18n Support Plus")
-                ?.createNotification(message, NotificationType.WARNING)
-                ?.notify(null)
         }
 
         /** DeepL glossaries pair languages without variant, in lower case: `EN-US` → `en`. */

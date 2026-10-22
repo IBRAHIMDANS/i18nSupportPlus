@@ -1,6 +1,6 @@
 package com.ibrahimdans.i18n.plugin.translate
 
-import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.CoreMessages
 import com.google.gson.JsonParser
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -85,20 +85,20 @@ class HttpTranslationProviderTest {
     fun `a lost variable is refused`() {
         val transport = FakeTransport { ok("""{"translations":[{"text":"Bonjour"}]}""") }
 
-        assertEquals(listOf(Translation.Failed(PluginBundle.message("translate.error.placeholders", "DeepL"))), translate(preset("deepl"), transport))
+        assertEquals(listOf(Translation.Failed(CoreMessages.message("translate.error.placeholders", "DeepL"))), translate(preset("deepl"), transport))
     }
 
     @Test
     fun `errors are reasons, never exceptions`() {
         fun failure(transport: HttpTransport) = translate(preset("deepl"), transport).single()
 
-        assertEquals(Translation.Failed(PluginBundle.message("translate.error.key", "DeepL")), failure { _, _, _ -> HttpTransport.Response(403, "") })
-        assertEquals(Translation.Failed(PluginBundle.message("translate.error.rate", "DeepL")), failure { _, _, _ -> HttpTransport.Response(429, "") })
-        assertEquals(Translation.Failed(PluginBundle.message("translate.error.status", "DeepL", 500, "boom")), failure { _, _, _ -> HttpTransport.Response(500, "boom") })
-        assertEquals(Translation.Failed(PluginBundle.message("translate.error.timeout", "DeepL")), failure { _, _, _ -> throw SocketTimeoutException() })
-        assertEquals(Translation.Failed(PluginBundle.message("translate.error.network", "DeepL", "refused")), failure { _, _, _ -> throw IOException("refused") })
+        assertEquals(Translation.Failed(CoreMessages.message("translate.error.key", "DeepL")), failure { _, _, _ -> HttpTransport.Response(403, "") })
+        assertEquals(Translation.Failed(CoreMessages.message("translate.error.rate", "DeepL")), failure { _, _, _ -> HttpTransport.Response(429, "") })
+        assertEquals(Translation.Failed(CoreMessages.message("translate.error.status", "DeepL", 500, "boom")), failure { _, _, _ -> HttpTransport.Response(500, "boom") })
+        assertEquals(Translation.Failed(CoreMessages.message("translate.error.timeout", "DeepL")), failure { _, _, _ -> throw SocketTimeoutException() })
+        assertEquals(Translation.Failed(CoreMessages.message("translate.error.network", "DeepL", "refused")), failure { _, _, _ -> throw IOException("refused") })
         assertEquals(
-            Translation.Failed(PluginBundle.message("translate.error.response", "DeepL", "translations[0].text")),
+            Translation.Failed(CoreMessages.message("translate.error.response", "DeepL", "translations[0].text")),
             failure { _, _, _ -> ok("""{"message":"quota"}""") }
         )
     }
@@ -186,7 +186,7 @@ class HttpTranslationProviderTest {
 
         val result = HttpTranslationProvider(preset("deepl"), "k", transport).translate(request.copy(texts = listOf("a", "b")))
 
-        Assertions.assertEquals(List(2) { Translation.Failed(PluginBundle.message("translate.error.rate", "DeepL")) }, result)
+        Assertions.assertEquals(List(2) { Translation.Failed(CoreMessages.message("translate.error.rate", "DeepL")) }, result)
         Assertions.assertEquals(1, transport.calls.size)
     }
 
