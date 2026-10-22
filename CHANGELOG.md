@@ -20,6 +20,7 @@
 - [Internal] The key parser — `FullKey`, the tokenizer, `KeyParser` and the key normalizers — moves to `core`; the plugin passes in the completion placeholder it used to read itself — no behaviour change
 - [Internal] Machine translation is cancelled through a platform-free `Cancellation`; `TranslationProvider` moves to `core`, with an HTTP transport on the JDK client for use outside the IDE — no behaviour change
 - [Internal] `Config`, `KeyOrder`, `KeepList` and `SetupNeedDetector` move to `core`; the search scope a configuration implies becomes a plugin-side extension — no behaviour change
+- [Internal] The CSV and XLIFF codecs move to `core` with their own error messages, in English and French, still following the IDE language — no behaviour change
 
 ## 1.15.0 - 2026-10-18
 
