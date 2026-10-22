@@ -1,15 +1,27 @@
 package com.ibrahimdans.i18n.plugin.ide.preview
 
-import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.LocaleStats
-import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationStatsAnalyzer
-import com.intellij.openapi.application.ReadAction
+import com.ibrahimdans.i18n.plugin.utils.CoreMessages
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.util.Locale
 
-class LocaleProgressTest : PlatformBaseTest() {
+class LocaleProgressTest {
+
+    @BeforeEach
+    fun setUp() {
+        // The wording is asserted in English.
+        CoreMessages.locale = { Locale.ENGLISH }
+    }
+
+    @AfterEach
+    fun tearDown() {
+        CoreMessages.locale = Locale::getDefault
+    }
 
     private fun stats(locale: String, translated: Int, total: Int) =
         LocaleStats(locale, total, translated, total - translated, translated * 100.0 / total)
@@ -50,11 +62,4 @@ class LocaleProgressTest : PlatformBaseTest() {
         assertFalse(LocaleProgress.tooltip(emptyList()).contains("<br/>"))
     }
 
-    @Test
-    fun `the rate is the one of the statistics tab`() {
-        addFileToProject("locales/en/common.json", """{"a": "A", "b": "B", "c": "C", "d": "D"}""")
-        addFileToProject("locales/fr/common.json", """{"a": "A", "b": "B", "c": ""}""")
-        val coverage = ReadAction.compute<List<LocaleStats>, RuntimeException> { TranslationStatsAnalyzer.analyze(project) }
-        assertEquals("i18n: fr · 50 %", LocaleProgress.text("fr", coverage))
-    }
 }

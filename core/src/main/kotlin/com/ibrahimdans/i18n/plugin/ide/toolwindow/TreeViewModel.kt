@@ -1,9 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
-import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
-import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.intellij.openapi.project.Project
 
 /**
  * Represents a node in the hierarchical translation tree.
@@ -65,18 +62,10 @@ data class NodeStatus(
 
 /**
  * View model for the tree-based translation view.
- * Builds a hierarchical tree from flat translation data.
+ * Builds a hierarchical tree from flat translation data; the plugin's `loadTranslations` reads
+ * that data from a project.
  */
 class TreeViewModel {
-
-    /**
-     * Loads translations and builds the hierarchical tree structure.
-     * When [moduleConfig] is non-null, only translations from that module are loaded.
-     */
-    fun loadTranslations(project: Project, moduleConfig: ModuleConfig? = null): TranslationNode {
-        val flatData = TranslationDataLoader.loadAllTranslations(project, moduleConfig)
-        return buildTree(flatData, Settings.getInstance(project).config())
-    }
 
     /**
      * The tree of [flatData], split into levels the way [KeySpelling] joined them: on the configured
@@ -92,7 +81,7 @@ class TreeViewModel {
      * could fold it away. A project with a single, default namespace has nothing to group and
      * keeps its keys directly under the root.
      */
-    internal fun buildTree(flatData: Map<String, Map<String, String>>, config: Config): TranslationNode {
+    fun buildTree(flatData: Map<String, Map<String, String>>, config: Config): TranslationNode {
         val root = TranslationNode(key = "root", fullPath = "", values = emptyMap())
         val grouped = flatData.keys.any { KeySpelling.namespaceOf(it) != null }
 

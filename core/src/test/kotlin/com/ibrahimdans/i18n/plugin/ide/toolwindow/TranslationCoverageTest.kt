@@ -1,44 +1,25 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
-import com.intellij.openapi.project.Project
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.mockkObject
-import io.mockk.unmockkAll
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
-class TranslationStatsAnalyzerTest {
-
-    private val project = mockk<Project>()
-
-    @BeforeEach
-    fun setUp() {
-        mockkObject(TranslationDataLoader)
-    }
-
-    @AfterEach
-    fun tearDown() {
-        unmockkAll()
-    }
+class TranslationCoverageTest {
 
     @Test
     fun `analyze returns empty when translation data is empty`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns emptyMap()
+        val data = emptyMap<String, Map<String, String>>()
 
-        assertTrue(TranslationStatsAnalyzer.analyze(project).isEmpty())
+        assertTrue(TranslationCoverage.analyze(data).isEmpty())
     }
 
     @Test
     fun `analyze produces one LocaleStats per locale`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+        val data = mapOf(
             "greeting" to mapOf("en" to "Hello", "fr" to "Bonjour"),
             "farewell" to mapOf("en" to "Goodbye", "fr" to "Au revoir")
         )
 
-        val result = TranslationStatsAnalyzer.analyze(project)
+        val result = TranslationCoverage.analyze(data)
 
         assertEquals(2, result.size)
         assertTrue(result.any { it.locale == "en" })
@@ -47,13 +28,13 @@ class TranslationStatsAnalyzerTest {
 
     @Test
     fun `analyze computes missing keys correctly`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+        val data = mapOf(
             "common.save"   to mapOf("en" to "Save", "fr" to "Sauvegarder"),
             "common.delete" to mapOf("en" to "Delete"),
             "common.cancel" to mapOf("en" to "Cancel", "fr" to "")
         )
 
-        val result = TranslationStatsAnalyzer.analyze(project)
+        val result = TranslationCoverage.analyze(data)
         val frStats = result.first { it.locale == "fr" }
 
         assertEquals(2, frStats.untranslated)
@@ -63,13 +44,13 @@ class TranslationStatsAnalyzerTest {
 
     @Test
     fun `analyze computes translated count correctly`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+        val data = mapOf(
             "a" to mapOf("en" to "A", "fr" to "A"),
             "b" to mapOf("en" to "B"),
             "c" to mapOf("en" to "C")
         )
 
-        val result = TranslationStatsAnalyzer.analyze(project)
+        val result = TranslationCoverage.analyze(data)
         val enStats = result.first { it.locale == "en" }
         val frStats = result.first { it.locale == "fr" }
 
@@ -84,14 +65,14 @@ class TranslationStatsAnalyzerTest {
 
     @Test
     fun `analyze computes percent correctly`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+        val data = mapOf(
             "a" to mapOf("en" to "A", "fr" to "A"),
             "b" to mapOf("en" to "B", "fr" to "B"),
             "c" to mapOf("en" to "C"),
             "d" to mapOf("en" to "D")
         )
 
-        val result = TranslationStatsAnalyzer.analyze(project)
+        val result = TranslationCoverage.analyze(data)
         val enStats = result.first { it.locale == "en" }
         val frStats = result.first { it.locale == "fr" }
 
@@ -101,24 +82,24 @@ class TranslationStatsAnalyzerTest {
 
     @Test
     fun `analyze sorts results by locale name`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+        val data = mapOf(
             "k" to mapOf("zh" to "Z", "de" to "D", "en" to "E", "fr" to "F")
         )
 
-        val result = TranslationStatsAnalyzer.analyze(project)
+        val result = TranslationCoverage.analyze(data)
 
         assertEquals(listOf("de", "en", "fr", "zh"), result.map { it.locale })
     }
 
     @Test
     fun `analyze missingKeys list is sorted`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+        val data = mapOf(
             "z.key" to mapOf("en" to "Z"),
             "a.key" to mapOf("en" to "A"),
             "m.key" to mapOf("en" to "M")
         )
 
-        val result = TranslationStatsAnalyzer.analyze(project)
+        val result = TranslationCoverage.analyze(data)
         // "fr" has no entries → all 3 keys are missing
         val frStats = result.firstOrNull { it.locale == "fr" }
         // fr may not exist if it has no entry — verify "en" has none missing
@@ -128,13 +109,13 @@ class TranslationStatsAnalyzerTest {
 
     @Test
     fun `analyze counts a blank value as empty, not as missing, and neither as translated`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+        val data = mapOf(
             "blank" to mapOf("en" to "Hello", "fr" to "   "),
             "absent" to mapOf("en" to "Bye"),
             "done" to mapOf("en" to "Ok", "fr" to "Ok"),
         )
 
-        val frStats = TranslationStatsAnalyzer.analyze(project).first { it.locale == "fr" }
+        val frStats = TranslationCoverage.analyze(data).first { it.locale == "fr" }
 
         assertEquals(1, frStats.translated)
         assertEquals(1, frStats.empty)
@@ -147,7 +128,7 @@ class TranslationStatsAnalyzerTest {
 
     @Test
     fun `a plural group is empty only when every form it carries is blank`() {
-        val stats = TranslationStatsAnalyzer.analyze(mapOf(
+        val stats = TranslationCoverage.analyze(mapOf(
             "item_one" to mapOf("en" to "item", "fr" to ""),
             "item_other" to mapOf("en" to "items", "fr" to "éléments"),
             "box_one" to mapOf("en" to "box", "fr" to ""),
@@ -161,13 +142,13 @@ class TranslationStatsAnalyzerTest {
 
     @Test
     fun `analyze locale with all keys missing has percent 0`() {
-        every { TranslationDataLoader.loadAllTranslations(project) } returns mapOf(
+        val data = mapOf(
             "a" to mapOf("en" to "A"),
             "b" to mapOf("en" to "B"),
             "c" to mapOf("fr" to "C")
         )
 
-        val result = TranslationStatsAnalyzer.analyze(project)
+        val result = TranslationCoverage.analyze(data)
         val enStats = result.first { it.locale == "en" }
         val frStats = result.first { it.locale == "fr" }
 
@@ -179,7 +160,7 @@ class TranslationStatsAnalyzerTest {
 
     @Test
     fun `report lays out a total row then one row per namespace, default group first`() {
-        val report = TranslationStatsAnalyzer.report(mapOf(
+        val report = TranslationCoverage.report(mapOf(
             "common:title" to mapOf("en" to "Title", "fr" to "Titre"),
             "common:save" to mapOf("en" to "Save"),
             "auth:login" to mapOf("en" to "Log in", "fr" to "Connexion"),
@@ -207,7 +188,7 @@ class TranslationStatsAnalyzerTest {
 
     @Test
     fun `report gives a namespace a 0% cell in a locale that holds none of its keys`() {
-        val report = TranslationStatsAnalyzer.report(mapOf(
+        val report = TranslationCoverage.report(mapOf(
             "common:title" to mapOf("en" to "Title", "fr" to "Titre"),
             "billing:total" to mapOf("en" to "Total"),
         ))
@@ -221,7 +202,7 @@ class TranslationStatsAnalyzerTest {
 
     @Test
     fun `report leaves the total row out when every key sits in one group`() {
-        val single = TranslationStatsAnalyzer.report(mapOf(
+        val single = TranslationCoverage.report(mapOf(
             "menu.home" to mapOf("en" to "Home", "fr" to "Accueil"),
             "menu.about" to mapOf("en" to "About"),
         ))
@@ -230,14 +211,14 @@ class TranslationStatsAnalyzerTest {
         assertEquals(NamespaceFilter.Default, single.rows.single().group)
         assertEquals(50.0, single.rows.single().of("fr")!!.percent)
 
-        val empty = TranslationStatsAnalyzer.report(emptyMap())
+        val empty = TranslationCoverage.report(emptyMap())
         assertTrue(empty.rows.isEmpty())
         assertTrue(empty.locales.isEmpty())
     }
 
     @Test
     fun `report counts a plural group once per namespace`() {
-        val report = TranslationStatsAnalyzer.report(mapOf(
+        val report = TranslationCoverage.report(mapOf(
             "common:item_one" to mapOf("en" to "item", "fr" to "élément"),
             "common:item_other" to mapOf("en" to "items", "fr" to "éléments"),
             "common:title" to mapOf("en" to "Title"),

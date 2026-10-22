@@ -20,72 +20,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 
 /**
- * How the tool window, *Sync Keys*, CSV export/import and the cleanup spell a key read from the
- * translation files, and how that spelling is taken apart again to write back.
- *
- * Both halves used to hard-code `.` between levels and split on it: a flat key (react-intl,
- * `flatKeys`) such as `"app.title"` came back as `[app, title]`, resolved to nothing, and an edit
- * *created* `"app": {"title": …}` next to it. A project nesting with another separator was split
- * on the wrong character. Levels are now joined and split with the configured key separator, and
- * a flat key is a single segment whatever it contains.
- *
- * The namespace keeps the `:` prefix: it is this spelling's own convention, the one the CSV format
- * exchanges, not the separator the code writes. A flat key carrying a `:` of its own and living in
- * a default namespace (a GetText msgid such as `Error: failed`) remains ambiguous under it.
- */
-internal object KeySpelling {
-
-    /** Separates a namespace from its key in this spelling. */
-    const val NAMESPACE_SEPARATOR = ":"
-
-    /** The separator levels are joined with, or null when keys are flat and never split. */
-    private fun levelSeparator(config: Config): String? =
-        config.keySeparator.takeUnless { config.usesFlatKeys() || it.isEmpty() }
-
-    /** [path] extended by one level, [segment]. */
-    fun child(config: Config, path: String, segment: String): String =
-        if (path.isEmpty()) segment else path + (levelSeparator(config) ?: config.keySeparator) + segment
-
-    /**
-     * Laravel's separator inside a package's namespace (`courier::messages`), which a loaded key
-     * spells `courier::messages:welcome`.
-     */
-    private const val PACKAGE_SEPARATOR = "::"
-
-    /**
-     * The namespace [key] is prefixed with, or null.
-     *
-     * Cut at the first `:`, except for a package namespace (`courier::messages:welcome`), whose
-     * own `::` is not the end of the namespace: only that exact shape — `::` between two non-empty
-     * names, followed by this spelling's `:` — is read whole, so an i18next `ns:key` is unchanged.
-     */
-    fun namespaceOf(key: String): String? {
-        packageNamespaceOf(key)?.let { return it }
-        val index = key.indexOf(NAMESPACE_SEPARATOR)
-        return if (index > 0) key.substring(0, index) else null
-    }
-
-    private fun packageNamespaceOf(key: String): String? {
-        val packageEnd = key.indexOf(PACKAGE_SEPARATOR)
-        if (packageEnd <= 0 || key.indexOf(NAMESPACE_SEPARATOR) != packageEnd) return null
-        val fileStart = packageEnd + PACKAGE_SEPARATOR.length
-        val end = key.indexOf(NAMESPACE_SEPARATOR, fileStart)
-        return if (end > fileStart) key.substring(0, end) else null
-    }
-
-    /** [key] without its namespace prefix. */
-    fun pathOf(key: String): String =
-        namespaceOf(key)?.let { key.substring(it.length + NAMESPACE_SEPARATOR.length) } ?: key
-
-    /** The levels of [key]'s path: one segment for a flat key, split on the key separator otherwise. */
-    fun segmentsOf(key: String, config: Config): List<String> {
-        val path = pathOf(key)
-        val separator = levelSeparator(config) ?: return listOf(path)
-        return path.split(separator)
-    }
-}
-
-/**
  * Loads all translation data from the project's localization sources.
  * Shared utility used by both Tree and Table views.
  */
@@ -122,7 +56,7 @@ object TranslationDataLoader {
                 val nsPrefix = if (namespace in defaultNamespaces) "" else namespace + KeySpelling.NAMESPACE_SEPARATOR
                 val tree = source.tree
                 if (tree != null) {
-                    collectLeaves(config, tree, "", nsPrefix, locale, result)
+                    TranslationLeaves.collect(config, tree, nsPrefix, locale, PsiLeafReader, result)
                 } else {
                     LOG.warn("loadAllTranslations: null tree for source '${source.displayPath}' (locale=$locale, ns=$namespace)")
                 }
@@ -234,47 +168,12 @@ object TranslationDataLoader {
     }
 
     /**
-     * Recursively collects leaf values from a translation tree.
-     * [nsPrefix] is prepended to each full key, e.g. "common:" or "" for the default namespace.
-     *
-     * Note: findChildren() returns key-literal wrappers (for both JSON and YAML). We use
-     * tree.findChild(name) to navigate to the actual value, which correctly distinguishes
-     * leaf values from nested objects.
+     * Reads the PSI trees for [TranslationLeaves]. `findChildren` returns key-literal wrappers for
+     * both JSON and YAML, named here; the leaf value is read from the key-value element.
      */
-    private fun collectLeaves(
-        config: Config,
-        tree: Tree<PsiElement>,
-        prefix: String,
-        nsPrefix: String,
-        locale: String,
-        result: MutableMap<String, MutableMap<String, String>>
-    ) {
-        for ((childName, valueTree) in namedChildren(tree)) {
-            val fullPath = KeySpelling.child(config, prefix, childName)
-            if (valueTree == null || valueTree.isLeaf()) {
-                val value = if (valueTree != null) extractLeafValue(valueTree) else ""
-                result.getOrPut("$nsPrefix$fullPath") { mutableMapOf() }[locale] = value
-            } else {
-                collectLeaves(config, valueTree, fullPath, nsPrefix, locale, result)
-            }
-        }
-    }
-
-    /**
-     * The children of [tree] as (name, value node), the value being null when the key holds none.
-     *
-     * JSON and YAML key nodes are named here, as they always were. A format whose key nodes this
-     * loader cannot read — a PHP array's `StringLiteralExpression`, the PHP plugin being optional —
-     * names its children itself through [Tree.entries]: without that, a Laravel project's keys
-     * were all skipped and the tool window showed none.
-     */
-    private fun namedChildren(tree: Tree<PsiElement>): List<Pair<String, Tree<PsiElement>?>> {
-        val children = tree.findChildren("")
-        val named = children.mapNotNull { child ->
-            extractNodeName(child)?.takeIf { it.isNotEmpty() }?.let { it to tree.findChild(it) }
-        }
-        if (named.isNotEmpty() || children.isEmpty()) return named
-        return tree.entries()?.filter { (name, _) -> name.isNotEmpty() } ?: emptyList()
+    private object PsiLeafReader : LeafReader<PsiElement> {
+        override fun nameOf(node: Tree<PsiElement>): String? = extractNodeName(node)
+        override fun valueOf(node: Tree<PsiElement>): String = extractLeafValue(node)
     }
 
     /**
@@ -322,3 +221,10 @@ object TranslationDataLoader {
         return psi.text?.removeSurrounding("\"")?.removeSurrounding("'") ?: ""
     }
 }
+
+/**
+ * Loads [project]'s translations and builds the hierarchical tree structure.
+ * When [moduleConfig] is non-null, only translations from that module are loaded.
+ */
+fun TreeViewModel.loadTranslations(project: Project, moduleConfig: ModuleConfig? = null): TranslationNode =
+    buildTree(TranslationDataLoader.loadAllTranslations(project, moduleConfig), Settings.getInstance(project).config())

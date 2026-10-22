@@ -2,7 +2,7 @@ package com.ibrahimdans.i18n.plugin.tree
 
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
-import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationStatsAnalyzer
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationCoverage
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -38,7 +38,7 @@ class PluralGroupingTest {
 
     @Test
     fun statsCountEachLanguageCompleteWhateverItsCategories() {
-        val stats = TranslationStatsAnalyzer.analyze(translations).associateBy { it.locale }
+        val stats = TranslationCoverage.analyze(translations).associateBy { it.locale }
         listOf("en", "ru", "ja").forEach { locale ->
             assertEquals(2, stats.getValue(locale).total, locale)
             assertEquals(0, stats.getValue(locale).missing, "$locale: ${stats.getValue(locale).missingKeys}")
