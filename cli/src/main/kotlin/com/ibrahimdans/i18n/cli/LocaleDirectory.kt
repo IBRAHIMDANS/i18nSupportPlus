@@ -55,10 +55,10 @@ object LocaleDirectory {
             ?: throw CannotCheck("not a valid ${if (json) "JSON" else "YAML"} translation file: $file")
         TranslationLeaves.collect(config, tree, nsPrefix, locale, ParsedLeaves, result)
     }
+}
 
-    /** A parsed node names itself: its key, and the text of a leaf. */
-    private object ParsedLeaves : LeafReader<ParsedNode> {
-        override fun nameOf(node: Tree<ParsedNode>): String? = node.value().key
-        override fun valueOf(node: Tree<ParsedNode>): String = node.value().value.orEmpty()
-    }
+/** A parsed node names itself: its key, and the text of a leaf. */
+internal object ParsedLeaves : LeafReader<ParsedNode> {
+    override fun nameOf(node: Tree<ParsedNode>): String? = node.value().key
+    override fun valueOf(node: Tree<ParsedNode>): String = node.value().value.orEmpty()
 }

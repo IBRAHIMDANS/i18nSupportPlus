@@ -37,6 +37,11 @@ object SettingsFile {
             gettext = options["gettext"]?.toBoolean() ?: default.gettext,
             previewLocale = options["previewLocale"] ?: default.previewLocale,
             foldingPreferredLanguage = options["foldingPreferredLanguage"] ?: default.foldingPreferredLanguage,
+            defaultNs = options["defaultNs"] ?: default.defaultNs,
+            fallbackNs = options["fallbackNs"] ?: default.fallbackNs,
+            translationsRoot = options["translationsRoot"] ?: default.translationsRoot,
+            excludedDirectories = options["excludedDirectories"] ?: default.excludedDirectories,
+            ignoredLocales = options["ignoredLocales"] ?: default.ignoredLocales,
             modules = modulesOf(component),
         )
     }
@@ -60,6 +65,8 @@ object SettingsFile {
             val options = optionsOf(bean)
             ModuleConfig(
                 name = options["name"].orEmpty(),
+                pathTemplate = options["pathTemplate"].orEmpty(),
+                fileTemplate = options["fileTemplate"].orEmpty(),
                 rootDirectory = options["rootDirectory"].orEmpty(),
                 referenceLocale = options["referenceLocale"].orEmpty(),
             )

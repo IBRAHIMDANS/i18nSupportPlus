@@ -131,6 +131,21 @@ class TreeSitterKeyUsageIndexTest {
         assertEquals(0, index.usages("other:ok").size)
     }
 
+    @Test
+    fun `unknown usages - the literal calls no key is or holds`() {
+        val index = TreeSitterKeyUsageIndex()
+        index.update(
+            "a.tsx",
+            "function A() { const { t } = useTranslation('admin'); return [t('menu'), t('menu.home.icon'), t('item'), t('menu.hom'), t(`x.\${y}`)] }",
+        )
+        index.update("b.ts", "t('admin:menu.home'); t('other:menu.home')")
+        assertEquals(
+            listOf("menu.home.icon", "menu.hom", "other:menu.home"),
+            index.unknownUsages(listOf("admin:menu.home", "admin:item_one")).map { it.key },
+        )
+        assertEquals(KeyUsage("b.ts", TextSpan(24, 41)), index.unknownUsages(listOf("admin:menu.home", "admin:item_one")).last().usage)
+    }
+
     // ── indexing time ─────────────────────────────────────────────────────────
 
     @Test

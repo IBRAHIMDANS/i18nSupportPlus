@@ -10,7 +10,8 @@ import java.io.PrintStream
 class I18nCheckTest {
 
     private val resources = "src/test/resources"
-    private val example = "../examples/react-multi-namespace/public/locales"
+    private val exampleProject = "../examples/react-multi-namespace"
+    private val example = "$exampleProject/public/locales"
 
     private class Run(val exit: Int, val out: String, val err: String)
 
@@ -126,6 +127,155 @@ class I18nCheckTest {
         assertEquals("[\"menu/help\"]", report["locales"].asJsonArray[1].asJsonObject["orphans"].toString())
     }
 
+    // ── project mode ──────────────────────────────────────────────────────────
+
+    @Test
+    fun `project mode - the example's files found without --locales, per locale and namespace`() {
+        assertEquals(check("--locales", example).out, check(exampleProject).out)
+        val run = check(exampleProject, "--format", "json")
+        val fr = JsonParser.parseString(run.out).asJsonObject["locales"].asJsonArray[1].asJsonObject
+        assertEquals("[\"common:actions.eddit\",\"common:actions.saxve\"]", fr["missing"].toString())
+        assertEquals("[]", fr["orphans"].toString())
+        assertEquals("[\"navigation:breadrumb.home\"]", fr["empty"].toString())
+        assertEquals(I18nCheck.PROBLEMS, run.exit)
+    }
+
+    @Test
+    fun `project mode - one section per module, each with its reference locale`() {
+        val run = check("$resources/modules")
+        assertEquals(
+            """
+            Module web: reference locale en (2 locales)
+
+            en: no problem
+            fr: 1 missing
+              missing  cart
+
+            Module admin: reference locale fr (2 locales)
+
+            en: 1 missing, 1 orphan
+              missing  roles
+              orphan   logs
+            fr: no problem
+
+            3 problems found (allowed: 0).
+            """.trimIndent(),
+            run.out,
+        )
+        assertEquals(I18nCheck.PROBLEMS, run.exit)
+    }
+
+    @Test
+    fun `project mode - JSON of several modules`() {
+        val run = check("$resources/modules", "--format", "json")
+        val expected = """
+            {
+              "problems": 3,
+              "modules": [
+                {
+                  "module": "web", "reference": "en", "problems": 1,
+                  "locales": [
+                    {"locale": "en", "missing": [], "orphans": [], "empty": []},
+                    {"locale": "fr", "missing": ["cart"], "orphans": [], "empty": []}
+                  ]
+                },
+                {
+                  "module": "admin", "reference": "fr", "problems": 2,
+                  "locales": [
+                    {"locale": "en", "missing": ["roles"], "orphans": ["logs"], "empty": []},
+                    {"locale": "fr", "missing": [], "orphans": [], "empty": []}
+                  ]
+                }
+              ]
+            }
+        """
+        assertEquals(JsonParser.parseString(expected), JsonParser.parseString(run.out))
+    }
+
+    @Test
+    fun `project mode - only the translations root is read, the ignored locales are left out`() {
+        val run = check("$resources/root")
+        assertEquals(
+            """
+            Reference locale: en (2 locales)
+
+            en: no problem
+            fr: 1 missing
+              missing  farewell
+
+            1 problem found (allowed: 0).
+            """.trimIndent(),
+            run.out,
+        )
+    }
+
+    @Test
+    fun `project mode - no translation file, exit 2`() {
+        val run = check("$resources/empty")
+        assertEquals(I18nCheck.CANNOT_CHECK, run.exit)
+        assertTrue(run.err.startsWith("i18n-check: no translation file in $resources/empty"), run.err)
+    }
+
+    // ── --code ────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `code - the example's unused keys and the call to an unknown one`() {
+        val run = check(exampleProject, "--code")
+        assertEquals(
+            """
+            Reference locale: en (2 locales)
+
+            en: no problem
+            fr: 2 missing, 1 empty
+              missing  common:actions.eddit
+              missing  common:actions.saxve
+              empty    navigation:breadrumb.home
+
+            Unused keys: 9
+              auth:errors.accountLocked
+              common:actions.eddit
+              common:actions.save
+              common:actions.saxve
+              common:status.empty
+              common:status.error
+              common:status.loading
+              dashboard:stats.files.label
+              navigation:breadcrumb.home
+
+            Unknown keys: 1
+              src/components/Dashboard.tsx:27  dashboardd:statss.users.count
+
+            13 problems found (allowed: 0).
+            """.trimIndent(),
+            run.out,
+        )
+        assertEquals(I18nCheck.PROBLEMS, run.exit)
+    }
+
+    @Test
+    fun `code - a key a template literal may build is not unused`() {
+        val unused = JsonParser.parseString(check(exampleProject, "--code", "--format", "json").out).asJsonObject["unused"].asJsonArray
+        assertTrue(unused.none { it.asString.startsWith("deposit-box:status.") }, unused.toString())
+    }
+
+    @Test
+    fun `code - JSON adds the unused and unknown keys to the existing fields`() {
+        val report = JsonParser.parseString(check(exampleProject, "--code", "--format", "json").out).asJsonObject
+        assertEquals(setOf("reference", "problems", "locales", "unused", "unknown"), report.keySet())
+        assertEquals(13, report["problems"].asInt)
+        assertEquals(9, report["unused"].asJsonArray.size())
+        assertEquals(
+            JsonParser.parseString("""[{"key": "dashboardd:statss.users.count", "file": "src/components/Dashboard.tsx", "line": 27}]"""),
+            report["unknown"],
+        )
+    }
+
+    @Test
+    fun `code - exit code counts the unused and unknown keys`() {
+        assertEquals(I18nCheck.OK, check(exampleProject, "--code", "--max-problems", "13").exit)
+        assertEquals(I18nCheck.PROBLEMS, check(exampleProject, "--code", "--max-problems", "12").exit)
+    }
+
     @Test
     fun `no translation file - a clear message and exit 2`() {
         val run = check("--locales", "$resources/empty")
@@ -150,8 +300,8 @@ class I18nCheckTest {
     @Test
     fun `usage errors - exit 2 with the usage`() {
         listOf(
-            arrayOf<String>(),
             arrayOf("--locales"),
+            arrayOf("--locales", example, "--code"),
             arrayOf("--locales", example, "--format", "xml"),
             arrayOf("--locales", example, "--max-problems", "-1"),
             arrayOf("--locales", example, "--verbose"),

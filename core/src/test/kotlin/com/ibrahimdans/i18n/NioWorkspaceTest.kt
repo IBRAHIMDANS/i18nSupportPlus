@@ -84,4 +84,12 @@ class NioWorkspaceTest {
         assertTrue(workspace.files(ParsedFormat.YAML).isEmpty(), "the example holds no YAML file")
         assertTrue(workspace.files(ParsedFormat.JSON).any { it.name == "package.json" }, "every JSON file is listed")
     }
+
+    @Test
+    fun theSourceFilesAreListedByExtension() {
+        assertEquals(
+            listOf("App.tsx", "Dashboard.tsx", "DepositBox.tsx", "LoginForm.tsx", "Navigation.tsx", "main.tsx"),
+            NioWorkspace(example).files(listOf("tsx")).map { it.name }.sorted(),
+        )
+    }
 }

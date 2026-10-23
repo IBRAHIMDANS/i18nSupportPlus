@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.cli
 
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import java.io.PrintStream
@@ -17,13 +18,17 @@ class UsageError(message: String) : Exception(message)
 /** Something on disk keeps the check from running: no translations, an unknown locale, a file it cannot parse. */
 class CannotCheck(message: String) : Exception(message)
 
-/** What the command line asks for. [project] is where `.idea/i18nSettings.xml` is looked for. */
+/**
+ * What the command line asks for. [project] is where `.idea/i18nSettings.xml` is looked for, and the
+ * translation files too unless [locales] names their directory; [code] checks the keys the code uses.
+ */
 data class Options(
     val project: Path,
-    val locales: Path,
+    val locales: Path?,
     val reference: String?,
     val format: Format,
     val maxProblems: Int,
+    val code: Boolean = false,
 ) {
     companion object {
         /** The options of [args], or null when they ask for the help. */
@@ -33,6 +38,7 @@ data class Options(
             var reference: String? = null
             var format = Format.TEXT
             var maxProblems = 0
+            var code = false
             val rest = args.iterator()
             fun value(option: String): String =
                 if (rest.hasNext()) rest.next() else throw UsageError("$option needs a value")
@@ -41,6 +47,7 @@ data class Options(
                     "-h", "--help" -> return null
                     "--locales" -> locales = Path.of(value(arg))
                     "--reference" -> reference = value(arg)
+                    "--code" -> code = true
                     "--format" -> format = value(arg).let { name ->
                         Format.entries.firstOrNull { it.name.equals(name, ignoreCase = true) }
                             ?: throw UsageError("unknown format '$name', expected text or json")
@@ -55,7 +62,8 @@ data class Options(
                     }
                 }
             }
-            return Options(project ?: Path.of("."), locales ?: throw UsageError("--locales is required"), reference, format, maxProblems)
+            if (code && locales != null) throw UsageError("--code checks a whole project: drop --locales")
+            return Options(project ?: Path.of("."), locales, reference, format, maxProblems, code)
         }
     }
 }
@@ -73,11 +81,12 @@ object I18nCheck {
     const val CANNOT_CHECK = 2
 
     val USAGE = """
-        Usage: i18n-check [project] --locales <dir> [--reference <locale>] [--format text|json] [--max-problems N]
+        Usage: i18n-check [project] [--locales <dir> | --code] [--reference <locale>] [--format text|json] [--max-problems N]
 
-          project              where .idea/i18nSettings.xml is read from (default: the current directory)
-          --locales <dir>      the directory holding <locale>.json|yml or <locale>/<namespace>.json|yml
-          --reference <locale> the locale the others are compared to (default: the settings', then en)
+          project              the project checked, where .idea/i18nSettings.xml is read from (default: the current directory)
+          --locales <dir>      only check the directory holding <locale>.json|yml or <locale>/<namespace>.json|yml
+          --code               also report the keys the i18next code never uses, and those it uses but the reference lacks
+          --reference <locale> the locale the others are compared to (default: the module's or the settings', then en)
           --format text|json   the report's format (default: text)
           --max-problems N     the problems allowed before exiting with 1 (default: 0)
     """.trimIndent()
@@ -100,22 +109,50 @@ object I18nCheck {
         }
     }
 
-    private fun check(options: Options): CheckResult {
-        if (!Files.isDirectory(options.locales)) throw CannotCheck("no such directory: ${options.locales}")
+    private fun check(options: Options): ProjectResult {
         val config = try {
             SettingsFile.read(options.project)
         } catch (e: Exception) {
             throw CannotCheck("cannot read ${options.project.resolve(SettingsFile.PATH)}: ${e.message}")
         }
-        val translations = LocaleDirectory.read(options.locales, config)
-        val labels = translations.values.flatMap { it.keys }.distinct().sorted()
-        if (labels.isEmpty()) {
-            throw CannotCheck("no translation file in ${options.locales}: expected <locale>.json|yml or <locale>/<namespace>.json|yml")
+        val scopes = scopesOf(options, config)
+        val results = scopes.map { scope ->
+            val labels = scope.translations.values.flatMap { it.keys }.distinct().sorted()
+            // `--reference en` finds `en-US` as the settings' locale does.
+            val wanted = options.reference ?: ReferenceLocale.wanted(scope.module, config)
+            val reference = LocaleMatching.pick(wanted, labels)
+                ?: throw CannotCheck("reference locale $wanted not found among ${labels.joinToString()}" + scope.module?.let { " in module ${it.name}" }.orEmpty())
+            val result = TranslationCheck.run(scope.translations, reference)
+            result.copy(
+                locales = result.locales.filter { it.locale == reference || !config.ignoresLocale(it.locale) },
+                module = scope.module?.name,
+            )
         }
-        // `--reference en` finds `en-US` as the settings' locale does.
-        val wanted = options.reference ?: ReferenceLocale.wanted(null, config)
-        val reference = LocaleMatching.pick(wanted, labels)
-            ?: throw CannotCheck("reference locale $wanted not found among ${labels.joinToString()}")
-        return TranslationCheck.run(translations, reference)
+        if (!options.code) return ProjectResult(results)
+        val code = CodeUsages(options.project, config)
+        val referenceKeys = scopes.zip(results) { scope, result ->
+            scope.translations.filterValues { result.reference in it }.keys
+        }
+        return ProjectResult(
+            results.zip(referenceKeys) { result, keys -> result.copy(unused = code.unused(keys)) },
+            code.unknown(referenceKeys.flatten()),
+        )
+    }
+
+    /** The translations [options] point to: the `--locales` directory, or every module of the project. */
+    private fun scopesOf(options: Options, config: Config): List<Scope> {
+        val locales = options.locales
+        if (locales == null) {
+            if (!Files.isDirectory(options.project)) throw CannotCheck("no such directory: ${options.project}")
+            return ProjectSources.read(options.project, config).ifEmpty {
+                throw CannotCheck("no translation file in ${options.project}: expected <locale>.json|yml or <locale>/<namespace>.json|yml")
+            }
+        }
+        if (!Files.isDirectory(locales)) throw CannotCheck("no such directory: $locales")
+        val translations = LocaleDirectory.read(locales, config)
+        if (translations.isEmpty()) {
+            throw CannotCheck("no translation file in $locales: expected <locale>.json|yml or <locale>/<namespace>.json|yml")
+        }
+        return listOf(Scope(null, translations))
     }
 }
