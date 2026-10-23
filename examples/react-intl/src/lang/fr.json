@@ -1,0 +1,11 @@
+{
+  "app.title": "Exemple react-intl",
+  "home.greeting": "Bonjour {name} !",
+  "home.welcome": "Bon retour !",
+  "cart.summary": "{count, plural, one {# article dans votre panier} other {# articles dans votre panier}}",
+  "cart.checkout": "Commander",
+  "profile.header.title": "Profil utilisateur",
+  "orders.status.paid": "Votre commande est payée",
+  "orders.status.pending": "Votre commande est en attente",
+  "orders.status.refunded": "Votre commande a été remboursée"
+}
