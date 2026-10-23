@@ -11,6 +11,7 @@
 ### Fixes
 
 - [Translation] **The translation dialog's *Translate* button and *Instruction* field are in French**: with the IDE in French, the per-locale *Translate* button, its tooltip, the message when no other locale has a value to translate from, and the *Instruction* field with its hint and comment showed in English. The bundle test now reads the French file itself, so a key missing from it fails the build
+- [Settings] **A project stored under a folder named `build`, `dist` or `node_modules` finds its translation files again**: excluded folders were matched on the file's absolute path, so a project in `~/build/app` lost every translation file; they are now matched on the path inside the project
 
 ### Refactoring
 
@@ -40,6 +41,7 @@
 - [Internal] Technologies run on a platform-free `Workspace` instead of a `Project`: `TranslationTechnology` and `Workspace` live in `core`, with `SimpleTechnology`, the seven technologies that only list function names, `ModuleSources` (path matching) and `ReferenceLocale`; the plugin passes an `IdeWorkspace` — no behaviour change. The `com.ibrahimdans.i18n.technology` extension point now takes `TranslationTechnology`, whose methods receive a `Workspace`
 - [Internal] `core-treesitter` indexes key usages outside the IDE: an inverted index from key to call sites, built with the i18next extractors and updated file by file, implementing `core`'s `KeyUsageIndex` (dynamic keys included) — no behaviour change
 - [Internal] `core` reads translation formats and technologies through an `I18nRegistry` (a static one for tests, the extension points in the plugin), and `FallbackNamespaces` moves to `core` — no behaviour change
+- [Internal] Translation file discovery moves to `core`: `SourceDiscovery` holds the rules (root, module templates, exclusions, namespaces and fallback, sources declared by technologies) and `NioWorkspace` walks a folder with `java.nio`, so a tool outside the IDE finds the same sources; `LocalizationSourceService` keeps the caches — no other behaviour change
 
 ## 1.15.0 - 2026-10-18
 
