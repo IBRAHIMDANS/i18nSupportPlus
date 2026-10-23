@@ -38,6 +38,7 @@
 - [Internal] Tree-sitter spike for reading `t('…')` outside the IDE: decision note in `docs/spikes/2026-10-22-tree-sitter.md` (JNI binding on the JVM, behind `CodeNode`) and a throwaway prototype in `spike/tree-sitter/`, outside the build
 - [Internal] A separate `core-treesitter` module reads i18next / react-i18next keys with tree-sitter, outside the IDE: `t('…')`, `i18n.t`, templates, `{ ns }`, `useTranslation(ns, { keyPrefix })` and `<Trans i18nKey>`; the plugin does not ship it — no behaviour change
 - [Internal] Technologies run on a platform-free `Workspace` instead of a `Project`: `TranslationTechnology` and `Workspace` live in `core`, with `SimpleTechnology`, the seven technologies that only list function names, `ModuleSources` (path matching) and `ReferenceLocale`; the plugin passes an `IdeWorkspace` — no behaviour change. The `com.ibrahimdans.i18n.technology` extension point now takes `TranslationTechnology`, whose methods receive a `Workspace`
+- [Internal] `core-treesitter` indexes key usages outside the IDE: an inverted index from key to call sites, built with the i18next extractors and updated file by file, implementing `core`'s `KeyUsageIndex` (dynamic keys included) — no behaviour change
 - [Internal] `core` reads translation formats and technologies through an `I18nRegistry` (a static one for tests, the extension points in the plugin), and `FallbackNamespaces` moves to `core` — no behaviour change
 
 ## 1.15.0 - 2026-10-18
