@@ -254,12 +254,16 @@ The inspections also run without an editor, in [Qodana](https://www.jetbrains.co
 
 ### Command Line Check
 
-`i18n-check` compares the translation files of a project to the reference locale, without IntelliJ (Java 21). It is built from this repository, and not shipped with the plugin:
+`i18n-check` compares the translation files of a project to the reference locale, without IntelliJ. It needs Java 21 and is not shipped with the plugin: each [GitHub release](https://github.com/IBRAHIMDANS/i18nSupportPlus/releases), from 1.16.0, carries it as `i18n-check-<version>.zip`.
 
 ```bash
-./gradlew :cli:installDist
-cli/build/install/i18n-check/bin/i18n-check [project] [--locales <dir> | --code] [--reference <locale>] [--format text|json] [--max-problems N]
+unzip i18n-check-1.16.0.zip
+i18n-check-1.16.0/bin/i18n-check [project] [--locales <dir> | --code] [--reference <locale>] [--format text|json] [--max-problems N]
 ```
+
+`./gradlew :cli:installDist` builds it from this repository instead, in `cli/build/install/i18n-check/`.
+
+It runs the plugin's own checks in CI, with the plugin's settings, whatever the framework. An i18next project that also wants to write the keys the code uses into its files, sync its locales or generate types can pair it with the official [i18next-cli](https://github.com/i18next/i18next-cli) (`extract`, `sync`, `types`).
 
 - `project` (the current directory by default) is searched for translation files as the plugin finds them: a folder or file named after a locale (`locales/en/common.json`, `i18n/fr.yml`), keys of a namespace file reported as `common:key`. `node_modules`, `build`, `dist` and the like are never searched.
 - `.idea/i18nSettings.xml`, when the project has one, applies: the translations root, the excluded folders, the default namespaces, the ignored locales (left out of the report), the reference locale (the module's, then the preview locale, then `en`), the key and namespace separators, and the modules — with several, each is checked on its own, with its own reference locale. `--reference` overrides it; `en` also finds `en-US`.
@@ -297,7 +301,7 @@ cli/build/install/i18n-check/bin/i18n-check [project] [--locales <dir> | --code]
 
 A project of several modules lists them under `modules`, each with its `module` name, `reference`, `problems`, `locales` and `unused`; `problems` and `unknown` stay at the top.
 
-A GitHub Actions job failing the build on a missing translation or a key the code calls but no file holds:
+A GitHub Actions job failing the build on a missing translation or a key the code calls but no file holds. The action sets up Java 21 and runs the `i18n-check` of the release its tag names:
 
 ```yaml
 jobs:
@@ -305,17 +309,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: IBRAHIMDANS/i18nSupportPlus@v1.16.0
         with:
-          repository: IBRAHIMDANS/i18nSupportPlus
-          path: .i18n-check
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-      - run: (cd .i18n-check && ./gradlew :cli:installDist)
-      - run: .i18n-check/cli/build/install/i18n-check/bin/i18n-check --code
+          args: --code
 ```
+
+`args` takes the command line's arguments, `version` another release than the tag's.
 
 ### AI Agents (MCP)
 

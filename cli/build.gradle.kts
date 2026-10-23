@@ -37,6 +37,9 @@ kotlin {
     }
 }
 
+// Released with the plugin, under its version: `i18n-check-<version>.zip` is attached to each GitHub release.
+version = providers.gradleProperty("pluginVersion").get()
+
 application {
     applicationName = "i18n-check"
     mainClass.set("com.ibrahimdans.i18n.cli.MainKt")
