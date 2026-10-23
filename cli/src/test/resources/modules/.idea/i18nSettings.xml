@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="i18nSettings">
+    <option name="modules">
+      <list>
+        <ModuleConfig>
+          <option name="name" value="web" />
+          <option name="rootDirectory" value="apps/web" />
+          <option name="referenceLocale" value="en" />
+        </ModuleConfig>
+        <ModuleConfig>
+          <option name="name" value="admin" />
+          <option name="rootDirectory" value="apps/admin" />
+          <option name="referenceLocale" value="fr" />
+        </ModuleConfig>
+      </list>
+    </option>
+  </component>
+</project>

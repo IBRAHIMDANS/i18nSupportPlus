@@ -17,14 +17,27 @@ data class LocaleProblems(
     val count: Int get() = missing.size + orphans.size + empty.size
 }
 
-/** The problems of every locale, sorted by locale, compared to [reference]. */
-data class CheckResult(val reference: String, val locales: List<LocaleProblems>) {
-    val problems: Int get() = locales.sumOf { it.count }
+/**
+ * The problems of every locale, sorted by locale, compared to [reference], in [module] — null for
+ * the whole project — and, when the code was checked, the [unused] keys of the reference.
+ */
+data class CheckResult(
+    val reference: String,
+    val locales: List<LocaleProblems>,
+    val module: String? = null,
+    val unused: List<String>? = null,
+) {
+    val problems: Int get() = locales.sumOf { it.count } + unused.orEmpty().size
+}
+
+/** What a run found: a [CheckResult] per module, and when the code was checked, its [unknown] keys. */
+data class ProjectResult(val modules: List<CheckResult>, val unknown: List<UnknownKey>? = null) {
+    val problems: Int get() = modules.sumOf { it.problems } + unknown.orEmpty().size
 }
 
 /**
  * The check itself, on the key -> locale -> value map of a project's translations: wherever they
- * were read from, a directory today ([LocaleDirectory]), a whole project later.
+ * were read from, a directory ([LocaleDirectory]) or a whole project ([ProjectSources]).
  *
  * A plural group ([PluralKey.groupForms]) is compared as a group: a locale must hold the forms its
  * own language needs ([PluralCategories]), not the reference's — `ja` writes `item_other` only,

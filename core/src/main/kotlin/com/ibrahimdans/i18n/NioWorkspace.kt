@@ -51,7 +51,13 @@ class NioWorkspace(
 
     override val basePath: String = slashed(this.root)
 
-    override fun files(format: ParsedFormat): List<NioWorkspaceFile> {
+    override fun files(format: ParsedFormat): List<NioWorkspaceFile> = files(format.extensions)
+
+    /**
+     * The files under the root whose extension, without the dot, is one of [extensions] — the
+     * source files of a command-line check as well as the translation files.
+     */
+    fun files(extensions: Collection<String>): List<NioWorkspaceFile> {
         val found = mutableListOf<NioWorkspaceFile>()
         Files.walkFileTree(root, object : SimpleFileVisitor<Path>() {
             override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult =
@@ -60,7 +66,7 @@ class NioWorkspace(
 
             override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                 val candidate = NioWorkspaceFile(file)
-                if (attrs.isRegularFile && candidate.extension?.lowercase() in format.extensions) found += candidate
+                if (attrs.isRegularFile && candidate.extension?.lowercase() in extensions) found += candidate
                 return FileVisitResult.CONTINUE
             }
 

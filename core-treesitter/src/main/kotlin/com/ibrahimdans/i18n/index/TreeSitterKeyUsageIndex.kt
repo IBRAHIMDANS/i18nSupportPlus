@@ -57,6 +57,7 @@ class TreeSitterKeyUsageIndex(
                 KeyUsage(path, TextSpan(node.span.start, node.span.end)),
                 key.compositeKey.map { it.text },
                 key.lookupNamespaces(),
+                if (key.isDynamic) null else node.text.unQuote(),
                 if (key.isDynamic) shapeOf(node.text.unQuote()) else null,
             )
         }
@@ -101,10 +102,35 @@ class TreeSitterKeyUsageIndex(
     }
 
     /**
-     * A call site whose literal resolves to [path] in [namespaces] — none when it writes none and
-     * sits under no hook — and, for a key built at runtime, the [shape] of the keys it may produce.
+     * The call sites naming in full a key that none of [keys] is or holds — a typo, a key never
+     * added — with the key as the code writes it. [keys] are spelled as [usages] reads them; a call
+     * whose key is built at runtime is never one.
      */
-    private inner class CallSite(val usage: KeyUsage, val path: List<String>, val namespaces: List<String>, val shape: Shape?) {
+    @Synchronized
+    fun unknownUsages(keys: Collection<String>): List<KeyCall> {
+        // Each level of each key, with the namespaces it lives in: a call may name a whole object.
+        val known = mutableMapOf<List<String>, MutableSet<String?>>()
+        for (key in keys) {
+            val path = KeySpelling.segmentsOf(PluralKey.stripSuffix(key, config.pluralSeparator), config)
+            for (depth in 1..path.size) known.getOrPut(path.subList(0, depth)) { mutableSetOf() } += KeySpelling.namespaceOf(key)
+        }
+        return files.values.flatten()
+            .filter { site -> site.key != null && known[site.path].orEmpty().none(site::worksIn) }
+            .map { KeyCall(it.key!!, it.usage) }
+    }
+
+    /**
+     * A call site whose literal resolves to [path] in [namespaces] — none when it writes none and
+     * sits under no hook — with its [key] as written, or, for a key built at runtime, the [shape] of
+     * the keys it may produce.
+     */
+    private inner class CallSite(
+        val usage: KeyUsage,
+        val path: List<String>,
+        val namespaces: List<String>,
+        val key: String?,
+        val shape: Shape?,
+    ) {
 
         /**
          * True when the call site works in [namespace], or in a default one for a key spelled
@@ -133,3 +159,6 @@ class TreeSitterKeyUsageIndex(
         }
     }
 }
+
+/** A call naming [key] as the code writes it, at [usage]. */
+data class KeyCall(val key: String, val usage: KeyUsage)
