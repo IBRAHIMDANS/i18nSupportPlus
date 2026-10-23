@@ -51,6 +51,8 @@ open class JsLang : Lang {
          */
         private val PARAGLIDE_MESSAGE = ParaglideMessageExtractor()
 
+        private val FORMATTED_MESSAGE = FormattedMessageExtractor()
+
         private val SYNTAX_OWNED_EXTRACTORS: List<KeyExtractor> = listOf(
             REACT_INTL_EXTRACTOR,
             DefineMessagesExtractor(),
@@ -152,6 +154,8 @@ open class JsLang : Lang {
         val typeName = entry.node.elementType.toString()
         return if (setOf("JS:STRING_LITERAL", "JS:STRING_TEMPLATE_EXPRESSION").contains (typeName)) entry
             else if (typeName == "JS:STRING_TEMPLATE_PART") entry.parent
+            // react-intl's `<FormattedMessage id="key">`: the key is an attribute value, not a JS string.
+            else if (FORMATTED_MESSAGE.canExtract(entry)) entry
             // Paraglide's `m.hello`: the key is the member's name, an identifier rather than a string.
             else entry.parent?.takeIf { typeName == "JS:IDENTIFIER" && PARAGLIDE_MESSAGE.canExtract(it) }
     }
@@ -169,6 +173,14 @@ private fun frameworkOf(extractor: KeyExtractor): String? = when (extractor) {
     is XmlAttributeKeyExtractor -> "i18next"
     else -> null
 }
+
+/**
+ * The first of [extractors] reading [element], or null — also when the preset of [element]'s
+ * module names another framework than the extractor's, so a reference and the annotation agree.
+ */
+internal fun activeExtractorOf(extractors: List<KeyExtractor>, element: PsiElement): KeyExtractor? =
+    extractors.find { it.canExtract(element) }
+        ?.takeIf { ModulePresets.allows(ModulePresets.presetOf(element), frameworkOf(it)) }
 
 /**
  * False when the call holding [element] is qualified by something other than `this` and its whole
