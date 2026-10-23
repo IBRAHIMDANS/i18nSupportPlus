@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.IdeI18nRegistry
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
@@ -20,6 +21,7 @@ import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.review.shown
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
+import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
@@ -614,7 +616,7 @@ class TableViewModel {
         val searchScope = config.searchScope(project)
         val searchHelper = PsiSearchHelper.getInstance(project)
 
-        val fallbacks = FallbackNamespaces.of(project, config)
+        val fallbacks = FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry)
         val counted = rows.map { row -> row.copy(usageCount = IndirectKeyUsages.textCount(row.key, config, searchScope, searchHelper, fallbacks)) }
 
         // A key written under a hook's key prefix names only its tail at the call site, which the

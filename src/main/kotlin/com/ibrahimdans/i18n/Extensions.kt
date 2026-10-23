@@ -11,3 +11,9 @@ class Extensions {
         val COMPONENT_SOURCES = ExtensionPointName.create<ComponentSourceProvider>("com.ibrahimdans.i18n.componentSources")
     }
 }
+
+/** The [I18nRegistry] of the IDE: the formats and technologies registered on the plugin's extension points. */
+object IdeI18nRegistry : I18nRegistry<PsiElement, Localization<PsiElement>> {
+    override fun formats(): List<Localization<PsiElement>> = Extensions.LOCALIZATION.extensionList
+    override fun technologies(): List<Technology> = Extensions.TECHNOLOGY.extensionList
+}

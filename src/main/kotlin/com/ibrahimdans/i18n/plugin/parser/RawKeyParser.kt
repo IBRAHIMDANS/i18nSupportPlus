@@ -1,9 +1,11 @@
 package com.ibrahimdans.i18n.plugin.parser
 
+import com.ibrahimdans.i18n.IdeI18nRegistry
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
+import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
 import com.ibrahimdans.i18n.plugin.utils.keyScopesOf
@@ -23,7 +25,7 @@ class RawKeyParser(private val project: Project) {
         val context = KeyContext(
             config = config,
             keyScopes = { keyScopesOf(project) },
-            fallbackNamespaces = { FallbackNamespaces.of(project, config) },
+            fallbackNamespaces = { FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry) },
             callerSyntax = caller?.takeUnless { config.usesFlatKeys() }?.let { keySyntaxOf(config, it) }
         )
         return KeyResolver.parse(rawKey, context)
