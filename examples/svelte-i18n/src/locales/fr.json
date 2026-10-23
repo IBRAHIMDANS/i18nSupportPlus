@@ -1,0 +1,21 @@
+{
+  "app": {
+    "title": "Exemple svelte-i18n"
+  },
+  "greeting": "Bonjour {name} !",
+  "cart": {
+    "items": "{count, plural, =0 {Votre panier est vide} one {Il y a un article dans votre panier} other {Il y a # articles dans votre panier}}"
+  },
+  "nav": {
+    "home": "Accueil",
+    "settings": "Paramètres"
+  },
+  "user": {
+    "profile": {
+      "title": "Profil utilisateur"
+    }
+  },
+  "locale": {
+    "switch": "English"
+  }
+}
