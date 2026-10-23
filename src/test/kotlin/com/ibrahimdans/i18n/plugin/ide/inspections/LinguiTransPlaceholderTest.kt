@@ -9,16 +9,14 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
 /**
- * The msgid [LinguiTransKeyExtractor] builds from a `<Trans>` tag.
- *
- * Lingui numbers the expressions it extracts, so `<Trans>Hello {name}!</Trans>` is catalogued
- * under `Hello {0}!`. Reproducing the expression source (`{name}`) yields a key that matches
- * nothing, which is what the extractor used to do.
+ * The msgid [LinguiTransKeyExtractor] builds from a `<Trans>` tag, which must be the message
+ * Lingui's macro writes into the catalogue: a simple identifier keeps its name (`{name}`), any
+ * other expression is numbered (`{0}`), and an element becomes an indexed tag (`<0>…</0>`).
  */
 class LinguiTransPlaceholderTest : PlatformBaseTest() {
 
     private fun msgidOf(transTag: String): String {
-        myFixture.configureByText("test.jsx", "const C = () => ($transTag);")
+        myFixture.configureByText("test.tsx", "const C = () => ($transTag);")
         val tag = PsiTreeUtil.findChildrenOfType(myFixture.file, XmlTag::class.java)
             .first { it.name == "Trans" }
         val extractor = LinguiTransKeyExtractor()
@@ -32,18 +30,63 @@ class LinguiTransPlaceholderTest : PlatformBaseTest() {
     }
 
     @Test
-    fun oneExpressionBecomesPositionZero() {
-        assertEquals("Hello {0}!", msgidOf("<Trans>Hello {name}!</Trans>"))
+    fun aSimpleIdentifierKeepsItsName() {
+        // Lingui's documented example: `<Trans>Attachment {name} saved</Trans>` → "Attachment {name} saved".
+        assertEquals("Hello {name}!", msgidOf("<Trans>Hello {name}!</Trans>"))
     }
 
     @Test
-    fun expressionsAreNumberedInOrder() {
-        assertEquals("{0} owes {1}", msgidOf("<Trans>{payer} owes {amount}</Trans>"))
+    fun aMemberExpressionIsNumbered() {
+        assertEquals("Hello {0}!", msgidOf("<Trans>Hello {user.name}!</Trans>"))
+    }
+
+    @Test
+    fun onlyTheExpressionsThatAreNotIdentifiersConsumeAnIndex() {
+        assertEquals(
+            "{payer} owes {0} to {payee}, due {1}",
+            msgidOf("<Trans>{payer} owes {amount.value} to {payee}, due {formatDate(due)}</Trans>"),
+        )
     }
 
     @Test
     fun aNestedBraceIsConsumedWholeAsOnePlaceholder() {
-        // Matching on the first `}` would cut here and emit a second, bogus placeholder.
-        assertEquals("Total: {0}", msgidOf("<Trans>Total: {cart.items[0]}</Trans>"))
+        assertEquals("Total: {0}, {1}", msgidOf("""<Trans>Total: {cart.items[0]}, {open ? "{" : ""}</Trans>"""))
+    }
+
+    @Test
+    fun elementsBecomeIndexedTagsInTheOrderTheyOpen() {
+        assertEquals(
+            "Read the <0>docs</0>, then <1>{0} <2>now</2></1><3/>",
+            msgidOf("""<Trans>Read the <a href="/docs">docs</a>, then <strong>{user.name} <em>now</em></strong><br/></Trans>"""),
+        )
+    }
+
+    @Test
+    fun aLabelledExpressionTakesItsLabel() {
+        assertEquals(
+            "Welcome back, {username}! {count}",
+            msgidOf("<Trans>Welcome back, {ph({ username: getUser().name })}! {{ count: items.length }}</Trans>"),
+        )
+    }
+
+    @Test
+    fun typeScriptWrappersAreLookedThrough() {
+        assertEquals("{name} {total}", msgidOf("<Trans>{name!} {(total as number)}</Trans>"))
+    }
+
+    @Test
+    fun aStringLiteralIsTextAndACommentIsDropped() {
+        assertEquals("Hi {name}", msgidOf("""<Trans>Hi{" "}{/* the user */}{name}</Trans>"""))
+    }
+
+    @Test
+    fun linesAreTrimmedAndJoinedByOneSpace() {
+        val tag = """
+            <Trans>
+              Hello {name},
+              welcome   back!
+            </Trans>
+        """.trimIndent()
+        assertEquals("Hello {name}, welcome   back!", msgidOf(tag))
     }
 }

@@ -5,11 +5,14 @@ import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
+import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.tree.PluralGroup
 import com.ibrahimdans.i18n.plugin.utils.KeyRangesCalculator
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.RangesCalculator
+import com.ibrahimdans.i18n.plugin.utils.TextSpan
 import com.ibrahimdans.i18n.plugin.utils.isQuoted
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.ibrahimdans.i18n.plugin.utils.unQuote
@@ -57,10 +60,12 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
     }
 
     private fun annotateI18nLiteral(fullKey: FullKey, element: PsiElement, holder: AnnotationHolder, config: Config) {
-        val annotationHelper = AnnotationHelper(
-            holder,
-            KeyRangesCalculator(element.textRange.shiftRight(element.text.unQuote().indexOf(fullKey.source)).toTextSpan(), element.text.isQuoted()),
-        )
+        val offset = element.text.unQuote().indexOf(fullKey.source)
+        // A key rebuilt from its element rather than written in it (a Lingui `<Trans>` msgid with
+        // `{0}` or `<0>…</0>`) has no position of its own: the whole element carries the annotation.
+        val ranges = if (offset < 0) WholeElementRanges(element.textRange.toTextSpan())
+            else KeyRangesCalculator(element.textRange.shiftRight(offset).toTextSpan(), element.text.isQuoted())
+        val annotationHelper = AnnotationHelper(holder, ranges)
         val sourceService = element.project.service<LocalizationSourceService>()
         val files = sourceService.findReadSources(fullKey, element)
         val ns = fullKey.ns
@@ -125,3 +130,9 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
     }
 }
 
+/** Every range of a key that is not written as such in its element: the element itself. */
+private class WholeElementRanges(private val span: TextSpan) : RangesCalculator {
+    override fun compositeKeyFullBounds(fullKey: FullKey): TextSpan = span
+    override fun unresolvedKey(fullKey: FullKey, resolvedPath: List<Literal>): TextSpan = span
+    override fun unresolvedNs(fullKey: FullKey): TextSpan = span
+}

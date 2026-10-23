@@ -8,11 +8,8 @@ import com.ibrahimdans.i18n.plugin.utils.generator.translation.PoTranslationGene
 import org.junit.jupiter.api.Test
 
 /**
- * Highlighting tests for Lingui <Trans>source text</Trans> source-based approach.
- *
- * Tests that use .po files are prefixed `ignoredTest` because the GNU GetText plugin
- * (org.jetbrains.plugins.localization) is not available for IntelliJ 243.x builds.
- * They will run once the plugin is bundled again.
+ * Highlighting tests for Lingui <Trans>source text</Trans> source-based approach, against a JSON
+ * file and against the `.po` catalogue Lingui writes by default (read through the GNU GetText plugin).
  */
 class LinguiTransHighlightingTest : PlatformBaseTest() {
 
@@ -52,9 +49,8 @@ class LinguiTransHighlightingTest : PlatformBaseTest() {
         myFixture.checkHighlighting(true, true, true, true)
     }
 
-    // GNU GetText plugin (org.jetbrains.plugins.localization) is not available for IntelliJ 243.x builds.
-    // These methods intentionally lack @Test so they are skipped by the JUnit 5 runner.
-    fun ignoredTestResolvedFromPoFile() = myFixture.runWithConfig(Config(defaultNs = "messages")) {
+    @Test
+    fun testResolvedFromPoFile() = myFixture.runWithConfig(Config(defaultNs = "messages")) {
         val tg = PoTranslationGenerator()
         addFileToProject(
             "en-US/LC_MESSAGES/messages.${tg.ext()}",
@@ -64,7 +60,8 @@ class LinguiTransHighlightingTest : PlatformBaseTest() {
         myFixture.checkHighlighting(true, true, true, true)
     }
 
-    fun ignoredTestUnresolvedKeyInPoFile() = myFixture.runWithConfig(Config(defaultNs = "messages")) {
+    @Test
+    fun testUnresolvedKeyInPoFile() = myFixture.runWithConfig(Config(defaultNs = "messages")) {
         val tg = PoTranslationGenerator()
         addFileToProject(
             "en-US/LC_MESSAGES/messages.${tg.ext()}",
@@ -74,6 +71,18 @@ class LinguiTransHighlightingTest : PlatformBaseTest() {
             "test.${cg.ext()}",
             cg.generate("""<error descr="Unresolved key">Hello world!</error>""")
         )
+        myFixture.checkHighlighting(true, true, true, true)
+    }
+
+    @Test
+    fun testNamedPlaceholderResolvedFromPoFile() = myFixture.runWithConfig(Config(defaultNs = "messages")) {
+        // Lingui catalogues this <Trans> under `Hello {name}!`: a simple identifier keeps its name.
+        val tg = PoTranslationGenerator()
+        addFileToProject(
+            "en-US/LC_MESSAGES/messages.${tg.ext()}",
+            tg.generateContent("Hello {name}!", "Bonjour {name} !")
+        )
+        myFixture.configureByText("test.${cg.ext()}", cg.generate("Hello {name}!"))
         myFixture.checkHighlighting(true, true, true, true)
     }
 }
