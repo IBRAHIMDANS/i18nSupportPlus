@@ -1,0 +1,29 @@
+{
+  "home": {
+    "title": "Exemple Vue I18n",
+    "greeting": "Bonjour {name} !"
+  },
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "switchLocale": "Changer de langue"
+  },
+  "cart": {
+    "items": "aucun article | un article | {count} articles"
+  },
+  "actions": {
+    "saveHint": "Cliquez sur @:common.save pour garder vos modifications"
+  },
+  "order": {
+    "title": "Votre commande",
+    "status": {
+      "paid": "Payée",
+      "shipped": "Expédiée",
+      "pending": "En attente"
+    }
+  },
+  "terms": {
+    "accept": "J'accepte les {link}",
+    "link": "conditions d'utilisation"
+  }
+}

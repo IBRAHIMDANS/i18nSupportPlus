@@ -1,0 +1,41 @@
+{
+  "Common": {
+    "appName": "next-intl example"
+  },
+  "Metadata": {
+    "title": "Home",
+    "description": "A manual testing target for i18n Support Plus."
+  },
+  "HomePage": {
+    "title": "Hello world!",
+    "greeting": "Welcome back, {name}!",
+    "visits": "{count, plural, =0 {First visit} one {# visit} other {# visits}}",
+    "links": {
+      "docs": "Documentation",
+      "source": "Source code"
+    },
+    "onlyInEnglish": "This sentence has no French translation yet."
+  },
+  "Cart": {
+    "title": "Your cart",
+    "items": "{count, plural, =0 {Your cart is empty} one {# item} other {# items}}",
+    "total": "Total: {amount} €",
+    "checkout": {
+      "button": {
+        "label": "Check out"
+      }
+    },
+    "saveForLater": "Save for later"
+  },
+  "Settings": {
+    "Privacy": {
+      "title": "Privacy",
+      "updatedBy": "Last changed by {user}",
+      "trackers": "{count, plural, one {# tracker blocked} other {# trackers blocked}}",
+      "cookies": {
+        "label": "Accept cookies",
+        "hint": "You can change this at any time."
+      }
+    }
+  }
+}

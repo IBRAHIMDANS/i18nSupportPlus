@@ -1,0 +1,22 @@
+{
+  "app": {
+    "title": "svelte-i18n example"
+  },
+  "greeting": "Hello {name}!",
+  "cart": {
+    "items": "{count, plural, =0 {Your cart is empty} one {There is one item in your cart} other {There are # items in your cart}}"
+  },
+  "nav": {
+    "home": "Home",
+    "settings": "Settings"
+  },
+  "user": {
+    "profile": {
+      "title": "User profile"
+    }
+  },
+  "locale": {
+    "switch": "Français"
+  },
+  "only_in_english": "Not translated yet"
+}

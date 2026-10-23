@@ -1,0 +1,38 @@
+{
+  "Common": {
+    "appName": "Exemple next-intl"
+  },
+  "Metadata": {
+    "title": "Accueil",
+    "description": "Une cible de test manuel pour i18n Support Plus."
+  },
+  "HomePage": {
+    "title": "Bonjour le monde !",
+    "greeting": "Bon retour, {name} !",
+    "visits": "{count, plural, =0 {Première visite} one {# visite} other {# visites}}",
+    "links": {
+      "docs": "Documentation",
+      "source": "Code source"
+    }
+  },
+  "Cart": {
+    "title": "Votre panier",
+    "items": "{count, plural, =0 {Votre panier est vide} one {# article} other {# articles}}",
+    "total": "Total : {amount} €",
+    "checkout": {
+      "button": {
+        "label": "Commander"
+      }
+    }
+  },
+  "Settings": {
+    "Privacy": {
+      "title": "Confidentialité",
+      "updatedBy": "Modifié en dernier par {user}",
+      "trackers": "{count, plural, one {# traceur bloqué} other {# traceurs bloqués}}",
+      "cookies": {
+        "label": "Accepter les cookies"
+      }
+    }
+  }
+}
