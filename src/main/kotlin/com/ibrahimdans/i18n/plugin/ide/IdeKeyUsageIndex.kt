@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide
 
+import com.ibrahimdans.i18n.IdeI18nRegistry
 import com.ibrahimdans.i18n.plugin.KeyUsage
 import com.ibrahimdans.i18n.plugin.KeyUsageIndex
 import com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages
@@ -8,6 +9,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.DynamicKeyUsages
 import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
+import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
 import com.ibrahimdans.i18n.plugin.utils.TextSpan
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
@@ -28,7 +30,7 @@ class IdeKeyUsageIndex(private val project: Project) : KeyUsageIndex {
         ReadAction.compute<List<KeyUsage>, RuntimeException> {
             val config = Settings.getInstance(project).config()
             val found = IndirectKeyUsages.textUsages(
-                key, config, config.searchScope(project), PsiSearchHelper.getInstance(project), FallbackNamespaces.of(project, config),
+                key, config, config.searchScope(project), PsiSearchHelper.getInstance(project), FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry),
             ) + IndirectKeyUsages.prefixedUsages(project, listOf(key), config)[key].orEmpty()
             found.mapNotNull(::usageOf)
         }
