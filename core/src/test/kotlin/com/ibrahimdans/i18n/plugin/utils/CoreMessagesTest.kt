@@ -22,7 +22,7 @@ class CoreMessagesTest {
             .toSet()
         assertTrue(used.isNotEmpty(), "no CoreMessages.message call found: the scan is broken")
 
-        for (bundle in listOf("CoreBundle.properties", "CoreBundle_fr.properties")) {
+        for (bundle in listOf("I18nCoreBundle.properties", "I18nCoreBundle_fr.properties")) {
             val missing = used - load(bundle).stringPropertyNames()
             assertTrue(missing.isEmpty(), "$bundle lacks $missing")
         }
@@ -31,8 +31,8 @@ class CoreMessagesTest {
     @Test
     fun `the French bundle covers exactly the base keys`() {
         assertEquals(
-            load("CoreBundle.properties").stringPropertyNames(),
-            load("CoreBundle_fr.properties").stringPropertyNames(),
+            load("I18nCoreBundle.properties").stringPropertyNames(),
+            load("I18nCoreBundle_fr.properties").stringPropertyNames(),
         )
     }
 

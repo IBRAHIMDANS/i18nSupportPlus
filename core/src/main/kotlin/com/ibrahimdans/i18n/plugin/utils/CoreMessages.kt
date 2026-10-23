@@ -4,7 +4,8 @@ import java.text.MessageFormat
 import java.util.Locale
 import java.util.ResourceBundle
 
-private const val BUNDLE = "messages.CoreBundle"
+// Not "messages.CoreBundle": the platform has one, and in a single class path ours would shadow it.
+private const val BUNDLE = "messages.I18nCoreBundle"
 
 /**
  * The user-visible strings of the code in `core`, which cannot reach the platform's
@@ -14,7 +15,7 @@ private const val BUNDLE = "messages.CoreBundle"
  * a language pack changes the latter only — so the plugin points [locale] at the IDE's one,
  * and a French IDE gets the codecs' errors in French as well.
  *
- * A locale without its own file falls back to the base `CoreBundle.properties`, never to the
+ * A locale without its own file falls back to the base `I18nCoreBundle.properties`, never to the
  * JVM's locale: an English IDE on a French JVM stays in English, as `DynamicBundle` does.
  */
 object CoreMessages {
