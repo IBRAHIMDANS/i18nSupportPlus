@@ -34,9 +34,9 @@
 - [Internal] Key resolution runs on a platform-free `KeyContext` in `core`; `RawKeyParser` builds it — no behaviour change
 - [Internal] The HTTP translation engines, the DeepL glossary and the engine presets move to `core`; the plugin passes in the IDE's HTTP transport — no behaviour change
 - [Internal] Key resolution (`CompositeKeyResolver`, plural groups, locale naming) works on any `Tree<N>` through a platform-free `TranslationSource` in `core`, including the PSI-free parsed trees — no behaviour change
-- [Internal] A platform-free `KeyUsageIndex` in `core`, implemented on the IDE's word index by `IdeKeyUsageIndex`, gathers the direct, hook-prefixed and dynamic key usages; no caller uses it yet — no behaviour change
+- [Internal] A platform-free `KeyUsageIndex` in `core`, implemented on the IDE's word index by `IdeKeyUsageIndex`, gathers the direct, hook-prefixed and dynamic key usages, one key or a batch at a time; the tool window table's *Usage* column now reads it in one batch, with the same orphan rules — no behaviour change
 - [Internal] The tool window's coverage statistics, key tree, key spelling, namespace filter and locale progress are computed in `core` from plain data — no behaviour change
-- [Internal] `core` writes translation keys as text edits (`TranslationEditor`: insert, rename, delete and sort in JSON and YAML); not wired into the plugin yet — no behaviour change
+- [Internal] `core` writes translation keys as text edits (`TranslationEditor`: insert, rename, delete and sort in JSON and YAML); not wired into the plugin yet; a YAML key inserted after a line ending in a comment no longer takes that comment — no behaviour change
 - [Internal] A parser-neutral `CodeNode` in `core`, with a PSI adapter, lets `Lang` and `KeyExtractor` read keys without the PSI; the existing extractors are unchanged — no behaviour change
 - [Internal] Tree-sitter spike for reading `t('…')` outside the IDE: decision note in `docs/spikes/2026-10-22-tree-sitter.md` (JNI binding on the JVM, behind `CodeNode`) and a throwaway prototype in `spike/tree-sitter/`, outside the build
 - [Internal] A separate `core-treesitter` module reads i18next / react-i18next keys with tree-sitter, outside the IDE: `t('…')`, `i18n.t`, templates, `{ ns }`, `useTranslation(ns, { keyPrefix })` and `<Trans i18nKey>`; the plugin does not ship it — no behaviour change

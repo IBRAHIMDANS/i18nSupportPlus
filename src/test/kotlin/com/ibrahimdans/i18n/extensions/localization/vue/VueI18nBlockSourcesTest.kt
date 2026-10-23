@@ -2,10 +2,14 @@ package com.ibrahimdans.i18n.extensions.localization.vue
 
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.key.FullKey
+import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.service
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -38,6 +42,23 @@ class VueI18nBlockSourcesTest : PlatformBaseTest() {
         assertEquals(listOf("en", "fr"), sources.map { it.locale })
         val en = sources.first()
         assertNotNull(ReadAction.compute<Any?, RuntimeException> { en.tree?.findChild("hello") })
+    }
+
+    /**
+     * A source's tree starts at its locale, below the block's root: a key created in `en` lands
+     * under `"en"`, never beside the locales.
+     */
+    @Test
+    fun aKeyCreatedInALocaleLandsUnderIt() {
+        val en = sourcesFor(keyIn("Greeting.vue", component, "hello")).first { it.displayPath.contains("#i18n") && it.locale == "en" }
+        val root = ReadAction.compute<PsiElement, RuntimeException> { en.tree!!.value() }
+        WriteCommandAction.runWriteCommandAction(project) {
+            en.localization.contentGenerator().generate(root, FullKey("bye", null, listOf(Literal("bye"))), listOf(Literal("bye")), "Bye")
+        }
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+        val text = myFixture.file.text
+        assertTrue(Regex(""""en":\s*\{[^}]*"bye"""").containsMatchIn(text), text)
+        assertTrue(Regex(""""fr":\s*\{[^}]*"bye"""").containsMatchIn(text).not(), text)
     }
 
     @Test
