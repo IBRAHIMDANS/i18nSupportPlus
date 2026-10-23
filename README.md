@@ -263,6 +263,18 @@ cli/build/install/i18n-check/bin/i18n-check [project] [--locales <dir> | --code]
 
 - `project` (the current directory by default) is searched for translation files as the plugin finds them: a folder or file named after a locale (`locales/en/common.json`, `i18n/fr.yml`), keys of a namespace file reported as `common:key`. `node_modules`, `build`, `dist` and the like are never searched.
 - `.idea/i18nSettings.xml`, when the project has one, applies: the translations root, the excluded folders, the default namespaces, the ignored locales (left out of the report), the reference locale (the module's, then the preview locale, then `en`), the key and namespace separators, and the modules — with several, each is checked on its own, with its own reference locale. `--reference` overrides it; `en` also finds `en-US`.
+- `i18n-check.json`, at the project's root, takes the place of `.idea/i18nSettings.xml` for a project that keeps `.idea/` out of version control; when both exist, it wins and the XML is not read. It takes the names of the IDE's settings, and fails the check (exit `2`) on a name it does not know:
+
+  ```json
+  {
+    "translationsRoot": "src/locales",
+    "keySeparator": ".",
+    "ignoredLocales": "xx",
+    "modules": [{ "name": "web", "rootDirectory": "apps/web/locales", "referenceLocale": "fr" }]
+  }
+  ```
+
+  Settings: `translationsRoot`, `excludedDirectories`, `defaultNs`, `fallbackNs`, `ignoredLocales`, `previewLocale`, `foldingPreferredLanguage`, `nsSeparator`, `keySeparator`, `flatKeys`, `gettext`; per module: `name`, `rootDirectory`, `pathTemplate`, `fileTemplate`, `referenceLocale`.
 - `--locales <dir>` checks only that directory: a file per locale (`en.json`, `fr.yml`) or a folder per locale with a file per namespace (`en/common.json`); other files are left alone.
 - For each locale, it reports the keys **missing** compared to the reference, the **orphan** keys the reference does not hold, and the **empty** values. Plural keys (`item_one`, `item_other`) are checked against the forms each language needs: `ja` only `item_other`, `ru` also `item_few` and `item_many`.
 - `--code`, for i18next and react-i18next projects, also reads the JavaScript and TypeScript files (`t('key')`, `useTranslation`, `<Trans i18nKey>`) and reports the **unused** keys of the reference locale — a key a template literal may build, such as `` t(`status.${kind}`) `` for `status.*`, is not one — and the **unknown** keys, called by the code but absent from the reference locale, with their file and line.
