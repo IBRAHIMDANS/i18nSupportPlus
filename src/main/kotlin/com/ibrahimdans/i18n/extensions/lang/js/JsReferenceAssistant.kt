@@ -1,7 +1,9 @@
 package com.ibrahimdans.i18n.extensions.lang.js
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.extensions.lang.js.extractors.DefineMessagesExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.LiteralKeyExtractor
+import com.ibrahimdans.i18n.extensions.lang.js.extractors.ReactIntlExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.ReactUseTranslationHookExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.TemplateKeyExtractor
 import com.ibrahimdans.i18n.plugin.factory.ReferenceAssistant
@@ -51,6 +53,13 @@ internal class JsReferenceAssistant: ReferenceAssistant {
                 .filter { it.isNotBlank() }
                 .toSet()
         }
+
+        /**
+         * react-intl's descriptor `id`s — `formatMessage({ id })`, `defineMessages` / `defineMessage`.
+         * Annotated, but matched by no call pattern below: the key is a property of an object
+         * argument, not the argument itself, so they carried no reference.
+         */
+        private val REACT_INTL_EXTRACTORS = listOf(ReactIntlExtractor(), DefineMessagesExtractor())
     }
 
     private fun isDirectOrConfiguredCall(element: PsiElement): Boolean =
@@ -89,13 +98,13 @@ internal class JsReferenceAssistant: ReferenceAssistant {
             override fun accepts(o: Any?): Boolean {
                 return JSPatterns.jsLiteralExpression().accepts(o) && isAlias(o as JSLiteralExpression)
                     || (v.accepts(o) && (o !is PsiElement || isDirectOrConfiguredCall(o)))
-                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o)))
+                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o) || isReactIntlId(o)))
             }
 
             override fun accepts(o: Any?, context: ProcessingContext?): Boolean {
                 return JSPatterns.jsLiteralExpression().accepts(o) && isAlias(o as JSLiteralExpression)
                     || (v.accepts(o, context) && (o !is PsiElement || isDirectOrConfiguredCall(o)))
-                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o)))
+                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o) || isReactIntlId(o)))
             }
 
             override fun getCondition(): ElementPatternCondition<PsiElement>? {
@@ -104,13 +113,16 @@ internal class JsReferenceAssistant: ReferenceAssistant {
         }
 
 
+    private fun isReactIntlId(element: PsiElement): Boolean = activeExtractorOf(REACT_INTL_EXTRACTORS, element) != null
+
     /** Parsed like the annotator parses it — a module's key template included — so both agree on the key. */
-    override fun extractKey(element: PsiElement): FullKey? =
-        listOf(
+    override fun extractKey(element: PsiElement): FullKey? {
+        val extractor = activeExtractorOf(REACT_INTL_EXTRACTORS, element)
+            ?: listOf(
                 ReactUseTranslationHookExtractor(),
                 TemplateKeyExtractor(),
                 LiteralKeyExtractor()
-        )
-            .find {it.canExtract(element)}
-            ?.let { RawKeyParser(element.project).parse(it.extract(element), element) }
+            ).find { it.canExtract(element) }
+        return extractor?.let { RawKeyParser(element.project).parse(it.extract(element), element) }
+    }
 }
