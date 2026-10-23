@@ -94,8 +94,9 @@ internal class OrphanKeyDeleter(
                 val properties = sourcesByKey.flatMap { (fullKey, sources) ->
                     sources.mapNotNull { source ->
                         val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@mapNotNull null
-                        if (ref.unresolved.isNotEmpty() || ref.element == null) return@mapNotNull null
-                        TranslationPsi.propertyOf(ref.element.value())
+                        val element = ref.element
+                        if (ref.unresolved.isNotEmpty() || element == null) return@mapNotNull null
+                        TranslationPsi.propertyOf(element.value())
                     }
                 }
                 val reviews = ReviewMigration.spotsOf(properties)

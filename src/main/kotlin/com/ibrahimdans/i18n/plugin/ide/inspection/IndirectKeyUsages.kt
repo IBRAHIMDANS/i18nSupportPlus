@@ -37,6 +37,32 @@ internal object IndirectKeyUsages {
         searchHelper: PsiSearchHelper,
         fallbacks: List<String> = emptyList(),
     ): Int {
+        val (calls, linked) = textSearch(key, config, searchScope, searchHelper, fallbacks)
+        // Distinct, because the same call site is reported once per word searched: a key
+        // carrying a namespace matches both `navigation:menu.profile` and `menu.profile`,
+        // and counting it twice inflated every usage of every prefixed key.
+        return calls.distinct().size + linked.size
+    }
+
+    /** The elements [textCount] counts: the call sites naming [key], then the values linking to it. */
+    fun textUsages(
+        key: String,
+        config: Config,
+        searchScope: GlobalSearchScope,
+        searchHelper: PsiSearchHelper,
+        fallbacks: List<String> = emptyList(),
+    ): Set<PsiElement> {
+        val (calls, linked) = textSearch(key, config, searchScope, searchHelper, fallbacks)
+        return calls.toSet() + linked
+    }
+
+    private fun textSearch(
+        key: String,
+        config: Config,
+        searchScope: GlobalSearchScope,
+        searchHelper: PsiSearchHelper,
+        fallbacks: List<String>,
+    ): Pair<Collection<PsiElement>, Set<PsiElement>> {
         val query = usageQuery(key, config.pluralSeparator)
         val accumulator = ReferencesAccumulator(
             query.bareKey,
@@ -58,10 +84,7 @@ internal object IndirectKeyUsages {
                 searchScope, word, UsageSearchContext.ANY, true
             )
         }
-        // Distinct, because the same call site is reported once per word searched: a key
-        // carrying a namespace matches both `navigation:menu.profile` and `menu.profile`,
-        // and counting it twice inflated every usage of every prefixed key.
-        return accumulator.entries().distinct().size + linked.size
+        return accumulator.entries() to linked
     }
 
     /**
@@ -76,7 +99,11 @@ internal object IndirectKeyUsages {
      * works in this key's namespace. Literals without a prefix are left to the text scan, which
      * already counted them ([textCount]): counting them here too would double every usage.
      */
-    fun prefixedCounts(project: Project, keys: List<String>, config: Config): Map<String, Int> {
+    fun prefixedCounts(project: Project, keys: List<String>, config: Config): Map<String, Int> =
+        prefixedUsages(project, keys, config).mapValues { it.value.size }
+
+    /** The literals [prefixedCounts] counts, keyed the same way. */
+    fun prefixedUsages(project: Project, keys: List<String>, config: Config): Map<String, Set<PsiElement>> {
         if (keys.isEmpty()) return emptyMap()
         val defaultNamespaces = config.defaultNamespaces()
         val languages = Extensions.LANG.extensionList
@@ -118,7 +145,7 @@ internal object IndirectKeyUsages {
                 true
             )
         }
-        return found.mapValues { it.value.size }
+        return found
     }
 
     /**

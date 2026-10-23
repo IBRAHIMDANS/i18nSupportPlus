@@ -15,12 +15,27 @@
 ### Refactoring
 
 - [Internal] A `core` Gradle module holds the code that needs no IntelliJ Platform: 28 files (keys, plurals, ICU rendering, layout presets, module templates, What's New, key rules…) and their 16 unit test classes, which now run without starting the platform (`./gradlew :core:test`). The module declares no platform dependency, so a `com.intellij` import there fails the build; the plugin ships it as `lib/core.jar` — no behaviour change
+- [Internal] The key parser — `FullKey`, the tokenizer, `KeyParser` and the key normalizers — moves to `core`; the plugin passes in the completion placeholder it used to read itself — no behaviour change
+- [Internal] `Config`, `KeyOrder`, `KeepList` and `SetupNeedDetector` move to `core`; the search scope a configuration implies becomes a plugin-side extension — no behaviour change
+- [Internal] Placeholder detection (`MessagePlaceholders`) and `PlaceholderMask` move to `core`, one regex for the dialog and machine translation — no behaviour change
+- [Internal] The CSV and XLIFF codecs move to `core` with their own error messages, in English and French, still following the IDE language — no behaviour change
+- [Internal] Machine translation is cancelled through a platform-free `Cancellation`; `TranslationProvider` moves to `core`, with an HTTP transport on the JDK client for use outside the IDE — no behaviour change
 - [Internal] `core` reads JSON and YAML translation files without the PSI (`JsonTranslationTree`, `YamlTranslationTree` on jackson-core and snakeyaml-engine, both provided by the platform), keys, values and their offsets; a test checks they agree with the PSI trees on every fixture — not used by the plugin yet, no behaviour change
 - [Internal] Placeholder detection (`MessagePlaceholders`) and `PlaceholderMask` move to `core`, one regex for the dialog and machine translation — no behaviour change
 - [Internal] The key parser — `FullKey`, the tokenizer, `KeyParser` and the key normalizers — moves to `core`; the plugin passes in the completion placeholder it used to read itself — no behaviour change
 - [Internal] Machine translation is cancelled through a platform-free `Cancellation`; `TranslationProvider` moves to `core`, with an HTTP transport on the JDK client for use outside the IDE — no behaviour change
 - [Internal] `Config`, `KeyOrder`, `KeepList` and `SetupNeedDetector` move to `core`; the search scope a configuration implies becomes a plugin-side extension — no behaviour change
 - [Internal] The CSV and XLIFF codecs move to `core` with their own error messages, in English and French, still following the IDE language — no behaviour change
+- [Internal] Locale detection and the setup wizard's logic move to `core` — no behaviour change
+- [Internal] Key ranges are computed on a platform-free `TextSpan` in `core` — no behaviour change
+- [Internal] Key resolution runs on a platform-free `KeyContext` in `core`; `RawKeyParser` builds it — no behaviour change
+- [Internal] The HTTP translation engines, the DeepL glossary and the engine presets move to `core`; the plugin passes in the IDE's HTTP transport — no behaviour change
+- [Internal] Key resolution (`CompositeKeyResolver`, plural groups, locale naming) works on any `Tree<N>` through a platform-free `TranslationSource` in `core`, including the PSI-free parsed trees — no behaviour change
+- [Internal] A platform-free `KeyUsageIndex` in `core`, implemented on the IDE's word index by `IdeKeyUsageIndex`, gathers the direct, hook-prefixed and dynamic key usages; no caller uses it yet — no behaviour change
+- [Internal] The tool window's coverage statistics, key tree, key spelling, namespace filter and locale progress are computed in `core` from plain data — no behaviour change
+- [Internal] `core` writes translation keys as text edits (`TranslationEditor`: insert, rename, delete and sort in JSON and YAML); not wired into the plugin yet — no behaviour change
+- [Internal] A parser-neutral `CodeNode` in `core`, with a PSI adapter, lets `Lang` and `KeyExtractor` read keys without the PSI; the existing extractors are unchanged — no behaviour change
+- [Internal] Tree-sitter spike for reading `t('…')` outside the IDE: decision note in `docs/spikes/2026-10-22-tree-sitter.md` (JNI binding on the JVM, behind `CodeNode`) and a throwaway prototype in `spike/tree-sitter/`, outside the build
 
 ## 1.15.0 - 2026-10-18
 

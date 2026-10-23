@@ -59,7 +59,7 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
     private fun annotateI18nLiteral(fullKey: FullKey, element: PsiElement, holder: AnnotationHolder, config: Config) {
         val annotationHelper = AnnotationHelper(
             holder,
-            KeyRangesCalculator(element.textRange.shiftRight(element.text.unQuote().indexOf(fullKey.source)), element.text.isQuoted()),
+            KeyRangesCalculator(element.textRange.shiftRight(element.text.unQuote().indexOf(fullKey.source)).toTextSpan(), element.text.isQuoted()),
         )
         val sourceService = element.project.service<LocalizationSourceService>()
         val files = sourceService.findReadSources(fullKey, element)

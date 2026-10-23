@@ -18,6 +18,7 @@ import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.RangesCalculator
+import com.ibrahimdans.i18n.plugin.utils.TextSpan
 import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
 import com.intellij.codeInsight.intention.IntentionAction
 import com.intellij.codeInsight.intention.LowPriorityAction
@@ -29,6 +30,8 @@ import com.intellij.openapi.editor.DefaultLanguageHighlighterColors
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.TextRange
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.xml.util.XmlStringUtil
 
@@ -46,7 +49,7 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
     fun annotateResolved(fullKey: FullKey) {
         holder
             .newAnnotation(infoSeverity, "")
-            .range(rangesCalculator.compositeKeyFullBounds(fullKey))
+            .range(rangesCalculator.compositeKeyFullBounds(fullKey).toTextRange())
             .textAttributes(DefaultLanguageHighlighterColors.LINE_COMMENT)
             .create()
     }
@@ -57,7 +60,7 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
     fun annotateReferenceToObject(fullKey: FullKey) {
         holder
             .newAnnotation(errorSeverity, PluginBundle.getMessage("annotator.object.reference"))
-            .range(rangesCalculator.compositeKeyFullBounds(fullKey))
+            .range(rangesCalculator.compositeKeyFullBounds(fullKey).toTextRange())
             .create()
     }
 
@@ -68,7 +71,7 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
         val message = PluginBundle.getMessage("annotator.unresolved.ns")
         val builder = holder
             .newAnnotation(errorSeverity, message)
-            .range(rangesCalculator.unresolvedNs(fullKey))
+            .range(rangesCalculator.unresolvedNs(fullKey).toTextRange())
             .explained(message, fullKey, null)
         Extensions.LOCALIZATION.extensionList.forEach {
             builder.withFix(CreateTranslationFileQuickFix(fullKey, it.contentGenerator(), ns.text))
@@ -83,7 +86,7 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
         val message = PluginBundle.getMessage("annotator.missing.default.ns")
         holder
             .newAnnotation(errorSeverity, message)
-            .range(rangesCalculator.compositeKeyFullBounds(fullKey))
+            .range(rangesCalculator.compositeKeyFullBounds(fullKey).toTextRange())
             .explained(message, fullKey, null)
             .create()
     }
@@ -91,11 +94,11 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
     /**
      * Annotates unresolved composite key
      */
-    fun unresolvedKey(fullKey: FullKey, mostResolvedReference: PropertyReference) {
+    fun unresolvedKey(fullKey: FullKey, mostResolvedReference: PropertyReference<PsiElement>) {
         val message = PluginBundle.getMessage("annotator.unresolved.key")
         val builder = holder
             .newAnnotation(errorSeverity, message)
-            .range(rangesCalculator.unresolvedKey(fullKey, mostResolvedReference.path))
+            .range(rangesCalculator.unresolvedKey(fullKey, mostResolvedReference.path).toTextRange())
             .explained(message, fullKey, mostResolvedReference)
         // A key with a runtime segment names no property to create: the fix would write the
         // `${…}` text as a property name. One fix, one dialog: it shows every locale, so a
@@ -109,11 +112,11 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
     /**
      * Annotates partially translated key and creates quick fix for it.
      */
-    fun annotatePartiallyTranslated(fullKey: FullKey, references: List<PropertyReference>) {
+    fun annotatePartiallyTranslated(fullKey: FullKey, references: List<PropertyReference<PsiElement>>) {
         references.minByOrNull { it.path.size }?.let {
             val builder = holder
                 .newAnnotation(errorSeverity, PluginBundle.getMessage("annotator.partially.translated"))
-                .range(rangesCalculator.unresolvedKey(fullKey, it.path))
+                .range(rangesCalculator.unresolvedKey(fullKey, it.path).toTextRange())
             builder.withFix(CreateMissingKeysQuickFix(fullKey, references, PluginBundle.getMessage("quickfix.create.missing.keys")))
             builder.create()
         }
@@ -127,7 +130,7 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
      * `codeInsight.linkHandler` registered by the plugin, while the fix shows in the tooltip's
      * actions and under Alt+Enter with nothing to declare.
      */
-    private fun AnnotationBuilder.explained(message: String, fullKey: FullKey, reference: PropertyReference?): AnnotationBuilder {
+    private fun AnnotationBuilder.explained(message: String, fullKey: FullKey, reference: PropertyReference<PsiElement>?): AnnotationBuilder {
         val lines = diagnose(fullKey, holder.currentAnnotationSession.file, reference).explain()
         val html = (listOf(message) + lines).joinToString("<br/>") { XmlStringUtil.escapeString(it) }
         return tooltip(XmlStringUtil.wrapInHtml(html)).withFix(OpenSettingsFix())
@@ -138,7 +141,7 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
      * [LocalizationSourceService] calls, for the file the key is written in — so the tooltip
      * explains that lookup rather than a copy of it.
      */
-    private fun diagnose(fullKey: FullKey, file: PsiFile, reference: PropertyReference?): KeyDiagnosis {
+    private fun diagnose(fullKey: FullKey, file: PsiFile, reference: PropertyReference<PsiElement>?): KeyDiagnosis {
         val project = file.project
         val config = Settings.getInstance(project).config()
         val basePath = project.basePath ?: ""
@@ -197,3 +200,9 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
         }
     }
 }
+
+/** [TextSpan] as the platform's range, for an annotation. */
+internal fun TextSpan.toTextRange(): TextRange = TextRange(start, end)
+
+/** The platform's range as a [TextSpan], for [com.ibrahimdans.i18n.plugin.utils.RangesCalculator]. */
+internal fun TextRange.toTextSpan(): TextSpan = TextSpan(startOffset, endOffset)

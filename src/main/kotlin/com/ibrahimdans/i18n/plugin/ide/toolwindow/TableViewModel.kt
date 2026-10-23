@@ -40,59 +40,15 @@ import java.util.concurrent.ConcurrentHashMap
 data class TranslationRow(val key: String, val values: Map<String, String>, val usageCount: Int = -1)
 
 /**
- * What the namespace combo filters on.
- *
- * The identity of an entry is the type, never the text shown for it. Both used to be the same
- * `String`: [All] was the translated label `toolwindow.table.namespace.all`, compared with `==`
- * to decide whether to filter at all, and [Default] was the literal `"(default)"` — displayed
- * untranslated in a tool window #177 had otherwise localized, and impossible to translate without
- * breaking the comparison that read it back. A project owning a namespace named like either label
- * hit the same collision from the other side.
+ * The text shown for this filter under [config], for keys read from [sources]. Only
+ * [NamespaceFilter.Default] cares: where every source is one file per locale (Paraglide's
+ * `messages/en.json`, next-intl, vue-i18n's `locales/en.json`), no key has a namespace, and
+ * naming the configured default — `translation (default)` — pointed at a setting the project
+ * never uses.
  */
-sealed interface NamespaceFilter {
-
-    /** The text shown in the combo. Never compared against anything. */
-    val label: String
-
-    /**
-     * The text shown for this filter under [config]. Only [Default] cares: its keys are the
-     * ones the loader stripped of their prefix because it belongs to a default namespace, so
-     * when the configuration names exactly one, the group can say which — `common (default)`
-     * rather than a bare `(default)` a reader looking for `common` never matched with it.
-     */
-    fun label(config: Config): String = label
-
-    /**
-     * The text shown for this filter under [config], for keys read from [sources]. Only [Default]
-     * cares: where every source is one file per locale (Paraglide's `messages/en.json`, next-intl,
-     * vue-i18n's `locales/en.json`), no key has a namespace, and naming the configured default —
-     * `translation (default)` — pointed at a setting the project never uses.
-     */
-    fun label(config: Config, sources: List<LocalizationSource>): String = label(config)
-
-    /** Every namespace, i.e. no filtering. */
-    data object All : NamespaceFilter {
-        override val label: String get() = PluginBundle.message("toolwindow.table.namespace.all")
-    }
-
-    /** Keys carrying no namespace prefix at all. */
-    data object Default : NamespaceFilter {
-        override val label: String get() = PluginBundle.message("toolwindow.table.namespace.default")
-
-        override fun label(config: Config): String =
-            config.defaultNamespaces().singleOrNull()
-                ?.let { PluginBundle.message("toolwindow.table.namespace.default.named", it) }
-                ?: label
-
-        override fun label(config: Config, sources: List<LocalizationSource>): String =
-            if (carriesNamespaces(sources)) label(config) else PluginBundle.message("toolwindow.table.namespace.none")
-    }
-
-    /** One named namespace, the part of a key before its `:`. */
-    data class Named(val name: String) : NamespaceFilter {
-        override val label: String get() = name
-    }
-}
+fun NamespaceFilter.label(config: Config, sources: List<LocalizationSource>): String =
+    if (this == NamespaceFilter.Default && !carriesNamespaces(sources)) PluginBundle.message("toolwindow.table.namespace.none")
+    else label(config)
 
 /**
  * False only when every source of [sources] is a file named after its locale alone; no source at all

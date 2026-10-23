@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.ide.wizard.AbstractWizard
 import com.intellij.ide.wizard.CommitStepException
@@ -320,7 +321,10 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
             WizardPlan.Field.GETTEXT -> settings.gettext == defaults.gettext
             WizardPlan.Field.FLAT_KEYS -> settings.flatKeys == defaults.flatKeys
             WizardPlan.Field.PREFERRED_LOCALIZATION ->
-                WizardSettingsDeducer.isUntouchedPreferredLocalization(settings.preferredLocalization)
+                WizardSettingsDeducer.isUntouchedPreferredLocalization(
+                    settings.preferredLocalization,
+                    Extensions.LOCALIZATION.extensionList.firstOrNull()?.config()?.id(),
+                )
         }
 
         /** What the form says should be stored — nothing is re-derived at this point. */

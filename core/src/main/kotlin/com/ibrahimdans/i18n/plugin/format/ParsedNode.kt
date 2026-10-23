@@ -35,6 +35,9 @@ abstract class ParsedNodeTree(
 
     override fun entries(): List<Pair<String, ParsedNodeTree>> = listed().map { it.name() to it }
 
+    /** Every child in source order, those a format leaves out of [entries] included; none for a leaf. */
+    fun children(): List<ParsedNodeTree> = children.orEmpty()
+
     /** The children [findChildren] and [entries] list: all of them unless a format leaves some out. */
     protected open fun listed(): List<ParsedNodeTree> = children.orEmpty()
 
