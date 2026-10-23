@@ -48,6 +48,7 @@
 ### Documentation
 
 - [Examples] **Four new example projects to try the plugin on**: `examples/vue-i18n` (global messages, `<i18n>` blocks in JSON and YAML, `useI18n`), `examples/next-intl` (`useTranslations` and `getTranslations` under namespaces), `examples/svelte-i18n` (`$_` in `.svelte` files) and `examples/laravel` (PHP arrays, `__()` and Blade). Each README lists the cases placed on purpose and the manual checks to run in the IDE
+- [Examples] **Three more example projects**: `examples/angular-transloco` (two small apps: Transloco with a scope, pipe and `*transloco`, and ngx-translate with pipe and service), `examples/react-intl` (`<FormattedMessage>`, `formatMessage`, `defineMessages`, ICU plurals) and `examples/lingui` (`<Trans>`, `i18n._`, `msg({ id })` on PO catalogues). Each README lists what the plugin does not cover yet for that library
 
 ## 1.15.0 - 2026-10-18
 

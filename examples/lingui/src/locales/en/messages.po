@@ -1,0 +1,37 @@
+msgid ""
+msgstr ""
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: @lingui/cli\n"
+"Language: en\n"
+
+#. js-lingui-explicit-id
+msgid "about.beta"
+msgstr "This page is still in beta."
+
+#. js-lingui-explicit-id
+msgid "app.greeting"
+msgstr "Hello {name}!"
+
+#. js-lingui-explicit-id
+msgid "cart.items"
+msgstr "{count, plural, one {# item in your cart} other {# items in your cart}}"
+
+msgid "Hello world!"
+msgstr "Hello world!"
+
+#. js-lingui-explicit-id
+msgid "nav.home"
+msgstr "Home"
+
+#. js-lingui-explicit-id
+msgid "nav.settings"
+msgstr "Settings"
+
+#. js-lingui-explicit-id
+msgid "user.profile.title"
+msgstr "User profile"
+
+msgid "Your total is {0}"
+msgstr "Your total is {0}"

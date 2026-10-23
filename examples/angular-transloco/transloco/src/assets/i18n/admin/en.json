@@ -1,0 +1,10 @@
+{
+  "title": "Administration",
+  "users": {
+    "count": "{{count}} registered users"
+  },
+  "save": "Save",
+  "saveAnonymously": "Save anonymously",
+  "saved": "Changes saved by {{name}}.",
+  "onlyInEnglish": "The audit log is only available in English."
+}

@@ -1,0 +1,14 @@
+{
+  "home": {
+    "title": "Transloco example",
+    "greeting": "Hello, {{name}}!",
+    "onlyInEnglish": "This sentence has no French translation yet."
+  },
+  "menu": {
+    "home": "Home",
+    "settings": {
+      "title": "Settings",
+      "language": "Switch language"
+    }
+  }
+}

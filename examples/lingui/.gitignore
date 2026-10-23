@@ -1,0 +1,6 @@
+node_modules
+dist
+# Written by `lingui compile`, which this project does not need: the Vite plugin compiles the
+# catalogues on import. Left in place, they would be read as catalogues next to messages.po.
+src/locales/*/messages.js
+src/locales/*/messages.ts

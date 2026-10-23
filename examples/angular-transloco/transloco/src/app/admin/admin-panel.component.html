@@ -1,0 +1,15 @@
+<section *transloco="let t; read: 'admin'">
+  <h2>{{ t('title') }}</h2>
+  <p>{{ t('users.count', { count: userCount }) }}</p>
+  <p>{{ t('onlyInEnglish') }}</p>
+  <!-- On purpose: the scope file holds no such key. -->
+  <p>{{ t('doesNotExist') }}</p>
+  <button type="button" (click)="save()">{{ t('save') }}</button>
+  <button type="button" (click)="saveAnonymously()">{{ t('saveAnonymously') }}</button>
+  <p>{{ status() }}</p>
+</section>
+
+<!-- No `read` here: a key of the scope is written in full, next to a global key. -->
+<footer *transloco="let t">
+  <small>{{ t('admin.title') }} · {{ t('menu.home') }}</small>
+</footer>

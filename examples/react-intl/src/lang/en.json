@@ -1,0 +1,12 @@
+{
+  "app.title": "react-intl example",
+  "home.greeting": "Hello {name}!",
+  "home.welcome": "Welcome back!",
+  "home.only_in_english": "Not translated yet",
+  "cart.summary": "{count, plural, one {# item in your cart} other {# items in your cart}}",
+  "cart.checkout": "Checkout",
+  "profile.header.title": "User profile",
+  "orders.status.paid": "Your order is paid",
+  "orders.status.pending": "Your order is pending",
+  "orders.status.refunded": "Your order was refunded"
+}

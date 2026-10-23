@@ -1,0 +1,21 @@
+<header>
+  <h1>{{ 'home.title' | translate }}</h1>
+  <p>{{ 'home.greeting' | translate: { name: userName } }}</p>
+</header>
+
+<nav>
+  <a href="#">{{ 'menu.home' | translate }}</a>
+  <a href="#">{{ 'menu.settings.title' | translate }}</a>
+  <button type="button" (click)="toggleLanguage()">{{ 'menu.settings.language' | translate }}</button>
+</nav>
+
+<p>{{ 'home.onlyInEnglish' | translate }}</p>
+<!-- On purpose: no locale file holds this key. -->
+<p>{{ 'home.doesNotExist' | translate }}</p>
+
+<section>
+  <button type="button" (click)="checkout()">{{ 'cart.checkout' | translate }}</button>
+  <button type="button" (click)="clearCart()">{{ 'cart.clear' | translate }}</button>
+  <button type="button" (click)="greetAnonymously()">{{ 'home.greetAnonymously' | translate }}</button>
+  <p>{{ status() }}</p>
+</section>

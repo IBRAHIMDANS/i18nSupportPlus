@@ -1,0 +1,4 @@
+node_modules
+dist
+# Written by the sandbox IDE (`./gradlew runIde`), settings of the plugin included.
+.idea

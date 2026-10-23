@@ -1,0 +1,9 @@
+{
+  "title": "Administration",
+  "users": {
+    "count": "{{count}} utilisateurs inscrits"
+  },
+  "save": "Enregistrer",
+  "saveAnonymously": "Enregistrer anonymement",
+  "saved": "Modifications enregistrées par {{name}}."
+}

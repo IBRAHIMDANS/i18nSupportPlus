@@ -1,0 +1,18 @@
+<header>
+  <h1>{{ 'home.title' | transloco }}</h1>
+  <p>{{ 'home.greeting' | transloco: { name: userName } }}</p>
+</header>
+
+<ng-container *transloco="let t">
+  <nav>
+    <a href="#">{{ t('menu.home') }}</a>
+    <a href="#">{{ t('menu.settings.title') }}</a>
+    <button type="button" (click)="toggleLanguage()">{{ t('menu.settings.language') }}</button>
+  </nav>
+  <p>{{ t('home.onlyInEnglish') }}</p>
+</ng-container>
+
+<!-- On purpose: no locale file holds this key. -->
+<p>{{ 'home.doesNotExist' | transloco }}</p>
+
+<app-admin-panel />

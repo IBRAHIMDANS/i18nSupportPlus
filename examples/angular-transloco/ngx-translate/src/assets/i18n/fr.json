@@ -1,0 +1,20 @@
+{
+  "home": {
+    "title": "Exemple ngx-translate",
+    "greetAnonymously": "Saluer anonymement",
+    "greeting": "Bonjour, {{name}} !"
+  },
+  "menu": {
+    "home": "Accueil",
+    "settings": {
+      "title": "Paramètres",
+      "language": "Changer de langue"
+    }
+  },
+  "cart": {
+    "checkout": "Commander",
+    "summary": "{{count}} articles dans votre panier",
+    "clear": "Vider le panier",
+    "cleared": "Votre panier est vide."
+  }
+}

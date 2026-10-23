@@ -1,0 +1,21 @@
+{
+  "home": {
+    "title": "ngx-translate example",
+    "greetAnonymously": "Greet anonymously",
+    "greeting": "Hello, {{name}}!",
+    "onlyInEnglish": "This sentence has no French translation yet."
+  },
+  "menu": {
+    "home": "Home",
+    "settings": {
+      "title": "Settings",
+      "language": "Switch language"
+    }
+  },
+  "cart": {
+    "checkout": "Check out",
+    "summary": "{{count}} items in your cart",
+    "clear": "Empty the cart",
+    "cleared": "Your cart is empty."
+  }
+}
