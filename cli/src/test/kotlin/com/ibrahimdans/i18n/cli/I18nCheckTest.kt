@@ -4,8 +4,11 @@ import com.google.gson.JsonParser
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
+import java.nio.file.Files
+import java.nio.file.Path
 
 class I18nCheckTest {
 
@@ -288,6 +291,14 @@ class I18nCheckTest {
         val run = check("--locales", "$resources/invalid")
         assertEquals(I18nCheck.CANNOT_CHECK, run.exit)
         assertTrue(run.err.contains("not a valid JSON translation file"), run.err)
+    }
+
+    @Test
+    fun `invalid i18n-check json - named, exit 2`(@TempDir project: Path) {
+        Files.writeString(project.resolve(SettingsFile.JSON_PATH), """{ "keySeperator": "/" }""")
+        val run = check(project.toString())
+        assertEquals(I18nCheck.CANNOT_CHECK, run.exit)
+        assertTrue(run.err.startsWith("i18n-check: cannot read i18n-check.json: unknown setting 'keySeperator'"), run.err)
     }
 
     @Test

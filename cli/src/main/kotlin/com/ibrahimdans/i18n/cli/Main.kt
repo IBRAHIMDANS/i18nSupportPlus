@@ -113,7 +113,7 @@ object I18nCheck {
         val config = try {
             SettingsFile.read(options.project)
         } catch (e: Exception) {
-            throw CannotCheck("cannot read ${options.project.resolve(SettingsFile.PATH)}: ${e.message}")
+            throw CannotCheck("cannot read ${e.message}")
         }
         val scopes = scopesOf(options, config)
         val results = scopes.map { scope ->
