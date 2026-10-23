@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.IdeI18nRegistry
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
@@ -8,6 +9,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.DynamicKeyUsages
 import com.ibrahimdans.i18n.plugin.tree.KeyComposer
 import com.ibrahimdans.i18n.plugin.tree.Separators
 import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
+import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.ibrahimdans.i18n.plugin.utils.keyScopeOf
 import com.intellij.json.psi.JsonProperty
@@ -95,7 +97,8 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
             val config = Settings.getInstance(project).config()
             val key = keyOf(element, config)
             IndirectKeyUsages.textCount(
-                key, config, config.searchScope(project), PsiSearchHelper.getInstance(project), FallbackNamespaces.of(project, config),
+                key, config, config.searchScope(project), PsiSearchHelper.getInstance(project),
+                FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry),
             )
                 .takeIf { it > 0 }
                 ?: IndirectKeyUsages.prefixedCounts(project, listOf(key), config)[key]
