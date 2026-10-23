@@ -21,7 +21,7 @@ class TreeSitterCodeNode private constructor(
     private val source: Source,
 ) : CodeNode {
 
-    override val type: String get() = node.type
+    override val type: String by lazy(LazyThreadSafetyMode.NONE) { node.type }
 
     override val span: TextSpan by lazy(LazyThreadSafetyMode.NONE) {
         TextSpan(source.charOffset(node.startByte), source.charOffset(node.endByte))
