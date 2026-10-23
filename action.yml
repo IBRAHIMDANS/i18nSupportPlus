@@ -1,0 +1,43 @@
+name: i18n-check
+description: Check a project's translation files, and the keys its i18next code uses, with i18n Support Plus's i18n-check.
+branding:
+  icon: globe
+  color: blue
+
+inputs:
+  args:
+    description: The arguments of i18n-check, such as `--code --max-problems 0`.
+    required: false
+    default: ''
+  version:
+    description: The release of i18n-check to run (`1.16.0`). By default, the action's own tag, else the latest release.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@v6
+      with:
+        distribution: temurin
+        java-version: '21'
+
+    - name: Download i18n-check
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        VERSION: ${{ inputs.version }}
+        ACTION_REF: ${{ github.action_ref }}
+      run: |
+        tag="${VERSION:+v$VERSION}"
+        if [ -z "$tag" ] && [[ "$ACTION_REF" =~ ^v[0-9] ]]; then tag="$ACTION_REF"; fi
+        gh release download $tag --repo IBRAHIMDANS/i18nSupportPlus --pattern 'i18n-check-*.zip' --dir "$RUNNER_TEMP/i18n-check"
+        unzip -q "$RUNNER_TEMP"/i18n-check/i18n-check-*.zip -d "$RUNNER_TEMP/i18n-check"
+        echo "$(ls -d "$RUNNER_TEMP"/i18n-check/i18n-check-*/)bin" >> "$GITHUB_PATH"
+
+    - name: Run i18n-check
+      shell: bash
+      env:
+        ARGS: ${{ inputs.args }}
+      # Unquoted on purpose: the arguments are split on spaces, never evaluated.
+      run: i18n-check $ARGS
