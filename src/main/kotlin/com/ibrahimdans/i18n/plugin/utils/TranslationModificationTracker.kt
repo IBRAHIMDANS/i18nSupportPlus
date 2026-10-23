@@ -81,7 +81,7 @@ class TranslationModificationTracker(project: Project) : ModificationTracker, Di
             localization.types().any { type ->
                 type.languageFileType == fileType &&
                     (virtualFile == null || virtualFile.extension !in type.extensions() ||
-                        localization.matches(type, virtualFile, listOf(virtualFile.nameWithoutExtension)))
+                        localization.matches(type, IdeWorkspaceFile(virtualFile), listOf(virtualFile.nameWithoutExtension)))
             }
         }
     }

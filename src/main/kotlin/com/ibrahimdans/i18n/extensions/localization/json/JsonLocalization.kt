@@ -15,7 +15,6 @@ import com.intellij.json.json5.Json5FileType
 import com.intellij.json.psi.*
 import com.intellij.lang.Language
 import com.intellij.openapi.fileTypes.FileType
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiWhiteSpace
 import com.intellij.psi.codeStyle.CodeStyleManager
@@ -31,7 +30,7 @@ class JsonLocalization : Localization<JsonStringLiteral> {
             else if (file is JsonObject) JsonElementTree(file)
             else null
     }
-    override fun matches(localizationFileType: LocalizationFileType, file: VirtualFile?, fileNames: List<String>): Boolean =
+    override fun matches(localizationFileType: LocalizationFileType, file: WorkspaceFile?, fileNames: List<String>): Boolean =
         fileNames.any {
             fileName -> localizationFileType.extensions().any { ext -> "$fileName.$ext"==file?.name}
         }

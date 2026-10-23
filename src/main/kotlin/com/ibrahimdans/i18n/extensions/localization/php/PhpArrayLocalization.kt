@@ -6,8 +6,10 @@ import com.ibrahimdans.i18n.LocalizationConfig
 import com.ibrahimdans.i18n.LocalizationConfigImpl
 import com.ibrahimdans.i18n.LocalizationFileType
 import com.ibrahimdans.i18n.TranslationReferenceAssistant
+import com.ibrahimdans.i18n.WorkspaceFile
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.virtualFile
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -35,9 +37,9 @@ class PhpArrayLocalization : Localization<StringLiteralExpression> {
     override fun elementsTree(file: PsiElement): Tree<PsiElement>? =
         (file as? PsiFile)?.originalFile?.virtualFile?.takeIf { namespaceOf(it) != null }?.let { PhpArrayTree.create(file) }
     // Matched on the namespace the file holds: a package's `messages.php` answers `courier::messages`.
-    override fun matches(localizationFileType: LocalizationFileType, file: VirtualFile?, fileNames: List<String>): Boolean =
+    override fun matches(localizationFileType: LocalizationFileType, file: WorkspaceFile?, fileNames: List<String>): Boolean =
         file != null && file.extension == PHP_EXTENSION && fileNames.any { it.endsWith(file.nameWithoutExtension) } &&
-            namespaceOf(file)?.let { it in fileNames } == true
+            namespaceOf(file.virtualFile)?.let { it in fileNames } == true
     override fun icon(): Icon = PhpFileType.INSTANCE.icon ?: super.icon()
     override fun config(): LocalizationConfig = LocalizationConfigImpl("php")
     override fun fileNamespace(file: VirtualFile): String? = namespaceOf(file)

@@ -8,13 +8,17 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiFile
 
 /** [project] as a [Workspace]: what the plugin hands the technologies. */
-class IdeWorkspace(val project: Project) : Workspace {
+open class IdeWorkspace(val project: Project) : Workspace {
     override val basePath: String get() = project.basePath.orEmpty()
 }
 
 /** [virtualFile] as a [WorkspaceFile]. */
 class IdeWorkspaceFile(val virtualFile: VirtualFile) : WorkspaceFile {
     override val path: String get() = virtualFile.path
+    // The virtual file's own: no string is cut out of the path for each file a scan matches by name.
+    override val name: String get() = virtualFile.name
+    override val extension: String? get() = virtualFile.extension
+    override val nameWithoutExtension: String get() = virtualFile.nameWithoutExtension
 }
 
 /** The project behind [this]: in the plugin, every workspace is an [IdeWorkspace]. */
