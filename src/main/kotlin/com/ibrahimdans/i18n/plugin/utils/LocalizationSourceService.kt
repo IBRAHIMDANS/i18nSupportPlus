@@ -1,13 +1,18 @@
 package com.ibrahimdans.i18n.plugin.utils
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.IdeI18nRegistry
 import com.ibrahimdans.i18n.Localization
 import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.SourceDiscovery
+import com.ibrahimdans.i18n.SourceWorkspace
+import com.ibrahimdans.i18n.WorkspaceFile
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
+import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
@@ -35,90 +40,30 @@ class LocalizationSourceService {
         private val COMPOSED_SOURCES_CACHE =
             Key.create<SoftReference<ComposedSources>>("i18n.localization.composedSources")
 
-        // `.i18n-reviews` (ReviewLocation.DIRECTORY) holds the review files, `fr.json` one per locale:
-        // read as sources, each would be taken for a translation of its locale.
-        private val DEFAULT_EXCLUDED_DIRS = setOf(
-            "node_modules", "build", "dist", ".next", "out",
-            "storybook-static", ".nuxt", ".output", "coverage", ".cache", "vendor", ".i18n-reviews"
-        )
-
-        /**
-         * True when [path] crosses one of the [exclusions] directories.
-         *
-         * `vendor` is Composer's dependency folder, but `lang/vendor/<package>/` is also where Laravel
-         * puts a project's own overrides of a package's translations (`resources/lang/vendor/` before
-         * Laravel 9): a `vendor` whose parent is `lang` is the project's, and is kept. Only that one
-         * directory is spared — a `lang` folder inside Composer's `vendor/` stays excluded, since the
-         * `vendor` above it still matches. The files come from the file index, so nothing is walked
-         * to reach this test: it only filters paths.
-         */
-        internal fun isExcludedPath(path: String, exclusions: Set<String>): Boolean {
-            val segments = path.split('/')
-            return segments.indices.any { index ->
-                segments[index] in exclusions && !isLaravelPackageOverrides(segments, index)
-            }
-        }
-
-        private fun isLaravelPackageOverrides(segments: List<String>, index: Int): Boolean =
-            index > 0 && segments[index] == "vendor" && segments[index - 1] == "lang"
+        /** See [SourceDiscovery.isExcludedPath]. */
+        internal fun isExcludedPath(path: String, exclusions: Set<String>): Boolean =
+            SourceDiscovery.isExcludedPath(path, exclusions)
 
         /** See [LocaleNames.looksLikeLocale]. */
         internal fun looksLikeLocale(name: String): Boolean = LocaleNames.looksLikeLocale(name)
 
-        /**
-         * Decides whether to include a file in the "all sources" scan.
-         * - Configured root: include only files whose path starts with basePath/translationsRoot.
-         * - No root configured: heuristic — parent dir or stem must look like a locale code.
-         */
-        internal fun isIncluded(file: VirtualFile, translationsRoot: String, basePath: String): Boolean {
-            return if (translationsRoot.isNotBlank()) {
-                isUnderRoot(file, translationsRoot, basePath)
-            } else {
-                val parent = file.parent?.name ?: return false
-                val stem = file.nameWithoutExtension
-                looksLikeLocale(parent) || looksLikeLocale(stem)
-            }
-        }
+        /** See [SourceDiscovery.isIncluded]. */
+        internal fun isIncluded(file: VirtualFile, translationsRoot: String, basePath: String): Boolean =
+            SourceDiscovery.isIncluded(file.path, translationsRoot, basePath)
 
-        /** True when [file] lies inside basePath/[translationsRoot] — `locales2/` is not under `locales`. */
-        internal fun isUnderRoot(file: VirtualFile, translationsRoot: String, basePath: String): Boolean {
-            val rootPath = "$basePath/$translationsRoot".trimEnd('/')
-            return file.path == rootPath || file.path.startsWith("$rootPath/")
-        }
+        /** See [SourceDiscovery.isUnderRoot]. */
+        internal fun isUnderRoot(file: VirtualFile, translationsRoot: String, basePath: String): Boolean =
+            SourceDiscovery.isUnderRoot(file.path, translationsRoot, basePath)
     }
 
-    /**
-     * Returns true if the file resides in a directory that should be excluded from translation scanning.
-     * Uses IntelliJ's ProjectFileIndex first (respects .gitignore and IDE exclusions),
-     * then falls back to a hardcoded list + user-configured excluded directories.
-     */
-    private fun isExcludedPath(file: VirtualFile, project: Project, exclusions: Set<String>): Boolean {
-        if (ProjectFileIndex.getInstance(project).isExcluded(file)) return true
-        return isExcludedPath(file.path, exclusions)
-    }
-
-    /**
-     * The directory names [isExcludedPath] skips. Built once per scan, not once per file: rebuilt for
-     * each of the hundreds of files a scan visits, it was a quarter of the plugin's own highlighting
-     * time in a JFR profile of `HighlightingPerformanceTest`.
-     */
-    private fun excludedDirectories(config: Config): Set<String> = DEFAULT_EXCLUDED_DIRS + config.excludedDirectorySet()
+    /** The rules of discovery, on [project] as it stands with [config]: nothing in it is cached. */
+    private fun discovery(project: Project, config: Config) =
+        SourceDiscovery(IdeSourceWorkspace(project, config), IdeI18nRegistry, config)
 
     /**
      * Sources holding the requested namespaces, falling back to [Config.defaultNamespaces]
-     * when none is requested.
-     *
-     * A key carrying no namespace (`t('dashboard.title')`) requests nothing, so the lookup
-     * falls back to the default namespace — `translation` — which the localizations match
-     * against the *file name*. A project laid out as `locales/fr.json` + `locales/en.json`
-     * owns no such file, so nothing was ever found and every key of it was reported
-     * unresolved, even though [findAllSources] reads that layout perfectly well through its
-     * locale heuristic. When a key that requested no namespace finds nothing, the project-wide
-     * scan is therefore used instead.
-     *
-     * The fallback is deliberately confined to that case: an explicit namespace matching no
-     * file (`t('common:user.name')` with no `common.json`) must keep being reported as an
-     * unresolved namespace rather than quietly resolving against unrelated files.
+     * when none is requested, then to [findAllSources] for a key that requested none and found
+     * nothing — the rule is [SourceDiscovery.select].
      *
      * [com.ibrahimdans.i18n.plugin.ide.I18nGutterIconProvider] used to carry a fallback of its
      * own, substituting the default namespaces *before* calling in — so it never asked for an
@@ -138,14 +83,12 @@ class LocalizationSourceService {
 
     private fun computeSources(fileNames: List<String>, project: Project): List<LocalizationSource> {
         val config = Settings.getInstance(project).config()
-        val requestedNamespaces = fileNames.whenMatches { it.isNotEmpty() }
-        val namespaces = requestedNamespaces ?: config.defaultNamespaces()
-        val sources = (typedSourcesByName(project, config, namespaces) +
-            configuredSources(project, config).filter { it.namespace == null || it.namespace in namespaces })
-            .distinctBy { it.displayPath }
-        if (sources.isNotEmpty() || requestedNamespaces != null) return sources
-        // Cached on the project, so the extra call costs nothing per highlighting pass.
-        return findAllSources(project)
+        // The whole scan is cached on the project, so the fallback costs nothing per highlighting pass.
+        return discovery(project, config).select(
+            fileNames,
+            { namespaces -> typedSourcesByName(project, config, namespaces) },
+            configuredSources(project, config),
+        ) { findAllSources(project) }
     }
 
     /**
@@ -226,11 +169,10 @@ class LocalizationSourceService {
     fun findNamespaceFiles(fileNames: List<String>, project: Project): List<LocalizationSource> {
         if (fileNames.isEmpty()) return emptyList()
         val config = Settings.getInstance(project).config()
-        val typed = typedSourcesByName(project, config, fileNames)
         // A technology may declare the namespace of a file not named after it: a Transloco scope.
-        // The cached list itself otherwise, which callers compare by identity.
-        val declared = configuredSources(project, config).filter { it.namespace != null && it.namespace in fileNames }
-        return if (declared.isEmpty()) typed else typed + declared
+        return discovery(project, config).namespaceFiles(
+            fileNames, typedSourcesByName(project, config, fileNames), configuredSources(project, config)
+        )
     }
 
     /**
@@ -238,9 +180,9 @@ class LocalizationSourceService {
      * Used by the table/tree views to display all translations, including projects
      * with multiple namespaces (common.json, auth.json, etc.) or locale-named files (en.json).
      *
-     * Strategy:
-     *  - If [Config.translationsRoot] is set (e.g. "src/locales"), only files under that path are included.
-     *  - Otherwise, falls back to a locale-heuristic: parent dir or stem must look like a locale code.
+     * Which files are sources, and with which locale and namespace, is [SourceDiscovery]'s rule:
+     * under [Config.translationsRoot] when one is set, a locale-looking folder or name otherwise, or
+     * wherever a module template designates.
      *
      * The result is cached on the project: the annotator, completion, folding, inlay hints and
      * gutter icons all call this on every highlighting pass, and each call used to re-query the
@@ -256,12 +198,8 @@ class LocalizationSourceService {
         val cache = composedSources(project)
         cache.all?.let { cached -> if (allValid(cached)) return cached }
         val config = Settings.getInstance(project).config()
-        val configured = configuredSources(project, config)
-        // A file whose namespace or locale a technology states is listed once, as it states it: the
-        // locale heuristic alone would also read a Transloco scope file as the default namespace, and
-        // a Paraglide message file twice — so `en.json` found itself as its reference locale's file.
-        val claimed = configured.filter { it.namespace != null || it.locale != null }.mapTo(HashSet()) { it.displayPath }
-        return (typedAllSources(project, config).filter { it.displayPath !in claimed } + configured).also { cache.all = it }
+        return discovery(project, config).compose(typedAllSources(project, config), configuredSources(project, config))
+            .also { cache.all = it }
     }
 
     /*
@@ -290,14 +228,14 @@ class LocalizationSourceService {
     private fun typedSourcesByName(project: Project, config: Config, fileNames: List<String>): List<LocalizationSource> {
         val cache = typedSources(project, config)
         cache.byNames[fileNames]?.let { cached -> if (allValid(cached)) return cached }
-        return findVirtualFilesByName(project, fileNames).distinctBy { it.displayPath }.also { cache.byNames[fileNames] = it }
+        return ReadAction.compute<List<LocalizationSource>, RuntimeException> { discovery(project, config).namedSources(fileNames) }
+            .also { cache.byNames[fileNames] = it }
     }
 
     private fun typedAllSources(project: Project, config: Config): List<LocalizationSource> {
         val cache = typedSources(project, config)
         cache.all?.let { cached -> if (allValid(cached)) return cached }
-        val basePath = project.basePath ?: ""
-        return Extensions.LOCALIZATION.extensionList.flatMap { findAllSourcesByFileType(project, it, config, basePath) }
+        return ReadAction.compute<List<LocalizationSource>, RuntimeException> { discovery(project, config).scannedSources() }
             .also { cache.all = it }
     }
 
@@ -306,7 +244,7 @@ class LocalizationSourceService {
         project.getUserData(CONFIGURED_SOURCES_CACHE)?.get()
             ?.takeIf { it.stamps == stamps && allValid(it.sources) }
             ?.let { return it.sources }
-        return findSourcesByConfiguration(project)
+        return discovery(project, config).configuredSources()
             .also { project.putUserData(CONFIGURED_SOURCES_CACHE, SoftReference(ConfiguredSources(stamps, it))) }
     }
 
@@ -354,94 +292,34 @@ class LocalizationSourceService {
         val byNames = java.util.concurrent.ConcurrentHashMap<List<String>, List<LocalizationSource>>()
     }
 
-    private fun findAllSourcesByFileType(
-        project: Project,
-        localization: Localization<PsiElement>,
-        config: Config,
-        basePath: String
-    ): List<LocalizationSource> {
-        return ReadAction.compute<List<LocalizationSource>, RuntimeException> {
-            val searchScope = config.searchScope(project)
-            val exclusions = excludedDirectories(config)
-            localization.types().flatMap { localizationType ->
-                FileTypeIndex
-                    .getFiles(localizationType.languageFileType, searchScope)
-                    .filter { file -> !isExcludedPath(file, project, exclusions) }
-                    .mapNotNull { file ->
-                        val template = moduleMatch(config, file, basePath)
-                        when {
-                            template != null -> file to template
-                            isIncluded(file, config.translationsRoot, basePath) -> file to null
-                            else -> null
-                        }
-                    }
-                    .mapNotNull { (virtualFile, template) -> sourceOf(project, localization, virtualFile, template) }
-            }
-        }
-    }
-
-    /**
-     * The locale and namespace a module template gives [file], or null when no module template
-     * designates it. A file a template designates is a translation source whatever its name.
-     */
-    private fun moduleMatch(config: Config, file: VirtualFile, basePath: String): ModuleSources.Match? {
-        if (config.modules.isEmpty()) return null
-        return ModuleSources.match(config.modules, projectPath(file, basePath))
-    }
-
     private fun projectPath(file: VirtualFile, basePath: String) = ModuleSources.FilePath.of(file, basePath)
+}
 
-    private fun sourceOf(
-        project: Project,
-        localization: Localization<PsiElement>,
-        virtualFile: VirtualFile,
-        template: ModuleSources.Match?
-    ): LocalizationSource? {
-        val file = PsiManager.getInstance(project).findFile(virtualFile) ?: return null
-        val dir = file.containingDirectory ?: return null
-        return LocalizationSource(
-            localization.elementsTree(file),
-            file.name,
-            dir.name,
-            pathToRoot(file.project.basePath ?: "", dir.virtualFile.path).trim('/') + '/' + file.name,
-            localization,
-            locale = template?.locale,
-            namespace = template?.namespace
-        )
-    }
+/**
+ * [project] as [SourceDiscovery] reads it: the files of a [Localization] come from the file index
+ * within the configured search scope, the IDE's excluded folders are left out, and a file is read
+ * through its PSI. Still an [IdeWorkspace], as the technologies it is handed expect.
+ */
+private class IdeSourceWorkspace(project: Project, config: Config) :
+    IdeWorkspace(project), SourceWorkspace<PsiElement, Localization<PsiElement>> {
 
-    private fun findSourcesByConfiguration(project: Project): List<LocalizationSource> {
-        val workspace = IdeWorkspace(project)
-        return Extensions.TECHNOLOGY.extensionList.flatMap {it.findSourcesByConfiguration(workspace)}
-    }
+    // Only a scan needs them, and it runs in a read action: the composition of cached lists does not.
+    private val searchScope by lazy { config.searchScope(project) }
+    private val fileIndex by lazy { ProjectFileIndex.getInstance(project) }
+    private val psiManager by lazy { PsiManager.getInstance(project) }
 
-    //    Finds virtual files by names and type
-    private fun findVirtualFilesByName(project: Project, fileNames: List<String>): List<LocalizationSource> {
-        return Extensions.LOCALIZATION.extensionList.flatMap {findSourcesByFileType(project, fileNames, it)}
-    }
+    override fun files(format: Localization<PsiElement>): List<WorkspaceFile> =
+        format.types().flatMap { type -> FileTypeIndex.getFiles(type.languageFileType, searchScope).map(::IdeWorkspaceFile) }
 
-    private fun findSourcesByFileType(project: Project, fileNames: List<String>, localization: Localization<PsiElement>): List<LocalizationSource> {
-        return ReadAction.compute<List<LocalizationSource>, RuntimeException> {
-            val config = Settings.getInstance(project).config()
-            val searchScope = config.searchScope(project)
-            val exclusions = excludedDirectories(config)
-            val basePath = project.basePath ?: ""
-            localization.types().flatMap { localizationType ->
-                FileTypeIndex
-                    .getFiles(localizationType.languageFileType, searchScope)
-                    // Matched on the name first: it is the cheap test, and it discards nearly every file.
-                    .filter { file -> localization.matches(localizationType, file, fileNames) && !isExcludedPath(file, project, exclusions) }
-                    .mapNotNull { virtualFile ->
-                        val template = moduleMatch(config, virtualFile, basePath)
-                        // The configured root bounds this lookup as it bounds the full scan: any
-                        // `common.json` in the project — a serverless config, a fixture — used to be
-                        // a source of the `common` namespace, shown as a locale named after the file.
-                        if (template == null && config.translationsRoot.isNotBlank() &&
-                            !isUnderRoot(virtualFile, config.translationsRoot, basePath)
-                        ) return@mapNotNull null
-                        sourceOf(project, localization, virtualFile, template)
-                    }
-            }
-        }
-    }
+    // A format of several types (JSON and JSON5) names a file after the extensions of its own type.
+    override fun isNamedAfter(format: Localization<PsiElement>, file: WorkspaceFile, fileNames: List<String>): Boolean =
+        format.types().any { type -> format.matches(type, file, fileNames) }
+
+    /** IntelliJ's own exclusions: `.gitignore`d and excluded folders. */
+    override fun isExcluded(file: WorkspaceFile): Boolean = fileIndex.isExcluded(file.virtualFile)
+
+    override fun isReadable(file: WorkspaceFile): Boolean = psiManager.findFile(file.virtualFile)?.containingDirectory != null
+
+    override fun read(format: Localization<PsiElement>, file: WorkspaceFile): Tree<PsiElement>? =
+        psiManager.findFile(file.virtualFile)?.let(format::elementsTree)
 }

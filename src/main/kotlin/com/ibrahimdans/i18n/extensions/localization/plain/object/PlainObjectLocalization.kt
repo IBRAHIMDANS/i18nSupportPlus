@@ -4,7 +4,6 @@ import com.ibrahimdans.i18n.*
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.fileTypes.PlainTextFileType
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 
 /** PO/POT localization handler. Requires org.jetbrains.plugins.localization (GNU GetText) for PSI types. */
@@ -18,7 +17,7 @@ class PlainObjectLocalization : Localization<PsiElement> {
     override fun contentGenerator(): ContentGenerator = PlainObjectContentGenerator()
     override fun referenceAssistant(): TranslationReferenceAssistant<PsiElement> = PlainObjectReferenceAssistant()
     override fun elementsTree(file: PsiElement): Tree<PsiElement> = PlainObjectTextTree(file)
-    override fun matches(localizationFileType: LocalizationFileType, file: VirtualFile?, fileNames: List<String>): Boolean {
+    override fun matches(localizationFileType: LocalizationFileType, file: WorkspaceFile?, fileNames: List<String>): Boolean {
         val ext = file?.extension?.lowercase()
         return ext == "po" || ext == "pot"
     }

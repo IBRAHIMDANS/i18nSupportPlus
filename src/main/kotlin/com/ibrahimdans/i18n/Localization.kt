@@ -22,7 +22,11 @@ interface Localization <T: PsiElement> : TranslationFormat {
     fun contentGenerator(): ContentGenerator
     fun referenceAssistant(): TranslationReferenceAssistant<T>
     fun elementsTree(file: PsiElement): Tree<PsiElement>?
-    fun matches(localizationFileType:LocalizationFileType, file: VirtualFile?, fileNames: List<String>): Boolean
+    /**
+     * Whether [file], of [localizationFileType], is named after one of [fileNames] — the namespaces
+     * looked up — as this format names its files: `common.json` for `common`.
+     */
+    fun matches(localizationFileType: LocalizationFileType, file: WorkspaceFile?, fileNames: List<String>): Boolean
     fun icon(): Icon = AllIcons.FileTypes.Unknown
 
     /**
