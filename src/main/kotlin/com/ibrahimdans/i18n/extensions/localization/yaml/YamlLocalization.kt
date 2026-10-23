@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.PrimitiveType
 import com.ibrahimdans.i18n.plugin.edit.YamlTranslationEditor
 import com.ibrahimdans.i18n.plugin.ide.edit.TranslationEditorBridge
 import com.ibrahimdans.i18n.plugin.ide.edit.TranslationEditorProvider
+import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileKeys
 import com.ibrahimdans.i18n.plugin.ide.settings.LocalizationSettingsPanel
 import com.ibrahimdans.i18n.plugin.ide.references.translation.TranslationToCodeReferenceProvider
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
@@ -139,7 +140,8 @@ private class YamlContentGenerator: ContentGenerator {
         if (TranslationEditorBridge.insert(
                 element.containingFile ?: return,
                 YamlTranslationEditor(LocalizationSettingsPanel.indent(element.project, "yaml")),
-                fullKey.compositeKey.map { it.text },
+                // From the file root down: a source tree may start below it (one per locale in a Vue `<i18n>` block).
+                TranslationFileKeys.pathOf(element) + unresolved.map { it.text },
                 value,
                 order = settings.keyOrder.comparator.takeIf { settings.extractSorted },
             )

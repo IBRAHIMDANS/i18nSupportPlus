@@ -1,16 +1,17 @@
 package com.ibrahimdans.i18n.extensions.localization.json
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder
 import com.ibrahimdans.i18n.*
 import com.ibrahimdans.i18n.plugin.edit.JsonTranslationEditor
 import com.ibrahimdans.i18n.plugin.ide.actions.JsonKeySorter
 import com.ibrahimdans.i18n.plugin.ide.edit.TranslationEditorBridge
 import com.ibrahimdans.i18n.plugin.ide.edit.TranslationEditorProvider
+import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileKeys
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
-import com.fasterxml.jackson.core.io.JsonStringEncoder
 import com.intellij.icons.AllIcons
 import com.intellij.json.JsonFileType
 import com.intellij.json.JsonLanguage
@@ -18,6 +19,7 @@ import com.intellij.json.json5.Json5FileType
 import com.intellij.json.psi.*
 import com.intellij.lang.Language
 import com.intellij.openapi.fileTypes.FileType
+import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiWhiteSpace
 import com.intellij.psi.codeStyle.CodeStyleManager
@@ -41,7 +43,7 @@ class JsonLocalization : Localization<JsonStringLiteral>, TranslationEditorProvi
     // No indentation setting: a key added to an existing file takes the layout of the file itself
     // (see JsonInsertion), and a new file is written with 2 spaces.
     override fun config(): LocalizationConfig = LocalizationConfigImpl("json")
-    override fun translationEditor(project: com.intellij.openapi.project.Project) = JsonTranslationEditor
+    override fun translationEditor(project: Project) = JsonTranslationEditor
 }
 
 /**
@@ -101,7 +103,8 @@ private class JsonContentGenerator: ContentGenerator {
         if (TranslationEditorBridge.insert(
                 element.containingFile ?: return,
                 JsonTranslationEditor,
-                fullKey.compositeKey.map { it.text },
+                // From the file root down: a source tree may start below it (one per locale in a Vue `<i18n>` block).
+                TranslationFileKeys.pathOf(element) + unresolved.map { it.text },
                 value,
                 order = settings.keyOrder.comparator.takeIf { settings.extractSorted },
                 sort = settings.keyOrder.comparator.takeIf { settings.sortKeysAlphabetically },

@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.dialog
 
 import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.plugin.ide.edit.TranslationEditorBridge
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
@@ -12,10 +13,10 @@ import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.MessagePlaceholders
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
-import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.CommandProcessor
@@ -175,7 +176,7 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
             project,
             {
                 ApplicationManager.getApplication().runWriteAction {
-                    val current = refreshSource(source)
+                    val current = TranslationEditorBridge.refreshed(source)
                     val ref = resolveCompositeKey(fullKey.compositeKey, current) ?: return@runWriteAction
                     val element = ref.element
                     if (ref.unresolved.isEmpty() && element != null) {
@@ -197,12 +198,6 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
         )
     }
 
-    /** A prior text edit may have rebuilt the PSI tree while callers retain this source instance. */
-    private fun refreshSource(source: LocalizationSource): LocalizationSource {
-        val file = source.tree?.value()?.containingFile ?: return source
-        val tree = source.localization.elementsTree(file) ?: return source
-        return source.copy(tree = tree)
-    }
 
     /**
      * Reads the text value from a PSI element, handling JSON and YAML types.

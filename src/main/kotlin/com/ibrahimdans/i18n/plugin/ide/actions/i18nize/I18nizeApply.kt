@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.Localization
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.factory.CallTemplate
 import com.ibrahimdans.i18n.plugin.ide.actions.MachineFill
+import com.ibrahimdans.i18n.plugin.ide.edit.TranslationEditorBridge
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleTemplateResolver
@@ -21,14 +22,14 @@ import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
-import com.ibrahimdans.i18n.plugin.utils.of
-import com.ibrahimdans.i18n.plugin.utils.sourcesOf
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
+import com.ibrahimdans.i18n.plugin.utils.of
+import com.ibrahimdans.i18n.plugin.utils.sourcesOf
 import com.intellij.lang.javascript.psi.JSFunction
 import com.intellij.openapi.command.UndoConfirmationPolicy
 import com.intellij.openapi.command.WriteCommandAction
@@ -205,7 +206,7 @@ internal class I18nizeApply private constructor(
      * written: the key is there already — its value is kept — or its path runs into a value.
      */
     private fun writeValue(source: LocalizationSource, fullKey: FullKey, value: String): Boolean {
-        val current = refreshSource(source)
+        val current = TranslationEditorBridge.refreshed(source)
         val reference = Resolver.resolveCompositeKey(fullKey.compositeKey, current) ?: return false
         val element = reference.element ?: return false
         if (reference.unresolved.isEmpty() || !element.isTree()) return false
@@ -215,12 +216,6 @@ internal class I18nizeApply private constructor(
         return true
     }
 
-    /** A prior text edit may have rebuilt the PSI tree while the batch retains this source. */
-    private fun refreshSource(source: LocalizationSource): LocalizationSource {
-        val file = source.tree?.value()?.containingFile ?: return source
-        val tree = source.localization.elementsTree(file) ?: return source
-        return source.copy(tree = tree)
-    }
 
     private object Resolver : CompositeKeyResolver<PsiElement>
 

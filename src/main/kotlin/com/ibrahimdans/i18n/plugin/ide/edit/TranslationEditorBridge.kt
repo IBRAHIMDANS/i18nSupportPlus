@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.edit
 
+import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.edit.TextEdit
 import com.ibrahimdans.i18n.plugin.edit.TranslationEditor
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileKeys
@@ -81,6 +82,16 @@ object TranslationEditorBridge {
             PsiDocumentManager.getInstance(file.project).commitDocument(document)
         }
         return fallback
+    }
+
+    /**
+     * [source] with its tree read again from its file: a text edit rebuilds the PSI, so a source a
+     * batch keeps across writes would otherwise point at elements no longer in the file.
+     */
+    fun refreshed(source: LocalizationSource): LocalizationSource {
+        val file = source.tree?.value()?.containingFile ?: return source
+        val tree = source.localization.elementsTree(file) ?: return source
+        return source.copy(tree = tree)
     }
 
     /** Applies non-overlapping edits from the end so their original offsets stay valid. */

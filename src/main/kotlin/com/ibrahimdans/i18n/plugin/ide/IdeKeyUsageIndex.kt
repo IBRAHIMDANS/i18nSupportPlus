@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.KeyUsage
 import com.ibrahimdans.i18n.plugin.KeyUsageIndex
 import com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationKeyUsages
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.DynamicKeyUsages
@@ -14,6 +15,7 @@ import com.ibrahimdans.i18n.plugin.utils.TextSpan
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
+import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.PsiSearchHelper
 
 /**
@@ -30,34 +32,39 @@ class IdeKeyUsageIndex(private val project: Project) : KeyUsageIndex {
         usages(listOf(key))[key].orEmpty()
 
     override fun usages(keys: Collection<String>): Map<String, List<KeyUsage>> =
-        ReadAction.compute<Map<String, List<KeyUsage>>, RuntimeException> {
-            val config = Settings.getInstance(project).config()
-            val unique = keys.distinct()
-            val searchScope = config.searchScope(project)
-            val searchHelper = PsiSearchHelper.getInstance(project)
-            val fallbacks = FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry)
-            val text = unique.associateWith { key ->
-                IndirectKeyUsages.textUsages(key, config, searchScope, searchHelper, fallbacks)
-            }
-            val prefixed = IndirectKeyUsages.prefixedUsages(project, unique, config)
+        search(keys) { unique, scope ->
+            val prefixed = IndirectKeyUsages.prefixedUsages(project, unique, scope.config)
             unique.associateWith { key ->
-                (text[key].orEmpty() + prefixed[key].orEmpty()).mapNotNull(::usageOf).distinct()
+                (scope.textUsages(key) + prefixed[key].orEmpty()).mapNotNull(::usageOf).distinct()
             }
         }
 
     override fun usageCounts(keys: Collection<String>): Map<String, Int> =
-        ReadAction.compute<Map<String, Int>, RuntimeException> {
-            val config = Settings.getInstance(project).config()
-            val unique = keys.distinct()
-            val searchScope = config.searchScope(project)
-            val searchHelper = PsiSearchHelper.getInstance(project)
-            val fallbacks = FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry)
-            val text = unique.associateWith { key ->
-                IndirectKeyUsages.textCount(key, config, searchScope, searchHelper, fallbacks)
-            }
-            val prefixed = IndirectKeyUsages.prefixedCounts(project, unique, config)
-            unique.associateWith { key -> (text[key] ?: 0) + (prefixed[key] ?: 0) }
+        search(keys) { unique, scope ->
+            val prefixed = IndirectKeyUsages.prefixedCounts(project, unique, scope.config)
+            unique.associateWith { key -> scope.textCount(key) + (prefixed[key] ?: 0) }
         }
+
+    /** Runs [query] in one read action, on the distinct [keys], with what the batch's text searches share. */
+    private fun <T> search(keys: Collection<String>, query: (List<String>, TextSearch) -> T): T =
+        ReadAction.compute<T, RuntimeException> {
+            val config = Settings.getInstance(project).config()
+            val scope = TextSearch(
+                config, config.searchScope(project), PsiSearchHelper.getInstance(project),
+                FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry),
+            )
+            query(keys.distinct(), scope)
+        }
+
+    private class TextSearch(
+        val config: Config,
+        private val scope: GlobalSearchScope,
+        private val helper: PsiSearchHelper,
+        private val fallbacks: List<String>,
+    ) {
+        fun textUsages(key: String) = IndirectKeyUsages.textUsages(key, config, scope, helper, fallbacks)
+        fun textCount(key: String) = IndirectKeyUsages.textCount(key, config, scope, helper, fallbacks)
+    }
 
     override fun dynamicallyReached(keys: Collection<String>): Set<String> =
         ReadAction.compute<Set<String>, RuntimeException> {
