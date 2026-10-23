@@ -1,0 +1,6 @@
+node_modules
+# Written by `next dev` and `next build`.
+.next
+out
+next-env.d.ts
+*.tsbuildinfo
