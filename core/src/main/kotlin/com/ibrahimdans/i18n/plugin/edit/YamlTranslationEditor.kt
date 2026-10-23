@@ -40,7 +40,8 @@ class YamlTranslationEditor(private val indent: String = "  ") : TranslationEdit
             // The first key's indentation sits before it: it now indents the new key.
             listOf(TextEdit.insert(first, entry + "\n" + " ".repeat(column)))
         } else {
-            listOf(TextEdit.insert(entrySpan(before.last()).end, "\n" + " ".repeat(column) + entry))
+            // After the whole line, so a comment closing it stays on it rather than moving to the new key.
+            listOf(TextEdit.insert(lineEnd(source, entrySpan(before.last()).end), "\n" + " ".repeat(column) + entry))
         }
     }
 
@@ -85,4 +86,7 @@ class YamlTranslationEditor(private val indent: String = "  ") : TranslationEdit
     /** Whether [text] holds nothing but blank lines, comments and document markers. */
     private fun isBlank(text: String): Boolean =
         text.lines().map { it.trim() }.all { it.isEmpty() || it.startsWith('#') || it == "---" }
+
+    /** The offset of the line break ending the line that holds [offset], or the end of [source]. */
+    private fun lineEnd(source: String, offset: Int): Int = source.indexOf('\n', offset).let { if (it < 0) source.length else it }
 }

@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide
 
+import com.ibrahimdans.i18n.plugin.KeyUsage
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.utils.generator.code.TsxCodeGenerator
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -68,5 +69,29 @@ class IdeKeyUsageIndexTest : PlatformBaseTest() {
 
         assertEquals(setOf("common:status.pending", "common:status.accepted"), reached)
         assertTrue(index.usages("common:status.pending").isEmpty(), "a dynamic key names no key outright")
+    }
+
+    @Test
+    fun `a batch gathers direct and key-prefixed usages of the same key`() {
+        myFixture.addFileToProject("locales/en/common.json", """{"menu":{"home":"Home"},"profile":{"name":"Name"}}""")
+        myFixture.configureByText(
+            "Menu.tsx",
+            """
+            import { useTranslation } from 'react-i18next';
+            export const menu = () => i18n.t('common:menu.home');
+            export const named = () => i18n.t('common:profile.name');
+            export const Profile = () => {
+                const { t } = useTranslation('common', { keyPrefix: 'profile' });
+                return t('name');
+            }
+            """.trimIndent()
+        )
+
+        val usages = index.usages(listOf("common:menu.home", "common:profile.name", "common:missing"))
+
+        assertEquals(1, usages["common:menu.home"]?.size)
+        assertEquals(2, usages["common:profile.name"]?.size)
+        assertEquals(emptyList<KeyUsage>(), usages["common:missing"])
+        assertEquals(2, index.usageCounts(listOf("common:profile.name"))["common:profile.name"])
     }
 }

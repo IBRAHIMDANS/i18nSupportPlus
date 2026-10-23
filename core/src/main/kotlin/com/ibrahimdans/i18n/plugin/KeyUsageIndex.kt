@@ -19,6 +19,17 @@ interface KeyUsageIndex {
     fun usages(key: String): List<KeyUsage>
 
     /**
+     * The usages of each distinct key in [keys]. Implementations with an index can share their
+     * searches across the batch; the default keeps single-key implementations source-compatible.
+     */
+    fun usages(keys: Collection<String>): Map<String, List<KeyUsage>> =
+        keys.distinct().associateWith(::usages)
+
+    /** The number of static usages of each distinct key in [keys]. */
+    fun usageCounts(keys: Collection<String>): Map<String, Int> =
+        usages(keys).mapValues { (_, usages) -> usages.size }
+
+    /**
      * The subset of [keys] some key the code builds at runtime may produce: `` t(`status.${'$'}{kind}`) ``
      * reaches every `status.*` key. Asked of a batch, as the search runs once per shared prefix.
      */
