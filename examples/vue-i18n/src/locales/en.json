@@ -1,0 +1,30 @@
+{
+  "home": {
+    "title": "Vue I18n example",
+    "greeting": "Hello {name}!",
+    "onlyInEnglish": "Shown in English only"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "switchLocale": "Switch language"
+  },
+  "cart": {
+    "items": "no items | one item | {count} items"
+  },
+  "actions": {
+    "saveHint": "Click @:common.save to keep your changes"
+  },
+  "order": {
+    "title": "Your order",
+    "status": {
+      "paid": "Paid",
+      "shipped": "Shipped",
+      "pending": "Pending"
+    }
+  },
+  "terms": {
+    "accept": "I accept the {link}",
+    "link": "terms of use"
+  }
+}
