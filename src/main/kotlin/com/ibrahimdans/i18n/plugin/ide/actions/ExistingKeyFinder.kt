@@ -7,6 +7,9 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
+import com.ibrahimdans.i18n.plugin.utils.of
+import com.ibrahimdans.i18n.plugin.utils.readableFile
+import com.ibrahimdans.i18n.plugin.utils.sourcesOf
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile

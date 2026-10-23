@@ -11,6 +11,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
+import com.ibrahimdans.i18n.plugin.utils.of
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.intellij.notification.NotificationGroupManager

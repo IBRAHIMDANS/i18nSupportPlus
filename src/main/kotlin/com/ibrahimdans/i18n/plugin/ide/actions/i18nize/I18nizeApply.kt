@@ -21,6 +21,8 @@ import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
+import com.ibrahimdans.i18n.plugin.utils.of
+import com.ibrahimdans.i18n.plugin.utils.sourcesOf
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale

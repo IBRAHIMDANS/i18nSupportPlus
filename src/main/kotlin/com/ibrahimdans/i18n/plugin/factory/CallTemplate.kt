@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.factory
 
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
+import com.ibrahimdans.i18n.plugin.utils.of
 import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
 import com.intellij.psi.PsiElement
 

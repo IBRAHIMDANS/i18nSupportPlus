@@ -5,6 +5,8 @@ import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileKeys
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
+import com.ibrahimdans.i18n.plugin.utils.readableFile
+import com.ibrahimdans.i18n.plugin.utils.sourcesOf
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.PseudoLocalizer
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
