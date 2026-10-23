@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
 import com.intellij.openapi.application.ReadAction
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
@@ -81,7 +82,7 @@ class I18NextTechnologyTest : PlatformBaseTest() {
 
     @Test
     fun aMissingConfiguredPathYieldsNothingAndNeverThrows() = myFixture.runWithConfig(Config(jsConfiguration = "nope/i18n.ts, ")) {
-        val sources = ReadAction.compute<Int, RuntimeException> { technology.findSourcesByConfiguration(project).size }
+        val sources = ReadAction.compute<Int, RuntimeException> { technology.findSourcesByConfiguration(IdeWorkspace(project)).size }
         Assertions.assertEquals(0, sources)
     }
 
@@ -89,7 +90,7 @@ class I18NextTechnologyTest : PlatformBaseTest() {
 
     private fun fallbacksOf(config: String): List<String> {
         addFileToProject("src/i18n.ts", config)
-        return ReadAction.compute<List<String>, RuntimeException> { technology.fallbackNamespaces(project) }
+        return ReadAction.compute<List<String>, RuntimeException> { technology.fallbackNamespaces(IdeWorkspace(project)) }
     }
 
     @Test

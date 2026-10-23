@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.extensions.localization.php.LaravelTranslationFiles
 import com.ibrahimdans.i18n.plugin.ide.completion.CompositeKeyCompletionContributor
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.codeInsight.AutoPopupController
 import com.intellij.codeInsight.completion.CompletionInitializationContext
@@ -41,7 +42,7 @@ class PhpCompletionContributor : CompositeKeyCompletionContributor(PhpLang()) {
         val lang = PhpLang()
         if (!lang.canExtractKey(position, Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() })) return
         val scopes = Extensions.TECHNOLOGY.extensionList.filterIsInstance<LaravelTranslationFiles>()
-            .flatMap { it.keyScopes(project) }
+            .flatMap { it.keyScopes(IdeWorkspace(project)) }
             .distinct()
         if (scopes.isEmpty()) return
         // The whole typed text is the prefix: `courier::` holds characters a word prefix stops at.

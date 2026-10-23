@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.extensions.technology.paraglide
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.inspection.UntranslatedValueInspection
+import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.service
@@ -21,7 +22,7 @@ class ParaglideTechnologyTest : PlatformBaseTest() {
 
     /** The sources found, as `locale → file path` relative to the VFS root. */
     private fun sources(): Set<Pair<String?, String>> = ReadAction.compute<Set<Pair<String?, String>>, RuntimeException> {
-        ParaglideTechnology().findSourcesByConfiguration(project)
+        ParaglideTechnology().findSourcesByConfiguration(IdeWorkspace(project))
             .map { it.locale to it.tree!!.value().containingFile.virtualFile.path.substringAfter("/src/") }
             .toSet()
     }

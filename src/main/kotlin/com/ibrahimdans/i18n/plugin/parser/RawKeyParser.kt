@@ -1,12 +1,13 @@
 package com.ibrahimdans.i18n.plugin.parser
 
-import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
+import com.ibrahimdans.i18n.plugin.utils.keyScopesOf
+import com.ibrahimdans.i18n.plugin.utils.of
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 
@@ -21,7 +22,7 @@ class RawKeyParser(private val project: Project) {
         val config = Settings.getInstance(project).config()
         val context = KeyContext(
             config = config,
-            keyScopes = { Extensions.TECHNOLOGY.extensionList.flatMapTo(mutableSetOf()) { it.keyScopes(project) } },
+            keyScopes = { keyScopesOf(project) },
             fallbackNamespaces = { FallbackNamespaces.of(project, config) },
             callerSyntax = caller?.takeUnless { config.usesFlatKeys() }?.let { keySyntaxOf(config, it) }
         )

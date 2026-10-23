@@ -9,6 +9,7 @@ import com.ibrahimdans.i18n.plugin.tree.KeyComposer
 import com.ibrahimdans.i18n.plugin.tree.Separators
 import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
+import com.ibrahimdans.i18n.plugin.utils.keyScopeOf
 import com.intellij.json.psi.JsonProperty
 import com.intellij.openapi.application.ReadAction
 import com.intellij.psi.PsiElement
@@ -116,7 +117,7 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
     fun keyOf(element: PsiElement, config: Config): String {
         val path = pathOf(element)
         // A scope file (Transloco) is named after its locale: its keys are written `scope.key`.
-        val scope = element.containingFile?.let { file -> Extensions.TECHNOLOGY.extensionList.firstNotNullOfOrNull { it.keyScopeOf(file) } }
+        val scope = element.containingFile?.let(::keyScopeOf)
         return composeKey(
             if (scope != null) listOf(scope) + path.drop(1) else path,
             Separators(config.nsSeparator, config.keySeparator, config.pluralSeparator),

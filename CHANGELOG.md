@@ -36,6 +36,7 @@
 - [Internal] `core` writes translation keys as text edits (`TranslationEditor`: insert, rename, delete and sort in JSON and YAML); not wired into the plugin yet — no behaviour change
 - [Internal] A parser-neutral `CodeNode` in `core`, with a PSI adapter, lets `Lang` and `KeyExtractor` read keys without the PSI; the existing extractors are unchanged — no behaviour change
 - [Internal] Tree-sitter spike for reading `t('…')` outside the IDE: decision note in `docs/spikes/2026-10-22-tree-sitter.md` (JNI binding on the JVM, behind `CodeNode`) and a throwaway prototype in `spike/tree-sitter/`, outside the build
+- [Internal] Technologies run on a platform-free `Workspace` instead of a `Project`: `TranslationTechnology` and `Workspace` live in `core`, with `SimpleTechnology`, the seven technologies that only list function names, `ModuleSources` (path matching) and `ReferenceLocale`; the plugin passes an `IdeWorkspace` — no behaviour change. The `com.ibrahimdans.i18n.technology` extension point now takes `TranslationTechnology`, whose methods receive a `Workspace`
 
 ## 1.15.0 - 2026-10-18
 

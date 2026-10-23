@@ -10,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.tree.Separators
+import com.ibrahimdans.i18n.plugin.utils.keyScopesOf
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.GlobalSearchScope
@@ -108,7 +109,7 @@ internal object IndirectKeyUsages {
         val defaultNamespaces = config.defaultNamespaces()
         val languages = Extensions.LANG.extensionList
         val parser = RawKeyParser(project)
-        val keyScopes = Extensions.TECHNOLOGY.extensionList.flatMapTo(mutableSetOf()) { it.keyScopes(project) }
+        val keyScopes = keyScopesOf(project)
         val found = mutableMapOf<String, MutableSet<PsiElement>>()
 
         val byWord = keys.groupBy { key ->

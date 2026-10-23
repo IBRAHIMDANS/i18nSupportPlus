@@ -411,7 +411,8 @@ class LocalizationSourceService {
     }
 
     private fun findSourcesByConfiguration(project: Project): List<LocalizationSource> {
-        return Extensions.TECHNOLOGY.extensionList.flatMap {it.findSourcesByConfiguration(project)}
+        val workspace = IdeWorkspace(project)
+        return Extensions.TECHNOLOGY.extensionList.flatMap {it.findSourcesByConfiguration(workspace)}
     }
 
     //    Finds virtual files by names and type

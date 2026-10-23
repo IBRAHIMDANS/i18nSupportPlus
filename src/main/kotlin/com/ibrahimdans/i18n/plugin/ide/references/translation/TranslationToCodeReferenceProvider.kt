@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
 import com.ibrahimdans.i18n.plugin.tree.KeyComposer
 import com.ibrahimdans.i18n.plugin.tree.Separators
+import com.ibrahimdans.i18n.plugin.utils.keyScopeOf
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.codeInsight.daemon.impl.DaemonProgressIndicator
 import com.intellij.openapi.components.Service
@@ -33,7 +34,7 @@ internal class TranslationToCodeReferenceProvider : KeyComposer<PsiElement> {
         val project = element.project
         val config = Settings.getInstance(project).config()
         // A scope file (Transloco) is named after its locale: its keys are written `scope.key`.
-        val scope = element.containingFile?.let { file -> Extensions.TECHNOLOGY.extensionList.firstNotNullOfOrNull { it.keyScopeOf(file) } }
+        val scope = element.containingFile?.let(::keyScopeOf)
         val key = composeKey(
             if (scope != null) listOf(scope) + parents.drop(1) else parents,
             Separators(config.nsSeparator, config.keySeparator, config.pluralSeparator),

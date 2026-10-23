@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
@@ -46,8 +47,9 @@ internal object TranslationFileScope {
     private fun mayHoldSource(project: Project, virtualFile: VirtualFile): Boolean {
         val fileType = virtualFile.fileType
         if (Extensions.LOCALIZATION.extensionList.any { localization -> localization.types().any { it.languageFileType == fileType } }) return true
+        val workspace = IdeWorkspace(project)
         return Extensions.TECHNOLOGY.extensionList.any { technology ->
-            technology.findSourcesByConfiguration(project).any { it.holds(virtualFile) }
+            technology.findSourcesByConfiguration(workspace).any { it.holds(virtualFile) }
         }
     }
 
