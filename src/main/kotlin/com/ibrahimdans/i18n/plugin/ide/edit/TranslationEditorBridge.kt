@@ -114,7 +114,18 @@ object TranslationEditorBridge {
     private fun editorOf(file: PsiFile): TranslationEditor? =
         (TranslationFileScope.sourceOf(file)?.localization as? TranslationEditorProvider)?.translationEditor(file.project)
 
-    private fun documentOf(file: PsiFile): Document? = PsiDocumentManager.getInstance(file.project).getDocument(file)
+    /**
+     * The document of [file], with the PSI changes an earlier step of the same command left pending
+     * applied first: editing a document still locked by them throws. Null when the PSI writer must
+     * stay in charge, as for an empty file, whose first key it writes in its own layout.
+     */
+    private fun documentOf(file: PsiFile): Document? {
+        val manager = PsiDocumentManager.getInstance(file.project)
+        val document = manager.getDocument(file) ?: return null
+        manager.doPostponedOperationsAndUnblockDocument(document)
+        manager.commitDocument(document)
+        return document.takeIf { it.text.isNotBlank() }
+    }
 
     private fun List<String>.startsWith(prefix: List<String>): Boolean = size >= prefix.size && subList(0, prefix.size) == prefix
 }

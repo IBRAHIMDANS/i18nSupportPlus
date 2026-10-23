@@ -27,6 +27,11 @@ class YamlTranslationEditorTest {
     }
 
     @Test
+    fun `a comment closing the last line stays on it`() {
+        assertEquals("ref:\n  key: Ref #\n  b: B", insert("ref:\n  key: Ref #", "ref.b", "B"))
+    }
+
+    @Test
     fun `a nested key is indented by the configured indent`() {
         // The case of `GeneratedIndentTest`, with a 4-space indent setting.
         assertEquals("x: y\na:\n    b:\n        c: v\n", insert("x: y\n", "a.b.c", "v", editor = YamlTranslationEditor("    ")))
