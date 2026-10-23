@@ -13,6 +13,7 @@
 ### Fixes
 
 - [Translation] **The translation dialog's *Translate* button and *Instruction* field are in French**: with the IDE in French, the per-locale *Translate* button, its tooltip, the message when no other locale has a value to translate from, and the *Instruction* field with its hint and comment showed in English. The bundle test now reads the French file itself, so a key missing from it fails the build
+- [Lingui] **`<Trans>Hello {name}!</Trans>` is found in the catalogue again**: the plugin numbered every expression of a `<Trans>` and looked for `Hello {0}!`, while Lingui keeps the name of a plain variable and writes `Hello {name}!`. The key is now read as Lingui's macro builds it: a variable keeps its name, any other expression is numbered (`{user.name}` → `{0}`), `ph({ name: … })` takes its label, an element becomes `<0>…</0>` (`<0/>` when empty), a `{" "}` string is text, a comment is dropped, and a `<Trans>` written on several lines is joined as JSX renders it. Highlighting against a `.po` catalogue is tested again
 - [Settings] **A project stored under a folder named `build`, `dist` or `node_modules` finds its translation files again**: excluded folders were matched on the file's absolute path, so a project in `~/build/app` lost every translation file; they are now matched on the path inside the project
 
 ### Refactoring
