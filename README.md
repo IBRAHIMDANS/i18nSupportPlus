@@ -252,6 +252,53 @@ Enabled under **Settings > Editor > Inspections > i18n Support Plus**:
 
 The inspections also run without an editor, in [Qodana](https://www.jetbrains.com/qodana/) or a headless IDE: a pull request adding a key without its translation, or dropping one from a locale, fails the build. Ready-to-copy `qodana.yaml`, GitHub workflow and inspection profile: [docs/ci](docs/ci/README.md).
 
+### Command Line Check
+
+`i18n-check` compares the translation files of a directory to the reference locale, without IntelliJ (Java 21). It is built from this repository, and not shipped with the plugin:
+
+```bash
+./gradlew :cli:installDist
+cli/build/install/i18n-check/bin/i18n-check [project] --locales <dir> [--reference <locale>] [--format text|json] [--max-problems N]
+```
+
+- `--locales` holds a file per locale (`en.json`, `fr.yml`) or a folder per locale with a file per namespace (`en/common.json`, keys reported as `common:key`); other files are left alone.
+- For each locale, it reports the keys **missing** compared to the reference, the **orphan** keys the reference does not hold, and the **empty** values. Plural keys (`item_one`, `item_other`) are checked against the forms each language needs: `ja` only `item_other`, `ru` also `item_few` and `item_many`.
+- `project` (the current directory by default) is where `.idea/i18nSettings.xml` is read: the reference locale (a lone module's, then the preview locale, then `en`) and the key and namespace separators. `--reference` overrides it; `en` also finds `en-US`.
+- Exit code: `0` when the problems do not exceed `--max-problems` (0 by default), `1` when they do, `2` on a wrong command line, a file that does not parse, an unknown reference locale or no translation file.
+
+`--format json` prints:
+
+```json
+{
+  "reference": "en",
+  "problems": 3,
+  "locales": [
+    { "locale": "en", "missing": [], "orphans": [], "empty": [] },
+    { "locale": "fr", "missing": ["common:actions.edit"], "orphans": ["common:actions.old"], "empty": ["navigation:menu.home"] }
+  ]
+}
+```
+
+A GitHub Actions job failing the build on a missing translation:
+
+```yaml
+jobs:
+  translations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: IBRAHIMDANS/i18nSupportPlus
+          path: .i18n-check
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: (cd .i18n-check && ./gradlew :cli:installDist)
+      - run: .i18n-check/cli/build/install/i18n-check/bin/i18n-check --locales public/locales
+```
+
 ### AI Agents (MCP)
 
 On IntelliJ-based IDEs 2025.2.6 and later, the plugin adds four tools to the IDE's built-in MCP server, so an AI agent translates through the plugin rather than by rewriting the files — with your own Codex or Claude plan, no API key:
