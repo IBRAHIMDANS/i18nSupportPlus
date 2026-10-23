@@ -16,3 +16,5 @@ rootProject.name = 'i18n Support Plus'
 include 'core'
 // Reads source keys with tree-sitter, outside the IDE: never shipped by the plugin.
 include 'core-treesitter'
+// `i18n-check`, the translation check run from a terminal or a CI job: never shipped by the plugin.
+include 'cli'

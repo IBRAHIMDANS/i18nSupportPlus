@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="i18nSettings">
+    <option name="keySeparator" value="/" />
+    <option name="modules">
+      <list>
+        <ModuleConfig>
+          <option name="name" value="web" />
+          <option name="rootDirectory" value="locales" />
+          <option name="referenceLocale" value="fr" />
+        </ModuleConfig>
+      </list>
+    </option>
+    <option name="preferredLocalization" value="json" />
+  </component>
+</project>
