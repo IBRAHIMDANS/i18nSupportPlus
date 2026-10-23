@@ -45,6 +45,10 @@
 - [Internal] `core` reads translation formats and technologies through an `I18nRegistry` (a static one for tests, the extension points in the plugin), and `FallbackNamespaces` moves to `core` — no behaviour change
 - [Internal] Translation file discovery moves to `core`: `SourceDiscovery` holds the rules (root, module templates, exclusions, namespaces and fallback, sources declared by technologies) and `NioWorkspace` walks a folder with `java.nio`, so a tool outside the IDE finds the same sources; `LocalizationSourceService` keeps the caches — no other behaviour change
 
+### Documentation
+
+- [Examples] **Four new example projects to try the plugin on**: `examples/vue-i18n` (global messages, `<i18n>` blocks in JSON and YAML, `useI18n`), `examples/next-intl` (`useTranslations` and `getTranslations` under namespaces), `examples/svelte-i18n` (`$_` in `.svelte` files) and `examples/laravel` (PHP arrays, `__()` and Blade). Each README lists the cases placed on purpose and the manual checks to run in the IDE
+
 ## 1.15.0 - 2026-10-18
 
 ### Features
