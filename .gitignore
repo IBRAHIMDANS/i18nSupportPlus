@@ -3,6 +3,7 @@
 /.gradle/**
 /build/**
 /core/build/**
+/core-treesitter/build/**
 /out/**
 /examples/simple/.idea/**
 /examples/react-i18n-using-hooks/node_modules/**

@@ -14,3 +14,5 @@ rootProject.name = 'i18n Support Plus'
 
 // Code that compiles without the IntelliJ Platform: a dependency on it fails this module's build.
 include 'core'
+// Reads source keys with tree-sitter, outside the IDE: never shipped by the plugin.
+include 'core-treesitter'
