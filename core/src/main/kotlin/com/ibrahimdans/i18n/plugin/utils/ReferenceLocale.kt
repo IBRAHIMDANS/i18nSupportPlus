@@ -13,7 +13,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
  * reuse at extraction stayed silent while the other two worked. Every caller now goes through
  * [of], which applies the order [ModuleConfig.referenceLocale] documents, then [LocaleMatching].
  */
-internal object ReferenceLocale {
+object ReferenceLocale {
 
     private const val DEFAULT = "en"
 

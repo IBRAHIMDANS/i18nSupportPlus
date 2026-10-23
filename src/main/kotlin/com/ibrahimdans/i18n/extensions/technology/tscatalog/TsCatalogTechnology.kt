@@ -5,11 +5,13 @@ import com.ibrahimdans.i18n.Localization
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.SOURCE_ROOT
 import com.ibrahimdans.i18n.Technology
+import com.ibrahimdans.i18n.Workspace
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.pathToRoot
+import com.ibrahimdans.i18n.plugin.utils.project
 import com.intellij.lang.javascript.psi.JSArgumentList
 import com.intellij.lang.javascript.psi.JSObjectLiteralExpression
 import com.intellij.lang.javascript.psi.JSProperty
@@ -91,10 +93,11 @@ class TsCatalogTechnology : Technology {
      * not pay for the scan. Resolution never depends on this having run: [findSourcesByConfiguration]
      * computes on demand.
      */
-    override fun initialize(project: Project) {
+    override fun initialize(workspace: Workspace) {
+        val project = workspace.project
         DumbService.getInstance(project).runWhenSmart {
             if (project.isDisposed) return@runWhenSmart
-            ReadAction.nonBlocking<Unit> { findSourcesByConfiguration(project) }
+            ReadAction.nonBlocking<Unit> { findSourcesByConfiguration(workspace) }
                 .expireWith(project)
                 .submit(AppExecutorUtil.getAppExecutorService())
         }
@@ -105,7 +108,8 @@ class TsCatalogTechnology : Technology {
      * but asks again after every PSI change — hence a cache of its own, stamped like that one with
      * the project-wide PSI count: a catalog is a JS/TS file, which any keystroke may have edited.
      */
-    override fun findSourcesByConfiguration(project: Project): List<LocalizationSource> {
+    override fun findSourcesByConfiguration(workspace: Workspace): List<LocalizationSource> {
+        val project = workspace.project
         val config = Settings.getInstance(project).config()
         val stamps = CacheStamps(
             psi = PsiModificationTracker.getInstance(project).modificationCount,

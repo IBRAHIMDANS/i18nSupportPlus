@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.extensions.technology.i18next
 import com.ibrahimdans.i18n.*
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
+import com.ibrahimdans.i18n.plugin.utils.project
 import com.ibrahimdans.i18n.plugin.utils.whenMatches
 import com.intellij.lang.javascript.JavascriptLanguage
 import com.intellij.lang.javascript.psi.JSArrayLiteralExpression
@@ -50,7 +51,8 @@ class I18NextTechnology : Technology {
         return listOf("t", "i18n.t", "i18next.t", "props.t", "this.props.t")
     }
 
-    override fun findSourcesByConfiguration(project: Project): List<LocalizationSource> {
+    override fun findSourcesByConfiguration(workspace: Workspace): List<LocalizationSource> {
+        val project = workspace.project
         val config = Settings.getInstance(project).config()
         val localizations = Extensions.LOCALIZATION.extensionList
         return configFiles(project, config)
@@ -73,7 +75,8 @@ class I18NextTechnology : Technology {
             }
     }
 
-    override fun initialize(project: Project) {
+    override fun initialize(workspace: Workspace) {
+        val project = workspace.project
         // Defer index access until indices are ready (fixes AssertionError on IntelliJ 2023.1+
         // where MappedFileTypeIndex.setAssociation() throws when called outside a proper read context).
         DumbService.getInstance(project).runWhenSmart {
@@ -114,8 +117,8 @@ class I18NextTechnology : Technology {
      * an array of strings, in order. Asked for every key parsed, so the answer is kept until a
      * JavaScript or TypeScript file changes.
      */
-    override fun fallbackNamespaces(project: Project): List<String> =
-        fallbackCaches.computeIfAbsent(project) {
+    override fun fallbackNamespaces(workspace: Workspace): List<String> =
+        fallbackCaches.computeIfAbsent(workspace.project) { project ->
             CachedValuesManager.getManager(project).createCachedValue {
                 val tracker = PsiModificationTracker.getInstance(project).forLanguages { it.isKindOf(JavascriptLanguage) }
                 CachedValueProvider.Result.create(readFallbackNamespaces(project), tracker)

@@ -2,8 +2,10 @@ package com.ibrahimdans.i18n.extensions.technology.paraglide
 
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.LocalizationSource
-import com.ibrahimdans.i18n.extensions.technology.SimpleTechnology
+import com.ibrahimdans.i18n.Technology
+import com.ibrahimdans.i18n.Workspace
 import com.ibrahimdans.i18n.plugin.utils.pathToRoot
+import com.ibrahimdans.i18n.plugin.utils.project
 import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
@@ -26,12 +28,17 @@ import com.intellij.psi.util.CachedValuesManager
  * many inlang projects as a monorepo holds. A file the scan finds as well is kept once: the sources
  * share their display path.
  */
-class ParaglideTechnology : SimpleTechnology() {
+class ParaglideTechnology : Technology {
     override fun frameworkId(): String = "paraglide"
 
     override fun translationFunctionNames(): List<String> = emptyList()
 
-    override fun findSourcesByConfiguration(project: Project): List<LocalizationSource> {
+    override fun initialize(workspace: Workspace) {}
+
+    override fun cfgNamespaces(): List<String> = emptyList()
+
+    override fun findSourcesByConfiguration(workspace: Workspace): List<LocalizationSource> {
+        val project = workspace.project
         if (DumbService.isDumb(project)) return emptyList()
         val basePath = project.basePath.orEmpty()
         return runReadAction {

@@ -11,6 +11,8 @@ import com.intellij.openapi.project.Project
  */
 object FallbackNamespaces {
 
-    fun of(project: Project, config: Config): List<String> =
-        (config.fallbackNamespaces() + Extensions.TECHNOLOGY.extensionList.flatMap { it.fallbackNamespaces(project) }).distinct()
+    fun of(project: Project, config: Config): List<String> {
+        val workspace = IdeWorkspace(project)
+        return (config.fallbackNamespaces() + Extensions.TECHNOLOGY.extensionList.flatMap { it.fallbackNamespaces(workspace) }).distinct()
+    }
 }

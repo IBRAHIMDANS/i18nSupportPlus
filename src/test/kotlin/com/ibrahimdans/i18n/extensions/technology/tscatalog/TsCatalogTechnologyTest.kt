@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.extensions.technology.tscatalog
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
 import com.ibrahimdans.i18n.plugin.utils.pathToRoot
 import com.intellij.openapi.application.ReadAction
 import com.intellij.psi.PsiFile
@@ -144,7 +145,7 @@ class TsCatalogTechnologyTest : PlatformBaseTest() {
         )
 
         val sources = ReadAction.compute<List<com.ibrahimdans.i18n.LocalizationSource>, RuntimeException> {
-            technology.findSourcesByConfiguration(project)
+            technology.findSourcesByConfiguration(IdeWorkspace(project))
         }
 
         Assertions.assertEquals(listOf("fr", "en"), sources.map { it.parent })

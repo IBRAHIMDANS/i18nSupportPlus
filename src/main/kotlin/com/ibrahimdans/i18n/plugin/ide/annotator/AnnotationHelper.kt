@@ -14,8 +14,10 @@ import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.parser.KeySyntax
 import com.ibrahimdans.i18n.plugin.parser.KeyTemplate
 import com.ibrahimdans.i18n.plugin.tree.PropertyReference
+import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
+import com.ibrahimdans.i18n.plugin.utils.of
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.RangesCalculator
 import com.ibrahimdans.i18n.plugin.utils.TextSpan
@@ -179,7 +181,7 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
     /** Every file [searched] is a message file of an inlang project: one per locale, no namespace. */
     private fun readsParaglideMessages(searched: List<LocalizationSource>, project: Project): Boolean {
         if (searched.isEmpty() || ParaglideTechnology.projects(project).isEmpty()) return false
-        val messages = ParaglideTechnology().findSourcesByConfiguration(project).mapTo(HashSet()) { it.displayPath }
+        val messages = ParaglideTechnology().findSourcesByConfiguration(IdeWorkspace(project)).mapTo(HashSet()) { it.displayPath }
         return searched.all { it.displayPath in messages }
     }
 

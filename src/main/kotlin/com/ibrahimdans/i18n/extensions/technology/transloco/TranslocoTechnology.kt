@@ -2,11 +2,13 @@ package com.ibrahimdans.i18n.extensions.technology.transloco
 
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.LocalizationSource
-import com.ibrahimdans.i18n.extensions.technology.SimpleTechnology
+import com.ibrahimdans.i18n.Technology
+import com.ibrahimdans.i18n.Workspace
+import com.ibrahimdans.i18n.WorkspaceFile
 import com.ibrahimdans.i18n.plugin.utils.pathToRoot
+import com.ibrahimdans.i18n.plugin.utils.project
+import com.ibrahimdans.i18n.plugin.utils.virtualFile
 import com.intellij.openapi.application.ReadAction
-import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 
 /**
@@ -20,12 +22,17 @@ import com.intellij.psi.PsiManager
  * Declares each scope file ([TranslocoScopes]) as a source of the namespace named after its scope,
  * and the scopes as [keyScopes], so `admin.title` resolves in `i18n/admin/en.json`.
  */
-class TranslocoTechnology : SimpleTechnology() {
+class TranslocoTechnology : Technology {
     override fun frameworkId(): String = "transloco"
 
     override fun translationFunctionNames(): List<String> = listOf("t")
 
-    override fun findSourcesByConfiguration(project: Project): List<LocalizationSource> {
+    override fun initialize(workspace: Workspace) {}
+
+    override fun cfgNamespaces(): List<String> = emptyList()
+
+    override fun findSourcesByConfiguration(workspace: Workspace): List<LocalizationSource> {
+        val project = workspace.project
         val scopeFiles = TranslocoScopes.scopeFiles(project)
         if (scopeFiles.isEmpty()) return emptyList()
         val basePath = project.basePath.orEmpty()
@@ -47,8 +54,8 @@ class TranslocoTechnology : SimpleTechnology() {
         }
     }
 
-    override fun keyScopes(project: Project): Set<String> = TranslocoScopes.scopes(project)
+    override fun keyScopes(workspace: Workspace): Set<String> = TranslocoScopes.scopes(workspace.project)
 
-    override fun keyScopeOf(file: PsiFile): String? =
-        file.virtualFile?.let { TranslocoScopes.scopeOf(file.project, it) }
+    override fun keyScopeOf(workspace: Workspace, file: WorkspaceFile): String? =
+        TranslocoScopes.scopeOf(workspace.project, file.virtualFile)
 }
