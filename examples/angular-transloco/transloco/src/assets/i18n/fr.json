@@ -1,0 +1,13 @@
+{
+  "home": {
+    "title": "Exemple Transloco",
+    "greeting": "Bonjour, {{name}} !"
+  },
+  "menu": {
+    "home": "Accueil",
+    "settings": {
+      "title": "Paramètres",
+      "language": "Changer de langue"
+    }
+  }
+}
