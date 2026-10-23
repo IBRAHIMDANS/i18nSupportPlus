@@ -3,6 +3,9 @@ package com.ibrahimdans.i18n.extensions.localization.yaml
 import com.ibrahimdans.i18n.*
 import com.ibrahimdans.i18n.plugin.ConfigurationProperty
 import com.ibrahimdans.i18n.plugin.PrimitiveType
+import com.ibrahimdans.i18n.plugin.edit.YamlTranslationEditor
+import com.ibrahimdans.i18n.plugin.ide.edit.TranslationEditorBridge
+import com.ibrahimdans.i18n.plugin.ide.edit.TranslationEditorProvider
 import com.ibrahimdans.i18n.plugin.ide.settings.LocalizationSettingsPanel
 import com.ibrahimdans.i18n.plugin.ide.references.translation.TranslationToCodeReferenceProvider
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
@@ -33,7 +36,7 @@ import org.jetbrains.yaml.psi.YAMLKeyValue
 import org.jetbrains.yaml.psi.YAMLMapping
 import javax.swing.Icon
 
-class YamlLocalization : Localization<YAMLKeyValue> {
+class YamlLocalization : Localization<YAMLKeyValue>, TranslationEditorProvider {
     override fun types(): List<LocalizationFileType> = listOf(LocalizationFileType(YAMLFileType.YML, listOf("yaml")))
     override fun contentGenerator(): ContentGenerator = YamlContentGenerator()
     override fun referenceAssistant(): TranslationReferenceAssistant<YAMLKeyValue> = YamlReferenceAssistant()
@@ -44,6 +47,7 @@ class YamlLocalization : Localization<YAMLKeyValue> {
         }
     override fun icon(): Icon = AllIcons.FileTypes.Yaml
     override fun config(): LocalizationConfig = LocalizationConfigImpl("yaml", listOf(indentProperty()))
+    override fun translationEditor(project: Project) = YamlTranslationEditor(LocalizationSettingsPanel.indent(project, "yaml"))
 }
 
 /** Indentation of the keys generated in YAML files, which no code style reformats afterwards. */
@@ -130,10 +134,20 @@ private class YamlContentGenerator: ContentGenerator {
 
     override fun generate(element: PsiElement, fullKey: FullKey, unresolved: List<Literal>, translationValue: String?) {
         val first = unresolved.firstOrNull() ?: return
+        val value = translationValue ?: fullKey.source
+        val settings = Settings.getInstance(element.project)
+        if (TranslationEditorBridge.insert(
+                element.containingFile ?: return,
+                YamlTranslationEditor(LocalizationSettingsPanel.indent(element.project, "yaml")),
+                fullKey.compositeKey.map { it.text },
+                value,
+                order = settings.keyOrder.comparator.takeIf { settings.extractSorted },
+            )
+        ) return
         generateTranslationEntry(
             element,
             first.text,
-            generateContent(unresolved.drop(1), translationValue ?: fullKey.source, LocalizationSettingsPanel.indent(element.project, "yaml"))
+            generateContent(unresolved.drop(1), value, LocalizationSettingsPanel.indent(element.project, "yaml"))
         )
     }
 }

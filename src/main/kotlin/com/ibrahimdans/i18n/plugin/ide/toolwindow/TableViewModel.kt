@@ -4,13 +4,12 @@ import com.ibrahimdans.i18n.IdeI18nRegistry
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
+import com.ibrahimdans.i18n.plugin.ide.IdeKeyUsageIndex
 import com.ibrahimdans.i18n.plugin.ide.inspection.DuplicateTranslationValueInspection
-import com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages
 import com.ibrahimdans.i18n.plugin.ide.inspection.KeepList
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
 import com.ibrahimdans.i18n.plugin.review.Review
 import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
@@ -20,15 +19,12 @@ import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.review.shown
 import com.ibrahimdans.i18n.plugin.tree.Tree
-import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
-import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
-import com.intellij.psi.search.PsiSearchHelper
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -606,24 +602,16 @@ class TableViewModel {
     }
 
     /**
-     * Counts usages of each key in the project's source files using PsiSearchHelper.
+     * Counts usages of each key in the project's source files through [IdeKeyUsageIndex].
      * Returns a new list of rows with [TranslationRow.usageCount] filled in.
      *
      * This method performs PSI reads and must be called from a background thread.
      */
     fun countUsages(project: Project, rows: List<TranslationRow>): List<TranslationRow> {
         val config = Settings.getInstance(project).config()
-        val searchScope = config.searchScope(project)
-        val searchHelper = PsiSearchHelper.getInstance(project)
-
-        val fallbacks = FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry)
-        val counted = rows.map { row -> row.copy(usageCount = IndirectKeyUsages.textCount(row.key, config, searchScope, searchHelper, fallbacks)) }
-
-        // A key written under a hook's key prefix names only its tail at the call site, which the
-        // text scan never matches: count those before anything is declared an orphan.
-        val prefixed = IndirectKeyUsages.prefixedCounts(project, counted.filter { it.usageCount == 0 }.map { it.key }, config)
-        val withPrefixed = if (prefixed.isEmpty()) counted
-            else counted.map { row -> prefixed[row.key]?.let { row.copy(usageCount = it) } ?: row }
+        val index = IdeKeyUsageIndex(project)
+        val counts = index.usageCounts(rows.map { it.key })
+        val withPrefixed = rows.map { row -> row.copy(usageCount = counts[row.key] ?: 0) }
 
         // A key the project keeps is used by declaration, whatever the code shows: no search for it.
         val keepList = KeepList.of(config)
@@ -633,9 +621,7 @@ class TableViewModel {
         // Only what the text scan left at zero can be reached dynamically, and asking on
         // behalf of the whole batch is what keeps this to one search per distinct prefix.
         val orphanKeys = withKept.filter { it.usageCount == 0 }.map { it.key }
-        val reached = DynamicKeyUsages.reachedKeys(
-            orphanKeys, searchScope, searchHelper, config.nsSeparator, config.keySeparator,
-        )
+        val reached = index.dynamicallyReached(orphanKeys)
         if (reached.isEmpty()) return withKept
         return withKept.map { row ->
             if (row.key in reached) row.copy(usageCount = DYNAMIC_USAGE) else row

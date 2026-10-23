@@ -27,12 +27,36 @@ import com.intellij.psi.search.PsiSearchHelper
 class IdeKeyUsageIndex(private val project: Project) : KeyUsageIndex {
 
     override fun usages(key: String): List<KeyUsage> =
-        ReadAction.compute<List<KeyUsage>, RuntimeException> {
+        usages(listOf(key))[key].orEmpty()
+
+    override fun usages(keys: Collection<String>): Map<String, List<KeyUsage>> =
+        ReadAction.compute<Map<String, List<KeyUsage>>, RuntimeException> {
             val config = Settings.getInstance(project).config()
-            val found = IndirectKeyUsages.textUsages(
-                key, config, config.searchScope(project), PsiSearchHelper.getInstance(project), FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry),
-            ) + IndirectKeyUsages.prefixedUsages(project, listOf(key), config)[key].orEmpty()
-            found.mapNotNull(::usageOf)
+            val unique = keys.distinct()
+            val searchScope = config.searchScope(project)
+            val searchHelper = PsiSearchHelper.getInstance(project)
+            val fallbacks = FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry)
+            val text = unique.associateWith { key ->
+                IndirectKeyUsages.textUsages(key, config, searchScope, searchHelper, fallbacks)
+            }
+            val prefixed = IndirectKeyUsages.prefixedUsages(project, unique, config)
+            unique.associateWith { key ->
+                (text[key].orEmpty() + prefixed[key].orEmpty()).mapNotNull(::usageOf).distinct()
+            }
+        }
+
+    override fun usageCounts(keys: Collection<String>): Map<String, Int> =
+        ReadAction.compute<Map<String, Int>, RuntimeException> {
+            val config = Settings.getInstance(project).config()
+            val unique = keys.distinct()
+            val searchScope = config.searchScope(project)
+            val searchHelper = PsiSearchHelper.getInstance(project)
+            val fallbacks = FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry)
+            val text = unique.associateWith { key ->
+                IndirectKeyUsages.textCount(key, config, searchScope, searchHelper, fallbacks)
+            }
+            val prefixed = IndirectKeyUsages.prefixedCounts(project, unique, config)
+            unique.associateWith { key -> (text[key] ?: 0) + (prefixed[key] ?: 0) }
         }
 
     override fun dynamicallyReached(keys: Collection<String>): Set<String> =

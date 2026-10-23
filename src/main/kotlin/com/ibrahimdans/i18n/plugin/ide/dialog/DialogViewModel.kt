@@ -175,7 +175,8 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
             project,
             {
                 ApplicationManager.getApplication().runWriteAction {
-                    val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@runWriteAction
+                    val current = refreshSource(source)
+                    val ref = resolveCompositeKey(fullKey.compositeKey, current) ?: return@runWriteAction
                     val element = ref.element
                     if (ref.unresolved.isEmpty() && element != null) {
                         // Key exists — update value in place
@@ -194,6 +195,13 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
             null,
             UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION
         )
+    }
+
+    /** A prior text edit may have rebuilt the PSI tree while callers retain this source instance. */
+    private fun refreshSource(source: LocalizationSource): LocalizationSource {
+        val file = source.tree?.value()?.containingFile ?: return source
+        val tree = source.localization.elementsTree(file) ?: return source
+        return source.copy(tree = tree)
     }
 
     /**

@@ -1,7 +1,10 @@
 package com.ibrahimdans.i18n.extensions.localization.json
 
 import com.ibrahimdans.i18n.*
+import com.ibrahimdans.i18n.plugin.edit.JsonTranslationEditor
 import com.ibrahimdans.i18n.plugin.ide.actions.JsonKeySorter
+import com.ibrahimdans.i18n.plugin.ide.edit.TranslationEditorBridge
+import com.ibrahimdans.i18n.plugin.ide.edit.TranslationEditorProvider
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
@@ -21,7 +24,7 @@ import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.psi.util.PsiTreeUtil
 import javax.swing.Icon
 
-class JsonLocalization : Localization<JsonStringLiteral> {
+class JsonLocalization : Localization<JsonStringLiteral>, TranslationEditorProvider {
     override fun types(): List<LocalizationFileType> = listOf(JsonFileType.INSTANCE, Json5FileType.INSTANCE).map { LocalizationFileType(it) }
     override fun contentGenerator(): ContentGenerator = JsonContentGenerator()
     override fun referenceAssistant(): TranslationReferenceAssistant<JsonStringLiteral> = JsonReferenceAssistant()
@@ -38,6 +41,7 @@ class JsonLocalization : Localization<JsonStringLiteral> {
     // No indentation setting: a key added to an existing file takes the layout of the file itself
     // (see JsonInsertion), and a new file is written with 2 spaces.
     override fun config(): LocalizationConfig = LocalizationConfigImpl("json")
+    override fun translationEditor(project: com.intellij.openapi.project.Project) = JsonTranslationEditor
 }
 
 /**
@@ -92,10 +96,21 @@ private class JsonContentGenerator: ContentGenerator {
 
     override fun generate(element: PsiElement, fullKey: FullKey, unresolved: List<Literal>, translationValue: String?) {
         val first = unresolved.firstOrNull() ?: return
+        val value = translationValue ?: fullKey.source
+        val settings = Settings.getInstance(element.project)
+        if (TranslationEditorBridge.insert(
+                element.containingFile ?: return,
+                JsonTranslationEditor,
+                fullKey.compositeKey.map { it.text },
+                value,
+                order = settings.keyOrder.comparator.takeIf { settings.extractSorted },
+                sort = settings.keyOrder.comparator.takeIf { settings.sortKeysAlphabetically },
+            )
+        ) return
         generateTranslationEntry(
             element,
             first.text,
-            generateContent(unresolved.drop(1), translationValue ?: fullKey.source)
+            generateContent(unresolved.drop(1), value)
         )
     }
 }

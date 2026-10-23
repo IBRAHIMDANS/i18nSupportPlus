@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.plugin.ide.edit.TranslationEditorBridge
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
 import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
@@ -308,6 +309,9 @@ class RenameI18nKeyHandler : RenameHandler {
         val raw = nameElement.text
         val quote = raw.firstOrNull()?.takeIf { it in QUOTES && raw.length > 1 && raw.last() == it }
         val renamed = renamedName(raw.unQuote(), lastSegment, newSegment, config) ?: return null
+        TranslationEditorBridge.rename(property, renamed)?.let { edit ->
+            return Edit(document, TextRange(edit.span.start, edit.span.end), edit.newText)
+        }
         val text = if (quote != null) "$quote$renamed$quote" else renamed
         return Edit(document, nameElement.textRange, text)
     }

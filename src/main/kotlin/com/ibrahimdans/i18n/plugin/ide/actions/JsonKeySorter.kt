@@ -2,6 +2,8 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.plugin.ide.settings.KeyOrder
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.edit.JsonTranslationEditor
+import com.ibrahimdans.i18n.plugin.ide.edit.TranslationEditorBridge
 import com.intellij.json.psi.JsonFile
 import com.intellij.json.psi.JsonObject
 import com.intellij.openapi.project.Project
@@ -27,8 +29,14 @@ import com.intellij.psi.codeStyle.CodeStyleManager
 object JsonKeySorter {
 
     fun sort(file: JsonFile, project: Project) {
-        val root = file.topLevelValue as? JsonObject ?: return
         val order = Settings.getInstance(project).keyOrder.comparator
+        if (TranslationEditorBridge.sort(file, JsonTranslationEditor, order)) return
+        sortWithPsi(file, project, order)
+    }
+
+    /** The PSI fallback, kept separate for files the portable JSON reader cannot parse. */
+    internal fun sortWithPsi(file: JsonFile, project: Project, order: Comparator<String>) {
+        val root = file.topLevelValue as? JsonObject ?: return
         CodeStyleManager.getInstance(project).performActionWithFormatterDisabled { sortObject(root, order) }
     }
 

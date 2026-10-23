@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.ParaglideMessageExtractor
 import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideOutdir
 import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideTechnology
+import com.ibrahimdans.i18n.plugin.ide.edit.TranslationEditorBridge
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileKeys
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
 import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
@@ -126,6 +127,9 @@ internal class KeyLevelRename(
         val raw = nameElement.text
         val quote = raw.firstOrNull()?.takeIf { it in QUOTES && raw.length > 1 && raw.last() == it }
         val renamed = renamed(if (quote != null) raw.substring(1, raw.length - 1) else raw, newName)
+        TranslationEditorBridge.rename(property, renamed)?.let { edit ->
+            return Edit(document, TextRange(edit.span.start, edit.span.end), edit.newText)
+        }
         return Edit(document, nameElement.textRange, if (quote != null) "$quote$renamed$quote" else renamed)
     }
 

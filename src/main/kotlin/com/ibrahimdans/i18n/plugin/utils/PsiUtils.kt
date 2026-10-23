@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.utils
 
+import com.ibrahimdans.i18n.plugin.ide.edit.TranslationEditorBridge
 import com.intellij.json.psi.JsonProperty
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.vfs.VirtualFile
@@ -38,6 +39,18 @@ fun PsiElement.hostVirtualFile(): VirtualFile? = hostFile()?.originalFile?.virtu
  * Must be called inside a write action.
  */
 fun deletePropertyAndSeparator(property: PsiElement) {
+    deletePropertiesAndSeparators(listOf(property))
+}
+
+/**
+ * Deletes several translation properties in one write action. The portable editor plans each file
+ * before changing it; JSON5 and other unsupported sources retain the PSI deletion below.
+ */
+fun deletePropertiesAndSeparators(properties: Collection<PsiElement>) {
+    TranslationEditorBridge.delete(properties).forEach(::deleteWithPsi)
+}
+
+private fun deleteWithPsi(property: PsiElement) {
     if (property is JsonProperty) {
         val prev = generateSequence(property.prevSibling) { it.prevSibling }.firstOrNull { it.text.isNotBlank() }
         val next = generateSequence(property.nextSibling) { it.nextSibling }.firstOrNull { it.text.isNotBlank() }

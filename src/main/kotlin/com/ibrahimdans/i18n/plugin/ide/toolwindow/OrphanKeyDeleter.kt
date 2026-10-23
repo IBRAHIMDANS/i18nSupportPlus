@@ -8,7 +8,7 @@ import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
-import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
+import com.ibrahimdans.i18n.plugin.utils.deletePropertiesAndSeparators
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
@@ -100,7 +100,7 @@ internal class OrphanKeyDeleter(
                     }
                 }
                 val reviews = ReviewMigration.spotsOf(properties)
-                properties.forEach { if (it.isValid) deletePropertyAndSeparator(it) }
+                deletePropertiesAndSeparators(properties)
                 ReviewMigration.remove(project, reviews)
             }
     }

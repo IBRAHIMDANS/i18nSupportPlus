@@ -10,7 +10,7 @@ import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.review.ReviewMigration
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
-import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
+import com.ibrahimdans.i18n.plugin.utils.deletePropertiesAndSeparators
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -176,7 +176,7 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
         // 2. Remove the source entries, separating comma included: a bare delete()
         //    leaves `{,"sibling":…}` behind and corrupts the file whenever the moved
         //    key has a sibling — i.e. almost always in a real translation file.
-        sourceLeaves.mapNotNull { toPropertyElement(it) }.forEach { deletePropertyAndSeparator(it) }
+        deletePropertiesAndSeparators(sourceLeaves.mapNotNull(::toPropertyElement))
 
         // 3. Rewrite code references with an explicit target-namespace prefix.
         val keyPath = compositeKey.joinToString(".") { it.text }

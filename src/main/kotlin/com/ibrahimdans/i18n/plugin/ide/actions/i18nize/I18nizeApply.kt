@@ -205,13 +205,21 @@ internal class I18nizeApply private constructor(
      * written: the key is there already — its value is kept — or its path runs into a value.
      */
     private fun writeValue(source: LocalizationSource, fullKey: FullKey, value: String): Boolean {
-        val reference = Resolver.resolveCompositeKey(fullKey.compositeKey, source) ?: return false
+        val current = refreshSource(source)
+        val reference = Resolver.resolveCompositeKey(fullKey.compositeKey, current) ?: return false
         val element = reference.element ?: return false
         if (reference.unresolved.isEmpty() || !element.isTree()) return false
-        val generator = source.localization.contentGenerator()
+        val generator = current.localization.contentGenerator()
         if (!generator.isSuitable(element.value())) return false
         generator.generate(element.value(), fullKey, reference.unresolved, value)
         return true
+    }
+
+    /** A prior text edit may have rebuilt the PSI tree while the batch retains this source. */
+    private fun refreshSource(source: LocalizationSource): LocalizationSource {
+        val file = source.tree?.value()?.containingFile ?: return source
+        val tree = source.localization.elementsTree(file) ?: return source
+        return source.copy(tree = tree)
     }
 
     private object Resolver : CompositeKeyResolver<PsiElement>

@@ -10,7 +10,6 @@ import com.ibrahimdans.i18n.plugin.ide.actions.JsonKeySorter
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.KeyOrder
-import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
 import com.intellij.json.psi.JsonFile
@@ -57,7 +56,8 @@ class TranslationEditorParityTest : PlatformBaseTest() {
             depth++
         }
         val literals = path.map { Literal(it) }
-        JsonLocalization().contentGenerator().generate(obj, FullKey(path.joinToString("."), null, literals), literals.drop(depth), value)
+        val generator = JsonLocalization().contentGenerator()
+        generator.generateTranslationEntry(obj, literals[depth].text, generator.generateContent(literals.drop(depth + 1), value))
     }
 
     private fun assertJsonInsert(text: String, key: String, value: String, order: Comparator<String>? = null) {
@@ -95,7 +95,7 @@ class TranslationEditorParityTest : PlatformBaseTest() {
     }
 
     private fun assertJsonSort(text: String, order: KeyOrder = KeyOrder.IGNORE_CASE) = myFixture.runWithConfig(Config(keyOrder = order)) {
-        val expected = psi("json", text) { JsonKeySorter.sort(it as JsonFile, project) }
+        val expected = psi("json", text) { JsonKeySorter.sortWithPsi(it as JsonFile, project, order.comparator) }
         assertEquals(expected, core(text, JsonTranslationEditor.sort(text, order.comparator)))
     }
 
@@ -150,7 +150,8 @@ class TranslationEditorParityTest : PlatformBaseTest() {
             depth++
         }
         val literals = path.map { Literal(it) }
-        YamlLocalization().contentGenerator().generate(mapping, FullKey(path.joinToString("."), null, literals), literals.drop(depth), value)
+        val generator = YamlLocalization().contentGenerator()
+        generator.generateTranslationEntry(mapping, literals[depth].text, generator.generateContent(literals.drop(depth + 1), value))
     }
 
     private fun assertYamlInsert(text: String, key: String, value: String, order: Comparator<String>? = null) {
