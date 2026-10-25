@@ -67,6 +67,15 @@ object ModuleSources {
         else modules.zip(enabled) { module, state -> module.copy(enabled = state) }
 
     /**
+     * The scopes a project's keys are compared in: each active module with a root directory when
+     * there are two or more, the whole project — a null module — otherwise.
+     */
+    fun scopes(modules: List<ModuleConfig>): List<ModuleConfig?> {
+        val rooted = active(modules).filter { rootOf(it).isNotEmpty() }
+        return if (rooted.size < 2) listOf(null) else rooted
+    }
+
+    /**
      * Whether [file] lies under the root directory of a module put aside: its owner, among all
      * [modules], is disabled. A disabled module nested in an active one takes its own files out; an
      * active one nested in a disabled one keeps its own.

@@ -9,11 +9,11 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
-import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.sourcesOf
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.openapi.components.service
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
@@ -45,8 +45,8 @@ class KeysSynchronizer {
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.sync.progress.analyzing"), false) {
             override fun run(indicator: ProgressIndicator) {
                 indicator.text = PluginBundle.message("action.sync.progress.loading")
-                val allTranslations = TranslationDataLoader.loadAllTranslations(project)
-                val allLocales = TranslationDataLoader.discoverLocales(project)
+                val config = Settings.getInstance(project).config()
+                val allLocales = ModuleSources.scopes(config.modules).flatMap { TranslationDataLoader.discoverLocales(project, it) }.distinct()
 
                 if (allLocales.isEmpty()) {
                     ApplicationManager.getApplication().invokeLater {
@@ -62,9 +62,7 @@ class KeysSynchronizer {
                 }
 
                 indicator.text = PluginBundle.message("action.sync.progress.computing")
-                val allSources = project.service<LocalizationSourceService>().findAllSources(project)
-                val config = Settings.getInstance(project).config()
-                val missing = findMissingEntries(allTranslations, allLocales, allSources, config.defaultNamespaces(), config::ignoresLocale)
+                val missing = missingEntries(project, config)
 
                 ApplicationManager.getApplication().invokeLater {
                     if (missing.isEmpty()) {
@@ -85,6 +83,23 @@ class KeysSynchronizer {
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────────
+
+    /**
+     * The keys missing from [project], module by module in a monorepo: a key of `apps/web` is missing
+     * from web's locales, never from admin's, and it is written to web's files.
+     */
+    internal fun missingEntries(project: Project, config: Config): List<MissingEntry> =
+        ModuleSources.scopes(config.modules).flatMap { module ->
+            // One list for what is read and what is written: the module's files, by their location.
+            val sources = TranslationDataLoader.filterToRecognizedLocales(ModuleSources.sourcesOf(project, module))
+            findMissingEntries(
+                TranslationDataLoader.translationsOf(project, sources),
+                sources.map(TranslationDataLoader::extractLocale).distinct().sorted(),
+                sources,
+                config.defaultNamespaces(),
+                config::ignoresLocale,
+            )
+        }.sortedWith(compareBy({ it.locale }, { it.key }))
 
     /**
      * Computes missing entries: for every key present in at least one locale and absent from
