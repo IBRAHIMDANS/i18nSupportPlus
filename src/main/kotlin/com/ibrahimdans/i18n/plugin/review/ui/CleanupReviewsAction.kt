@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.review.ReviewLocation
 import com.ibrahimdans.i18n.plugin.review.ReviewMigration
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -21,7 +22,6 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.table.JBTable
@@ -67,12 +67,13 @@ class CleanupReviewsAction : AnAction() {
                     val skipped = if (scan.skipped.isEmpty()) ""
                         else "\n\n" + PluginBundle.message("action.cleanup.reviews.skipped", scan.skipped.joinToString(", "))
                     if (scan.count == 0) {
-                        Messages.showInfoMessage(project, PluginBundle.message("action.cleanup.reviews.none") + skipped, title)
+                        // A notification is HTML: the blank line of the dialog note becomes a <br/>.
+                        PluginNotifications.notify(project, PluginBundle.message("action.cleanup.reviews.none") + skipped.replace("\n", "<br/>"), title = title)
                         return@invokeLater
                     }
                     if (!PreviewDialog(project, scan, skipped).showAndGet()) return@invokeLater
                     val deleted = delete(project, scan)
-                    Messages.showInfoMessage(project, PluginBundle.message("action.cleanup.reviews.done", deleted), title)
+                    PluginNotifications.notify(project, PluginBundle.message("action.cleanup.reviews.done", deleted), title = title)
                 }, project.disposed)
             }
         })

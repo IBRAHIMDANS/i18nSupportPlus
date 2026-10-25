@@ -8,12 +8,12 @@ import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.readableFile
 import com.ibrahimdans.i18n.plugin.utils.sourcesOf
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
 import com.ibrahimdans.i18n.plugin.utils.PseudoLocalizer
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
-import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
@@ -69,14 +69,12 @@ class GeneratePseudoLocaleAction : AnAction() {
         val written = write(project, files)
         val content = if (written.isEmpty()) PluginBundle.message("action.generate.pseudo.locale.none")
         else PluginBundle.message("action.generate.pseudo.locale.done", written.joinToString("<br/>") { it.removePrefix("${project.basePath}/") })
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("i18n Support Plus")
-            .createNotification(
-                PluginBundle.message("action.generate.pseudo.locale.title"),
-                content,
-                if (written.isEmpty()) NotificationType.WARNING else NotificationType.INFORMATION
-            )
-            .notify(project)
+        PluginNotifications.notify(
+            project,
+            content,
+            if (written.isEmpty()) NotificationType.WARNING else NotificationType.INFORMATION,
+            PluginBundle.message("action.generate.pseudo.locale.title")
+        )
     }
 
     @Suppress("UNCHECKED_CAST")

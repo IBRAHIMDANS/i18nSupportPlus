@@ -12,6 +12,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationRow
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
 import com.ibrahimdans.i18n.plugin.utils.sourcesOf
 import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
@@ -28,7 +29,6 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.openapi.ui.Messages
 import com.intellij.psi.PsiElement
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.table.JBTable
@@ -84,11 +84,7 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
 
                 ApplicationManager.getApplication().invokeLater {
                     if (orphans.isEmpty()) {
-                        Messages.showInfoMessage(
-                            project,
-                            PluginBundle.message("action.cleanup.none"),
-                            PluginBundle.message("action.cleanup.title")
-                        )
+                        PluginNotifications.notify(project, PluginBundle.message("action.cleanup.none"), title = PluginBundle.message("action.cleanup.title"))
                         return@invokeLater
                     }
                     val dialog = CleanupPreviewDialog(project, labels.map { (label, orphan) -> label to orphan.second.values.size })
@@ -97,10 +93,10 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
                         if (selected.isNotEmpty()) {
                             val deletedEntries = selected.groupBy({ it.first }, { it.second.key })
                                 .entries.sumOf { (module, keys) -> deleteKeys(project, keys, module) }
-                            Messages.showInfoMessage(
+                            PluginNotifications.notify(
                                 project,
                                 PluginBundle.message("action.cleanup.done", selected.size, deletedEntries),
-                                PluginBundle.message("action.cleanup.title")
+                                title = PluginBundle.message("action.cleanup.title")
                             )
                         }
                     }

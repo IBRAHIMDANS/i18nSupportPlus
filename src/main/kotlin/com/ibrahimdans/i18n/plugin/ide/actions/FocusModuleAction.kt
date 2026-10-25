@@ -6,8 +6,8 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.I18nToolWindowPanel
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
 import com.intellij.notification.NotificationAction
-import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -45,11 +45,14 @@ object ModuleFocus {
         val settings = Settings.getInstance(project)
         val before = settings.config().modules.map { it.enabled }
         store(project, modules)
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("i18n Support Plus")
-            .createNotification(message, NotificationType.INFORMATION)
-            .addAction(NotificationAction.createSimpleExpiring(PluginBundle.message("modules.undo")) { undo(project, before) })
-            .notify(project)
+        // A fading balloon is enough: Undo stays in the Notifications tool window, and Activate All Modules is in the menu.
+        PluginNotifications.notify(
+            project,
+            message,
+            NotificationType.INFORMATION,
+            "",
+            NotificationAction.createSimpleExpiring(PluginBundle.message("modules.undo")) { undo(project, before) }
+        )
     }
 
     /** Gives every module back its state from [before]; see [ModuleSources.withEnabled]. */

@@ -24,6 +24,7 @@ import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
 import com.ibrahimdans.i18n.plugin.translate.asCancellation
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
@@ -73,7 +74,7 @@ class FillMissingTranslationsAction : AnAction() {
         val source = ReferenceLocale.of(scope.config, config, locales) ?: locales.firstOrNull() ?: return
         val targets = locales.filter { it != source }.toTypedArray()
         if (targets.isEmpty()) {
-            Messages.showInfoMessage(project, PluginBundle.message("action.fill.noTarget", source), title)
+            PluginNotifications.notify(project, PluginBundle.message("action.fill.noTarget", source), title = title)
             return
         }
         val all = PluginBundle.message("action.fill.target.all")
@@ -166,9 +167,7 @@ internal object MachineFill {
                     if (items.isNotEmpty()) proposals += translate(items, provider, source, target, indicator) ?: return
                 }
                 if (proposals.isEmpty()) {
-                    ApplicationManager.getApplication().invokeLater {
-                        Messages.showInfoMessage(project, PluginBundle.message(pass.nothing, label), title)
-                    }
+                    PluginNotifications.notify(project, PluginBundle.message(pass.nothing, label), title = title)
                     return
                 }
                 ApplicationManager.getApplication().invokeLater {

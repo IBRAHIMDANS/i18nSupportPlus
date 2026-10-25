@@ -36,6 +36,7 @@
 - [svelte-i18n] **The `default` and `values` of a `$_` call are no longer reported as unresolved keys**
 - [Laravel] **A JSON phrase holding `.` or `:` resolves**: `__('Saved.')` and `__('Hello, :name')` are looked up whole in `lang/<locale>.json`, as Laravel does, instead of being cut at the separators
 - [Gutter] **No more error logged for a key in a Vue template** (*LineMarker is supposed to be registered for leaf elements only*)
+- [Notifications] **Results no longer stay on screen or stop you with a dialog**: "nothing to sync", "nothing to clean up", "nothing to fill" and the summaries of *Cleanup Unused Keys*, *Internationalize…*, *Generate Pseudo-Locale* or *Focus on a Module* now show in a balloon that fades out, still listed in the Notifications tool window; warnings stay until you close them
 
 ### Documentation
 
