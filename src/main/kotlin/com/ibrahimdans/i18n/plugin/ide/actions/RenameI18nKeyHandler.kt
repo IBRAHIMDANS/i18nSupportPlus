@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.extensions.localization.plain.`object`.PlainObjectTextTree
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
 import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
@@ -302,7 +303,8 @@ class RenameI18nKeyHandler : RenameHandler {
      * null when that property is not named after [lastSegment].
      */
     private fun renamedProperty(translation: PsiElement, lastSegment: String, newSegment: String, config: Config): Edit? {
-        val nameElement = TranslationPsi.keyElementOf(translation) ?: return null
+        // A PO catalogue is no key-value tree: its key is the msgid of the entry.
+        val nameElement = TranslationPsi.keyElementOf(translation) ?: PlainObjectTextTree.msgidOf(translation) ?: return null
         val document = documentOf(nameElement) ?: return null
         val raw = nameElement.text
         val quote = raw.firstOrNull()?.takeIf { it in QUOTES && raw.length > 1 && raw.last() == it }

@@ -30,7 +30,7 @@ the scripts on purpose: it would add to the catalogues the keys this example lea
 | ICU plural in a single `msgstr` | `cart.items` |
 | Missing in a locale, on purpose | `about.beta` (not in `fr/messages.po`) |
 | Unknown key at the call site, on purpose | `i18n._("checkout.coupon")` in `src/App.tsx` |
-| No `#:` origin lines (`origins: false` in `lingui.config.ts`): the plugin finds an entry only when its msgid opens it | every entry |
+| Origin lines `#: src/App.tsx:27` above the msgid, as `lingui extract` writes them | `app.greeting`, `user.profile.title` |
 
 ## What the call sites cover
 
@@ -56,11 +56,13 @@ the scripts on purpose: it would add to the catalogues the keys this example lea
    Ctrl+click on that msgid leads back to the call. `<Trans>` and `msg({ id })` are checked but carry no reference:
    Ctrl+click on them goes nowhere, and the msgid does not lead back to them.
 5. With *Enable folding* on, `i18n._("app.greeting", …)` folds to its English value, `Hello {name}!`.
-6. Alt+Enter on `checkout.coupon` → *Create i18n key*: the msgid is added to the catalogue and the underline goes.
-   One Ctrl+Z removes it.
+6. Alt+Enter on `checkout.coupon` → *Create i18n key*: the msgid is added to the catalogue, flagged
+   `#. js-lingui-explicit-id` as `lingui extract` would, and the underline goes. One Ctrl+Z removes it. Created from a
+   `<Trans>`, a msgid gets no flag: it is the source text.
+7. In `i18n._("")`, Ctrl+Space offers every msgid with its English value.
+8. Shift+F6 on `"user.profile.title"` in `src/App.tsx` renames the call and the msgid in both catalogues.
 
-Not supported with PO catalogues: completion of msgids (the PO tree lists no entries to offer) and rename (Shift+F6
-rewrites JSON and YAML catalogues only). The `i18n-check` command line (root README, *Command Line Check*) reads JSON
+The `i18n-check` command line (root README, *Command Line Check*) reads JSON
 and YAML only, so it does not apply to this layout.
 
 Left out because the plugin reads them differently from Lingui: `<Trans id="…">` (the plugin takes the children, not

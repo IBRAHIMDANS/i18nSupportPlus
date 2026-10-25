@@ -15,6 +15,7 @@
 - [Settings] **Import key assistance rules from i18n Ally**: *Import from i18n Ally…*, under the rules, reads `.vscode/i18n-ally-custom-framework.yml` and shows what it takes over before adding anything
 - [Settings] **The setup wizard reads your `i18next.config.ts`**: with an i18next-cli configuration at the project root, the wizard proposes its output folder as the translations root, and its default namespace and separators, each marked as read from that file.
 - [CLI] **`i18n-check`, the translation check for CI**: reports missing, orphan and empty keys per locale and, with `--code`, the keys an i18next project no longer uses. It reads the IDE's settings or an `i18n-check.json`, and JSON, JSON5, YAML and TS/JS catalogues; it is attached to each GitHub release and runs as a GitHub Action. See the [README](README.md#command-line-check)
+- [Lingui] **Complete and rename msgids in PO catalogues**: in `i18n._("")`, Ctrl+Space offers every msgid with its value, and Shift+F6 renames a key in the code and in every `messages.po`; *Create i18n key* flags an explicit id `#. js-lingui-explicit-id`, as `lingui extract` does, so `lingui compile` finds it
 
 ### Fixes
 
@@ -24,6 +25,7 @@
 - [Settings] **A project stored under a folder named `build`, `dist` or `node_modules` finds its translation files again**
 - [Review] **A nested plural form (`steps.few`) turns stale when its `other` form changes**, as a flat `item_few` does
 - [Lingui] **`<Trans>Hello {name}!</Trans>` is found in the catalogue again**: its key is built the way Lingui's macro builds it
+- [Lingui] **An entry under `#: src/App.tsx:12` origin lines is found again**: the lines `lingui extract` writes by default no longer leave the key reported as unresolved
 - [React Intl] ***Internationalize…* leaves out a string outside any component** instead of calling an `intl` that is not there
 - [Translation] **The translation dialog's *Translate* button and *Instruction* field are translated into French**
 - [svelte-i18n] **The `default` and `values` of a `$_` call are no longer reported as unresolved keys**

@@ -7,6 +7,7 @@ msgstr ""
 "Language: fr\n"
 
 #. js-lingui-explicit-id
+#: src/App.tsx:26
 msgid "app.greeting"
 msgstr "Bonjour {name} !"
 
@@ -26,6 +27,7 @@ msgid "nav.settings"
 msgstr "Paramètres"
 
 #. js-lingui-explicit-id
+#: src/App.tsx:27
 msgid "user.profile.title"
 msgstr "Profil utilisateur"
 
