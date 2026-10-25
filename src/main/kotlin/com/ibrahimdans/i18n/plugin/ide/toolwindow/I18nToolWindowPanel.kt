@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
 import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.Configurable
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.SetupWizardDialog
@@ -15,8 +16,12 @@ import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.ActionToolbar
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.actionSystem.ToggleAction
+import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
@@ -28,12 +33,14 @@ import com.intellij.ui.HyperlinkLabel
 import com.intellij.ui.JBColor
 import com.intellij.ui.SearchTextField
 import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.JBTabbedPane
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
+import java.awt.CardLayout
 import java.awt.Component
 import java.awt.Font
 import java.awt.event.ActionListener
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.awt.event.ItemEvent
 import javax.swing.Box
 import javax.swing.BoxLayout
@@ -60,6 +67,21 @@ internal const val SEARCH_DELAY_MS = 150
  */
 private val secondaryForeground: JBColor
     get() = JBColor.namedColor("Label.infoForeground", JBColor.GRAY)
+
+/**
+ * Opens the plugin's settings page — by class, not by display name: the name changed once
+ * already, and the dialog then opened on whatever page it pleased. Outside the panel, which a
+ * test cannot build, so the call can be checked.
+ */
+internal fun openPluginSettings(project: Project) =
+    ShowSettingsUtil.getInstance().showSettingsDialog(project, Configurable::class.java)
+
+/** The name a view goes by in the toolbar. */
+internal fun ToolWindowTab.label(): String = when (this) {
+    ToolWindowTab.TREE -> PluginBundle.message("toolwindow.tab.tree")
+    ToolWindowTab.TABLE -> PluginBundle.message("toolwindow.tab.table")
+    ToolWindowTab.STATS -> PluginBundle.message("toolwindow.tab.stats")
+}
 
 /** Which of the three shells the current project configuration deserves. */
 internal enum class ShellLayout { EMPTY, SINGLE, MULTI }
@@ -230,16 +252,27 @@ internal data class ModulePanelSet(
 )
 
 /**
- * The tool window's content area: either the empty state, or a single [JBTabbedPane] holding
- * the tree, the table and the statistics of the module currently selected in the toolbar.
+ * Narrowest tool window, in unscaled pixels, whose top bar still holds the table's Namespace and
+ * Status filters next to the search field. Below it — a window docked to a side — they keep their
+ * own row above the table.
+ */
+internal const val INLINE_FILTERS_MIN_WIDTH = 1000
+
+/**
+ * The tool window's content area: either the empty state, or the tree, the table and the
+ * statistics of the module currently selected in the toolbar, one at a time.
  *
  * Deliberately not a member of [I18nToolWindowPanel]: that class reaches for [ActionManager]
  * in its constructor, which the headless test container does not provide, so anything built
  * inside it is out of reach of a test. Built here, the layout is a plain Swing tree a test
  * can walk.
  *
- * [viewState], when given, restores the tab selected last time and records every change of it.
+ * [viewState], when given, restores the view selected last time and records every change of it.
  * It is optional so the layout can still be built — and tested — with no workspace behind it.
+ *
+ * [filterSlot] is the place the top bar keeps for the table's filters: while the table is the
+ * view on screen and the window is wide enough (see [fitToWidth]), its filter bar moves there, and
+ * the row it took above the table goes to the rows.
  */
 internal class ShellContent(
     project: Project,
@@ -247,7 +280,8 @@ internal class ShellContent(
     private val onRunWizard: () -> Unit,
     private val onOpenSettings: () -> Unit,
     private val viewState: ToolWindowViewState? = null,
-    private val onClearSearch: () -> Unit = {}
+    private val onClearSearch: () -> Unit = {},
+    private val filterSlot: JPanel? = null
 ) {
 
     /**
@@ -263,59 +297,106 @@ internal class ShellContent(
         ShellLayout.MULTI -> diagnostics.modules.map { newPanelSet(project, it) }
     }.onEach { it.table.onClearSearch = onClearSearch }
 
+    private val cards = CardLayout()
+
     /**
-     * The one and only level of tabs.
+     * The three views, one at a time; picked from the toolbar — see [selectedView].
      *
      * Two modules used to nest a tab pane per view inside a tab pane per module: in a
      * right-docked window two rows of tabs eat the useful height, and the inner selection was
      * lost from one module to the next. The module moved to a selector in the toolbar, and
-     * switching it swaps the three components in place — so the chosen view survives it.
+     * switching it swaps the three components in place — so the chosen view survives it. The
+     * views then left their own row of tabs for the toolbar too: docked at the bottom, that row
+     * was one of four stacked above an eight-row table.
      */
-    val tabs: JBTabbedPane? = moduleSets.firstOrNull()?.let { first ->
-        JBTabbedPane().apply {
-            addTab(PluginBundle.message("toolwindow.tab.tree"), first.tree)
-            addTab(PluginBundle.message("toolwindow.tab.table"), first.table)
-            addTab(PluginBundle.message("toolwindow.tab.stats"), first.stats)
-            restoreSelectedTab(this)
-        }
+    val views: JPanel? = moduleSets.firstOrNull()?.let { first ->
+        JPanel(cards).apply { addViews(this, first) }
     }
+
+    /**
+     * The view on screen, restored from [viewState] and written back on every change.
+     *
+     * Saved in the project scope, not per module: the view is shared on purpose between modules —
+     * [showModule] keeps it across a switch — so a per-module value would either fight that or
+     * never be read. Restoring it writes nothing: only the setter does.
+     */
+    var selectedView: ToolWindowTab = viewState?.activeTab(null) ?: ToolWindowTab.TREE
+        set(value) {
+            field = value
+            views?.let { cards.show(it, value.name) }
+            viewState?.setActiveTab(null, value)
+            placeFilters()
+        }
 
     private var visibleModule = 0
 
+    /** The tool window's width as last reported by [fitToWidth]; 0 until then. */
+    private var availableWidth = 0
+
     /** What the tool window shows. */
-    val component: JComponent = tabs ?: buildEmptyState()
+    val component: JComponent = views ?: buildEmptyState()
+
+    /** True when there are views to pick from, i.e. not the empty state. */
+    val hasViews: Boolean get() = views != null
+
+    init {
+        views?.let { cards.show(it, selectedView.name) }
+    }
 
     /** The module whose panels are on screen; null when the shell is not module-scoped. */
     val activeModule: ModuleConfig?
         get() = moduleSets.getOrNull(visibleModule)?.config
 
-    /** Shows the panels of module [index] in the existing tabs, keeping the selected view. */
+    /** Shows the panels of module [index] in place of the current ones, keeping the selected view. */
     fun showModule(index: Int) {
-        val pane = tabs ?: return
+        val panel = views ?: return
         val set = moduleSets.getOrNull(index) ?: return
         if (index == visibleModule) return
-        val selected = pane.selectedIndex
-        pane.setComponentAt(0, set.tree)
-        pane.setComponentAt(1, set.table)
-        pane.setComponentAt(2, set.stats)
-        pane.selectedIndex = selected
+        // The filter bar of the module going away may sit in the top bar: it goes home first.
+        moduleSets[visibleModule].table.dockFilterBar()
+        panel.removeAll()
+        addViews(panel, set)
         visibleModule = index
+        cards.show(panel, selectedView.name)
+        panel.revalidate()
+        panel.repaint()
+        placeFilters()
     }
 
     /**
-     * Selects the saved tab, then starts recording changes.
-     *
-     * The tab is saved in the project scope, not per module: the view is shared on purpose
-     * between modules — [showModule] keeps it across a switch — so a per-module value would
-     * either fight that or never be read. The listener is added after the restore, and after
-     * `addTab`, which selects the first tab by itself, so building the pane writes nothing.
+     * Records the tool window's [width] and decides where the table's filters go: into
+     * [filterSlot], next to the search field, while the table is on screen and the width allows
+     * it; above the table otherwise.
      */
-    private fun restoreSelectedTab(pane: JBTabbedPane) {
-        val state = viewState ?: return
-        pane.selectedIndex = state.activeTab(null).ordinal.coerceIn(0, pane.tabCount - 1)
-        pane.addChangeListener {
-            ToolWindowTab.entries.getOrNull(pane.selectedIndex)?.let { state.setActiveTab(null, it) }
+    fun fitToWidth(width: Int) {
+        availableWidth = width
+        placeFilters()
+    }
+
+    /** Whether the visible table's filters sit in the top bar right now; for the tests. */
+    internal val filtersInTopBar: Boolean
+        get() = filterSlot != null && filterSlot.componentCount > 0
+
+    private fun placeFilters() {
+        val slot = filterSlot ?: return
+        val visible = moduleSets.getOrNull(visibleModule)?.table
+        val inline = visible != null && selectedView == ToolWindowTab.TABLE &&
+            availableWidth >= JBUI.scale(INLINE_FILTERS_MIN_WIDTH)
+        for (set in moduleSets) {
+            if (!inline || set.table !== visible) set.table.dockFilterBar()
         }
+        slot.removeAll()
+        // Adding the bar to the slot takes it out of the table by itself: a component has one parent.
+        if (inline) slot.add(visible!!.filterBar, BorderLayout.CENTER)
+        slot.isVisible = inline
+        slot.revalidate()
+        slot.repaint()
+    }
+
+    private fun addViews(panel: JPanel, set: ModulePanelSet) {
+        panel.add(set.tree, ToolWindowTab.TREE.name)
+        panel.add(set.table, ToolWindowTab.TABLE.name)
+        panel.add(set.stats, ToolWindowTab.STATS.name)
     }
 
     /** Filters every module, not only the visible one, so the query survives a module switch. */
@@ -396,9 +477,9 @@ internal class ShellContent(
 /**
  * Main panel for the I18n tool window.
  *
- * Holds the single toolbar — actions, module selector, search field and result count — above
- * one level of tabs, or above the empty state when the project has no translation the plugin
- * can read.
+ * Holds the single toolbar — view toggles, actions, search field and result count, the table's
+ * filters when they fit, module selector — above the view on screen, or above the empty state
+ * when the project has no translation the plugin can read.
  *
  * [searchDelay] is injected so the search debounce can be exercised without a real clock. The
  * constructor taking it is internal only because [DelayedRunner] is — the tool window uses the
@@ -428,9 +509,18 @@ class I18nToolWindowPanel internal constructor(
         }
     }
 
+    /** Where the table's filters go when the window is wide enough; see [ShellContent.fitToWidth]. */
+    private val filterSlot = JPanel(BorderLayout()).apply {
+        isVisible = false
+        border = JBUI.Borders.emptyLeft(6)
+    }
+
     private val searchDebouncer = SearchDebouncer(searchDelay) { applySearch(it) }
 
     private var shellContent: ShellContent? = null
+
+    /** Kept to repaint the view toggles when the view changes without them, as at a rebuild. */
+    private var actionToolbar: ActionToolbar? = null
 
     /** Guards the selector's listener against the programmatic repopulation of its model. */
     private var updatingSelector = false
@@ -447,6 +537,11 @@ class I18nToolWindowPanel internal constructor(
         setContent(loadingPlaceholder())
         connectSearchField()
         connectModuleSelector()
+        addComponentListener(object : ComponentAdapter() {
+            override fun componentResized(e: ComponentEvent) {
+                shellContent?.fitToWidth(width)
+            }
+        })
         refresh()
     }
 
@@ -498,12 +593,15 @@ class I18nToolWindowPanel internal constructor(
             onRunWizard = { SetupWizardDialog(project).show() },
             onOpenSettings = { openSettings() },
             viewState = ToolWindowViewState.getInstance(project),
-            onClearSearch = { searchField.text = "" }
+            onClearSearch = { searchField.text = "" },
+            filterSlot = filterSlot
         )
         shellContent = built
         setContent(built.component)
         built.applyFilter(searchField.text.orEmpty())
+        built.fitToWidth(width)
         updateModuleSelector(diagnostics)
+        actionToolbar?.updateActionsAsync()
         revalidate()
         repaint()
     }
@@ -616,11 +714,14 @@ class I18nToolWindowPanel internal constructor(
     // ---------------------------------------------------------------------------
 
     /**
-     * The single home for the tool window's actions: the action toolbar, the module selector,
-     * the search field and its result count.
+     * The single home for the tool window's actions: the view toggles and the action toolbar,
+     * the search field and its result count, the table's filters when they fit, and the module
+     * selector — one row where there used to be three (toolbar, tabs, filters).
      */
     private fun buildTopBar(): JComponent {
         val group = DefaultActionGroup()
+        for (view in ToolWindowTab.entries) group.add(ViewToggle(view))
+        group.addSeparator()
         group.add(addTranslationAction())
         group.add(addNamespaceAction())
         group.add(refreshAction())
@@ -632,11 +733,13 @@ class I18nToolWindowPanel internal constructor(
         // not from the toolbar itself (self-reference breaks context lookups
         // and anchors action tooltips to the wrong component).
         actionToolbar.targetComponent = this
+        this.actionToolbar = actionToolbar
 
         searchField.textEditor.toolTipText = PluginBundle.message("toolwindow.search.tooltip")
 
         val trailing = JPanel(BorderLayout())
         trailing.add(resultCountLabel, BorderLayout.WEST)
+        trailing.add(filterSlot, BorderLayout.CENTER)
         trailing.add(moduleSelector, BorderLayout.EAST)
 
         val topBar = JPanel(BorderLayout())
@@ -724,8 +827,30 @@ class I18nToolWindowPanel internal constructor(
         }
     }
 
-    private fun openSettings() =
-        ShowSettingsUtil.getInstance().showSettingsDialog(project, "i18n Support Plus Configuration")
+    /**
+     * Shows one of the three views. Text toggles rather than a tab row of their own: they sit
+     * with the other actions, so the views cost no height. Hidden on the empty state, which has
+     * no view to show.
+     */
+    private inner class ViewToggle(private val view: ToolWindowTab) : ToggleAction(view.label()), DumbAware {
+        override fun getActionUpdateThread() = ActionUpdateThread.EDT
+
+        override fun displayTextInToolbar() = true
+
+        override fun update(e: AnActionEvent) {
+            super.update(e)
+            e.presentation.isVisible = shellContent?.hasViews == true
+        }
+
+        override fun isSelected(e: AnActionEvent) = shellContent?.selectedView == view
+
+        override fun setSelected(e: AnActionEvent, state: Boolean) {
+            // A toggle clicked again stays on: one view is always shown.
+            if (state) shellContent?.selectedView = view
+        }
+    }
+
+    private fun openSettings() = openPluginSettings(project)
 
     private companion object {
 

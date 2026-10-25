@@ -482,7 +482,8 @@ class TableViewPanelTest : PlatformBaseTest() {
         stubTranslations()
         val panel = TableViewPanel(project)
         val table = loadedTable(panel)
-        val renderer = table.columnModel.getColumn(3).cellRenderer
+        // The renderer the column takes once a scan ran: before it, the cells are blank (see below).
+        val renderer = UsageCellRenderer(TableViewModel())
 
         val notScanned = renderer.getTableCellRendererComponent(table, -1, false, false, 0, 3) as JLabel
         val notScannedColor = notScanned.foreground
@@ -504,6 +505,45 @@ class TableViewPanelTest : PlatformBaseTest() {
         assertEquals(PluginBundle.message("toolwindow.table.usage.orphan"), orphanText)
         assertTrue(used.text == "3", "a used key shows its count")
         assertNull(used.icon, "the shared renderer must not leak the previous cell's icon")
+    }
+
+    @Test
+    fun `before any scan the usage header says it once and the cells stay blank`() {
+        stubTranslations()
+        val panel = TableViewPanel(project)
+        val table = loadedTable(panel)
+
+        assertFalse(panel.usageScanned)
+        assertTrue(
+            panel.usageHeader() == PluginBundle.message("toolwindow.table.column.usage.not.scanned"),
+            "the header carries the one 'not counted yet' of the column"
+        )
+        val cell = table.columnModel.getColumn(3).cellRenderer
+            .getTableCellRendererComponent(table, -1, false, false, 0, 3) as JLabel
+        assertTrue(cell.text.isEmpty(), "no 'Not scanned' repeated on every row")
+        assertNull(cell.icon)
+        // The model is unchanged: the raw count is still what the context menu reads.
+        assertTrue(table.getValueAt(0, 3) == -1)
+    }
+
+    @Test
+    fun `after a scan the usage column gets its own header and its counts back`() {
+        stubTranslations()
+        val panel = TableViewPanel(project)
+        val table = loadedTable(panel)
+
+        panel.scanOrphans()
+        val deadline = System.currentTimeMillis() + 15_000
+        while (!panel.usageScanned && System.currentTimeMillis() < deadline) {
+            PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+            Thread.sleep(20)
+        }
+
+        assertTrue(panel.usageScanned, "the scan counted the keys")
+        assertTrue(panel.usageHeader() == PluginBundle.message("toolwindow.table.column.usage"))
+        val cell = table.columnModel.getColumn(3).cellRenderer
+            .getTableCellRendererComponent(table, 0, false, false, 0, 3) as JLabel
+        assertTrue(cell.text == PluginBundle.message("toolwindow.table.usage.orphan"), "an orphan reads as one again")
     }
 
     // ── Empty state ───────────────────────────────────────────────────────────

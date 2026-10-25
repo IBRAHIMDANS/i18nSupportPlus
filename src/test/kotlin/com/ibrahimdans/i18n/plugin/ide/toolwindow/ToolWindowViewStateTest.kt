@@ -161,14 +161,14 @@ class ToolWindowViewStateTest : PlatformBaseTest() {
     fun `the shell opens on the saved tab`() {
         state.setActiveTab(null, ToolWindowTab.TABLE)
 
-        assertEquals(ToolWindowTab.TABLE.ordinal, shell().tabs!!.selectedIndex)
+        assertEquals(ToolWindowTab.TABLE, shell().selectedView)
     }
 
     @Test
-    fun `selecting a tab saves it`() {
-        val tabs = shell().tabs!!
+    fun `selecting a view saves it`() {
+        val built = shell()
 
-        tabs.selectedIndex = ToolWindowTab.STATS.ordinal
+        built.selectedView = ToolWindowTab.STATS
 
         assertEquals(ToolWindowTab.STATS, state.activeTab(null))
     }
@@ -191,7 +191,7 @@ class ToolWindowViewStateTest : PlatformBaseTest() {
 
         built.showModule(1)
 
-        assertEquals(ToolWindowTab.STATS.ordinal, built.tabs!!.selectedIndex)
+        assertEquals(ToolWindowTab.STATS, built.selectedView)
         assertEquals(ToolWindowTab.STATS, state.activeTab(null))
     }
 

@@ -39,12 +39,14 @@ import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.awt.event.MouseMotionAdapter
 import javax.swing.AbstractAction
 import javax.swing.DefaultCellEditor
 import javax.swing.DefaultComboBoxModel
 import javax.swing.DefaultListCellRenderer
 import javax.swing.JCheckBoxMenuItem
 import javax.swing.JComboBox
+import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.JMenuItem
@@ -55,6 +57,7 @@ import javax.swing.JTable
 import javax.swing.KeyStroke
 import javax.swing.RowSorter
 import javax.swing.SortOrder
+import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.DefaultTableModel
 import javax.swing.table.TableRowSorter
 
@@ -65,6 +68,13 @@ private const val ACTION_NEXT_LOCALE = "i18n.table.nextLocale"
 private const val ACTION_PREVIOUS_LOCALE = "i18n.table.previousLocale"
 private const val ACTION_COMMIT_DOWN = "i18n.table.commitDown"
 private const val ACTION_CANCEL = "i18n.table.cancelEdit"
+
+/** Draws nothing: the Usage cells before any scan, whose raw value is a placeholder count. */
+private val BLANK_RENDERER = object : DefaultTableCellRenderer() {
+    override fun setValue(value: Any?) {
+        text = ""
+    }
+}
 
 /**
  * The cell [columnStep] editable columns or [rowStep] rows away from ([row], [column]), or null
@@ -275,6 +285,24 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         }
     }
 
+    /**
+     * The Namespace and Status filters. Laid out above the table, unless the tool window lends it
+     * a place in its own top bar — see [ShellContent.fitToWidth] — and gives it back with
+     * [dockFilterBar]. The namespace label and combo come first: they stay the bar's first JLabel
+     * and JComboBox.
+     */
+    internal val filterBar: JComponent = JPanel(BorderLayout()).apply {
+        add(JLabel(PluginBundle.message("toolwindow.table.namespace.label") + " "), BorderLayout.WEST)
+        add(namespaceCombo, BorderLayout.CENTER)
+        add(
+            JPanel(BorderLayout()).apply {
+                add(JLabel(" " + PluginBundle.message("toolwindow.table.status.label") + " "), BorderLayout.WEST)
+                add(statusCombo, BorderLayout.CENTER)
+            },
+            BorderLayout.EAST
+        )
+    }
+
     init {
         // Not AUTO_RESIZE_ALL_COLUMNS: that split the viewport in equal shares, so the key
         // column — the longest text of the table — got no more room than "Usage". Columns now
@@ -311,6 +339,14 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
                 if (e.isPopupTrigger) showLocaleMenu(e)
             }
         })
+        // The Usage header, the one place that says the column waits for a scan, says how to run it.
+        table.tableHeader.addMouseMotionListener(object : MouseMotionAdapter() {
+            override fun mouseMoved(e: MouseEvent) {
+                val header = table.tableHeader
+                val onUsage = header.columnAtPoint(e.point) == table.columnCount - 1
+                header.toolTipText = if (onUsage && !usageScanned) PluginBundle.message("toolwindow.table.usage.not.scanned") else null
+            }
+        })
         registerShortcuts()
         registerSpreadsheetKeys()
 
@@ -329,20 +365,29 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             applyFilters()
         }
 
-        // The namespace label and combo come first: they stay the bar's first JLabel and JComboBox.
-        val statusBar = JPanel(BorderLayout()).apply {
-            add(JLabel(" " + PluginBundle.message("toolwindow.table.status.label") + " "), BorderLayout.WEST)
-            add(statusCombo, BorderLayout.CENTER)
-        }
-        val filterBar = JPanel(BorderLayout()).apply {
-            add(JLabel(PluginBundle.message("toolwindow.table.namespace.label") + " "), BorderLayout.WEST)
-            add(namespaceCombo, BorderLayout.CENTER)
-            add(statusBar, BorderLayout.EAST)
-        }
-
         add(filterBar, BorderLayout.NORTH)
         add(JScrollPane(table), BorderLayout.CENTER)
         updateEmptyText()
+    }
+
+    /**
+     * True once a scan has counted the keys: until then the Usage column has nothing to show, and
+     * its header says so — see [rebuildTable]. A key added after a scan still reads "Not scanned"
+     * on its own row, where it tells that row apart from the others.
+     */
+    internal val usageScanned: Boolean
+        get() = allRows.any { viewModel.usageStatus(it.usageCount) != UsageStatus.NOT_SCANNED }
+
+    /** The header text of the Usage column, as drawn; for the tests. */
+    internal fun usageHeader(): String? =
+        table.columnModel.columns.toList().lastOrNull()?.headerValue?.toString()
+
+    /** Puts [filterBar] back above the table, wherever it was lent. */
+    internal fun dockFilterBar() {
+        if (filterBar.parent === this) return
+        add(filterBar, BorderLayout.NORTH)
+        revalidate()
+        repaint()
     }
 
     /**
@@ -576,13 +621,16 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         tableModel.setDataVector(data, columnNames)
 
         val translationRenderer = TranslationCellRenderer(leadingColumns, locales.size, viewModel, ::cellReview)
-        val usageRenderer = UsageCellRenderer(viewModel)
+        val scanned = usageScanned
+        // Before any scan every cell would say "Not scanned": the header says it once instead.
+        val usageRenderer = if (scanned) UsageCellRenderer(viewModel) else BLANK_RENDERER
         val usageColIdx = leadingColumns + locales.size
         val widths = viewModel.columnWidths(locales.size, withNamespace)
 
         for (i in 0 until table.columnCount) {
             val column = table.columnModel.getColumn(i)
             column.cellRenderer = if (i == usageColIdx) usageRenderer else translationRenderer
+            if (i == usageColIdx && !scanned) column.headerValue = PluginBundle.message("toolwindow.table.column.usage.not.scanned")
             widths.getOrNull(i)?.let { column.preferredWidth = it }
         }
 
