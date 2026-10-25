@@ -1,0 +1,9 @@
+{
+  "title": "Documentation",
+  "actions": {
+    "save": "Enregistrer"
+  },
+  "posts": {
+    "empty": "Aucun article"
+  }
+}

@@ -54,6 +54,7 @@
 
 - [Examples] **Four new example projects to try the plugin on**: `examples/vue-i18n` (global messages, `<i18n>` blocks in JSON and YAML, `useI18n`), `examples/next-intl` (`useTranslations` and `getTranslations` under namespaces), `examples/svelte-i18n` (`$_` in `.svelte` files) and `examples/laravel` (PHP arrays, `__()` and Blade). Each README lists the cases placed on purpose and the manual checks to run in the IDE
 - [Examples] **Three more example projects**: `examples/angular-transloco` (two small apps: Transloco with a scope, pipe and `*transloco`, and ngx-translate with pipe and service), `examples/react-intl` (`<FormattedMessage>`, `formatMessage`, `defineMessages`, ICU plurals) and `examples/lingui` (`<Trans>`, `i18n._`, `msg({ id })` on PO catalogues). Each README lists what the plugin does not cover yet for that library
+- [Examples] **A monorepo example**: `examples/monorepo-react`, four React applications with react-i18next, each with its own `common` namespace in `fr`, `en`, `es` and `gb`, and five traps (same key with another value, a key of another application, a translation missing in one application, a key used by another one, a `gb` folder). Its README states what each application should report and what the plugin and `i18n-check` report today, opened at the monorepo root
 
 ## 1.15.0 - 2026-10-18
 
