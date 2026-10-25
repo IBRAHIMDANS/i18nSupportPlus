@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { _, isLoading, locale } from "svelte-i18n";
+  import { _, format, isLoading, locale } from "svelte-i18n";
   import Nav from "./lib/Nav.svelte";
   import { settingsLabel } from "./lib/labels";
   import { shouted } from "./lib/notSvelteI18n";
@@ -20,7 +20,7 @@
 {:else}
   <h1>{$_("app.title")}</h1>
   <Nav />
-  <p>{$_("greeting", { values: { name } })}</p>
+  <p>{$_({ id: "greeting", values: { name } })}</p>
   <p>{$_("cart.items", { values: { count } })}</p>
   <button onclick={() => count++}>+1</button>
   <h2>{profileTitle}</h2>
@@ -30,5 +30,5 @@
     <p>{settingsLabel()}</p>
   {/key}
   <p>{shouted}</p>
-  <button onclick={toggleLocale}>{$_("locale.switch")}</button>
+  <button onclick={toggleLocale}>{$format("locale.switch", { default: "Switch language" })}</button>
 {/if}

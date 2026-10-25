@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.extensions.lang.js.extractors.LiteralKeyExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.NextIntlMethodExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.ReactIntlExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.ReactUseTranslationHookExtractor
+import com.ibrahimdans.i18n.extensions.lang.js.extractors.SvelteI18nExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.TemplateKeyExtractor
 import com.ibrahimdans.i18n.plugin.factory.ReferenceAssistant
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
@@ -64,6 +65,9 @@ internal class JsReferenceAssistant: ReferenceAssistant {
 
         /** next-intl's `t.rich('key')` and the other methods of `t`: named after the method, so matched by no call pattern. */
         private val NEXT_INTL_METHODS = listOf(NextIntlMethodExtractor())
+
+        /** svelte-i18n's `$_({ id: 'key' })`: the key is a property of the argument, as react-intl's. */
+        private val SVELTE_I18N = listOf(SvelteI18nExtractor())
     }
 
     private fun isDirectOrConfiguredCall(element: PsiElement): Boolean =
@@ -102,13 +106,13 @@ internal class JsReferenceAssistant: ReferenceAssistant {
             override fun accepts(o: Any?): Boolean {
                 return JSPatterns.jsLiteralExpression().accepts(o) && isAlias(o as JSLiteralExpression)
                     || (v.accepts(o) && (o !is PsiElement || isDirectOrConfiguredCall(o)))
-                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o) || isReactIntlId(o) || isNextIntlMethodKey(o)))
+                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o) || isReactIntlId(o) || isNextIntlMethodKey(o) || isSvelteI18nKey(o)))
             }
 
             override fun accepts(o: Any?, context: ProcessingContext?): Boolean {
                 return JSPatterns.jsLiteralExpression().accepts(o) && isAlias(o as JSLiteralExpression)
                     || (v.accepts(o, context) && (o !is PsiElement || isDirectOrConfiguredCall(o)))
-                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o) || isReactIntlId(o) || isNextIntlMethodKey(o)))
+                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o) || isReactIntlId(o) || isNextIntlMethodKey(o) || isSvelteI18nKey(o)))
             }
 
             override fun getCondition(): ElementPatternCondition<PsiElement>? {
@@ -121,9 +125,11 @@ internal class JsReferenceAssistant: ReferenceAssistant {
 
     private fun isNextIntlMethodKey(element: PsiElement): Boolean = activeExtractorOf(NEXT_INTL_METHODS, element) != null
 
+    private fun isSvelteI18nKey(element: PsiElement): Boolean = activeExtractorOf(SVELTE_I18N, element) != null
+
     /** Parsed like the annotator parses it — a module's key template included — so both agree on the key. */
     override fun extractKey(element: PsiElement): FullKey? {
-        val extractor = activeExtractorOf(REACT_INTL_EXTRACTORS + NEXT_INTL_METHODS, element)
+        val extractor = activeExtractorOf(REACT_INTL_EXTRACTORS + NEXT_INTL_METHODS + SVELTE_I18N, element)
             ?: listOf(
                 ReactUseTranslationHookExtractor(),
                 TemplateKeyExtractor(),

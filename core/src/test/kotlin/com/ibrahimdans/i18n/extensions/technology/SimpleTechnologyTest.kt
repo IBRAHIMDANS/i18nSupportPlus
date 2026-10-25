@@ -53,7 +53,7 @@ class SimpleTechnologyTest {
                 "next-intl" to listOf("t"),
                 "ngx-translate" to emptyList(),
                 "react-intl" to listOf("formatMessage"),
-                "svelte-i18n" to listOf("_", "\$_"),
+                "svelte-i18n" to listOf("_", "\$_", "\$t", "\$format", "\$json"),
                 "vue-i18n" to listOf("\$t", "\$tc", "\$te"),
             ),
             technologies.associate { it.frameworkId() to it.translationFunctionNames() }

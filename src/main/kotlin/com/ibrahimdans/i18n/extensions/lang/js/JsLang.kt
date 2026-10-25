@@ -43,8 +43,8 @@ open class JsLang : Lang {
          *    [isDirectOrConfiguredCall] rejects qualified calls by design;
          *  - Transloco's `t` under `*transloco="let t; read: 'admin'"` takes the `read` prefix the
          *    generic `t` extraction knows nothing of;
-         *  - svelte-i18n's `_` / `$_` carry no namespace options, so matching the call
-         *    itself is more precise than matching a bare string literal.
+         *  - svelte-i18n's `$_({ id: 'key' })` holds its key in a descriptor, and `$t` is vue-i18n's
+         *    name too, read as svelte-i18n's only where the file imports it.
          *  - vue-i18n's `<i18n-t keypath>` and `v-t` directive hold the key in template markup,
          *    outside any call; its Composition API's `t` is i18next's name, read as vue-i18n's only
          *    where `useI18n()` returns it.
@@ -59,6 +59,10 @@ open class JsLang : Lang {
 
         private val NEXT_INTL_RAW = NextIntlMethodExtractor(setOf(NextIntlMethodExtractor.RAW))
 
+        private val SVELTE_I18N = SvelteI18nExtractor()
+
+        private val SVELTE_I18N_JSON = SvelteI18nExtractor(setOf(SvelteI18nExtractor.JSON))
+
         private val FORMATTED_MESSAGE = FormattedMessageExtractor()
 
         private val SYNTAX_OWNED_EXTRACTORS: List<KeyExtractor> = listOf(
@@ -67,7 +71,7 @@ open class JsLang : Lang {
             NgxTranslateExtractor(),
             TranslocoExtractor(),
             TranslocoReadExtractor(),
-            SvelteI18nExtractor(),
+            SVELTE_I18N,
             VueI18nKeypathExtractor(),
             VueTDirectiveExtractor(),
             VueI18nComposableExtractor(),
@@ -97,6 +101,7 @@ open class JsLang : Lang {
         // the generic path below, which matches any string literal of a first-argument
         // object — reporting `defaultMessage` as an unresolved key.
         if (REACT_INTL_EXTRACTOR.isInsideMessageDescriptor(element)) return false
+        if (SVELTE_I18N.isInsideDescriptorBesidesId(element)) return false
         // A call a rule includes is matched by its method name, like a published one.
         val presetNames = ModulePresets.restrict(translationFunctionNames, preset)
         val names = if (decision == RuleDecision.INCLUDE) {
@@ -157,8 +162,12 @@ open class JsLang : Lang {
             ).find {it.canExtract(element)}?.extract(element)
         }
 
-    /** next-intl's `t.raw('list')` returns the message as written, so it may be an object or an array. */
-    override fun allowsObjectValue(element: PsiElement): Boolean = NEXT_INTL_RAW.canExtract(element)
+    /**
+     * next-intl's `t.raw('list')` returns the message as written, so it may be an object or an array;
+     * svelte-i18n's `$json('nav')` returns the messages under its key.
+     */
+    override fun allowsObjectValue(element: PsiElement): Boolean =
+        NEXT_INTL_RAW.canExtract(element) || SVELTE_I18N_JSON.canExtract(element)
 
     override fun foldingProvider(): FoldingProvider = JsFoldingProvider()
 
@@ -234,9 +243,13 @@ private val IMPORT_GATED_NAMES: Map<String, List<String>> = mapOf(
  */
 internal fun importsTheFrameworkOf(name: String, element: PsiElement): Boolean {
     val packages = IMPORT_GATED_NAMES[name] ?: return true
+    return packages.any { importsPackage(it, element) }
+}
+
+/** True when the file holding [element] — the host file, for an injected fragment — imports [pkg] or one of its paths. */
+internal fun importsPackage(pkg: String, element: PsiElement): Boolean {
     val file = element.hostFile() ?: return false
-    val text = file.text
-    return packages.any { pkg -> Regex("""(from|require\(|import)\s*['"]${Regex.escape(pkg)}""").containsMatchIn(text) }
+    return Regex("""(from|require\(|import)\s*['"]${Regex.escape(pkg)}""").containsMatchIn(file.text)
 }
 
 /** The called function as written — `translate`, `i18n.t` — for the call holding [element], or null. */

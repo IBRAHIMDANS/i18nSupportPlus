@@ -34,7 +34,7 @@
             <ul>
                 <li>React-Intl / FormatJS / next-intl support — key extraction from <code>intl.formatMessage({ id })</code> and <code>&lt;FormattedMessage id="..." /&gt;</code></li>
                 <li>Angular <code>@ngx-translate</code> support — <code>translate.instant()</code>, <code>translate.get()</code>, and <code>| translate</code> pipe</li>
-                <li>Svelte i18n support — <code>$_('key')</code> and <code>_('key')</code></li>
+                <li>Svelte i18n support — <code>$_('key')</code>, <code>$t</code>, <code>$format</code>, <code>$json</code> and <code>$_({ id: 'key' })</code></li>
                 <li>New inspection: placeholder consistency across locales — warns when <code>{placeholder}</code> is missing in a locale</li>
                 <li>New inspection: ICU message format validation — checks plural/select blocks for required forms</li>
                 <li>New inspection: unused translation key detection with "Delete key" quick fix (disabled by default)</li>
