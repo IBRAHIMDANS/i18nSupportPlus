@@ -4,6 +4,7 @@
 
 ### Features
 
+- [Flutter] **ARB catalogues are read**: `lib/l10n/app_en.arb`, `app_fr.arb` show in the tool window and the statistics, a key missing from a locale is reported and *Sync Keys* fills it in; the `@key` and `@@locale` metadata is left out.
 - [Monorepo] **Work on one application at a time**: each module has an *Active* box, and the tool window's module selector lists the modules set aside and offers *Focus on This Module* and *Activate All Modules* (also under *Tools › i18n Support Plus*), with *Undo*
 - [next-intl] **`t.rich`, `t.markup`, `t.raw` and `t.has` are read**: their keys are checked, completed, folded and navigable like `t('key')`; `t.raw` may point at an object, and `t.has` is never reported missing
 - [Angular] **Attribute directives and Transloco's newer API are read**: `transloco="key"`, `[transloco]="'key'"`, `<p translate>key</p>` and `[translate]="'key'"`, Transloco's standalone `translate()` and `translateSignal()`, `prefix:` and `[translocoRead]` / `[translocoPrefix]` on `<ng-template transloco let-t>` are checked, completed and navigable (`<p translate>key</p>` is checked and completed); keys are also completed before `| translate` and `| transloco`

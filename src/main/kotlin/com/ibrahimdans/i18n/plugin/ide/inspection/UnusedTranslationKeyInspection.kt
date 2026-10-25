@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
+import com.ibrahimdans.i18n.extensions.localization.arb.ArbCatalogues
 import com.ibrahimdans.i18n.extensions.localization.json.JsonElementTree
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.review.ReviewMigration
@@ -39,8 +40,8 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
             override fun visitElement(element: PsiElement) {
                 val entry = TranslationPsi.entryOf(element) ?: return
                 if (entry.literal == null) return
-                // A root `$schema` (Paraglide's message files) is no key, so never an unused one.
-                if (element is JsonProperty && JsonElementTree.isRootSchema(element)) return
+                // Root metadata (Paraglide's `$schema`, an ARB `@key`) is no key, so never an unused one.
+                if (element is JsonProperty && JsonElementTree.isRootMetadata(element)) return
                 // JSON references sit on the property's name, YAML ones on the key-value itself.
                 val named = if (TranslationPsi.isYaml(element)) element else entry.keyElement
                 check(element, named, entry.keyElement, holder, heads)
@@ -85,6 +86,8 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
     private fun mayHoldTranslations(file: PsiFile): Boolean {
         // An inlang project's `project.inlang/settings.json` (Paraglide) configures, it translates nothing.
         if (file.originalFile.virtualFile?.parent?.name == INLANG_PROJECT) return false
+        // Flutter reads an ARB key as a getter of its generated class, which no search here sees.
+        if (ArbCatalogues.isArb(file.originalFile.virtualFile)) return false
         if (TranslationFileScope.sourceOf(file) != null) return true
         if (TOOL_CONFIGURATION.matches(file.name)) return false
         val config = Settings.getInstance(file.project).config()

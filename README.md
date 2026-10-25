@@ -118,12 +118,17 @@ message file, in the frontmatter and in template expressions. A ready-to-open pr
 | YAML | `.yaml`, `.yml` | ✓ | ✓ |
 | PO/POT (gettext) | `.po`, `.pot` | ✓ | ✓ |
 | Laravel PHP arrays | `lang/<locale>/<file>.php`, the file name as namespace | ✓ | ✓ |
+| Flutter ARB | `.arb` (`lib/l10n/app_<locale>.arb`), the locale from `@@locale` or the file name | — | ✓ |
 | TS/JS catalogues (an object keyed by locale, as i18n-js writes) | `.ts`, `.js` | — | — |
 | i18next `resources` declared in a TS/JS configuration file | `.ts`, `.js` | — | — |
 
 **—** means no test covers it yet. Keys of the last two formats are read and annotated; whether Ctrl+click reaches
 their value and whether a missing key is written into them is not tested. XLIFF, like CSV, is exported and imported
 from the tool window, not read as a translation source.
+
+Flutter ARB catalogues feed the tool window, the statistics, the missing-key checks and *Sync Keys*; their `@key`
+and `@@locale` metadata is no key. Dart code is not read: `AppLocalizations.of(context)!.greeting` names its key as a
+getter of the generated class, which the Dart analyzer already checks, so an ARB key is never reported unused.
 
 Keys are resolved as nested properties by default (`app.header.title` walks three levels).
 Projects storing **flat ids** — one property per key, as react-intl / FormatJS usually do —
