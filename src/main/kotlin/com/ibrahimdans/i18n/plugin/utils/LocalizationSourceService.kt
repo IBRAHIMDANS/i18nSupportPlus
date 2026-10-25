@@ -16,9 +16,11 @@ import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.guessProjectDir
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.Key
+import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
@@ -328,6 +330,16 @@ private class IdeSourceWorkspace(project: Project, config: Config) :
 
     /** IntelliJ's own exclusions: `.gitignore`d and excluded folders. */
     override fun isExcluded(file: WorkspaceFile): Boolean = fileIndex.isExcluded(file.virtualFile)
+
+    // The project's own folder, when the IDE holds it as content: a light test project has none,
+    // and nothing is foreign there.
+    private val home by lazy { project.guessProjectDir()?.takeIf { fileIndex.isInContent(it) } }
+
+    /** Outside the project's own folder: the content root of an attached project. */
+    override fun isForeign(file: WorkspaceFile): Boolean {
+        val home = home ?: return false
+        return !VfsUtilCore.isAncestor(home, file.virtualFile, false)
+    }
 
     override fun isReadable(file: WorkspaceFile): Boolean = psiManager.findFile(file.virtualFile)?.containingDirectory != null
 

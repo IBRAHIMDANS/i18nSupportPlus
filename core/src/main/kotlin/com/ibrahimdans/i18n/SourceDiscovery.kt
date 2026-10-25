@@ -26,6 +26,12 @@ interface SourceWorkspace<N, F : TranslationFormat> : Workspace {
      */
     fun isExcluded(file: WorkspaceFile): Boolean = false
 
+    /**
+     * Whether [file] belongs to another project than the workspace's own: an attached project, opened
+     * beside it in the same window. Such a file is no source once modules describe the project.
+     */
+    fun isForeign(file: WorkspaceFile): Boolean = false
+
     /** False when [file] cannot be read at all — no source is made of it. */
     fun isReadable(file: WorkspaceFile): Boolean = true
 
@@ -74,6 +80,9 @@ class SourceDiscovery<N, F : TranslationFormat>(
      * highlighting time in a JFR profile of `HighlightingPerformanceTest`.
      */
     private val exclusions: Set<String> = DEFAULT_EXCLUDED_DIRECTORIES + config.excludedDirectorySet()
+
+    /** Whether active modules with a root directory describe the project. */
+    private val describedByModules: Boolean = ModuleSources.active(config.modules).any { it.rootDirectory.isNotBlank() }
 
     /** [Config.localeAliasMap], read once per discovery for the same reason. */
     private val aliases: Map<String, String> = config.localeAliasMap()
@@ -196,7 +205,9 @@ class SourceDiscovery<N, F : TranslationFormat>(
         val path = ModuleSources.FilePath.of(file.path, workspace.basePath)
         return workspace.isExcluded(file) || isExcludedPath(path.path, exclusions) ||
             // A module put aside takes its files out as an excluded directory would.
-            ModuleSources.isPutAside(config.modules, path)
+            ModuleSources.isPutAside(config.modules, path) ||
+            // Modules describe the project: an attached project's files are none of its translations.
+            (describedByModules && workspace.isForeign(file))
     }
 
     /**
