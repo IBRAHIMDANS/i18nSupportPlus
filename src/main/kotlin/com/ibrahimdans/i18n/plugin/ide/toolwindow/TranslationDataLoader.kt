@@ -35,9 +35,12 @@ object TranslationDataLoader {
      * When [moduleConfig] is non-null, only sources whose displayPath starts with
      * [ModuleConfig.rootDirectory] are included (module-scoped view).
      */
-    fun loadAllTranslations(project: Project, moduleConfig: ModuleConfig? = null): Map<String, Map<String, String>> {
+    fun loadAllTranslations(project: Project, moduleConfig: ModuleConfig? = null): Map<String, Map<String, String>> =
+        translationsOf(project, findSources(project, moduleConfig))
+
+    /** [loadAllTranslations] over [sources] already chosen: fullKey -> (locale -> value). */
+    internal fun translationsOf(project: Project, sources: List<LocalizationSource>): Map<String, Map<String, String>> {
         val result = mutableMapOf<String, MutableMap<String, String>>()
-        val sources = findSources(project, moduleConfig)
         val config = Settings.getInstance(project).config()
         val defaultNamespaces = config.defaultNamespaces()
         // Never empty: defaultNamespaces() falls back to Config's own default ("translation").

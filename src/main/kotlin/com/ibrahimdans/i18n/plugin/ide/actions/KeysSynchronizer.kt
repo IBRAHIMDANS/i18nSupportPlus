@@ -90,10 +90,12 @@ class KeysSynchronizer {
      */
     internal fun missingEntries(project: Project, config: Config): List<MissingEntry> =
         ModuleSources.scopes(config.modules).flatMap { module ->
+            // One list for what is read and what is written: the module's files, by their location.
+            val sources = TranslationDataLoader.filterToRecognizedLocales(ModuleSources.sourcesOf(project, module))
             findMissingEntries(
-                TranslationDataLoader.loadAllTranslations(project, module),
-                TranslationDataLoader.discoverLocales(project, module),
-                ModuleSources.sourcesOf(project, module),
+                TranslationDataLoader.translationsOf(project, sources),
+                sources.map(TranslationDataLoader::extractLocale).distinct().sorted(),
+                sources,
                 config.defaultNamespaces(),
                 config::ignoresLocale,
             )

@@ -18,6 +18,8 @@ class KeysSynchronizerModulesTest : PlatformBaseTest() {
         myFixture.addFileToProject("apps/web/locales/fr/common.json", """{"title": "Web"}""")
         myFixture.addFileToProject("apps/admin/locales/en/common.json", """{"menu": "Menu"}""")
         myFixture.addFileToProject("apps/admin/locales/fr/common.json", """{"menu": "Menu"}""")
+        // A locale only admin has: compared with the whole project, web's keys were proposed to it.
+        myFixture.addFileToProject("apps/admin/locales/de/common.json", """{"menu": "Menü"}""")
     }
 
     private fun missing(config: Config): List<Pair<String, String>> {
@@ -45,8 +47,12 @@ class KeysSynchronizerModulesTest : PlatformBaseTest() {
 
     @Test
     fun withoutModulesTheProjectIsOneScope() {
-        val keys = missing(Config()).map { it.first }.toSet()
+        val missing = missing(Config())
 
-        assertEquals(setOf("common:save", "common:title", "common:menu"), keys, "every key of one locale is proposed to the others")
+        assertEquals(
+            setOf("common:save" to "admin/locales/de/common.json", "common:title" to "admin/locales/de/common.json"),
+            missing.filter { "/de/" in it.second }.toSet(),
+            "the project is one pool: web's keys are proposed to admin's de",
+        )
     }
 }
