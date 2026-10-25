@@ -2,7 +2,14 @@ package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.Configurable
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
+import com.intellij.openapi.options.ShowSettingsUtil
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
+import io.mockk.verify
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.intellij.ui.HyperlinkLabel
 import com.intellij.ui.components.JBTabbedPane
@@ -16,8 +23,11 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.awt.BorderLayout
 import java.awt.Container
+import javax.swing.JComboBox
 import javax.swing.JLabel
+import javax.swing.JPanel
 
 /**
  * Tests for the tool window shell.
@@ -260,10 +270,11 @@ class I18nToolWindowPanelTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `no root at all gives an empty state instead of tabs`() {
+    fun `no root at all gives an empty state instead of views`() {
         val built = content(diagnostics(searchedPaths = listOf("public/locales"), sourceCount = 0))
 
-        assertNull(built.tabs, "An unconfigured project has nothing to put in a tab")
+        assertNull(built.views, "An unconfigured project has no view to show")
+        assertFalse(built.hasViews, "The view toggles hide on the empty state")
         assertTrue(
             findAll(built.component, JBTabbedPane::class.java).isEmpty(),
             "The empty state must not carry a tabbed pane"
@@ -292,20 +303,20 @@ class I18nToolWindowPanelTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `two modules give a single tabbed pane, not one nested in another`() {
+    fun `two modules give one set of views and no tab row`() {
         val modules = listOf(
             ModuleConfig(name = "frontend", rootDirectory = "frontend/locales"),
             ModuleConfig(name = "backend", rootDirectory = "backend/i18n")
         )
         val built = content(diagnostics(sourceCount = 4, modules = modules))
 
-        assertNotNull(built.tabs)
-        assertTrue(built.component is JBTabbedPane, "The content is the tab pane itself")
+        assertNotNull(built.views)
+        assertTrue(built.component === built.views, "The content is the views themselves")
         assertTrue(
             findAll(built.component, JBTabbedPane::class.java).isEmpty(),
-            "One level of tabs: no second pane may nest inside the first"
+            "The views are picked from the toolbar: no row of tabs takes height above them"
         )
-        assertEquals(3, built.tabs!!.tabCount, "Tree, table and statistics — one level, three tabs")
+        assertEquals(3, built.views!!.componentCount, "Tree, table and statistics — the visible module's three")
         Assertions.assertEquals("frontend", built.activeModule?.name, "The first module is shown to begin with")
     }
 
@@ -313,14 +324,99 @@ class I18nToolWindowPanelTest : PlatformBaseTest() {
     fun `switching module keeps the selected view`() {
         val modules = listOf(ModuleConfig(name = "frontend"), ModuleConfig(name = "backend"))
         val built = content(diagnostics(sourceCount = 4, modules = modules))
-        val tabs = built.tabs!!
 
-        tabs.selectedIndex = 2
+        built.selectedView = ToolWindowTab.STATS
         built.showModule(1)
 
-        assertEquals(2, tabs.selectedIndex, "The view outlives the module switch — it used to be lost")
+        assertEquals(ToolWindowTab.STATS, built.selectedView, "The view outlives the module switch — it used to be lost")
         assertEquals("backend", built.activeModule?.name)
-        assertEquals(3, tabs.tabCount, "Switching swaps the components, it does not add tabs")
+        assertEquals(3, built.views!!.componentCount, "Switching swaps the components, it does not add any")
+        assertTrue(visibleCard(built) is TranslationStatsPanel, "The backend's statistics are the ones on screen")
+    }
+
+    // -----------------------------------------------------------------------
+    // Table filters in the top bar
+    // -----------------------------------------------------------------------
+
+    /** The view the card layout shows, i.e. its one visible child. */
+    private fun visibleCard(built: ShellContent): Container? = built.views?.components?.singleOrNull { it.isVisible } as? Container
+
+    private fun shellWithSlot(slot: JPanel, modules: List<ModuleConfig> = emptyList()) =
+        ShellContent(project, diagnostics(sourceCount = 1, modules = modules), onRunWizard = {}, onOpenSettings = {}, filterSlot = slot)
+
+    @Test
+    fun `the settings link opens the plugin's page by its class`() {
+        val settingsUtil = mockk<ShowSettingsUtil>(relaxed = true)
+        mockkStatic(ShowSettingsUtil::class)
+        try {
+            every { ShowSettingsUtil.getInstance() } returns settingsUtil
+
+            openPluginSettings(project)
+
+            // By display name it broke when the page was renamed: the dialog opened anywhere.
+            verify { settingsUtil.showSettingsDialog(project, Configurable::class.java) }
+        } finally {
+            unmockkStatic(ShowSettingsUtil::class)
+        }
+    }
+
+    @Test
+    fun `a wide window takes the table filters into the top bar`() {
+        val slot = JPanel(BorderLayout())
+        val built = shellWithSlot(slot)
+
+        built.selectedView = ToolWindowTab.TABLE
+        built.fitToWidth(1600)
+
+        assertTrue(built.filtersInTopBar, "Next to the search field, the filters cost the table no row")
+        assertTrue(slot.isVisible)
+        val table = findAll(built.views!!, TableViewPanel::class.java).single()
+        assertTrue(findAll(table, JComboBox::class.java).isEmpty(), "The filters left the table: they are in one place only")
+    }
+
+    @Test
+    fun `a narrow window keeps the table filters above the table`() {
+        val slot = JPanel(BorderLayout())
+        val built = shellWithSlot(slot)
+        built.selectedView = ToolWindowTab.TABLE
+
+        built.fitToWidth(400)
+
+        assertFalse(built.filtersInTopBar, "Docked to a side, the top bar has no room for them")
+        assertFalse(slot.isVisible)
+        val table = findAll(built.views!!, TableViewPanel::class.java).single()
+        assertEquals(2, findAll(table, JComboBox::class.java).size, "Namespace and Status stay above the table")
+    }
+
+    @Test
+    fun `the filters go home when another view is picked`() {
+        val slot = JPanel(BorderLayout())
+        val built = shellWithSlot(slot)
+        built.selectedView = ToolWindowTab.TABLE
+        built.fitToWidth(1600)
+
+        built.selectedView = ToolWindowTab.TREE
+
+        assertFalse(built.filtersInTopBar, "The table's filters mean nothing over the tree")
+        val table = findAll(built.views!!, TableViewPanel::class.java).single()
+        assertEquals(2, findAll(table, JComboBox::class.java).size)
+    }
+
+    @Test
+    fun `switching module lends the top bar the new module's filters`() {
+        val slot = JPanel(BorderLayout())
+        val modules = listOf(ModuleConfig(name = "frontend"), ModuleConfig(name = "backend"))
+        val built = shellWithSlot(slot, modules)
+        built.selectedView = ToolWindowTab.TABLE
+        built.fitToWidth(1600)
+        val frontendBar = slot.getComponent(0)
+
+        built.showModule(1)
+
+        assertTrue(built.filtersInTopBar)
+        assertEquals(1, slot.componentCount, "One module's filters at a time")
+        assertTrue(slot.getComponent(0) !== frontendBar, "The bar in the top bar is the backend's")
+        assertNotNull(frontendBar.parent, "The frontend's bar went back to its table")
     }
 
     // -----------------------------------------------------------------------
