@@ -68,7 +68,7 @@ class StaleTranslationInspection : LocalInspectionTool() {
                 val value = entry.text?.takeIf { it.isNotEmpty() } ?: return
                 val path = TranslationFileKeys.keyOf(literal)
                 val review = reviews[ReviewKey.fromSpelling(ReviewKey(namespace, path).spelling(defaults), defaults.first())] ?: return
-                val current = ReviewSources.sourceTextOf(path, config.pluralSeparator, references::get)?.let { ReviewSource.of(referenceLocale, it) }
+                val current = ReviewSources.sourceTextOf(path, config.pluralSeparator, referenceText = references::get)?.let { ReviewSource.of(referenceLocale, it) }
                 if (shown(review, value, current) != ShownReview.SOURCE_CHANGED) return
                 holder.registerProblem(literal, PluginBundle.message("inspection.stale.message", referenceLocale))
             }

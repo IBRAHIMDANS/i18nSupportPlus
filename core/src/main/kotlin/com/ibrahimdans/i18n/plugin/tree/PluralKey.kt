@@ -62,6 +62,20 @@ object PluralKey {
         return result
     }
 
+    /**
+     * The `other` sibling of a nested plural form — `steps.other` for `steps.few`, `steps` being an
+     * object of CLDR categories, as i18n-js, ruby-i18n and vue-i18n write a plural ([PluralGroup]) —
+     * or null when [key]'s last segment, after [keySeparator], is no category or is `other` itself.
+     *
+     * Read from the key alone: the caller looks the sibling up, and a key merely named like a
+     * category finds none there.
+     */
+    fun nestedOtherForm(key: String, keySeparator: String): String? {
+        val category = if (keySeparator.isEmpty()) key else key.substringAfterLast(keySeparator)
+        if (category !in PluralCategories.ALL || category == PluralCategories.OTHER) return null
+        return key.dropLast(category.length) + PluralCategories.OTHER
+    }
+
     /** The form to create in a locale lacking a whole plural group: every language has `other`. */
     fun defaultForm(base: String): String = base + OTHER_SUFFIX
 

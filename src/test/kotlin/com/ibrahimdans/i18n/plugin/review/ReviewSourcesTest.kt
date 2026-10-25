@@ -9,8 +9,8 @@ class ReviewSourcesTest {
 
     private val english = mapOf("cart.item_one" to "{{count}} item", "cart.item_other" to "{{count}} items", "save" to "Save", "blank" to "")
 
-    private fun sourceOf(key: String, reference: Map<String, String> = english, separator: String = "-") =
-        ReviewSources.sourceTextOf(key, separator, reference::get)
+    private fun sourceOf(key: String, reference: Map<String, String> = english, separator: String = "-", keySeparator: String = ".") =
+        ReviewSources.sourceTextOf(key, separator, keySeparator, reference::get)
 
     @Test
     fun `a key the reference holds is its own source`() {
@@ -39,5 +39,15 @@ class ReviewSourcesTest {
         assertNull(sourceOf("blank"), "an empty value is no source")
         assertNull(sourceOf("cart.item_other", mapOf("cart.item_one" to "{{count}} item")), "other has no other to fall back to")
         assertNull(sourceOf("steps_few", mapOf("steps_one" to "One step")))
+    }
+
+    @Test
+    fun `a nested plural form the reference lacks reads its other form`() {
+        val nested = mapOf("steps.one" to "One step", "steps.other" to "{{count}} steps")
+        assertEquals("{{count}} steps", sourceOf("steps.few", nested))
+        assertEquals("{{count}} steps", sourceOf("steps/many", mapOf("steps/other" to "{{count}} steps"), keySeparator = "/"))
+        assertEquals("{{count}} steps", sourceOf("few", mapOf("other" to "{{count}} steps")), "the dialog asks by last segment")
+        assertNull(sourceOf("steps.few", mapOf("steps.one" to "One step")), "no other form to read")
+        assertNull(sourceOf("menu.title", mapOf("menu.other" to "Other")), "a key that is no category reads nothing")
     }
 }

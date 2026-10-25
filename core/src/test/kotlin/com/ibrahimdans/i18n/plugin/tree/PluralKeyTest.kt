@@ -42,4 +42,14 @@ class PluralKeyTest {
     fun `nothing but the last segment is touched`() {
         assertEquals("a.item_one.b", PluralKey.stripSuffix("a.item_one.b", "-"))
     }
+
+    @Test
+    fun `a nested plural form stands for its other sibling`() {
+        assertEquals("steps.other", PluralKey.nestedOtherForm("steps.few", "."))
+        assertEquals("a:b/other", PluralKey.nestedOtherForm("a:b/one", "/"))
+        assertEquals("other", PluralKey.nestedOtherForm("zero", "."))
+        assertEquals(null, PluralKey.nestedOtherForm("steps.other", "."), "other is the form itself")
+        assertEquals(null, PluralKey.nestedOtherForm("steps.title", "."))
+        assertEquals(null, PluralKey.nestedOtherForm("steps_few", "."), "the flat form is stripSuffix's")
+    }
 }

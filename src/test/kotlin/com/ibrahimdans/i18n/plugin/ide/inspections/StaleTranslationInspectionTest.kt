@@ -159,6 +159,19 @@ class StaleTranslationInspectionTest : PlatformBaseTest() {
         assertEquals(listOf(message), warnings("locales/ru/common.json"))
     }
 
+    /** The same as a nested object of categories: `steps.few` is translated from `steps.other`. */
+    @Test
+    fun aNestedPluralFormTheReferenceLacksIsReportedWhenItsOtherFormChanged() {
+        addFileToProject("locales/en/common.json", """{"steps": {"one": "One step", "other": "{{count}} steps in all"}}""")
+        addFileToProject("locales/ru/common.json", """{"steps": {"one": "Шаг", "few": "{{count}} шага"}}""")
+        WriteCommandAction.runWriteCommandAction(project) {
+            store().enable(root())
+            store().decide(root(), "ru", ReviewKey("common", "steps.few"), ReviewState.APPROVED, "{{count}} шага", source = ReviewSource.of("en", "{{count}} steps"))
+        }
+
+        assertEquals(listOf(message), warnings("locales/ru/common.json"))
+    }
+
     @Test
     fun aPluralFormApprovedOnTheCurrentOtherFormIsNotReported() {
         addFileToProject("locales/en/common.json", """{"item_one": "{{count}} item", "item_other": "{{count}} items"}""")
