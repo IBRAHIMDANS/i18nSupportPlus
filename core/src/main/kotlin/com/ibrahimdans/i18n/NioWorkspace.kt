@@ -14,21 +14,25 @@ import java.nio.file.attribute.BasicFileAttributes
 
 /**
  * The translation formats read outside the IDE, by the parsers of `plugin/format`. Their ids are
- * those of the plugin's JSON and YAML localizations, so a configuration's per-format settings apply.
+ * those of the plugin's JSON and YAML localizations, so a configuration's per-format settings apply:
+ * as in the plugin, a `.json5` file belongs to the JSON format.
  */
 enum class ParsedFormat(
     private val id: String,
     /** The extensions of its files, without the dot. */
     val extensions: List<String>,
-    private val parser: (String) -> Tree<ParsedNode>?,
+    private val parser: (text: String, extension: String?) -> Tree<ParsedNode>?,
 ) : TranslationFormat {
-    JSON("json", listOf("json"), { JsonTranslationTree.parse(it) }),
-    YAML("yaml", listOf("yml", "yaml"), { YamlTranslationTree.parse(it) });
+    JSON("json", listOf("json", "json5"), { text, extension -> JsonTranslationTree.parse(text, json5 = extension == "json5") }),
+    YAML("yaml", listOf("yml", "yaml"), { text, _ -> YamlTranslationTree.parse(text) });
 
     override fun config(): LocalizationConfig = LocalizationConfigImpl(id)
 
-    /** [text] read as a translation tree, or null when it does not parse into one. */
-    fun parse(text: String): Tree<ParsedNode>? = parser(text)
+    /**
+     * [text] read as a translation tree, or null when it does not parse into one; [extension], the
+     * file's without the dot, picks the dialect (`json5` is read leniently, `json` strictly).
+     */
+    fun parse(text: String, extension: String? = null): Tree<ParsedNode>? = parser(text, extension?.lowercase())
 }
 
 /**
@@ -82,7 +86,7 @@ class NioWorkspace(
     /** The tree [format] parses in [file]; null when it does not parse, or cannot be read. */
     override fun read(format: ParsedFormat, file: WorkspaceFile): Tree<ParsedNode>? =
         try {
-            format.parse(Files.readString(Path.of(file.path)))
+            format.parse(Files.readString(Path.of(file.path)), file.extension)
         } catch (e: IOException) {
             null
         }

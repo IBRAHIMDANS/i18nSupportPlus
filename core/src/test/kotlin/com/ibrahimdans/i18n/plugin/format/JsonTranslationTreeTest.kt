@@ -71,6 +71,30 @@ class JsonTranslationTreeTest {
     }
 
     @Test
+    fun `JSON5 - comments, unquoted keys, single quotes and trailing commas, spans exact`() {
+        val text = "// header\n{\n  bare: 'It\\'s',\n  'single': \"S\", /* note */\n  \"menu\": { \$title: 'M', },\n  count: +12,\n}\n"
+        val tree = JsonTranslationTree.parse(text, json5 = true)!!
+        assertEquals(listOf("bare", "single", "menu", "count"), tree.names())
+        val bare = tree.findChild("bare")!!.value()
+        assertEquals("It's", bare.value)
+        assertEquals("bare", text.at(bare.keySpan))
+        assertEquals("'It\\'s'", text.at(bare.valueSpan))
+        assertEquals("'single'", text.at(tree.findChild("single")!!.value().keySpan))
+        val title = tree.findChild("menu")!!.findChild("\$title")!!.value()
+        assertEquals("\$title", text.at(title.keySpan))
+        assertEquals("'M'", text.at(title.valueSpan))
+        assertEquals("+12", tree.findChild("count")!!.value().value)
+    }
+
+    @Test
+    fun `plain JSON stays strict - a comment or a bare key gives null`() {
+        for (text in listOf("// c\n{\"a\": \"A\"}", "{a: \"A\"}", "{\"a\": \"A\",}")) {
+            assertNull(JsonTranslationTree.parse(text), text)
+            assertNotNull(JsonTranslationTree.parse(text, json5 = true), text)
+        }
+    }
+
+    @Test
     fun `a leaf has no children`() {
         val leaf = parse("""{"a": "A"}""").findChild("a")!!
         assertFalse(leaf.isTree())

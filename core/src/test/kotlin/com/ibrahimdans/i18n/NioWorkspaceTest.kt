@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -37,6 +38,17 @@ class NioWorkspaceTest {
         assertEquals(expected(), sources.map { it.described() })
         assertTrue(sources.all { it.locale == null && it.namespace == null }, "no template states them")
         assertTrue(sources.all { it.localization == ParsedFormat.JSON })
+    }
+
+    @Test
+    fun aJson5FileIsAJsonSourceReadLeniently(@TempDir root: Path) {
+        Files.createDirectories(root.resolve("locales"))
+        Files.writeString(root.resolve("locales/en.json5"), "// comment\n{ title: 'Hello', }")
+        val workspace = NioWorkspace(root)
+
+        val file = workspace.files(ParsedFormat.JSON).single()
+        assertEquals("en.json5", file.name)
+        assertEquals("Hello", workspace.read(ParsedFormat.JSON, file)!!.findChild("title")!!.value().value)
     }
 
     @Test

@@ -93,6 +93,24 @@ class I18nCheckTest {
     }
 
     @Test
+    fun `JSON5 - comments, unquoted keys and single quotes read, the missing key reported`() {
+        val run = check("--locales", "$resources/json5")
+        assertEquals(
+            """
+            Reference locale: en (2 locales)
+
+            en: no problem
+            fr: 1 missing
+              missing  menu.close
+
+            1 problem found (allowed: 0).
+            """.trimIndent(),
+            run.out,
+        )
+        assertEquals(I18nCheck.PROBLEMS, run.exit)
+    }
+
+    @Test
     fun `plural forms - each locale needs the categories of its own language`() {
         val run = check("--locales", "$resources/plurals", "--format", "json")
         val locales = JsonParser.parseString(run.out).asJsonObject["locales"].asJsonArray.map { it.asJsonObject }
