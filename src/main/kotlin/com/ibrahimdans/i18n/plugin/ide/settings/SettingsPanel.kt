@@ -74,6 +74,10 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                     cell(separatorField(PluginBundle.message("settings.key.separator"), settings::keySeparator))
                 }
                 row {
+                    cell(checkbox(PluginBundle.message("settings.first.component.ns"), settings::firstComponentNs))
+                        .comment(PluginBundle.message("settings.first.component.ns.comment"))
+                }
+                row {
                     cell(checkbox(PluginBundle.message("settings.flat.keys"), settings::flatKeys))
                         .comment(PluginBundle.message("settings.flat.keys.comment"))
                 }
