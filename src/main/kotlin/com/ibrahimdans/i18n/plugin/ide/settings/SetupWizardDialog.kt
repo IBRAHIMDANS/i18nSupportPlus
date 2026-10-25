@@ -6,9 +6,12 @@ import com.intellij.ide.wizard.AbstractWizard
 import com.intellij.ide.wizard.CommitStepException
 import com.intellij.ide.wizard.Step
 import com.intellij.ide.wizard.StepAdapter
+import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.psi.PsiManager
 import com.intellij.ui.EditorNotificationPanel
 import com.intellij.ui.InlineBanner
 import com.intellij.ui.JBColor
@@ -61,6 +64,8 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
 
     /** The manifests of the applications holding the catalogues, by project-relative folder; see [manifestsAbove]. */
     private val appManifests = mutableMapOf<String, String>()
+    /** The project's i18next-cli configuration, when it has one at its root; see [readCliConfig]. */
+    private var cliConfig: I18nextCliConfig? = null
     private val fileListModel = DefaultListModel<String>()
     private val fileList = JBList(fileListModel)
 
@@ -85,6 +90,7 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         cancelButton.text = PluginBundle.message("wizard.button.later")
         detectFrameworks()
         scanTranslationFiles()
+        readCliConfig()
     }
 
     /** The wizard's own panel, with the step rail above it. */
@@ -183,7 +189,7 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         override fun getPreferredFocusedComponent(): JComponent = rootField
 
         override fun _init() {
-            val plan = WizardPlan.of(foundFiles, selectedFrameworks())
+            val plan = WizardPlan.of(foundFiles, selectedFrameworks(), cliConfig)
             if (plan == shownPlan) return
             shownPlan = plan
             rebuild(plan)
@@ -210,8 +216,12 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
             val defaults = Config()
 
             rootField.text = plan.root.detected.orEmpty()
-            keySeparatorField.text = settings.keySeparator
-            nsSeparatorField.text = settings.nsSeparator
+            // The configuration's separators are offered only over a value nobody chose, as the
+            // deductions are: reopening the wizard never undoes a separator set by hand.
+            keySeparatorField.text = plan.separators?.key
+                ?.takeIf { settings.keySeparator == defaults.keySeparator } ?: settings.keySeparator
+            nsSeparatorField.text = plan.separators?.ns
+                ?.takeIf { settings.nsSeparator == defaults.nsSeparator } ?: settings.nsSeparator
             // Several catalogue roots are several applications: a module each is the answer that
             // keeps their keys apart, the widened root the one that pools them.
             splitIntoModules.isSelected = plan.root.widened
@@ -278,9 +288,11 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
             }
 
             row(PluginBundle.message("wizard.summary.field.root")) {
+                val configFile = plan.root.origin
                 cell(rootField).comment(
                     when {
                         plan.root.detected == null -> PluginBundle.message("wizard.summary.root.missing")
+                        configFile != null -> PluginBundle.message("wizard.summary.origin.file", configFile)
                         else -> PluginBundle.message(
                             "wizard.summary.origin.files",
                             plan.root.candidates.joinToString(", ")
@@ -302,8 +314,12 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
                 }.rowComment(originOf(deduction))
             }
 
-            row(PluginBundle.message("wizard.summary.field.keySeparator")) { cell(keySeparatorField) }
-            row(PluginBundle.message("wizard.summary.field.nsSeparator")) { cell(nsSeparatorField) }
+            row(PluginBundle.message("wizard.summary.field.keySeparator")) {
+                cell(keySeparatorField).comment(separatorOrigin(plan.separators?.key, keySeparatorField))
+            }
+            row(PluginBundle.message("wizard.summary.field.nsSeparator")) {
+                cell(nsSeparatorField).comment(separatorOrigin(plan.separators?.ns, nsSeparatorField))
+            }
 
             if (foundFiles.any { it.endsWith(".po") || it.endsWith(".pot") }) {
                 row {
@@ -316,6 +332,12 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
                 }
             }
         }.apply { border = JBUI.Borders.empty(16) }
+
+        /** The configuration file, when the [field] shows the separator [stated] there. */
+        private fun separatorOrigin(stated: String?, field: JBTextField): String? =
+            shownPlan?.separators?.origin
+                ?.takeIf { stated != null && field.text == stated }
+                ?.let { PluginBundle.message("wizard.summary.origin.file", it) }
 
         /** Where a value was read from, said in the user's own terms rather than as a rule. */
         private fun originOf(deduction: WizardPlan.Deduction): String = when {
@@ -400,6 +422,22 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         // A monorepo's root manifest seldom declares the applications' libraries: theirs do.
         for (key in appManifests.values.flatMap { FrameworkDetector.detect(it) }) {
             frameworkCheckboxes[key]?.isSelected = true
+        }
+    }
+
+    /**
+     * Reads the i18next-cli configuration at the project root, if there is one: its output folder,
+     * default namespace and separators are what the project already wrote down.
+     *
+     * The project root only: a monorepo holds one per application, and a single one taken for the
+     * whole project would override the per-application modules the scan proposes.
+     */
+    private fun readCliConfig() {
+        val base = File(project.basePath ?: return)
+        val name = I18nextCliConfig.FILE_NAMES.firstOrNull { File(base, it).isFile } ?: return
+        val file = LocalFileSystem.getInstance().findFileByIoFile(File(base, name)) ?: return
+        cliConfig = runReadAction {
+            PsiManager.getInstance(project).findFile(file)?.let { I18nextCliConfigReader.read(it, name) }
         }
     }
 
