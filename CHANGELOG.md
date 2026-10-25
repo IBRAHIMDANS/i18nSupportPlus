@@ -20,6 +20,7 @@
 - [CLI] **`i18n-check`, the translation check for CI**: reports missing, orphan and empty keys per locale and, with `--code`, the keys an i18next project no longer uses. It reads the IDE's settings or an `i18n-check.json`, and JSON, JSON5, YAML and TS/JS catalogues; it is attached to each GitHub release and runs as a GitHub Action. See the [README](README.md#command-line-check)
 - [Lingui] **Complete and rename msgids in PO catalogues**: in `i18n._("")`, Ctrl+Space offers every msgid with its value, and Shift+F6 renames a key in the code and in every `messages.po`; *Create i18n key* flags an explicit id `#. js-lingui-explicit-id`, as `lingui extract` does, so `lingui compile` finds it
 - [typesafe-i18n] **typesafe-i18n is recognised**: `LL.home.title()` and Svelte's `$LL.home.title()` are checked against each `<locale>/index.ts`, with unknown keys and keys missing in a locale reported, and Ctrl+Space after `LL.` offers each level's messages with their value, before the generator runs again
+- [Settings] **The setup wizard offers two checks that are off by default**: its summary can turn on the report of keys with no reference in code and of hard-coded text in JSX and Vue templates, in the project's inspection profile only
 
 ### Fixes
 
