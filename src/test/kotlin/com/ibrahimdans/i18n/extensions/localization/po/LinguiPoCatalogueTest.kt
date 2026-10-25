@@ -15,10 +15,12 @@ import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.service
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.TestDialogManager
 import com.intellij.openapi.ui.TestInputDialog
+import com.intellij.psi.PsiDocumentManager
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -112,6 +114,22 @@ class LinguiPoCatalogueTest : PlatformBaseTest() {
             "App.tsx",
             component("i18n._(\"nav.settings\")", "i18n._(\"nav.home\")", "i18n._(\"<error descr=\"Unresolved key\">nav.absent</error>\")")
         )
+        myFixture.checkHighlighting(true, true, true, true)
+    }
+
+    /** The msgids are indexed once per version of the catalogue: an entry added later is found. */
+    @Test
+    fun anEntryAddedToTheCatalogueResolvesAtOnce() = withCatalogue("msgid \"nav.home\"\nmsgstr \"Home\"\n") {
+        myFixture.configureByText("App.tsx", component("i18n._(\"nav.home\")", "i18n._(\"<error descr=\"Unresolved key\">nav.new</error>\")"))
+        myFixture.checkHighlighting(true, true, true, true)
+
+        WriteCommandAction.runWriteCommandAction(project) {
+            val document = FileDocumentManager.getInstance().getDocument(myFixture.findFileInTempDir(CATALOGUE))!!
+            document.insertString(document.textLength, "\nmsgid \"nav.new\"\nmsgstr \"New\"\n")
+            PsiDocumentManager.getInstance(project).commitDocument(document)
+        }
+
+        myFixture.configureByText("App.tsx", component("i18n._(\"nav.home\")", "i18n._(\"nav.new\")"))
         myFixture.checkHighlighting(true, true, true, true)
     }
 

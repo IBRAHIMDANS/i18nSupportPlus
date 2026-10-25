@@ -5,6 +5,9 @@ import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.at
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
 
 /**
  * Plain text file wrapper
@@ -16,7 +19,22 @@ import com.intellij.psi.PsiElement
 class PlainObjectTextTree(val element: PsiElement): Tree<PsiElement> {
 
     override fun findChild(name: String): Tree<PsiElement>? =
-        msgidLines().find { it.toString() == name }?.let { PlainObjectTextTree(it) }
+        msgidIndex()[name]?.let { PlainObjectTextTree(it) }
+
+    /**
+     * Each msgid's line, the first one winning on a duplicate, read once per version of the file.
+     * Completion asks [findChild] for every msgid it offers: a scan per call made it quadratic,
+     * some 23 s on a catalogue of 5,000 entries.
+     */
+    private fun msgidIndex(): Map<String, PsiElement> {
+        val file = element as? PsiFile ?: return emptyMap()
+        if (!isTree()) return emptyMap()
+        return CachedValuesManager.getCachedValue(file) {
+            val index = mutableMapOf<String, PsiElement>()
+            msgidLines().forEach { index.putIfAbsent(it.toString(), it) }
+            CachedValueProvider.Result.create(index, file)
+        }
+    }
 
     override fun isTree(): Boolean {
         return element == element.containingFile
