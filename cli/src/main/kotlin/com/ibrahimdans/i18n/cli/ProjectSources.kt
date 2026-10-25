@@ -36,11 +36,14 @@ object ProjectSources {
     /** The scopes of [project], none when it holds no translation file. */
     fun read(project: Path, config: Config): List<Scope> {
         // The tool window's rule: a file with no locale anywhere in its path is no locale's.
-        val sources = SourceDiscovery(NioWorkspace(project), StaticI18nRegistry(ParsedFormat.entries), config).sources()
+        val found = SourceDiscovery(NioWorkspace(project), StaticI18nRegistry(CheckFormats.ALL), config).sources()
             .filter { it.hasRecognizedLocale() }
-        sources.firstOrNull { it.tree == null }?.let {
-            throw CannotCheck("not a valid ${it.localization.name} translation file: ${it.displayPath}")
-        }
+        found.firstNotNullOfOrNull { source ->
+            if (source.tree != null) null
+            else CheckFormats.unreadable(source.localization, project.resolve(source.displayPath.trim('/')), source.displayPath)
+        }?.let { throw CannotCheck(it) }
+        // What remains without a tree is a TS or JS file holding code, not a catalogue.
+        val sources = found.filter { it.tree != null }
         val modules = config.modules.filter { it.rootDirectory.isNotBlank() }
         if (modules.size < 2) return if (sources.isEmpty()) emptyList() else listOf(Scope(null, translationsOf(sources, config)))
         val owned = sources.groupBy { ModuleSources.owner(modules, ModuleSources.FilePath(it.displayPath.trim('/'), anchored = true)) }

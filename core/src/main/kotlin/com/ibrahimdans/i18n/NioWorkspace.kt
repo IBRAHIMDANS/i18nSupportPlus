@@ -13,18 +13,20 @@ import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
 
 /**
- * The translation formats read outside the IDE, by the parsers of `plugin/format`. Their ids are
- * those of the plugin's JSON and YAML localizations, so a configuration's per-format settings apply:
- * as in the plugin, a `.json5` file belongs to the JSON format.
+ * A translation format read outside the IDE. [JSON] and [YAML], the parsers of `plugin/format`, are
+ * built in; their ids are those of the plugin's JSON and YAML localizations, so a configuration's
+ * per-format settings apply: as in the plugin, a `.json5` file belongs to the JSON format. A tool
+ * with other parsers adds its own formats — `core` has no parser for code, the TS catalogues
+ * need tree-sitter.
  */
-enum class ParsedFormat(
+class ParsedFormat(
+    /** What a report calls the format: `JSON`. */
+    val name: String,
     private val id: String,
     /** The extensions of its files, without the dot. */
     val extensions: List<String>,
     private val parser: (text: String, extension: String?) -> Tree<ParsedNode>?,
 ) : TranslationFormat {
-    JSON("json", listOf("json", "json5"), { text, extension -> JsonTranslationTree.parse(text, json5 = extension == "json5") }),
-    YAML("yaml", listOf("yml", "yaml"), { text, _ -> YamlTranslationTree.parse(text) });
 
     override fun config(): LocalizationConfig = LocalizationConfigImpl(id)
 
@@ -33,6 +35,18 @@ enum class ParsedFormat(
      * file's without the dot, picks the dialect (`json5` is read leniently, `json` strictly).
      */
     fun parse(text: String, extension: String? = null): Tree<ParsedNode>? = parser(text, extension?.lowercase())
+
+    override fun toString(): String = name
+
+    companion object {
+        val JSON = ParsedFormat("JSON", "json", listOf("json", "json5")) { text, extension ->
+            JsonTranslationTree.parse(text, json5 = extension == "json5")
+        }
+        val YAML = ParsedFormat("YAML", "yaml", listOf("yml", "yaml")) { text, _ -> YamlTranslationTree.parse(text) }
+
+        /** The built-in formats. */
+        val entries: List<ParsedFormat> = listOf(JSON, YAML)
+    }
 }
 
 /**

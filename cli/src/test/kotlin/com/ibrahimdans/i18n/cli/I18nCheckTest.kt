@@ -111,6 +111,31 @@ class I18nCheckTest {
     }
 
     @Test
+    fun `TS and JS catalogues - read, the code file beside them left out`() {
+        val run = check("--locales", "$resources/ts")
+        assertEquals(
+            """
+            Reference locale: en (2 locales)
+
+            en: no problem
+            fr: 1 missing
+              missing  menu.close
+
+            1 problem found (allowed: 0).
+            """.trimIndent(),
+            run.out,
+        )
+        assertEquals(I18nCheck.PROBLEMS, run.exit)
+    }
+
+    @Test
+    fun `TS catalogue with a spread - not checked, named with the line, exit 2`() {
+        val run = check("--locales", "$resources/ts-partial")
+        assertEquals(I18nCheck.CANNOT_CHECK, run.exit)
+        assertTrue(run.err.contains("ts-partial/fr.ts: its catalogue is not written as plain literals (spread at line 4)"), run.err)
+    }
+
+    @Test
     fun `plural forms - each locale needs the categories of its own language`() {
         val run = check("--locales", "$resources/plurals", "--format", "json")
         val locales = JsonParser.parseString(run.out).asJsonObject["locales"].asJsonArray.map { it.asJsonObject }
