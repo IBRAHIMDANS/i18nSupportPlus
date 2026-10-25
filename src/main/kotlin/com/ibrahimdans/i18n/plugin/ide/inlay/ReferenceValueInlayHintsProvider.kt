@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin.ide.inlay
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileKeys
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.review.ReviewSources
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
@@ -29,8 +30,9 @@ import com.intellij.psi.PsiFile
  * file itself gets no hint: it would only repeat its own values.
  *
  * A key the reference lacks reads `missing in en`. A plural form the reference language does not
- * have (`item_many` in `fr`, where `en` has `item_one` / `item_other`) shows the reference's
- * `_other` form instead: the group exists there, only not that category.
+ * have (`item_many` in `fr`, where `en` has `item_one` / `item_other`; `steps.few` beside
+ * `steps.other`) shows the reference's `other` form instead — the source [ReviewSources] gives it —:
+ * the group exists there, only not that category.
  *
  * Values go through the folding's display pipeline — ICU rendered, cut at `foldingMaxLength`.
  * Toggled under *Editor > Inlay Hints* as *i18n reference values*.
@@ -74,9 +76,9 @@ class ReferenceValueInlayHintsProvider : InlayHintsProvider {
     internal companion object {
 
         /**
-         * The reference value of [key], or that of its plural group's `_other` form — any form
-         * when it has none — when the reference language lacks this category. Null when the
-         * reference holds neither.
+         * The reference value of [key], or its source ([ReviewSources]: the plural group's `other`
+         * form) when the reference language lacks this category — any form of a CLDR group when
+         * it has no `other`. Null when the reference holds neither.
          */
         fun referenceValue(
             key: String,
@@ -85,11 +87,10 @@ class ReferenceValueInlayHintsProvider : InlayHintsProvider {
             pluralSeparator: String,
         ): String? {
             reference[key]?.let { return it }
+            ReviewSources.sourceTextOf(key, pluralSeparator, referenceText = reference::get)?.let { return it }
             val base = PluralKey.stripSuffix(key, pluralSeparator)
             if (base == key) return null
-            val forms = referenceGroups[base] ?: return null
-            val form = forms.firstOrNull { it == PluralKey.defaultForm(base) } ?: forms.first()
-            return reference[form]
+            return referenceGroups[base]?.firstOrNull()?.let(reference::get)
         }
     }
 }

@@ -117,6 +117,14 @@ class ReferenceValueInlayHintsProviderTest : PlatformBaseTest() {
     }
 
     @Test
+    fun `a nested plural category the reference language lacks shows its other form`() = myFixture.runWithConfig(Config()) {
+        addFileToProject("locales/en/common.json", """{"steps": {"one": "One step", "other": "Steps"}}""")
+        addFileToProject("locales/ru/common.json", "{\"steps\": {\n\"one\": \"Шаг\",\n\"few\": \"Шага\",\n\"other\": \"Шагов\"\n}}")
+        val hints = hintsIn("locales/ru/common.json")
+        assertEquals(listOf("en: One step", "en: Steps", "en: Steps"), hints.values.toList())
+    }
+
+    @Test
     fun `a long reference value is cut as folding cuts it`() = myFixture.runWithConfig(Config(foldingMaxLength = 5)) {
         addFileToProject("locales/en/common.json", """{"hello": "Hello world"}""")
         addFileToProject("locales/fr/common.json", """{"hello": "Bonjour"}""")

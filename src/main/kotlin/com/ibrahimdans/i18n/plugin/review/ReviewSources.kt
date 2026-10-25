@@ -15,7 +15,8 @@ import com.ibrahimdans.i18n.plugin.tree.PluralKey
  *
  * The forms are the ones [PluralKey.stripSuffix] recognises: CLDR categories (`item_few`, always
  * `_`) and the legacy numeric ones (`item-5`, the module's plural separator), whose `other` is the
- * reference's highest count — `5`, then `2`.
+ * reference's highest count — `5`, then `2` — and the nested ones (`steps.few`, an object of
+ * categories), whose `other` is their sibling ([PluralKey.nestedOtherForm]).
  *
  * Every place reading or recording a source goes through here — the table, the key dialog, the
  * stale translations inspection, *Fill Missing Translations* — so they agree on what is stale.
@@ -30,18 +31,18 @@ object ReviewSources {
      * value there, null when absent); else, for a plural form, the reference's `other` form. Null
      * when the reference holds neither, or only empty values: no source is known then.
      */
-    fun sourceTextOf(key: String, pluralSeparator: String, referenceText: (String) -> String?): String? {
+    fun sourceTextOf(key: String, pluralSeparator: String, keySeparator: String = ".", referenceText: (String) -> String?): String? {
         referenceText(key)?.takeIf { it.isNotEmpty() }?.let { return it }
-        return otherFormsOf(key, pluralSeparator).firstNotNullOfOrNull { form -> referenceText(form)?.takeIf { it.isNotEmpty() } }
+        return otherFormsOf(key, pluralSeparator, keySeparator).firstNotNullOfOrNull { form -> referenceText(form)?.takeIf { it.isNotEmpty() } }
     }
 
     /**
      * The keys standing for [key]'s `other` form, in order of preference — none when [key] is no
      * plural form, or is that form itself.
      */
-    internal fun otherFormsOf(key: String, pluralSeparator: String): List<String> {
+    internal fun otherFormsOf(key: String, pluralSeparator: String, keySeparator: String = "."): List<String> {
         val base = PluralKey.stripSuffix(key, pluralSeparator)
-        if (base == key) return emptyList()
+        if (base == key) return listOfNotNull(PluralKey.nestedOtherForm(key, keySeparator))
         val cldr = key.removePrefix(base).removePrefix("_") in PluralCategories.ALL
         val candidates = if (cldr) listOf(PluralKey.defaultForm(base)) else NUMERIC_OTHERS.map { base + pluralSeparator + it }
         return candidates - key
