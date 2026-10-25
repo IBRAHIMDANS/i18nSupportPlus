@@ -1,6 +1,5 @@
 package com.ibrahimdans.i18n.cli
 
-import com.ibrahimdans.i18n.ParsedFormat
 import com.ibrahimdans.i18n.plugin.format.ParsedNode
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.LeafReader
@@ -17,7 +16,7 @@ import kotlin.io.path.nameWithoutExtension
 
 /**
  * The translations of one directory holding a file or a folder per locale:
- * `<dir>/<locale>.json` or `<dir>/<locale>/<namespace>.json`, in JSON, JSON5 or YAML.
+ * `<dir>/<locale>.json` or `<dir>/<locale>/<namespace>.json`, in JSON, JSON5, YAML or as a TS / JS catalogue.
  *
  * Only names [LocaleNames] reads as a locale count: `README.md` or `scripts/` beside them are left
  * alone. The keys of a namespace file are spelled `namespace:key`, with the configured namespace
@@ -25,7 +24,7 @@ import kotlin.io.path.nameWithoutExtension
  */
 object LocaleDirectory {
 
-    private val FORMATS = ParsedFormat.entries.flatMap { format -> format.extensions.map { it to format } }.toMap()
+    private val FORMATS = CheckFormats.ALL.flatMap { format -> format.extensions.map { it to format } }.toMap()
 
     /** Key -> locale -> value, what [TranslationCheck] compares; empty when [dir] holds no translation file. */
     fun read(dir: Path, config: Config): Map<String, Map<String, String>> {
@@ -49,8 +48,10 @@ object LocaleDirectory {
 
     private fun collect(file: Path, nsPrefix: String, locale: String, config: Config, result: MutableMap<String, MutableMap<String, String>>) {
         val extension = file.extension.lowercase()
-        val tree = FORMATS.getValue(extension).parse(Files.readString(file), extension)
-            ?: throw CannotCheck("not a valid ${extension.uppercase()} translation file: $file")
+        val format = FORMATS.getValue(extension)
+        val tree = format.parse(Files.readString(file), extension)
+            ?: CheckFormats.unreadable(format, file)?.let { throw CannotCheck(it) }
+            ?: return
         TranslationLeaves.collect(config, tree, nsPrefix, locale, ParsedLeaves, result)
     }
 }
