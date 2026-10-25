@@ -29,6 +29,21 @@ class ModuleSourcesTest {
     }
 
     @Test
+    fun focusKeepsOneModuleActiveAndUndoGivesTheStatesBack() {
+        val modules = listOf(module("apps/web"), module("apps/admin").copy(enabled = false), module("apps/blog"))
+
+        val focused = ModuleSources.focus(modules, 1)
+        assertEquals(listOf(false, true, false), focused.map { it.enabled })
+        assertEquals(modules.map { it.rootDirectory }, focused.map { it.rootDirectory })
+
+        assertEquals(listOf(true, true, true), ModuleSources.activateAll(focused).map { it.enabled })
+
+        val before = modules.map { it.enabled }
+        assertEquals(modules, ModuleSources.withEnabled(focused, before))
+        assertEquals(focused.take(2), ModuleSources.withEnabled(focused.take(2), before), "a module removed meanwhile: left as is")
+    }
+
+    @Test
     fun theLoneModuleIsTheOnlyActiveOne() {
         assertEquals("apps/web", ModuleSources.lone(listOf(module("apps/web"), module("apps/admin").copy(enabled = false)))?.rootDirectory)
     }

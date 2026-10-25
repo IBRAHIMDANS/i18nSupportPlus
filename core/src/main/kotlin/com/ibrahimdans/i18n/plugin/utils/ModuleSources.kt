@@ -50,6 +50,22 @@ object ModuleSources {
     /** The modules not put aside ([ModuleConfig.enabled]). */
     fun active(modules: List<ModuleConfig>): List<ModuleConfig> = modules.filter { it.enabled }
 
+    /** [modules] with the one at [index] active and every other one put aside: work on one application. */
+    fun focus(modules: List<ModuleConfig>, index: Int): List<ModuleConfig> =
+        modules.mapIndexed { i, module -> module.copy(enabled = i == index) }
+
+    /** [modules], every one of them active. */
+    fun activateAll(modules: List<ModuleConfig>): List<ModuleConfig> = modules.map { it.copy(enabled = true) }
+
+    /**
+     * [modules] given back the [enabled] states taken before a [focus] or an [activateAll]: what
+     * *Undo* restores. Left unchanged when the list no longer has as many modules — one was added
+     * or removed meanwhile, and the states would land on the wrong ones.
+     */
+    fun withEnabled(modules: List<ModuleConfig>, enabled: List<Boolean>): List<ModuleConfig> =
+        if (enabled.size != modules.size) modules
+        else modules.zip(enabled) { module, state -> module.copy(enabled = state) }
+
     /**
      * Whether [file] lies under the root directory of a module put aside: its owner, among all
      * [modules], is disabled. A disabled module nested in an active one takes its own files out; an
