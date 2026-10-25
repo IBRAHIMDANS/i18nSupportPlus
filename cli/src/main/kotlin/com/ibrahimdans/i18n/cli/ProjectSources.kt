@@ -30,6 +30,10 @@ data class Scope(val module: ModuleConfig?, val translations: Map<String, Map<St
  * Keys are spelled as the plugin's tool window spells them ([KeySpelling]): `common:menu.home`, the
  * default namespaces left unwritten. A project declaring several modules with a root directory gets
  * one [Scope] per module, in the settings' order; with one or none, the project is one scope.
+ *
+ * In a Transloco project the keys of a scope file — `assets/i18n/admin/en.json`, next to the global
+ * `assets/i18n/en.json` — are spelled with the scope as their first segment, `admin.title`, as the code
+ * writes them: they are no global key, and a global `title` is another key.
  */
 object ProjectSources {
 
@@ -46,21 +50,43 @@ object ProjectSources {
         val sources = found.filter { it.tree != null }
         // A module put aside has no file left to read (SourceDiscovery), and no section.
         val modules = ModuleSources.active(config.modules).filter { it.rootDirectory.isNotBlank() }
-        if (modules.size < 2) return if (sources.isEmpty()) emptyList() else listOf(Scope(null, translationsOf(sources, config)))
+        val scopes = if (ProjectPackages.requiresAny(project, ProjectPackages.TRANSLOCO)) translocoScopes(sources) else emptyMap()
+        if (modules.size < 2) return if (sources.isEmpty()) emptyList() else listOf(Scope(null, translationsOf(sources, config, scopes)))
         val owned = sources.groupBy { ModuleSources.owner(modules, ModuleSources.FilePath(it.displayPath.trim('/'), anchored = true)) }
-        return (modules + null).mapNotNull { module -> owned[module]?.let { Scope(module, translationsOf(it, config)) } }
+        return (modules + null).mapNotNull { module -> owned[module]?.let { Scope(module, translationsOf(it, config, scopes)) } }
     }
 
-    /** The plugin's `TranslationDataLoader.loadAllTranslations`, over parsed trees. */
-    private fun translationsOf(sources: List<TranslationSource<ParsedNode, ParsedFormat>>, config: Config): Map<String, Map<String, String>> {
+    /** The plugin's `TranslationDataLoader.loadAllTranslations`, over parsed trees; [scopes] by display path. */
+    private fun translationsOf(
+        sources: List<TranslationSource<ParsedNode, ParsedFormat>>,
+        config: Config,
+        scopes: Map<String, String>,
+    ): Map<String, Map<String, String>> {
         val defaultNamespaces = config.defaultNamespaces()
         val result = mutableMapOf<String, MutableMap<String, String>>()
         for (source in sources) {
             val namespace = source.namespace
                 ?: if (source.isLocaleNamedFile()) defaultNamespaces.first() else source.name.substringBeforeLast('.')
-            val nsPrefix = if (namespace in defaultNamespaces) "" else namespace + KeySpelling.NAMESPACE_SEPARATOR
+            val nsPrefix = when {
+                namespace !in defaultNamespaces -> namespace + KeySpelling.NAMESPACE_SEPARATOR
+                else -> scopes[source.displayPath]?.let { it + config.keySeparator }.orEmpty()
+            }
             TranslationLeaves.collect(config, source.tree!!, nsPrefix, source.localeLabel(), ParsedLeaves, result)
         }
         return result
+    }
+
+    /**
+     * Transloco's scope files, display path → scope: a file named after a locale whose folder sits next to
+     * global files named after a locale too — the plugin's `TranslocoScopes`.
+     */
+    private fun translocoScopes(sources: List<TranslationSource<ParsedNode, ParsedFormat>>): Map<String, String> {
+        val localeNamed = sources.filter { it.isLocaleNamedFile() }
+        val folderOf = { source: TranslationSource<ParsedNode, ParsedFormat> -> source.displayPath.trim('/').substringBeforeLast('/', "") }
+        val globalFolders = localeNamed.mapTo(HashSet(), folderOf)
+        return localeNamed.mapNotNull { source ->
+            val folder = folderOf(source).takeIf { '/' in it } ?: return@mapNotNull null
+            if (folder.substringBeforeLast('/') in globalFolders) source.displayPath to folder.substringAfterLast('/') else null
+        }.toMap()
     }
 }

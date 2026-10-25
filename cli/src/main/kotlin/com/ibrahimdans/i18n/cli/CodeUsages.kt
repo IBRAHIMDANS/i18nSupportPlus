@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.NioWorkspace
 import com.ibrahimdans.i18n.ParsedFormat
 import com.ibrahimdans.i18n.SourceDiscovery
 import com.ibrahimdans.i18n.extract.CodeExtractors
+import com.ibrahimdans.i18n.extract.angular.AngularTemplate
 import com.ibrahimdans.i18n.extract.nextintl.NextIntlKeyExtractor
 import com.ibrahimdans.i18n.extract.vuei18n.VueSfc
 import com.ibrahimdans.i18n.index.TreeSitterKeyUsageIndex
@@ -21,9 +22,11 @@ data class UnknownKey(val key: String, val file: String, val line: Int)
  * [TreeSitterKeyUsageIndex], the folders [NioWorkspace] prunes and those the settings exclude left out.
  * Keys are spelled as [ProjectSources] spells them.
  *
- * Each file is read with the extractors of its module's preset ([CodeExtractors]): i18next's, next-intl's
- * and vue-i18n's calls, all of them outside a module with a preset. A `.vue` file is read through
- * [VueSfc]: its scripts and its template's expressions.
+ * Each file is read with the extractors of its module's preset ([CodeExtractors]): i18next's, next-intl's,
+ * vue-i18n's, Transloco's and ngx-translate's calls, all of them outside a module with a preset. A `.vue`
+ * file is read through [VueSfc]: its scripts and its template's expressions. In an Angular project — a
+ * `package.json` requiring `@angular/core` — the `.html` templates are read too, through [AngularTemplate]:
+ * elsewhere a `.html` is no template of the plugin's.
  */
 class CodeUsages(project: Path, config: Config) {
 
@@ -38,15 +41,16 @@ class CodeUsages(project: Path, config: Config) {
 
     init {
         val root = project.toAbsolutePath().normalize()
+        val extensions = if (ProjectPackages.requiresAny(root, listOf(ProjectPackages.ANGULAR))) EXTENSIONS + HTML else EXTENSIONS
         texts = NioWorkspace(root, SourceDiscovery.DEFAULT_EXCLUDED_DIRECTORIES + config.excludedDirectorySet())
-            .files(EXTENSIONS)
+            .files(extensions)
             .associate { root.relativize(it.file).joinToString("/") to Files.readString(it.file) }
         val modules = ModuleSources.active(config.modules)
         indexes = texts.entries
             .groupBy { (path, _) -> ModuleSources.owner(modules, ModuleSources.FilePath(path, anchored = true))?.preset?.trim()?.ifEmpty { null } }
             .map { (preset, files) ->
                 TreeSitterKeyUsageIndex(config, extractors = CodeExtractors.forPreset(preset)).apply {
-                    files.forEach { (path, text) -> update(path, if (path.endsWith(VUE)) VueSfc.codeOf(text) else text) }
+                    files.forEach { (path, text) -> update(path, codeOf(path, text)) }
                 }
             }
         blockKeys = texts.filterKeys { it.endsWith(VUE) }.mapValues { (_, text) -> blockKeysOf(text, config) }.filterValues { it.isNotEmpty() }
@@ -72,6 +76,13 @@ class CodeUsages(project: Path, config: Config) {
             }
             .sortedWith(compareBy({ it.file }, { it.line }))
 
+    /** The code of the file at [path]: a component or a template read as the code it holds. */
+    private fun codeOf(path: String, text: String): String = when {
+        path.endsWith(VUE) -> VueSfc.codeOf(text)
+        path.endsWith(".$HTML") -> AngularTemplate.codeOf(text)
+        else -> text
+    }
+
     /** True when the literal at [offset] of [path] is the key of a `.has(` call. */
     private fun isExistenceCheck(path: String, offset: Int): Boolean =
         texts.getValue(path).substring(0, offset).trimEnd().endsWith(".${NextIntlKeyExtractor.HAS}(")
@@ -79,6 +90,7 @@ class CodeUsages(project: Path, config: Config) {
     private companion object {
         const val VUE = ".vue"
         val EXTENSIONS = listOf("js", "jsx", "ts", "tsx", "mjs", "cjs", "vue")
+        const val HTML = "html"
 
         val I18N_BLOCK = Regex("""<i18n\b([^>]*)>(.*?)</i18n>""", RegexOption.DOT_MATCHES_ALL)
         val YAML_LANG = Regex("""\blang\s*=\s*["']ya?ml["']""")
