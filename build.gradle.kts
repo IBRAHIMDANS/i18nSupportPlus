@@ -324,6 +324,12 @@ tasks {
             excludeEngines("junit-vintage")
         }
 
+        // The platform pings api.jetbrains.ai when the test project opens, if the developer is
+        // signed in to a JetBrains Account (never in CI): the thread still waiting on the answer
+        // when the first test ends fails it as a leaked thread. TRACE data collection is the only
+        // caller of that ping, and a system property overrides its registry key.
+        systemProperty("trace.data.collection.enabled", "false")
+
         // A net for platform flakes, not for our own bugs. The IntelliJ test fixture occasionally
         // trips over its own teardown — a listener already disposed, an editor already closed —
         // and takes down whichever test was running at the time. A single retry separates that
