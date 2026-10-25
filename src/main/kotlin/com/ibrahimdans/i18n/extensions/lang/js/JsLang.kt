@@ -49,10 +49,13 @@ open class JsLang : Lang {
          *    outside any call; its Composition API's `t` is i18next's name, read as vue-i18n's only
          *    where `useI18n()` returns it.
          *  - Paraglide's `m.hello()` holds no string at all: the key is the member's name.
+         *  - typesafe-i18n's `LL.home.title()` neither: the key is the path of members after `LL`.
          *  - next-intl's `t.rich('key')`, `t.markup`, `t.raw` and `t.has` are qualified calls named
          *    after the method, not after `t`.
          */
         private val PARAGLIDE_MESSAGE = ParaglideMessageExtractor()
+
+        private val TYPESAFE_I18N = TypesafeI18nExtractor()
 
         /** `t.has('key')`: read for its usages and references, never annotated — it tests existence. */
         private val NEXT_INTL_HAS = NextIntlMethodExtractor(setOf(NextIntlMethodExtractor.HAS))
@@ -76,6 +79,7 @@ open class JsLang : Lang {
             VueTDirectiveExtractor(),
             VueI18nComposableExtractor(),
             PARAGLIDE_MESSAGE,
+            TYPESAFE_I18N,
             NextIntlMethodExtractor(),
         )
     }
@@ -180,7 +184,7 @@ open class JsLang : Lang {
             // react-intl's `<FormattedMessage id="key">`: the key is an attribute value, not a JS string.
             else if (FORMATTED_MESSAGE.canExtract(entry)) entry
             // Paraglide's `m.hello`: the key is the member's name, an identifier rather than a string.
-            else entry.parent?.takeIf { typeName == "JS:IDENTIFIER" && PARAGLIDE_MESSAGE.canExtract(it) }
+            else entry.parent?.takeIf { typeName == "JS:IDENTIFIER" && (PARAGLIDE_MESSAGE.canExtract(it) || TYPESAFE_I18N.canExtract(it)) }
     }
 }
 
@@ -193,6 +197,7 @@ private fun frameworkOf(extractor: KeyExtractor): String? = when (extractor) {
     is VueI18nKeypathExtractor, is VueTDirectiveExtractor, is VueI18nComposableExtractor -> "vue-i18n"
     is LinguiTransKeyExtractor -> "lingui"
     is ParaglideMessageExtractor -> "paraglide"
+    is TypesafeI18nExtractor -> "typesafe-i18n"
     is NextIntlMethodExtractor -> "next-intl"
     is XmlAttributeKeyExtractor -> "i18next"
     else -> null

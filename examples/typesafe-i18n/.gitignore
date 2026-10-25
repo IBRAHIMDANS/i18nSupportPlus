@@ -1,0 +1,6 @@
+node_modules
+dist
+# Written by `npm run typesafe-i18n`; formatters.ts is generated once, then edited by hand.
+src/i18n/i18n-types.ts
+src/i18n/i18n-util*.ts
+src/i18n/i18n-react.tsx
