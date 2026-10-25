@@ -35,6 +35,7 @@ data class Config (
     val excludedFileExtensions: String = "",
     val keptKeys: String = "",
     val ignoredLocales: String = "",
+    val localeAliases: String = "",
     val gutterIconsEnabled: Boolean = true,
     val setupWizardEnabled: Boolean = true,
     val modules: List<ModuleConfig> = emptyList(),
@@ -66,6 +67,20 @@ data class Config (
     fun ignoresLocale(locale: String): Boolean =
         ignoredLocales.split("[;|,\\s]".toRegex()).filter { it.isNotBlank() }
             .any { LocaleMatching.pick(it, listOf(locale)) != null }
+
+    /**
+     * [localeAliases] — `gb=en-GB, cn=zh-CN` — as alias -> locale: a folder or a file named after an
+     * alias is that locale's, shown under the name it is written with and compared as the locale
+     * (its plural forms). For the country codes some projects write in place of a language code.
+     */
+    fun localeAliasMap(): Map<String, String> =
+        localeAliases.split(',', ';')
+            .map { it.substringBefore('=').trim() to it.substringAfter('=', "").trim() }
+            .filter { (alias, locale) -> alias.isNotEmpty() && locale.isNotEmpty() }
+            .toMap()
+
+    /** The locale [label] stands for: its [localeAliasMap] target, or itself. */
+    fun aliasedLocale(label: String): String = localeAliasMap()[label] ?: label
 
     /**
      * True when a key must be looked up as a single literal instead of being split into a

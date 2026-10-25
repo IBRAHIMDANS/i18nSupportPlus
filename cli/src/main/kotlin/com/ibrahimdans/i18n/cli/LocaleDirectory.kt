@@ -29,13 +29,15 @@ object LocaleDirectory {
     /** Key -> locale -> value, what [TranslationCheck] compares; empty when [dir] holds no translation file. */
     fun read(dir: Path, config: Config): Map<String, Map<String, String>> {
         val result = mutableMapOf<String, MutableMap<String, String>>()
+        val aliases = config.localeAliasMap()
+        fun isLocale(name: String) = LocaleNames.looksLikeLocale(name) || name in aliases
         for (entry in dir.listDirectoryEntries().sorted()) {
             when {
-                entry.isDirectory() && LocaleNames.looksLikeLocale(entry.fileName.toString()) ->
+                entry.isDirectory() && isLocale(entry.fileName.toString()) ->
                     translationFiles(entry).forEach { file ->
                         collect(file, "${file.nameWithoutExtension}${config.nsSeparator}", entry.fileName.toString(), config, result)
                     }
-                isTranslationFile(entry) && LocaleNames.looksLikeLocale(entry.nameWithoutExtension) ->
+                isTranslationFile(entry) && isLocale(entry.nameWithoutExtension) ->
                     collect(entry, "", entry.nameWithoutExtension, config, result)
             }
         }

@@ -336,6 +336,39 @@ class I18nCheckTest {
         assertTrue(run.err.contains("not a valid JSON translation file"), run.err)
     }
 
+    private fun gbProject(project: Path) {
+        fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }
+        write("locales/en/common.json", """{"title": "Colour", "item_one": "{{count}} item", "item_other": "{{count}} items"}""")
+        write("locales/fr/common.json", """{"title": "Couleur", "item_one": "{{count}} élément", "item_other": "{{count}} éléments"}""")
+        write("locales/gb/common.json", """{"item_other": "{{count}} items"}""")
+    }
+
+    @Test
+    fun `country code folder - not checked without an alias, and said so`(@TempDir project: Path) {
+        gbProject(project)
+
+        val run = check(project.toString())
+
+        assertEquals(I18nCheck.OK, run.exit, run.out)
+        assertTrue(run.out.contains("(2 locales)"), run.out)
+        assertTrue(run.err.contains("locales/gb not checked, 'gb' is a country code, not a language code"), run.err)
+    }
+
+    @Test
+    fun `country code folder - checked under its alias, with the plural forms of its locale`(@TempDir project: Path) {
+        gbProject(project)
+        Files.writeString(project.resolve(SettingsFile.JSON_PATH), """{"localeAliases": "gb=en-GB"}""")
+
+        val run = check(project.toString())
+
+        assertEquals(I18nCheck.PROBLEMS, run.exit, run.out)
+        assertTrue(run.out.contains("(3 locales)"), run.out)
+        assertTrue(run.out.contains("gb: 2 missing"), run.out)
+        assertTrue(run.out.contains("missing  common:item_one"), run.out)
+        assertTrue(run.out.contains("missing  common:title"), run.out)
+        assertTrue(run.err.isEmpty(), run.err)
+    }
+
     @Test
     fun `invalid i18n-check json - named, exit 2`(@TempDir project: Path) {
         Files.writeString(project.resolve(SettingsFile.JSON_PATH), """{ "keySeperator": "/" }""")

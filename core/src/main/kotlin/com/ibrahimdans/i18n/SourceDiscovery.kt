@@ -74,6 +74,9 @@ class SourceDiscovery<N, F : TranslationFormat>(
      */
     private val exclusions: Set<String> = DEFAULT_EXCLUDED_DIRECTORIES + config.excludedDirectorySet()
 
+    /** [Config.localeAliasMap], read once per discovery for the same reason. */
+    private val aliases: Map<String, String> = config.localeAliasMap()
+
     /** Every translation source of the workspace: what [scannedSources] finds, with the [configuredSources]. */
     fun sources(): List<TranslationSource<N, F>> = compose(scannedSources(), configuredSources())
 
@@ -98,9 +101,12 @@ class SourceDiscovery<N, F : TranslationFormat>(
                 .filter { file -> !isExcluded(file) }
                 .mapNotNull { file ->
                     val template = moduleMatch(file)
+                    val alias = aliasMatch(file)
                     when {
                         template != null -> sourceOf(format, file, template)
-                        isIncluded(file.path, config.translationsRoot, workspace.basePath) -> sourceOf(format, file, null)
+                        isIncluded(file.path, config.translationsRoot, workspace.basePath) -> sourceOf(format, file, alias)
+                        // An aliased name is a locale for the guess too.
+                        alias != null && config.translationsRoot.isBlank() -> sourceOf(format, file, alias)
                         else -> null
                     }
                 }
@@ -121,7 +127,7 @@ class SourceDiscovery<N, F : TranslationFormat>(
                     if (template == null && config.translationsRoot.isNotBlank() &&
                         !isUnderRoot(file.path, config.translationsRoot, workspace.basePath)
                     ) null
-                    else sourceOf(format, file, template)
+                    else sourceOf(format, file, template ?: aliasMatch(file))
                 }
         }.distinctBy { it.displayPath }
 
@@ -187,6 +193,21 @@ class SourceDiscovery<N, F : TranslationFormat>(
      */
     private fun isExcluded(file: WorkspaceFile): Boolean =
         workspace.isExcluded(file) || isExcludedPath(ModuleSources.FilePath.of(file.path, workspace.basePath).path, exclusions)
+
+    /**
+     * The locale and namespace an alias of the settings gives [file]: `gb.json` is the `gb` locale's,
+     * `gb/common.json` its `common` namespace — stated as a template states them, so every rule reading
+     * a source's locale (`localeLabel`, `hasRecognizedLocale`) takes it without knowing the aliases.
+     * Null when neither its name nor its folder is an alias.
+     */
+    private fun aliasMatch(file: WorkspaceFile): ModuleSources.Match? {
+        if (aliases.isEmpty()) return null
+        val stem = file.nameWithoutExtension
+        if (stem in aliases) return ModuleSources.Match(stem, null)
+        val folder = file.path.substringBeforeLast('/', "").substringAfterLast('/')
+        if (folder in aliases && !LocaleNames.looksLikeLocale(stem)) return ModuleSources.Match(folder, stem)
+        return null
+    }
 
     /**
      * The locale and namespace a module template gives [file], or null when no module template

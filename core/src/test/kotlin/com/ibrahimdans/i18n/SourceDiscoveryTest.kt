@@ -3,6 +3,8 @@ package com.ibrahimdans.i18n
 import com.ibrahimdans.i18n.plugin.format.ParsedNode
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
+import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
+import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -43,6 +45,21 @@ class SourceDiscoveryTest {
         file("config/settings.json")
 
         assertEquals(listOf("locales/en/common.json", "locales/fr.yml"), discovery().sources().paths())
+    }
+
+    @Test
+    fun anAliasedFolderOrFileIsALocaleShownAsWritten() {
+        file("locales/en/common.json")
+        file("locales/gb/common.json")
+        file("flat/en.json")
+        file("flat/gb.json")
+
+        assertEquals(listOf("flat/en.json", "locales/en/common.json"), discovery().sources().paths().sorted(), "no alias: gb is no locale")
+
+        val sources = discovery(Config(localeAliases = "gb=en-GB")).sources()
+        val gb = sources.filter { "gb" in it.displayPath }.associate { it.displayPath to (it.locale to it.namespace) }
+        assertEquals(mapOf("flat/gb.json" to ("gb" to null), "locales/gb/common.json" to ("gb" to "common")), gb)
+        assertTrue(sources.filter { "gb" in it.displayPath }.all { it.hasRecognizedLocale() && it.localeLabel() == "gb" })
     }
 
     @Test

@@ -38,6 +38,15 @@ object LocaleNames {
     )
 
     /**
+     * True when [name] is a two-letter ISO country code and no language code: `gb`, `jp`, `ua`,
+     * written by some projects for `en-GB`, `ja`, `uk` (`kr`, Kanuri, is a language code). Such a folder is not a locale unless the
+     * settings alias it ([com.ibrahimdans.i18n.plugin.ide.settings.Config.localeAliasMap]); this tells
+     * it apart, to say so rather than leave it out in silence.
+     */
+    fun isCountryCodeOnly(name: String): Boolean =
+        name.length == 2 && !looksLikeLocale(name) && name.uppercase() in ISO_COUNTRIES
+
+    /**
      * True when [name] is a plausible locale code: an ISO language ("en", "fil"),
      * optionally followed by an ISO region ("pt-BR", "zh_CN") or an ISO 15924 script
      * ("sr-Latn"). Shape alone is not enough — "web", "ios" or "src" must not be mistaken

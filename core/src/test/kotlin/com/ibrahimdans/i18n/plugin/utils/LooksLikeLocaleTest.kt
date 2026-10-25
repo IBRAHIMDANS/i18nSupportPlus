@@ -54,4 +54,15 @@ class LooksLikeLocaleTest {
             assertFalse(looksLikeLocale(it), "expected '$it' NOT to be a locale")
         }
     }
+
+    @Test
+    fun aCountryCodeThatIsNoLanguageIsToldApart() {
+        listOf("gb", "jp", "ua", "GB").forEach {
+            assertTrue(LocaleNames.isCountryCodeOnly(it), "expected '$it' to be a country code only")
+        }
+        // A language code is a locale, even when it is a country code too; a word is neither.
+        listOf("fr", "de", "it", "en", "en-GB", "web", "src").forEach {
+            assertFalse(LocaleNames.isCountryCodeOnly(it), "expected '$it' not to be a country code only")
+        }
+    }
 }

@@ -45,7 +45,8 @@ data class ProjectResult(val modules: List<CheckResult>, val unknown: List<Unkno
  */
 object TranslationCheck {
 
-    fun run(translations: Map<String, Map<String, String>>, reference: String): CheckResult {
+    /** [pluralLocale] gives the locale whose plural forms a label needs: an alias's target (`gb` -> `en-GB`). */
+    fun run(translations: Map<String, Map<String, String>>, reference: String, pluralLocale: (String) -> String = { it }): CheckResult {
         val locales = translations.values.flatMap { it.keys }.distinct().sorted()
         // A key that is both plain and a group's base (`count` beside `count_one`) stays a plain key.
         val plurals = PluralKey.groupForms(translations.keys).filter { (base, forms) -> forms != listOf(base) }
@@ -70,7 +71,7 @@ object TranslationCheck {
                     orphans += forms.filter { has(it, locale) }
                     continue
                 }
-                missing += PluralCategories.of(locale).map { "${base}_$it" }.filterNot { has(it, locale) }
+                missing += PluralCategories.of(pluralLocale(locale)).map { "${base}_$it" }.filterNot { has(it, locale) }
                 empty += forms.filter { blank(it, locale) }
             }
             LocaleProblems(locale, missing.sorted(), orphans.sorted(), empty.sorted())
