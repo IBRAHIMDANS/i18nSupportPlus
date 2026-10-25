@@ -51,7 +51,12 @@ object KeyResolver {
             syntax == KeySyntax.NoNamespace -> parser.parse(rawKey, emptyNamespace = true, firstComponentNamespace = false)
             firstComponent -> parser.parse(rawKey, emptyNamespace = true, firstComponentNamespace = true)
             syntax != null -> parser.parse(rawKey)
-            config.firstComponentNs -> parser.parse(rawKey, false, true)
+            // The first segment is the namespace, as a `{ns}.{key}` template reads it — unless the key
+            // writes its namespace (`common:title`). The flag only takes effect with an empty namespace
+            // to start from: `parse(rawKey, false, true)` read `common.title` as no namespace, while
+            // extraction and *Copy Key* write it as namespace `common`, key `title`.
+            config.firstComponentNs -> parser.parse(rawKey)?.takeIf { it.ns != null }
+                ?: parser.parse(rawKey, emptyNamespace = true, firstComponentNamespace = true)
             else -> parser.parse(rawKey)?.let { key -> scoped(key, rawKey, parser, context) ?: key }
         }
         return key?.let { withFallbacks(it, context) }

@@ -121,9 +121,7 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
         viewModel: TableViewModel = TableViewModel(),
         counting: (Int) -> Unit = {},
     ): List<Pair<ModuleConfig?, TranslationRow>> {
-        val modules = Settings.getInstance(project).config().modules.filter { it.rootDirectory.isNotBlank() }
-        val scopes = if (modules.size < 2) listOf(null) else modules
-        return scopes.flatMap { module ->
+        return ModuleSources.scopes(Settings.getInstance(project).config().modules).flatMap { module ->
             val rows = viewModel.loadRows(project, module)
             counting(rows.size)
             viewModel.countUsages(project, rows, module).filter { it.usageCount == 0 }.map { module to it }

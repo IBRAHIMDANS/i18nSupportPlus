@@ -1,9 +1,11 @@
 package com.ibrahimdans.i18n.plugin.ide.actions.i18nize
 
+import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.ide.actions.Candidate
 import com.ibrahimdans.i18n.plugin.ide.actions.ExistingKeyFinder
 import com.ibrahimdans.i18n.plugin.ide.actions.ExtractionCandidates
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 
 /**
@@ -16,7 +18,9 @@ import com.intellij.psi.PsiFile
  *
  * A string that is code by its place — a hook's namespace, an import, a `className` — is never
  * planned ([TranslatableText.isNeverProposed]); one that looks like data — a URL, an identifier —
- * is planned unchecked, with the reason ([Entry.uncheckedReason]).
+ * is planned unchecked, with the reason ([Entry.uncheckedReason]). One whose call needs what the code
+ * lacks and *Internationalize…* cannot add — react-intl's `intl` outside any component — is planned
+ * refused ([Entry.refusal]): shown, never written.
  *
  * Reads the file-type index: call it in a read action, in smart mode, off the EDT.
  */
@@ -27,16 +31,18 @@ internal data class I18nizePlan(val files: List<FilePlan>) {
     /**
      * [candidate]'s text, to be written under [key] in [namespace]; [reused] when the key exists already.
      * [uncheckedReason] says why the preview should leave it unchecked; null for a message.
+     * [refusal] says why it cannot be extracted at all, as [TranslationExtractor.refusal] words it.
      */
     data class Entry(
         val candidate: Candidate,
         val namespace: String,
         val key: String,
         val reused: Boolean,
-        val uncheckedReason: TranslatableText.Reason? = null
+        val uncheckedReason: TranslatableText.Reason? = null,
+        val refusal: String? = null
     ) {
         /** Whether the preview checks this text at first: only a text reading as a message is. */
-        val checkedByDefault: Boolean get() = uncheckedReason == null
+        val checkedByDefault: Boolean get() = uncheckedReason == null && refusal == null
     }
 
     companion object {
@@ -66,10 +72,18 @@ internal data class I18nizePlan(val files: List<FilePlan>) {
                         candidate, namespace,
                         reused ?: naming.keyFor(namespace, KeyNaming.componentOf(candidate.literal), candidate.originalText),
                         reused != null,
-                        TranslatableText.uncheckedReason(candidate.originalText)
+                        TranslatableText.uncheckedReason(candidate.originalText),
+                        refusalOf(extractor, candidate.literal)
                     )
                 })
             })
         }
+
+        /**
+         * The extractor's refusal at [literal], unless *Internationalize…* supplies what it lacks: a
+         * react-intl component without `useIntl()` receives one ([HookInsertion.componentNeedingIntl]).
+         */
+        private fun refusalOf(extractor: TranslationExtractor, literal: PsiElement): String? =
+            extractor.refusal(literal)?.takeIf { HookInsertion.componentNeedingIntl(literal) == null }
     }
 }

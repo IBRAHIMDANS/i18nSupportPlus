@@ -34,8 +34,26 @@ class KeyResolverTest {
             "|OverviewActions.help.caption|", keyPrefix = "OverviewActions"
         ),
         Case(
-            "firstComponentNs leaves key scopes unread", "admin.title",
-            KeyContext(Config(firstComponentNs = true), keyScopes = { setOf("admin") }), "|admin.title|"
+            "firstComponentNs reads the first segment as namespace", "common.title.main",
+            KeyContext(Config(firstComponentNs = true)), "common|title.main|"
+        ),
+        Case(
+            "firstComponentNs reads a key scope as namespace too", "admin.title",
+            KeyContext(Config(firstComponentNs = true), keyScopes = { setOf("admin") }), "admin|title|"
+        ),
+        Case(
+            "firstComponentNs keeps a namespace the key writes", "common:title.main",
+            KeyContext(Config(firstComponentNs = true)), "common|title.main|"
+        ),
+        Case(
+            "firstComponentNs leaves a single segment without namespace", "title",
+            KeyContext(Config(firstComponentNs = true)), "|title|"
+        ),
+        // A module whose code writes no namespace: a key that writes one is no key of it, rather
+        // than one more key reported missing. Kept on purpose (TASK-KEY-RESOLVER-EDGES, 2026-10-25).
+        Case(
+            "module template {key} reads no key from a namespaced one", "common:title",
+            KeyContext(Config(), callerSyntax = KeySyntax.NoNamespace), "null"
         ),
         Case(
             "module template {ns}:{key} keeps the colon", "common:title",

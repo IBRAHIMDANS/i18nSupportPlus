@@ -44,6 +44,15 @@ class ModuleSourcesTest {
     }
 
     @Test
+    fun scopesAreTheActiveRootedModulesFromTwoOnward() {
+        val web = module("apps/web")
+        val admin = module("apps/admin")
+        assertEquals(listOf(web, admin), ModuleSources.scopes(listOf(web, admin, module(""))))
+        assertEquals(listOf(null), ModuleSources.scopes(listOf(web, admin.copy(enabled = false))), "one active module: the project is one scope")
+        assertEquals(listOf(null), ModuleSources.scopes(emptyList()))
+    }
+
+    @Test
     fun theLoneModuleIsTheOnlyActiveOne() {
         assertEquals("apps/web", ModuleSources.lone(listOf(module("apps/web"), module("apps/admin").copy(enabled = false)))?.rootDirectory)
     }

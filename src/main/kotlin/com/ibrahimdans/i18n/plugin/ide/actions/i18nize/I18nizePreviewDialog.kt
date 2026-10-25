@@ -42,6 +42,9 @@ internal class I18nizePreviewModel(
     inner class Row(val file: PsiFile, val entry: I18nizePlan.Entry) {
         /** Data the plan flags (a URL, an identifier, a date…) starts unchecked. */
         var selected: Boolean = entry.checkedByDefault
+
+        /** A text the plan refuses ([I18nizePlan.Entry.refusal]) cannot be checked. */
+        val selectable: Boolean get() = entry.refusal == null
         var key: String = entry.key
 
         val text: String get() = entry.candidate.originalText
@@ -100,7 +103,7 @@ internal class I18nizePreviewModel(
 
     /** The plan as accepted: the checked texts only, each with its key as typed. */
     fun accepted(): I18nizePlan = I18nizePlan(files.mapNotNull { (file, rows) ->
-        val entries = rows.filter { it.selected }.map { row ->
+        val entries = rows.filter { it.selected && it.selectable }.map { row ->
             val key = row.key.trim()
             if (key == row.entry.key) row.entry
             else row.entry.copy(key = key, namespace = row.namespace(), reused = row.status() == Status.REUSED)
@@ -170,7 +173,7 @@ internal class I18nizePreviewDialog(
                         val all = JBCheckBox(PluginBundle.message("action.i18nize.preview.all"), rows.any { it.selected })
                         all.toolTipText = path
                         all.addActionListener {
-                            rows.forEach { row -> row.selected = all.isSelected; rowBoxes[row]?.isSelected = all.isSelected }
+                            rows.filter { it.selectable }.forEach { row -> row.selected = all.isSelected; rowBoxes[row]?.isSelected = all.isSelected }
                             refresh()
                         }
                         fileBoxes[file] = all
@@ -195,6 +198,7 @@ internal class I18nizePreviewDialog(
         row {
             val box = JBCheckBox(row.text.take(TEXT_WIDTH).let { if (it.length < row.text.length) "$it…" else it }, row.selected).apply {
                 toolTipText = row.text
+                isEnabled = row.selectable
                 addActionListener {
                     row.selected = isSelected
                     refresh()
@@ -257,9 +261,9 @@ internal class I18nizePreviewDialog(
         )
     }
 
-    /** Why an unchecked text was offered unchecked: shown instead of what its key would do. */
+    /** Why an unchecked text was offered unchecked, or cannot be extracted: shown instead of what its key would do. */
     private fun reasonText(row: I18nizePreviewModel.Row): String? =
-        row.entry.uncheckedReason?.takeIf { !row.selected }?.message()
+        row.entry.refusal ?: row.entry.uncheckedReason?.takeIf { !row.selected }?.message()
 
     override fun doValidate(): ValidationInfo? {
         val row = model.firstError() ?: return null
