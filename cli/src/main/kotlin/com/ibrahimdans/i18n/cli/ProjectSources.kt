@@ -44,7 +44,8 @@ object ProjectSources {
         }?.let { throw CannotCheck(it) }
         // What remains without a tree is a TS or JS file holding code, not a catalogue.
         val sources = found.filter { it.tree != null }
-        val modules = config.modules.filter { it.rootDirectory.isNotBlank() }
+        // A module put aside has no file left to read (SourceDiscovery), and no section.
+        val modules = ModuleSources.active(config.modules).filter { it.rootDirectory.isNotBlank() }
         if (modules.size < 2) return if (sources.isEmpty()) emptyList() else listOf(Scope(null, translationsOf(sources, config)))
         val owned = sources.groupBy { ModuleSources.owner(modules, ModuleSources.FilePath(it.displayPath.trim('/'), anchored = true)) }
         return (modules + null).mapNotNull { module -> owned[module]?.let { Scope(module, translationsOf(it, config)) } }

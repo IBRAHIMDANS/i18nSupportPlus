@@ -47,6 +47,16 @@ object ModuleSources {
             .mapNotNull { patternOf(it, anchored) }
             .firstNotNullOfOrNull { pattern -> matchWith(pattern, path.trim('/')) }
 
+    /** The modules not put aside ([ModuleConfig.enabled]). */
+    fun active(modules: List<ModuleConfig>): List<ModuleConfig> = modules.filter { it.enabled }
+
+    /**
+     * Whether [file] lies under the root directory of a module put aside: its owner, among all
+     * [modules], is disabled. A disabled module nested in an active one takes its own files out; an
+     * active one nested in a disabled one keeps its own.
+     */
+    fun isPutAside(modules: List<ModuleConfig>, file: FilePath): Boolean = owner(modules, file)?.enabled == false
+
     /** The module whose root directory holds [file] — the innermost one when roots nest — or null. */
     fun owner(modules: List<ModuleConfig>, file: FilePath): ModuleConfig? =
         modules.filter { rootOf(it).isNotEmpty() && contains(it, file) }.maxByOrNull { rootOf(it).length }
@@ -56,7 +66,7 @@ object ModuleSources {
      * there are none or several. With it, the tool window, *Fill* and the agents still read the project
      * as one scope, but they take its reference locale and its reviews as the key dialog does.
      */
-    fun lone(modules: List<ModuleConfig>): ModuleConfig? = modules.filter { rootOf(it).isNotEmpty() }.singleOrNull()
+    fun lone(modules: List<ModuleConfig>): ModuleConfig? = active(modules).filter { rootOf(it).isNotEmpty() }.singleOrNull()
 
     /** Whether [module]'s root directory holds [file]. A module without one holds nothing. */
     fun contains(module: ModuleConfig, file: FilePath): Boolean {

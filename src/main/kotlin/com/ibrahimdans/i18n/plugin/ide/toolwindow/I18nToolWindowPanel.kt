@@ -10,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.SetupWizardDialog
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnAction
@@ -440,7 +441,8 @@ class I18nToolWindowPanel internal constructor(
             // Project-wide on purpose: the question the empty state answers is whether the
             // plugin can read anything at all, not whether one module resolves.
             sourceCount = TranslationDataLoader.findSources(project).size,
-            modules = config.modules
+            // A module put aside has no file to show: the selector leaves it out.
+            modules = ModuleSources.active(config.modules)
         )
     }
 

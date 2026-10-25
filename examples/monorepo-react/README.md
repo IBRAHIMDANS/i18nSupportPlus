@@ -36,6 +36,8 @@ Measured on this folder:
   `shop`'s files only: the hint, the unknown `actions.export` and the missing `fr` `actions.save` are those of `shop`.
   `i18n-check` with the same modules in `i18n-check.json` reports `shop`'s missing `fr` key, and reads `gb` (a module
   template takes any folder name as the locale).
+- Untick a module's *Active* box (settings, or `"enabled": false` in `i18n-check.json`) to put it aside: its files
+  are no longer read and its code is not checked.
 - Still pooled: the usages seen from a translation file and the unused keys (`posts.empty` in `blog` is not reported),
   in the IDE and with `i18n-check --code`.
 - Without module templates, `gb` is not an ISO language code: no locale folder `gb/` is seen as a locale, and

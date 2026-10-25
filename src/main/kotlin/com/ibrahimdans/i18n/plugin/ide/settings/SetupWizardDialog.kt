@@ -166,7 +166,10 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
             addActionListener { syncSplit() }
         }
 
-        /** One box per module the split would create, ticked: an unticked one is not created. */
+        /**
+         * One box per module the split creates, ticked: an unticked one is created put aside
+         * ([ModuleConfig.enabled]), so its files stay out instead of joining the others' pool.
+         */
         private val moduleBoxes = mutableListOf<Pair<ModuleConfig, JBCheckBox>>()
         private val keySeparatorField = JBTextField(6)
         private val nsSeparatorField = JBTextField(6)
@@ -349,8 +352,8 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         /** What the form says should be stored — nothing is re-derived at this point. */
         fun choices(): WizardChoices {
             val plan = shownPlan ?: return WizardChoices()
-            val modules = moduleBoxes.filter { (_, box) -> box.isSelected }.map { (module, _) -> module }
-            val splitting = plan.root.widened && splitIntoModules.isSelected && modules.isNotEmpty()
+            val modules = moduleBoxes.map { (module, box) -> module.copy(enabled = box.isSelected) }
+            val splitting = plan.root.widened && splitIntoModules.isSelected && modules.any { it.enabled }
             return WizardChoices(
                 translationsRoot = rootField.text.trim().takeUnless { splitting },
                 modules = if (splitting) modules else emptyList(),

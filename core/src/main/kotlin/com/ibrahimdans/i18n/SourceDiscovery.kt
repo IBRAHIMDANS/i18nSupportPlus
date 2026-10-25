@@ -40,7 +40,8 @@ interface SourceWorkspace<N, F : TranslationFormat> : Workspace {
  * Which files of a project are its translation sources, and the locale and namespace of each: the
  * rules every feature goes through — annotation, completion, tool window, a command-line check.
  *
- * - **Exclusions**: [DEFAULT_EXCLUDED_DIRECTORIES] and the configured ones ([isExcludedPath]).
+ * - **Exclusions**: [DEFAULT_EXCLUDED_DIRECTORIES] and the configured ones ([isExcludedPath]), and the
+ *   root directories of the modules put aside ([ModuleSources.isPutAside]).
  * - **Modules**: a file a module's path template designates is a source whatever its name, with the
  *   locale and namespace the template states ([ModuleSources]).
  * - **Root**: with a translations root set, only files under it; otherwise a file whose folder or
@@ -191,8 +192,12 @@ class SourceDiscovery<N, F : TranslationFormat>(
      * Checked on the project-relative path: a project kept in a folder named like an excluded one
      * (`~/build/shop`) would otherwise lose every file.
      */
-    private fun isExcluded(file: WorkspaceFile): Boolean =
-        workspace.isExcluded(file) || isExcludedPath(ModuleSources.FilePath.of(file.path, workspace.basePath).path, exclusions)
+    private fun isExcluded(file: WorkspaceFile): Boolean {
+        val path = ModuleSources.FilePath.of(file.path, workspace.basePath)
+        return workspace.isExcluded(file) || isExcludedPath(path.path, exclusions) ||
+            // A module put aside takes its files out as an excluded directory would.
+            ModuleSources.isPutAside(config.modules, path)
+    }
 
     /**
      * The locale and namespace an alias of the settings gives [file]: `gb.json` is the `gb` locale's,
@@ -215,7 +220,7 @@ class SourceDiscovery<N, F : TranslationFormat>(
      */
     private fun moduleMatch(file: WorkspaceFile): ModuleSources.Match? {
         if (config.modules.isEmpty()) return null
-        return ModuleSources.match(config.modules, ModuleSources.FilePath.of(file.path, workspace.basePath))
+        return ModuleSources.match(ModuleSources.active(config.modules), ModuleSources.FilePath.of(file.path, workspace.basePath))
     }
 
     private fun sourceOf(format: F, file: WorkspaceFile, template: ModuleSources.Match?): TranslationSource<N, F>? {

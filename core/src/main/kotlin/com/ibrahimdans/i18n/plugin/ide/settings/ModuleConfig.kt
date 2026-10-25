@@ -17,6 +17,10 @@ package com.ibrahimdans.i18n.plugin.ide.settings
  *
  * [writeDefaultValue] makes an extraction write the text extracted in the call, as i18next's default
  * value: `t('key', 'Text')`, `t('key', { defaultValue: 'Hello {{name}}', name })`. Off by default.
+ *
+ * [enabled] false puts the module aside: its translation files are no source, and the code under its
+ * root directory resolves no key — what *Excluded directories* did by hand for the other applications
+ * of a monorepo. True by default, so a state persisted before the field existed keeps every module.
  */
 data class ModuleConfig(
     var name: String = "",
@@ -27,8 +31,9 @@ data class ModuleConfig(
     var preset: String = "",
     var referenceLocale: String = "",
     var callTemplate: String = "",
-    var writeDefaultValue: Boolean = false
+    var writeDefaultValue: Boolean = false,
+    var enabled: Boolean = true
 ) {
     // Explicit no-arg constructor required by XmlSerializerUtil for List<T> serialization
-    constructor() : this("", "", "", "", "", "", "", "", false)
+    constructor() : this("", "", "", "", "", "", "", "", false, true)
 }

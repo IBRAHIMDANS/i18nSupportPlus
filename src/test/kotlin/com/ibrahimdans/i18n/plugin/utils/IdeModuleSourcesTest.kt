@@ -82,6 +82,24 @@ class IdeModuleSourcesTest : PlatformBaseTest() {
         assertFalse(myFixture.doHighlighting().mapNotNull { it.description }.contains(unresolved), "web defines common:title")
     }
 
+    private val adminPutAside = Config(modules = listOf(
+        ModuleConfig(name = "web", rootDirectory = "apps/web"),
+        ModuleConfig(name = "admin", rootDirectory = "apps/admin", enabled = false),
+    ))
+
+    /** A module put aside: its files are no source, and its code resolves nothing. */
+    @Test
+    fun aModulePutAsideIsNeitherReadNorResolved() = myFixture.runWithConfig(adminPutAside) {
+        addMonorepoTranslations()
+
+        val all = project.service<LocalizationSourceService>().findAllSources(project).map { it.displayPath }
+        assertTrue(all.none { "apps/admin/" in it }, "admin's files are put aside: $all")
+        assertTrue(all.any { it.endsWith("apps/web/locales/en/common.json") }, "web's files stay: $all")
+
+        assertEquals(emptyList<String>(), sourcePathsFor("apps/admin/src/Menu.js"))
+        assertTrue(sourcePathsFor("apps/web/src/Home.js").single().endsWith("apps/web/locales/en/common.json"))
+    }
+
     /** The project-relative tail of each source's file, the part the fixture's temp root does not vary. */
     private fun pathsOf(module: ModuleConfig?, config: Config): List<String> {
         var paths = emptyList<String>()

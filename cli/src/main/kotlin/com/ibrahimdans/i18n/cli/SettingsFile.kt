@@ -35,7 +35,7 @@ object SettingsFile {
         "nsSeparator", "keySeparator", "flatKeys", "gettext", "previewLocale", "foldingPreferredLanguage",
         "defaultNs", "fallbackNs", "translationsRoot", "excludedDirectories", "ignoredLocales", "localeAliases",
     )
-    private val MODULE_OPTIONS = setOf("name", "pathTemplate", "fileTemplate", "rootDirectory", "referenceLocale")
+    private val MODULE_OPTIONS = setOf("name", "pathTemplate", "fileTemplate", "rootDirectory", "referenceLocale", "enabled")
 
     /**
      * The [Config] of [project], the defaults when it has no settings file.
@@ -127,6 +127,7 @@ object SettingsFile {
         fileTemplate = options["fileTemplate"].orEmpty(),
         rootDirectory = options["rootDirectory"].orEmpty(),
         referenceLocale = options["referenceLocale"].orEmpty(),
+        enabled = options["enabled"]?.toBoolean() ?: true,
     )
 
     private fun org.w3c.dom.NodeList.elements(): List<Element> =
