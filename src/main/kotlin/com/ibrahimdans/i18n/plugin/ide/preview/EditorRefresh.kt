@@ -23,8 +23,11 @@ import com.intellij.psi.PsiManager
  */
 object EditorRefresh {
 
-    /** Re-runs folding, inlay hints and annotation in every open editor of [project]. Runs on the EDT. */
-    fun afterSettingsChange(project: Project) {
+    /**
+     * Re-runs folding, inlay hints and annotation in every open editor of [project]. Runs on the
+     * EDT; [then] runs once the PSI caches are dropped, so that what it computes reads the change.
+     */
+    fun afterSettingsChange(project: Project, then: () -> Unit = {}) {
         ApplicationManager.getApplication().invokeLater {
             if (project.isDisposed) return@invokeLater
             WriteAction.run<RuntimeException> { PsiManager.getInstance(project).dropPsiCaches() }
@@ -32,6 +35,7 @@ object EditorRefresh {
                 .filter { it.project == project }
                 .forEach { DeclarativeInlayHintsPassFactory.scheduleRecompute(it, project) }
             DaemonCodeAnalyzer.getInstance(project).restart()
+            then()
         }
     }
 }
