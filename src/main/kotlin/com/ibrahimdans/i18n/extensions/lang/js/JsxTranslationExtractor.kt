@@ -81,6 +81,11 @@ internal class JsxTranslationExtractor : TranslationExtractor {
     }
 
     override fun template(element: PsiElement): (argument: String) -> String {
+        if (ReactIntlCall.applies(element)) {
+            val call = reactIntlCall(element)
+            val variables = variables(element)
+            return { call(it, variables) }
+        }
         val tag = if (element.parent is XmlAttributeValue) null else PsiTreeUtil.getParentOfType(element, XmlTag::class.java)
         val variables = tag?.let { variables(it) }
         val function = translationFunction(element)
@@ -99,9 +104,27 @@ internal class JsxTranslationExtractor : TranslationExtractor {
     }
 
     override fun call(element: PsiElement): (argument: String, variables: List<MessageVariable>) -> String {
+        if (ReactIntlCall.applies(element)) return reactIntlCall(element)
         val function = translationFunction(element)
         return { argument, variables -> "{$function($argument${MessageVariables.options(variables)})}" }
     }
+
+    /**
+     * react-intl: a text becomes a `<FormattedMessage>` element among the tag's children, an attribute
+     * the `{intl.formatMessage(…)}` expression a JSX attribute takes.
+     */
+    private fun reactIntlCall(element: PsiElement): (argument: String, variables: List<MessageVariable>) -> String {
+        val defaultMessage = ReactIntlCall.defaultMessage(element, text(element).trim(), variables(element))
+        if (element.parent !is XmlAttributeValue) {
+            return { argument, variables -> ReactIntlCall.component(argument, variables, defaultMessage(variables)) }
+        }
+        val function = formatMessageInScope(element) ?: ReactIntlCall.DEFAULT_FORMAT_MESSAGE
+        return { argument, variables -> "{${ReactIntlCall.call(function, argument, variables, defaultMessage(variables))}}" }
+    }
+
+    /** An attribute needs the `intl` of a `useIntl()`; a text becomes an element, which needs nothing. */
+    override fun refusal(element: PsiElement): String? =
+        if (element.parent is XmlAttributeValue && ReactIntlCall.applies(element)) ReactIntlCall.refusal(element) else null
 
     override fun scopeNamespaces(element: PsiElement): List<String> =
         TranslationHookInScope.find(element)?.namespaces.orEmpty()

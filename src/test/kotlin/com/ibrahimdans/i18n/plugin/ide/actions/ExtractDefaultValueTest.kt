@@ -45,13 +45,16 @@ class ExtractDefaultValueTest : ExtractionTestBase() {
         extract(module(writeDefaultValue = true, preset = "i18next"), "const a = i18n.t('account:save', 'Save changes');")
 
     /**
-     * react-intl's `formatMessage(descriptor, values)` has no second string argument to receive it,
-     * and the extraction writes `t('key')`, never a `formatMessage` or a `<FormattedMessage>` whose
-     * descriptor could take a `defaultMessage`: the option stays i18next's.
+     * react-intl's `formatMessage(descriptor, values)` has no second string argument to receive it:
+     * the text goes in the descriptor, as its `defaultMessage`.
      */
     @Test
-    fun anotherFrameworkKeepsTheCall() =
-        extract(module(writeDefaultValue = true, preset = "react-intl"), "const a = i18n.t('account:save');")
+    fun aReactIntlModuleWritesItAsDefaultMessage() =
+        extract(
+            module(writeDefaultValue = true, preset = "react-intl"),
+            "export function useLabel() {\n    const intl = useIntl();\n    return intl.formatMessage({ id: 'account:save', defaultMessage: 'Save changes' });\n}",
+            "export function useLabel() {\n    const intl = useIntl();\n    return 'Save <caret>changes';\n}"
+        )
 
     /**
      * Extracts the text at the caret of [source] as [key] in a project without any translation
@@ -87,9 +90,11 @@ class ExtractDefaultValueTest : ExtractionTestBase() {
         extractWithoutFiles(module(writeDefaultValue = false), "const a = 'Save <caret>changes';", "const a = i18n.t('account:save');")
 
     @Test
-    fun withoutTranslationFilesAnotherFrameworkKeepsTheCall() =
+    fun withoutTranslationFilesAReactIntlModuleWritesItAsDefaultMessage() =
         extractWithoutFiles(
-            module(writeDefaultValue = true, preset = "react-intl"), "const a = 'Save <caret>changes';", "const a = i18n.t('account:save');"
+            module(writeDefaultValue = true, preset = "react-intl"),
+            "export function useLabel() {\n    const intl = useIntl();\n    return 'Save <caret>changes';\n}",
+            "export function useLabel() {\n    const intl = useIntl();\n    return intl.formatMessage({ id: 'account:save', defaultMessage: 'Save changes' });\n}"
         )
 
     @Test

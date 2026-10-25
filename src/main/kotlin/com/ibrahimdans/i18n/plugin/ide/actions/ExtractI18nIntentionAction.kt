@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.dialog.ExtractKeyDialog
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.whenMatches
+import com.intellij.codeInsight.hint.HintManager
 import com.intellij.codeInsight.intention.IntentionAction
 import com.intellij.codeInsight.intention.PsiElementBaseIntentionAction
 import com.intellij.openapi.application.ApplicationManager
@@ -63,6 +64,7 @@ class ExtractI18nIntentionAction : PsiElementBaseIntentionAction(), IntentionAct
      */
     private fun doInvoke(editor: Editor, project: Project, element: PsiElement) {
         val extractor = getExtractor(element)
+        extractor.refusal(element)?.let { HintManager.getInstance().showErrorHint(editor, it); return }
         val text = extractor.text(element).trim()
         ReadAction.nonBlocking<ExtractKeyModel> {
             ExtractKeyModel.load(
