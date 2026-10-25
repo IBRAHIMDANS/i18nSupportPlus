@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.folding
 
 import com.ibrahimdans.i18n.Lang
+import com.ibrahimdans.i18n.plugin.ide.preview.PreviewLocaleSwitcher
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
@@ -86,8 +87,9 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
         val sources = element.project.service<LocalizationSourceService>().findReadSources(fullKey, element)
         // Through localeLabel, not the parent directory: `locales/en.json` has `locales` as its
         // parent, so the "one file per locale" layout never matched and got no folding at all.
-        // And through LocaleMatching, so `en` finds `en-GB` when there is no plain `en`.
-        val locale = LocaleMatching.pick(config.foldingPreferredLanguage, sources.map { it.localeLabel() })
+        // And through LocaleMatching, so `en` finds `en-GB` when there is no plain `en`. The preview
+        // locale first, as the inlay hints and the hover read it, so the status bar switch folds too.
+        val locale = LocaleMatching.pick(PreviewLocaleSwitcher.effective(config), sources.map { it.localeLabel() })
         return sources
             .filter { it.localeLabel() == locale }
             .mapNotNull { resolveCompositeKey(fullKey.compositeKey, it) }

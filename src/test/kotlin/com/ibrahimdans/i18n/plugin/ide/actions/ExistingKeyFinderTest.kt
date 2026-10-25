@@ -49,7 +49,7 @@ class ExistingKeyFinderTest : PlatformBaseTest() {
         addFileToProject("locales/en/common.json", """{"actions": {"save": "Save"}}""")
         addFileToProject("locales/fr/common.json", """{"actions": {"save": "Enregistrer"}}""")
         assertEquals(emptyList<String>(), find("Enregistrer", caller()))
-        assertEquals(listOf("common:actions.save"), find("Enregistrer", caller("src/Other.js"), Config(previewLocale = "fr")))
+        assertEquals(listOf("common:actions.save"), find("Enregistrer", caller("src/Other.js"), Config(foldingPreferredLanguage = "fr")))
     }
 
     /** The default reference locale `en` designates `en-US` files: they used to be skipped. */

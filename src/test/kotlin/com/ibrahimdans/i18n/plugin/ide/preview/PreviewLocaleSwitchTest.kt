@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.intellij.codeInsight.hints.declarative.impl.inlayRenderer.DeclarativeInlayRenderer
 import com.intellij.codeInsight.hints.declarative.impl.views.TextInlayPresentationEntry
 import com.intellij.openapi.application.ReadAction
@@ -16,14 +17,15 @@ import org.junit.jupiter.api.Test
 class PreviewLocaleSwitchTest : PlatformBaseTest() {
 
     @Test
-    fun `switching writes the preview locale and the folding language together`() = myFixture.runWithConfig(Config(previewLocale = "", foldingPreferredLanguage = "en")) {
+    fun `switching writes the preview locale and leaves the reference alone`() = myFixture.runWithConfig(Config(previewLocale = "", foldingPreferredLanguage = "en")) {
         PreviewLocaleSwitcher.switchTo(project, "fr")
 
         val config = Settings.getInstance(project).config()
         assertEquals("fr", config.previewLocale)
-        // Folding follows, so everything inline reads in one locale.
-        assertEquals("fr", config.foldingPreferredLanguage)
         assertEquals("fr", PreviewLocaleSwitcher.effective(config))
+        // The folding language is the project's reference locale: a glance at fr must not move it.
+        assertEquals("en", config.foldingPreferredLanguage)
+        assertEquals("en", ReferenceLocale.wanted(null, config))
     }
 
     /**

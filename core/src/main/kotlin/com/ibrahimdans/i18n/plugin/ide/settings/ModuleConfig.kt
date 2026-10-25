@@ -5,8 +5,8 @@ package com.ibrahimdans.i18n.plugin.ide.settings
  * Must have a no-arg constructor and mutable fields for IntelliJ XML serialization.
  *
  * [referenceLocale] is the locale this module translates *from*. It defaults to the empty
- * string, which means "not decided here": callers fall back to the global preview locale,
- * then to the folding language. A state persisted before the field existed simply carries
+ * string, which means "not decided here": callers fall back to the project's reference locale
+ * (the folding language field), then to `en`. A state persisted before the field existed simply carries
  * no `referenceLocale` option, and XML deserialization leaves that default in place — so an
  * older workspace keeps behaving exactly as it did.
  *

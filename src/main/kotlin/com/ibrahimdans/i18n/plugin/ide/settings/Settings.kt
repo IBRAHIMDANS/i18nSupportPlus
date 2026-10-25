@@ -51,6 +51,13 @@ class Settings : PersistentStateComponent<Settings>, ConfigStore {
      * Nothing else may read or write it: "Don't show again" now unticks [setupWizardEnabled].
      */
     internal var wizardDismissed = false
+
+    /**
+     * Set once [migratePreviewReference] has run, and on a project with no state yet: past that
+     * point a preview locale apart from the folding language is the user's choice, never one to
+     * migrate again. False by default so that a state persisted before the migration runs it.
+     */
+    internal var previewReferenceMigrated = false
     internal var modules: MutableList<ModuleConfig> = mutableListOf()
     internal var rules: MutableList<EditorRuleState> = mutableListOf()
 
@@ -135,6 +142,11 @@ class Settings : PersistentStateComponent<Settings>, ConfigStore {
     override fun loadState(state: Settings) {
         XmlSerializerUtil.copyBean(state, this)
         migrateWizardDismissed()
+        migratePreviewReference()
+    }
+
+    override fun noStateLoaded() {
+        previewReferenceMigrated = true
     }
 
     /**
@@ -149,6 +161,23 @@ class Settings : PersistentStateComponent<Settings>, ConfigStore {
         if (!wizardDismissed) return
         setupWizardEnabled = false
         wizardDismissed = false
+    }
+
+    /**
+     * Keeps the reference locale of a project where the preview locale used to decide it.
+     *
+     * A module without a reference locale of its own was compared against the preview locale,
+     * and only then against the folding language; the preview no longer counts. Where the two
+     * differed and some module relied on that fallback, the preview locale becomes the folding
+     * language — the field the reference now falls back to — so no inspection, *Fill Missing*
+     * or statistic changes its reference on update. Runs once: [previewReferenceMigrated].
+     */
+    private fun migratePreviewReference() {
+        if (previewReferenceMigrated) return
+        previewReferenceMigrated = true
+        if (previewLocale.isBlank() || previewLocale == foldingPreferredLanguage) return
+        if (modules.isNotEmpty() && modules.all { it.referenceLocale.isNotBlank() }) return
+        foldingPreferredLanguage = previewLocale
     }
 
     override fun getState(): Settings = this

@@ -9,11 +9,14 @@ import com.intellij.openapi.wm.WindowManager
 /**
  * The locale the editor previews translations in, and how it is switched from the editor.
  *
- * *Preview locale* and *Preferred folding language* are two settings fields, and changing
- * either meant a trip through *Settings*: going from `fr` to `en` to read a screen in the
- * other language was six clicks. [switchTo] writes both at once — everything inline (inlay
- * hints, hover, Ctrl+click, folding) then reads in one locale — and restarts the daemon so
- * the open editors follow. The fields stay in the settings for anyone who wants them apart.
+ * Changing the preview locale meant a trip through *Settings*: going from `fr` to `en` to read
+ * a screen in the other language was six clicks. [switchTo] writes it — everything inline
+ * (inlay hints, hover, Ctrl+click, folding) then reads in that locale — and restarts the daemon
+ * so the open editors follow.
+ *
+ * Only the preview locale: *Preferred folding language* is also the project's reference locale
+ * ([com.ibrahimdans.i18n.plugin.utils.ReferenceLocale]), and writing it here made a glance at
+ * another locale change what every other locale is compared against.
  */
 object PreviewLocaleSwitcher {
 
@@ -32,11 +35,10 @@ object PreviewLocaleSwitcher {
         return if (index < 0) locales.first() else locales[(index + 1) % locales.size]
     }
 
-    /** Makes [locale] the preview and folding locale of [project], and refreshes the editors and the status bar. */
+    /** Makes [locale] the preview locale of [project], and refreshes the editors and the status bar. */
     fun switchTo(project: Project, locale: String) {
         val settings = Settings.getInstance(project)
         settings.previewLocale = locale
-        settings.foldingPreferredLanguage = locale
         EditorRefresh.afterSettingsChange(project)
         ApplicationManager.getApplication().invokeLater {
             if (project.isDisposed) return@invokeLater

@@ -182,7 +182,7 @@ class I18nInlayHintsProviderTest : PlatformBaseTest() {
         assertTrue(hint.contains("Welcome"), "The preferred locale of a flat layout must be shown: $hint")
     }
 
-    /** `previewLocale` chooses the hint's locale; folding keeps its own. */
+    /** `previewLocale` chooses the hint's locale over the folding language. */
     @Test
     fun testPreviewLocaleChoosesTheHintLocale() = myFixture.runWithConfig(Config(foldingPreferredLanguage = "en", previewLocale = "fr")) {
         val tg = JsonTranslationGenerator()
