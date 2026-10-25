@@ -39,24 +39,46 @@ object WizardPlan {
      * [candidates] holds one entry per distinct folder the files point at. More than one means
      * [detected] is a compromise wider than any of them — a monorepo holding `apps/web/locales`
      * and `apps/api/locales` lands on `apps`, which contains far more than translations.
+     *
+     * [origin] is the i18next-cli configuration file the root was read from, null when it was
+     * derived from the files.
      */
-    data class RootPlan(val detected: String?, val candidates: List<String>) {
+    data class RootPlan(val detected: String?, val candidates: List<String>, val origin: String? = null) {
 
         /** True when [detected] is wider than the folders it covers, and must be shown as such. */
         val widened: Boolean get() = detected != null && candidates.size > 1
     }
 
-    data class Plan(val root: RootPlan, val deductions: List<Deduction>)
+    /**
+     * The separators the i18next-cli configuration [origin] states, each null when it states none.
+     * Not a [Deduction]: the summary always shows both separators, pre-filled.
+     */
+    data class Separators(val key: String?, val ns: String?, val origin: String)
 
-    /** What the wizard would propose for [relativeFilePaths] and the ticked [frameworks]. */
-    fun of(relativeFilePaths: List<String>, frameworks: Set<String>): Plan =
-        Plan(
-            root = RootPlan(
+    data class Plan(val root: RootPlan, val deductions: List<Deduction>, val separators: Separators? = null)
+
+    /**
+     * What the wizard would propose for [relativeFilePaths] and the ticked [frameworks].
+     *
+     * An i18next-cli configuration [cliConfig] wins over the scan for what it states: it is what
+     * the project wrote down, where the scan only infers from the files' names.
+     */
+    fun of(relativeFilePaths: List<String>, frameworks: Set<String>, cliConfig: I18nextCliConfig? = null): Plan {
+        val configRoot = cliConfig?.translationsRoot
+        val root = if (configRoot != null) RootPlan(configRoot, listOf(configRoot), cliConfig.file)
+            else RootPlan(
                 detected = TranslationRootDetector.detect(relativeFilePaths),
                 candidates = TranslationRootDetector.candidates(relativeFilePaths)
-            ),
-            deductions = deductionsOf(relativeFilePaths, frameworks)
-        )
+            )
+        val scanned = deductionsOf(relativeFilePaths, frameworks)
+        val configNs = cliConfig?.defaultNs?.let { Deduction(Field.DEFAULT_NS, it, cliConfig.file) }
+        val deductions = if (configNs == null) scanned
+            else listOf(configNs) + scanned.filterNot { it.field == Field.DEFAULT_NS }
+        val separators = cliConfig
+            ?.takeIf { it.keySeparator != null || it.nsSeparator != null }
+            ?.let { Separators(it.keySeparator, it.nsSeparator, it.file) }
+        return Plan(root, deductions, separators)
+    }
 
     private fun deductionsOf(paths: List<String>, frameworks: Set<String>): List<Deduction> {
         val deduced = WizardSettingsDeducer.deduce(paths, frameworks)

@@ -12,6 +12,7 @@
 - [Review] **Suggestions and replies in review threads**: a change request can carry a suggested value, applied in one click with *Apply suggestion*, and each entry can be replied to and resolved
 - [Settings] **Locale aliases**: a folder named with a country code (`gb/`, `jp/`) is read as the locale you map it to (`gb=en-GB`) instead of being left out
 - [Settings] **Import key assistance rules from i18n Ally**: *Import from i18n Ally…*, under the rules, reads `.vscode/i18n-ally-custom-framework.yml` and shows what it takes over before adding anything
+- [Settings] **The setup wizard reads your `i18next.config.ts`**: with an i18next-cli configuration at the project root, the wizard proposes its output folder as the translations root, and its default namespace and separators, each marked as read from that file.
 - [CLI] **`i18n-check`, the translation check for CI**: reports missing, orphan and empty keys per locale and, with `--code`, the keys an i18next project no longer uses. It reads the IDE's settings or an `i18n-check.json`, and JSON, JSON5, YAML and TS/JS catalogues; it is attached to each GitHub release and runs as a GitHub Action. See the [README](README.md#command-line-check)
 
 ### Fixes

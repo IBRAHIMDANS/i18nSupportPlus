@@ -247,4 +247,45 @@ class WizardPlanTest {
 
         Assertions.assertEquals(listOf("apps/shop/public/locales", "apps/shop/src/i18n"), roots)
     }
+
+    // -- What an i18next-cli configuration states
+
+    private val cliConfig = I18nextCliConfig(
+        file = "i18next.config.ts",
+        output = "public/locales/{{language}}/{{namespace}}.json",
+        defaultNs = "app",
+        keySeparator = "_",
+        nsSeparator = "|",
+    )
+
+    @Test
+    fun `the configuration's output folder is the root, read from the configuration`() {
+        val plan = WizardPlan.of(listOf("locales/en/common.json"), emptySet(), cliConfig)
+
+        Assertions.assertEquals(WizardPlan.RootPlan("public/locales", listOf("public/locales"), "i18next.config.ts"), plan.root)
+    }
+
+    @Test
+    fun `the configuration's default namespace replaces the one counted from the files`() {
+        val defaultNs = WizardPlan.of(nested, emptySet(), cliConfig).deductions.filter { it.field == WizardPlan.Field.DEFAULT_NS }
+
+        Assertions.assertEquals(listOf(WizardPlan.Deduction(WizardPlan.Field.DEFAULT_NS, "app", "i18next.config.ts")), defaultNs)
+    }
+
+    @Test
+    fun `the configuration's separators are proposed with their origin`() {
+        val plan = WizardPlan.of(nested, emptySet(), cliConfig)
+
+        Assertions.assertEquals(WizardPlan.Separators("_", "|", "i18next.config.ts"), plan.separators)
+    }
+
+    @Test
+    fun `what the configuration leaves out is still read from the files`() {
+        val plan = WizardPlan.of(nested, emptySet(), I18nextCliConfig("i18next.config.ts"))
+
+        Assertions.assertEquals("locales", plan.root.detected)
+        Assertions.assertNull(plan.root.origin)
+        Assertions.assertEquals("common", plan.deductions.single { it.field == WizardPlan.Field.DEFAULT_NS }.value)
+        Assertions.assertNull(plan.separators)
+    }
 }
