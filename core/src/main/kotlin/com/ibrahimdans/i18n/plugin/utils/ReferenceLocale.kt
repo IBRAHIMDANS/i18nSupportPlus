@@ -19,7 +19,11 @@ object ReferenceLocale {
 
     /**
      * The locale wanted for [module], as the settings spell it, before it is matched against any
-     * file: the module's own, then the preview locale, then the folding language, then `en`.
+     * file: the module's own, then the project's (the *Preferred folding language* field), then `en`.
+     *
+     * Never the preview locale: switching it from the status bar is a way to *look* at another
+     * locale, and it used to make that locale the one every other is compared against — the
+     * missing keys, *Fill Missing*, the stale values and the statistics all moved with it.
      *
      * No module stands for the lone configured one ([ModuleSources.lone]) when there is one: the
      * tool window, *Fill* and the agents read such a project as one scope, while the key dialog
@@ -27,7 +31,6 @@ object ReferenceLocale {
      */
     fun wanted(module: ModuleConfig?, config: Config): String =
         (module ?: ModuleSources.lone(config.modules))?.referenceLocale?.takeIf { it.isNotBlank() }
-            ?: config.previewLocale.takeIf { it.isNotBlank() }
             ?: config.foldingPreferredLanguage.takeIf { it.isNotBlank() }
             ?: DEFAULT
 

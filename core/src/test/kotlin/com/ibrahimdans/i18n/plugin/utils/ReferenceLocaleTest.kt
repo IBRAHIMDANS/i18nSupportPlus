@@ -17,13 +17,17 @@ class ReferenceLocaleTest {
     }
 
     @Test
-    fun `without a declared locale, the preview locale is used`() {
-        assertEquals("de", ReferenceLocale.of(ModuleConfig(name = "web"), Config(previewLocale = "de"), labels))
+    fun `without a declared locale, the project's folding language is used`() {
+        assertEquals("fr", ReferenceLocale.of(ModuleConfig(name = "web"), Config(foldingPreferredLanguage = "fr"), labels))
+        assertEquals("fr", ReferenceLocale.of(null, Config(foldingPreferredLanguage = "fr"), labels))
     }
 
+    /** Looking at another locale from the status bar must not change what the others are compared against. */
     @Test
-    fun `without a preview locale, the folding language is used`() {
-        assertEquals("fr", ReferenceLocale.of(null, Config(foldingPreferredLanguage = "fr"), labels))
+    fun `the preview locale never decides the reference`() {
+        val config = Config(previewLocale = "de", foldingPreferredLanguage = "fr")
+        assertEquals("fr", ReferenceLocale.wanted(ModuleConfig(name = "web"), config))
+        assertEquals("en", ReferenceLocale.wanted(null, Config(previewLocale = "de", foldingPreferredLanguage = "")))
     }
 
     @Test
@@ -56,12 +60,12 @@ class ReferenceLocaleTest {
 
     @Test
     fun `without a module, several modules or a module without root leave the project-wide settings`() {
-        val two = Config(previewLocale = "de", modules = listOf(
+        val two = Config(foldingPreferredLanguage = "de", modules = listOf(
             ModuleConfig(name = "web", rootDirectory = "apps/web", referenceLocale = "fr"),
             ModuleConfig(name = "admin", rootDirectory = "apps/admin", referenceLocale = "fr"),
         ))
         assertEquals("de", ReferenceLocale.of(null, two, labels))
-        val rootless = Config(previewLocale = "de", modules = listOf(ModuleConfig(name = "web", referenceLocale = "fr")))
+        val rootless = Config(foldingPreferredLanguage = "de", modules = listOf(ModuleConfig(name = "web", referenceLocale = "fr")))
         assertEquals("de", ReferenceLocale.of(null, rootless, labels))
     }
 }

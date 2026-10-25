@@ -25,6 +25,13 @@ internal abstract class FoldingTestBase(private val lang:String, private val tra
         myFixture.testFolding("$testDataPath/$lang/preferredLanguageTest.$lang")
     }
 
+    /** The preview locale leads, as for the inlay hints and the hover: the status bar switch folds too. */
+    @Test
+    fun testPreviewLocaleLeadsTheFoldingLanguage() = myFixture.runWithConfig(Config(foldingPreferredLanguage = "en", previewLocale = "ru", foldingMaxLength = 26, foldingEnabled = true)) {
+        configureByFiles("assets/ru/test.$translationLang", "assets/en/test.$translationLang")
+        myFixture.testFolding("$testDataPath/$lang/preferredLanguageTest.$lang")
+    }
+
     @Test
     fun testIncompleteKey() = myFixture.runWithConfig(testConfig) {
         configureByFiles("assets/ru/test.$translationLang", "assets/en/test.$translationLang")
