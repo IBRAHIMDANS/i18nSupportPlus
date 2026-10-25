@@ -113,7 +113,7 @@ class TranslationDialog(
 ) : DialogWrapper(project) {
 
     private val viewModel = DialogViewModel(project)
-    private val sources: Map<LocalizationSource, String?> = viewModel.loadTranslations(fullKey)
+    private val sources: Map<LocalizationSource, String?> = viewModel.loadTranslations(fullKey, caller)
 
     private val textAreas = LinkedHashMap<LocalizationSource, JBTextArea>()
     private val variableWarnings = LinkedHashMap<LocalizationSource, JBLabel>()
@@ -428,7 +428,7 @@ class TranslationDialog(
         val last = fullKey.compositeKey.lastOrNull() ?: return null
         val text = ReviewSources.sourceTextOf(last.text, config.pluralSeparator) { segment ->
             val values = if (segment == last.text) sources
-            else viewModel.loadTranslations(fullKey.copy(compositeKey = fullKey.compositeKey.dropLast(1) + Literal(segment)))
+            else viewModel.loadTranslations(fullKey.copy(compositeKey = fullKey.compositeKey.dropLast(1) + Literal(segment)), caller)
             values.entries.firstOrNull { it.key.localeLabel() == reference && moduleOf(it.key) == module }?.value
         }
         return text?.let { reference to it }

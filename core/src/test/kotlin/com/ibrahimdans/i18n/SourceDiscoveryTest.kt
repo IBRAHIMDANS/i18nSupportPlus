@@ -88,6 +88,30 @@ class SourceDiscoveryTest {
         assertEquals(emptyList<String>(), discovery(Config(modules = listOf(module))).sources().paths())
     }
 
+    /** [root] with the files under `attached/` held as another project's, as the IDE sees an attached project. */
+    private fun withAttachedProject(config: Config): SourceDiscovery<ParsedNode, ParsedFormat> {
+        val nio = NioWorkspace(root)
+        val workspace = object : SourceWorkspace<ParsedNode, ParsedFormat> by nio {
+            override fun isForeign(file: WorkspaceFile) = "/attached/" in file.path
+        }
+        return SourceDiscovery(workspace, StaticI18nRegistry(ParsedFormat.entries), config)
+    }
+
+    @Test
+    fun anAttachedProjectsFilesAreNoSourceOnceModulesDescribeTheProject() {
+        file("webapp/locales/en.json")
+        file("attached/webapp/locales/sv.json")
+        file("shared/locales/de.json")
+        val modules = Config(modules = listOf(ModuleConfig(name = "webapp", rootDirectory = "webapp")))
+
+        assertEquals(
+            listOf("shared/locales/de.json", "webapp/locales/en.json"),
+            withAttachedProject(modules).sources().paths().sorted(),
+            "the project's own files outside every module, a shared package, are still read",
+        )
+        assertEquals(3, withAttachedProject(Config()).sources().size, "without modules, nothing changes")
+    }
+
     @Test
     fun yamlIsReadUnderBothExtensions() {
         file("locales/en.yaml", "menu:\n  home: Home")

@@ -44,14 +44,17 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
     /**
      * Loads all localization sources and their current value for the given key.
      * Returns null for a source if the key is missing in that locale.
+     *
+     * With a [caller], the dialog opened from a code file, the sources are those of its module: in a
+     * monorepo, another application's files and locales are not this key's.
      */
-    fun loadTranslations(fullKey: FullKey): Map<LocalizationSource, String?> =
+    fun loadTranslations(fullKey: FullKey, caller: PsiElement? = null): Map<LocalizationSource, String?> =
         ReadAction.compute<Map<LocalizationSource, String?>, RuntimeException> {
             val sourceService = project.service<LocalizationSourceService>()
             // Fall back to all sources when namespace lookup yields nothing (e.g. CREATE mode with empty FullKey,
             // or projects using locale-named files like en.json/fr.json instead of namespace-named files).
             val namespaces = listOfNotNull(fullKey.ns?.text)
-            val sources = sourceService.findSources(namespaces, project)
+            val sources = (if (caller != null) sourceService.findSources(namespaces, caller) else sourceService.findSources(namespaces, project))
                 .ifEmpty { if (namespaces.isEmpty()) sourceService.findAllSources(project) else emptyList() }
             sources.associateWith { source ->
                 val ref = resolveCompositeKey(fullKey.compositeKey, source)
