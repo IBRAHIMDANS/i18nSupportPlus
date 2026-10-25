@@ -1,15 +1,11 @@
 package com.ibrahimdans.i18n.extensions.technology.vuei18n
 
-import com.ibrahimdans.i18n.extensions.lang.js.extractors.VueI18nComposableExtractor
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
-import com.intellij.lang.injection.InjectedLanguageManager
-import com.intellij.openapi.application.ReadAction
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /**
@@ -53,26 +49,17 @@ class VueI18nComposableTest : PlatformBaseTest() {
         assertEquals(listOf("inScript"), unresolved)
     }
 
-    /**
-     * The template's `t` is the one `<script setup>` takes from `useI18n()`. Asked of the extractor:
-     * highlighting a `.vue` template trips the gutter's leaf-only check, `$t` included (TASK-VUE-TEMPLATE-GUTTER).
-     */
+    /** The template's `t` is the one `<script setup>` takes from `useI18n()`. */
     @Test
     fun theTOfUseI18nIsReadInTheTemplate() = myFixture.runWithConfig(config) {
-        myFixture.configureByText("Order.vue", """
+        val unresolved = unresolvedIn("src/components/Order.vue", """
             <script setup lang="ts">
             import { useI18n } from 'vue-i18n';
             const { t } = useI18n();
             </script>
-            <template><p>{{ t('order.ti<caret>tle') }}</p></template>
+            <template><h2>{{ t('order.title') }}</h2><p>{{ t('order.inTemplate') }}</p></template>
         """.trimIndent())
-        val read = ReadAction.compute<Boolean, RuntimeException> {
-            val offset = myFixture.caretOffset
-            val element = InjectedLanguageManager.getInstance(project).findInjectedElementAt(myFixture.file, offset)
-                ?: myFixture.file.findElementAt(offset)!!
-            VueI18nComposableExtractor().canExtract(element)
-        }
-        assertTrue(read)
+        assertEquals(listOf("inTemplate"), unresolved)
     }
 
     /** A `t` that `useI18n()` does not return stays out of a vue-i18n module, as before. */
