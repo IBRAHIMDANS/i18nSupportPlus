@@ -141,4 +141,24 @@ class I18nizeApplyTest : PlatformBaseTest() {
         Assertions.assertTrue("\"home\": \"Accueil\"" in fileText("locales/fr/common.json")!!)
         Assertions.assertTrue("\"home\": \"Startseite\"" in fileText("locales/de/common.json")!!)
     }
+
+    /** react-intl: texts become `<FormattedMessage>`, attributes `intl.formatMessage`, with the hook and imports they need. */
+    @Test
+    fun aReactIntlComponentGetsUseIntlAndItsImports() = myFixture.runWithConfig(config) {
+        myFixture.addFileToProject("locales/en/common.json", "{}")
+        val file = myFixture.addFileToProject("src/Form.tsx", """
+            import { defineMessages } from 'react-intl';
+            export function Form() { return <div><p>Your profile</p><input placeholder="Your name" /></div>; }
+        """.trimIndent())
+        myFixture.configureFromExistingVirtualFile(file.virtualFile)
+
+        prepare(planOf(file)).write()
+
+        val text = textOf(file)
+        Assertions.assertTrue(text.startsWith("import { FormattedMessage, useIntl, defineMessages } from 'react-intl';\n"), text)
+        Assertions.assertTrue("const intl = useIntl();" in text, text)
+        Assertions.assertTrue("<FormattedMessage id=" in text, text)
+        Assertions.assertTrue("placeholder={intl.formatMessage({ id: " in text, text)
+        Assertions.assertFalse("useTranslation" in text, text)
+    }
 }

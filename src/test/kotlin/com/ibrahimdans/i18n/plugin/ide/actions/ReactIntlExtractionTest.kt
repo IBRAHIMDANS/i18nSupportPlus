@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test
  * *Extract I18n* in a react-intl project writes react-intl's calls: `<FormattedMessage>` for a JSX
  * text, `intl.formatMessage` for an attribute or a string — never `i18n.t`, which react-intl lacks.
  * A string with no `useIntl()` in scope is left as it is, rather than calling an `intl` that is not there.
+ * A text that became a `<FormattedMessage>` gets its import, merged into the file's `react-intl` one.
  */
 class ReactIntlExtractionTest : ExtractionTestBase() {
 
@@ -35,20 +36,20 @@ class ReactIntlExtractionTest : ExtractionTestBase() {
     @Test
     fun aJsxTextBecomesAFormattedMessage() = extract(
         "export const App = () => (<p>Save <caret>changes</p>);",
-        "export const App = () => (<p><FormattedMessage id=\"account:save\" /></p>);"
+        "import { FormattedMessage } from 'react-intl';\nexport const App = () => (<p><FormattedMessage id=\"account:save\" /></p>);"
     )
 
     @Test
     fun itsVariablesGoInValues() = extract(
         "export const App = ({ user }) => (<p>Hel<caret>lo {user.name}!</p>);",
-        "export const App = ({ user }) => (<p><FormattedMessage id=\"account:greeting\" values={{ name: user.name }} /></p>);",
+        "import { FormattedMessage } from 'react-intl';\nexport const App = ({ user }) => (<p><FormattedMessage id=\"account:greeting\" values={{ name: user.name }} /></p>);",
         key = "account:greeting"
     )
 
     @Test
     fun theTextIsItsDefaultMessageWhenTheModuleAsks() = extract(
         "export const App = () => (<p>Save <caret>changes</p>);",
-        "export const App = () => (<p><FormattedMessage id=\"account:save\" defaultMessage=\"Save changes\" /></p>);",
+        "import { FormattedMessage } from 'react-intl';\nexport const App = () => (<p><FormattedMessage id=\"account:save\" defaultMessage=\"Save changes\" /></p>);",
         modules = listOf(module(writeDefaultValue = true))
     )
 
@@ -84,7 +85,7 @@ class ReactIntlExtractionTest : ExtractionTestBase() {
     @Test
     fun withoutUseIntlATextStillBecomesAFormattedMessage() = extract(
         "export function App() {\n    return <p>Save <caret>changes</p>;\n}",
-        "export function App() {\n    return <p><FormattedMessage id=\"account:save\" /></p>;\n}"
+        "import { FormattedMessage } from 'react-intl';\nexport function App() {\n    return <p><FormattedMessage id=\"account:save\" /></p>;\n}"
     )
 
     /** No module: the file importing react-intl is what says so. */
@@ -108,5 +109,17 @@ class ReactIntlExtractionTest : ExtractionTestBase() {
         "export const App = () => (<p>Save <caret>changes</p>);",
         "export const App = () => (<p>{i18n.t('account:save')}</p>);",
         modules = listOf(module(preset = "i18next"))
+    )
+
+    @Test
+    fun formattedMessageJoinsTheFileReactIntlImport() = extract(
+        "import { useIntl } from 'react-intl';\nexport const App = () => (<p>Save <caret>changes</p>);",
+        "import { FormattedMessage, useIntl } from 'react-intl';\nexport const App = () => (<p><FormattedMessage id=\"account:save\" /></p>);"
+    )
+
+    @Test
+    fun theImportComesAfterTheUseClientDirective() = extract(
+        "'use client';\nexport const App = () => (<p>Save <caret>changes</p>);",
+        "'use client';\nimport { FormattedMessage } from 'react-intl';\nexport const App = () => (<p><FormattedMessage id=\"account:save\" /></p>);"
     )
 }

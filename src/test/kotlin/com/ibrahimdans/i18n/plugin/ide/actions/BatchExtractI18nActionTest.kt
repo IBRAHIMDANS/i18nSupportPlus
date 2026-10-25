@@ -276,4 +276,22 @@ class BatchExtractI18nActionTest : ExtractionTestBase() {
         assertTrue(isCheckedByDefault(save))
         assertNull(uncheckedReasonText(save))
     }
+
+    /** react-intl: a string with no `useIntl()` in scope is listed, unchecked with the reason, and never replaced. */
+    @Test
+    fun aRefusedStringIsShownButNotReplaced() = myFixture.runWithConfig(config("json")) {
+        myFixture.addFileToProject("assets/test.json", "{}")
+        val code = "import { useIntl } from 'react-intl';\nexport function label() {\n    return 'Save changes';\n}"
+        val candidates = candidatesIn("label.js", code)
+        val refused = candidates.single()
+        assertTrue(refused.refusal != null, "$refused")
+        assertFalse(isCheckedByDefault(refused))
+        assertEquals(refused.refusal, uncheckedReasonText(refused))
+
+        acceptDefaultValues()
+        BatchExtractI18nAction().extract(project, myFixture.editor, listOf(refused to "test:save"))
+        waitForAsyncWork()
+
+        myFixture.checkResult(code)
+    }
 }
