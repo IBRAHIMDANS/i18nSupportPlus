@@ -479,11 +479,11 @@ Clicking a cell lists that namespace's untranslated keys in that locale — **mi
 
 ### Multi-Module Support
 
-A monorepo is described as **modules** in the settings (root directory, path template, key template, framework preset). With two or more, the toolbar's module selector switches the three views from one module to the next; a code file inside a module's root directory resolves its keys against that module's translation files only. The root directory is the application's folder (`apps/shop`), not its translations folder: a module rooted at `apps/shop/public/locales` owns no code file, and the application's keys are then resolved against every module's files. Once modules describe the project, the files of a project attached in the same window (another content root) are not read as its translations, and *Edit Translations* opened from a code file shows its module's files and locales only; translations the project keeps outside every module, a shared package, are still read. Untick a module's **Active** box to put it aside: its translation files are no longer read, the code under its root directory is neither checked nor completed, and the module selector shows it greyed — what *Excluded directories* did by hand for the applications you are not working on. To switch application in one click, choose a greyed module in the selector, or right-click it: **Focus on This Module** keeps it active and puts the others aside, **Activate All Modules** brings them back; both are in *Tools › i18n Support Plus* too, and a notification offers *Undo*. [examples/monorepo-react](examples/monorepo-react/README.md) is a four-application monorepo to try it on.
+A monorepo is described as **modules** on the *Modules* settings page, *Settings | Tools | i18n Support Plus | Modules* (root directory, path template, key template, framework preset). With two or more, the toolbar's module selector switches the three views from one module to the next; a code file inside a module's root directory resolves its keys against that module's translation files only. The root directory is the application's folder (`apps/shop`), not its translations folder: a module rooted at `apps/shop/public/locales` owns no code file, and the application's keys are then resolved against every module's files. Once modules describe the project, the files of a project attached in the same window (another content root) are not read as its translations, and *Edit Translations* opened from a code file shows its module's files and locales only; translations the project keeps outside every module, a shared package, are still read. Untick a module's **Active** box to put it aside: its translation files are no longer read, the code under its root directory is neither checked nor completed, and the module selector shows it greyed — what *Excluded directories* did by hand for the applications you are not working on. To switch application in one click, choose a greyed module in the selector, or right-click it: **Focus on This Module** keeps it active and puts the others aside, **Activate All Modules** brings them back; both are in *Tools › i18n Support Plus* too, and a notification offers *Undo*. [examples/monorepo-react](examples/monorepo-react/README.md) is a four-application monorepo to try it on.
 
 ## Configuration
 
-**Settings | Tools | i18n Support Plus**
+**Settings | Tools | i18n Support Plus**, with two pages below it: **Modules** (the applications of a monorepo) and **Key Assistance Rules**. The locale fields list the project's locales and still accept one typed by hand.
 
 ![Settings](docs/img/settings.png)
 
@@ -504,7 +504,7 @@ A monorepo is described as **modules** in the settings (root directory, path tem
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Search in project files only | `true` | Skip libraries and external roots |
-| Translations root directory | *(empty)* | In a monorepo, path from the project root to the translations directory |
+| Translations root directory | *(empty)* | Path from the project root to the translations directory. With modules, the files a module's path template designates are read wherever they are: this directory only bounds the other files |
 | i18next configuration files | *(empty)* | Files declaring i18next `resources` inline, comma-separated (`src/i18n.ts`) |
 | Excluded directories | *(empty)* | Directory names skipped when scanning for translation files |
 | Locale aliases | *(empty)* | Folder or file names that are no language code, mapped to their locale: `gb=en-GB, cn=zh-CN`. A `gb/` folder is then the `en-GB` locale, shown as `gb`, with its plural forms. Without an alias, a folder named with a country code (`gb`, `jp`, `ua`) is not read as a locale |
@@ -512,7 +512,7 @@ A monorepo is described as **modules** in the settings (root directory, path tem
 
 ### Modules
 
-One entry per application of a monorepo: a **name**, a **root directory**, a **path template** designating its translation files (`locales/{lang}/{ns}.json`, `messages/{lang}.yml`), an optional **file template**, a **key template** saying how its code writes keys (`{ns}:{key}`, `{ns}.{key}`, `{key}`) and a framework **preset**. A diagnostics panel underneath says what each template resolves to.
+*Settings | Tools | i18n Support Plus | Modules*. One entry per application of a monorepo: a **name**, a **root directory**, a **path template** designating its translation files (`locales/{lang}/{ns}.json`, `messages/{lang}.yml`), an optional **file template**, a **key template** saying how its code writes keys (`{ns}:{key}`, `{ns}.{key}`, `{key}`) and a framework **preset**. A diagnostics panel underneath says what each template resolves to.
 
 A module can also write its own call at extraction, the **call template**: `translate({key})` turns `t('a.b', { name })` into `translate('a.b', { name })`. `{text}` writes the text extracted, quoted, where the call reads a default value: `t({key}, {text})` gives `t('greeting', 'Hello')`, for vue-i18n 9's `t(key, defaultMsg)` or a wrapper of your own. With i18next, *Write the default value in the call* does it without a template.
 
@@ -520,7 +520,7 @@ A module can also write its own call at extraction, the **call template**: `tran
 
 ### Key assistance rules
 
-Rules make other calls behave like `t`: a **trigger** (`translate`, `i18n.translate`, `__`) turns a function into a translation call, an **exclude** rule takes one out. Each rule can be limited to a language (`js`, `php`) and constrained on the file path, the file's imports or the key — exact, prefix or regular expression, optionally negated.
+*Settings | Tools | i18n Support Plus | Key Assistance Rules*. Rules make other calls behave like `t`: a **trigger** (`translate`, `i18n.translate`, `__`) turns a function into a translation call, an **exclude** rule takes one out. Each rule can be limited to a language (`js`, `php`) and constrained on the file path, the file's imports or the key — exact, prefix or regular expression, optionally negated.
 
 ![Settings — key assistance rules](docs/img/settings-rules.png)
 
@@ -554,11 +554,13 @@ The import is partial by design: a rule names a function, whose calls the plugin
 | Re-sort JSON files after each new key | `false` | Sort the whole JSON translation file in the *Key order* after every key creation |
 | Key order | Ignore case | Order used by the two settings above and by *Sort i18n Keys*: *Ignore case* (`apple`, `Banana`, `cherry`), *Character code, like the IDE* (`Banana`, `apple`, `cherry`), the order of the IDE's *Sort properties alphabetically*, or *Natural* (`item1`, `Item2`, `item10`), case ignored and numbers compared by value |
 
-### Inspections
+### Checks
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Warn in code when a key is missing from some locales | `false` | Warn when a key exists in some locales but not others |
+| Locales not checked for missing keys | *(empty)* | Comma-separated locales (`de, pt-BR`) left out of the missing-key checks: a translation in progress or abandoned |
+| Keys used outside the code | *(empty)* | Comma-separated keys never reported as having no reference (`errors.*`, `*.label`): a key received from an API leaves no trace in the code |
 
 ### PHP / gettext
 
@@ -577,7 +579,12 @@ Per-format settings; the first one is the **indentation of the keys generated in
 |---------|---------|-------------|
 | Show gutter icons | `true` | Display resolution badges in the editor gutter |
 | Show setup wizard on new projects | `true` | Run the wizard the first time an unconfigured project opens |
-| Announce plugin updates | `true` | After an update, a notification linking to the changelog (applies to every project) |
+
+### All projects
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Announce plugin updates | `true` | After an update, a notification linking to the changelog. The only setting of the page shared by every project |
 
 ## Requirements
 
