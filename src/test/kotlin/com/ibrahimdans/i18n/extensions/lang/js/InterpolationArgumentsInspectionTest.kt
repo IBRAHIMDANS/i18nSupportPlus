@@ -240,6 +240,10 @@ class InterpolationArgumentsInspectionTest : PlatformBaseTest() {
         assertTrue(svelte("\$_('greeting', { values: { name: n } })").isEmpty())
         assertTrue(svelte("\$_('greeting', { name: n })").single().endsWith(": name"))
         assertTrue(svelte("\$_('greeting')").single().endsWith(": name"))
+        assertTrue(svelte("\$t('greeting', { values: { name: n } })").isEmpty())
+        // The descriptor form holds its values next to the key.
+        assertTrue(svelte("\$_({ id: 'greeting', values: { name: n } })").isEmpty())
+        assertTrue(svelte("\$format({ id: 'greeting', default: 'Hi' })").single().endsWith(": name"))
     }
 
     /** A react-intl or react-i18next component, written in a TSX file of its own. */

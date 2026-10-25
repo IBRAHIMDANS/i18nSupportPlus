@@ -37,6 +37,9 @@ npm run dev
 | `$_('key')` in the `<script>` block, inside `$derived(…)` | `user.profile.title` in `src/App.svelte` |
 | `$_('key')` in a component with a plain JavaScript `<script>` | `src/lib/Nav.svelte` |
 | Parameter and plural passed under `values` | `greeting`, `cart.items` in `src/App.svelte` |
+| The descriptor form, `$_({ id: 'key', values })` | `greeting` in `src/App.svelte` |
+| The aliases `$t` and `$format`, a `default` that is no key | `nav.settings` in `src/lib/Nav.svelte`, `locale.switch` in `src/App.svelte` |
+| `$json('key')`, the messages under a key | `nav` in `src/lib/Nav.svelte` |
 | Unknown key at the call site, on purpose | `$_('does.not.exist')` in `src/App.svelte` |
 | `$_` outside a component, from `unwrapFunctionStore(_)` | `src/lib/labels.ts` |
 | A parameter the message reads and the call does not pass, on purpose | `greetingWithoutName` in `src/lib/labels.ts` |
@@ -50,7 +53,8 @@ finds `src/locales/`), then:
 1. In `src/App.svelte`, hover `"app.title"`, then Ctrl+click it: it resolves and opens `app.title` in a locale file.
    From `"title"` in `src/locales/en.json`, Find Usages (Alt+F7) lists `src/App.svelte`; do the same for `nav.home`
    (`src/lib/Nav.svelte`) and `nav.settings` (`src/lib/labels.ts`).
-2. Inside `$_("nav.")`, Ctrl+Space proposes `home` and `settings`.
+2. Inside `$_("nav.")`, Ctrl+Space proposes `home` and `settings`; the same inside `$t("nav.")` and
+   `$_({ id: "nav." })`.
 3. `$_("app.title")` shows its value, *svelte-i18n example*, folded in place or as an inlay hint after the key
    (Ctrl+Alt+Shift+T toggles the folding); the same for `$_("nav.settings")` in `src/lib/labels.ts`.
 4. `"does.not.exist"` is underlined as *Unresolved key*, `"only_in_english"` as *Partially translated key*.
@@ -62,6 +66,8 @@ finds `src/locales/`), then:
 7. `$_("greeting")` in `src/lib/labels.ts` is reported by *Translation variables not passed to the call* (`name`);
    `greeting` and `cart.items` in `src/App.svelte`, which pass `values`, are not.
 8. Nothing is underlined in `src/lib/notSvelteI18n.ts`.
+9. In `src/lib/Nav.svelte`, `$json("nav")` is not reported as a reference to an object, and Ctrl+click on it opens
+   `nav`; in `src/App.svelte`, `"Switch language"`, the `default` of `$format`, is not underlined.
 
 The locale files can also be checked from the command line, without the IDE (see *Command Line Check* in the root
 README):
@@ -76,7 +82,6 @@ nothing about the unknown `does.not.exist` here.
 
 ## Left out
 
-- `$t('key')`, `$format('key')`: svelte-i18n's aliases of `$_`, not read as svelte-i18n calls. `$t` is vue-i18n's name
-  to the plugin, so it would be read only by chance, in a module without the svelte-i18n preset.
-- `$json('key')` and the number, date and time formatters: they take no message key the plugin reads.
-- The `{ id: 'key' }` form of `$_`: only the string key is read.
+- The number, date and time formatters (`$number`, `$date`, `$time`): they take no message key.
+- `$t` is read as svelte-i18n's only where the file imports `svelte-i18n`, as `_` is: elsewhere it is vue-i18n's, whose
+  variables are not passed under `values`.

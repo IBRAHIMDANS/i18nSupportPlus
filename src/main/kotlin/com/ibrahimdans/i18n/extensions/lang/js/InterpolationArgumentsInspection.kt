@@ -85,7 +85,8 @@ import com.intellij.psi.xml.XmlTag
  *    vue-i18n's `$t(key, locale, values)`) pass the object's properties;
  *  - i18next's `replace: { name }` counts as well, and `count` is an ordinary property: a plural
  *    whose forms use `{{count}}` needs it like any other variable;
- *  - svelte-i18n passes its variables under `values`: `$_('key', { values: { name } })`;
+ *  - svelte-i18n passes its variables under `values`: `$_('key', { values: { name } })`, or in the
+ *    descriptor holding the key: `$_({ id: 'key', values: { name } })`;
  *  - react-intl writes the key as the `id` of a descriptor and passes the values next to it:
  *    `intl.formatMessage({ id: 'key' }, { name })` — the descriptor's id is the key literal
  *    [com.ibrahimdans.i18n.extensions.lang.js.extractors.ReactIntlExtractor] reads, so the key resolves as the annotator resolves it;
@@ -165,7 +166,7 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
      */
     private fun readCall(call: JSCallExpression): Pair<JSLiteralExpression, Set<String>>? {
         val first = call.arguments.firstOrNull() ?: return null
-        if (first is JSObjectLiteralExpression) return readFormatMessage(call, first)
+        if (first is JSObjectLiteralExpression) return readFormatMessage(call, first) ?: readSvelteDescriptor(first)
         val keyLiteral = first as? JSLiteralExpression ?: return null
         if (!keyLiteral.isQuotedLiteral) return null
         val supplied = (if (isTc(call)) tcVariables(call) else suppliedVariables(call, keyLiteral)) ?: return null
@@ -179,6 +180,13 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
         val values = call.arguments.getOrNull(1) ?: return id to emptySet()
         val supplied = (values as? JSObjectLiteralExpression)?.let { propertyNames(it, nested = null) } ?: return null
         return id to supplied
+    }
+
+    /** svelte-i18n's `$_({ id: 'key', values: { … } })`: the descriptor's id, and the names under its `values`. */
+    private fun readSvelteDescriptor(descriptor: JSObjectLiteralExpression): Pair<JSLiteralExpression, Set<String>>? {
+        val id = descriptor.findProperty("id")?.value as? JSLiteralExpression ?: return null
+        if (!SvelteI18nExtractor().canExtract(id)) return null
+        return id to (svelteValues(descriptor) ?: return null)
     }
 
     /** True for vue-i18n's `$tc`, called bare or as `this.$tc`. */
@@ -281,7 +289,11 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
         }
         val literal = options as? JSObjectLiteralExpression ?: return null
         if (!SvelteI18nExtractor().canExtract(keyLiteral)) return propertyNames(literal, nested = "replace")
-        // svelte-i18n: `{ values: { … }, default: '…' }`, only `values` interpolates.
+        return svelteValues(literal)
+    }
+
+    /** svelte-i18n's options or descriptor: `{ values: { … }, default: '…' }`, only `values` interpolates. */
+    private fun svelteValues(literal: JSObjectLiteralExpression): Set<String>? {
         if (hasUnknownShape(literal)) return null
         val values = literal.findProperty("values") ?: return emptySet()
         return (values.value as? JSObjectLiteralExpression)?.let { propertyNames(it, nested = null) }
