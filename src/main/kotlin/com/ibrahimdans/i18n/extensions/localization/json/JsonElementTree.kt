@@ -13,11 +13,15 @@ import com.intellij.psi.util.PsiTreeUtil
 /**
  * Tree wrapper around json psi tree
  *
- * The root object's `$schema` property is no key: a Paraglide (inlang) message file starts with
- * `"$schema": "https://inlang.com/schema/inlang-message-format"`, a JSON Schema convention any file
- * may follow. Listing it put a `$schema` key in the tool window, the completion, the statistics.
- * [entries] and [findChildren] skip it at the root only; [findChild] still finds it when asked by
- * name, and a nested `$schema` stays a key like any other.
+ * The root object's metadata is no key, and [entries] and [findChildren] skip it at the root only:
+ * - the `$schema` property: a Paraglide (inlang) message file starts with
+ *   `"$schema": "https://inlang.com/schema/inlang-message-format"`, a JSON Schema convention any file
+ *   may follow. Listing it put a `$schema` key in the tool window, the completion, the statistics;
+ * - in a Flutter `.arb` catalogue, every property starting with `@`: `@@locale` and the `@greeting`
+ *   describing `greeting`'s placeholders. Only the template catalogue carries them, so they would
+ *   have been reported missing from every other locale.
+ *
+ * [findChild] still finds them when asked by name, and a nested one stays a key like any other.
  */
 class JsonElementTree(val element: PsiElement): Tree<PsiElement> {
     override fun value(): PsiElement = element
@@ -31,7 +35,7 @@ class JsonElementTree(val element: PsiElement): Tree<PsiElement> {
             .asList()
             .map {item -> item.firstChildNode.psi}
             .filter {it.text.unQuote().startsWith(prefix)}
-            .filterNot { isSchema(it.text.unQuote()) }
+            .filterNot { isMetadata(it.text.unQuote()) }
             .map {JsonElementTree(it)}
 
     // Names spelled as findChildren spells them (the key's text, unquoted), so both line up.
@@ -40,21 +44,27 @@ class JsonElementTree(val element: PsiElement): Tree<PsiElement> {
             ?.propertyList
             ?.mapNotNull { property ->
                 val name = property.nameElement.text.unQuote()
-                if (isSchema(name)) null else property.value?.let { name to JsonElementTree(it) }
+                if (isMetadata(name)) null else property.value?.let { name to JsonElementTree(it) }
             }
             ?: emptyList()
 
-    /** Whether [name] is the root's `$schema`, which [entries] and [findChildren] leave out. */
-    private fun isSchema(name: String): Boolean = name == SCHEMA && element.parent is JsonFile
+    /** Whether [name] is metadata of the root, which [entries] and [findChildren] leave out. */
+    private fun isMetadata(name: String): Boolean = (element.parent as? JsonFile)?.let { isMetadata(name, it) } == true
 
     companion object {
         private const val SCHEMA = "\$schema"
+        private const val ARB_EXTENSION = "arb"
+        private const val ARB_METADATA = "@"
 
         /**
-         * Whether [property] is the `$schema` of a file's root object: no key, for the readers that
-         * walk the JSON PSI themselves rather than this tree.
+         * Whether [property] is metadata of a file's root object: no key, for the readers that walk
+         * the JSON PSI themselves rather than this tree.
          */
-        fun isRootSchema(property: JsonProperty): Boolean = property.name == SCHEMA && property.parent?.parent is JsonFile
+        fun isRootMetadata(property: JsonProperty): Boolean =
+            (property.parent?.parent as? JsonFile)?.let { isMetadata(property.name, it) } == true
+
+        private fun isMetadata(name: String, file: JsonFile): Boolean =
+            name == SCHEMA || (name.startsWith(ARB_METADATA) && file.virtualFile?.extension == ARB_EXTENSION)
 
         /**
          * Creates instance of JsonElementTree

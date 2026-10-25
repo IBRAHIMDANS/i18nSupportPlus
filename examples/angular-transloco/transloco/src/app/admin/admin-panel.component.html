@@ -9,6 +9,11 @@
   <p>{{ status() }}</p>
 </section>
 
+<!-- Transloco 8's `prefix`, bound on the <ng-template> Angular accepts the input on. -->
+<ng-template transloco let-t [translocoPrefix]="'admin.users'">
+  <p>{{ heading() }} · {{ t('count', { count: userCount }) }}</p>
+</ng-template>
+
 <!-- No `read` here: a key of the scope is written in full, next to a global key. -->
 <footer *transloco="let t">
   <small>{{ t('admin.title') }} · {{ t('menu.home') }}</small>

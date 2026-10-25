@@ -169,6 +169,8 @@
         <extensionPoint interface="com.ibrahimdans.i18n.ComponentSourceProvider" name="componentSources" dynamic="true"/>
     </extensionPoints>
     <extensions defaultExtensionNs="com.intellij">
+        <!-- Flutter's ARB catalogues are JSON: read as such, the type Flutter's own plugin gives them. -->
+        <fileType name="JSON" extensions="arb"/>
         <errorHandler implementation="com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter"/>
         <codeInsight.daemonBoundCodeVisionProvider implementation="com.ibrahimdans.i18n.plugin.ide.codevision.TranslationUsagesCodeVisionProvider"/>
         <notificationGroup id="i18n Support Plus" displayType="STICKY_BALLOON"/>
@@ -485,6 +487,7 @@
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.tscatalog.TsCatalogTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.i18njs.I18nJsTechnology"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.localization.arb.ArbCatalogues"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.nextintl.NextIntlTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.typesafei18n.TypesafeI18nTechnology"/>
     </extensions>

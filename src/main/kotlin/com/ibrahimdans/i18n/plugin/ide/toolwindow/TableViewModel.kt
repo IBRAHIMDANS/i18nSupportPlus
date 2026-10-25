@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.IdeI18nRegistry
 import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.extensions.localization.arb.ArbCatalogues
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.IdeKeyUsageIndex
@@ -612,7 +613,13 @@ class TableViewModel {
         val config = Settings.getInstance(project).config()
         val index = IdeKeyUsageIndex(project, moduleConfig)
         val counts = index.usageCounts(rows.map { it.key })
-        val withPrefixed = rows.map { row -> row.copy(usageCount = counts[row.key] ?: 0) }
+        // Flutter reads an ARB key as a getter of its generated class, which no search here sees:
+        // such a key stays unscanned rather than reported unused, and *Cleanup* never offers it.
+        val arbKeys = ArbCatalogues.keys(project)
+        val withPrefixed = rows.map { row ->
+            val count = counts[row.key] ?: 0
+            row.copy(usageCount = if (count == 0 && row.key in arbKeys) NOT_SCANNED else count)
+        }
 
         // A key the project keeps is used by declaration, whatever the code shows: no search for it.
         val keepList = KeepList.of(config)
@@ -640,6 +647,8 @@ class TableViewModel {
          * reading of it goes through [usageStatus].
          */
         internal const val DYNAMIC_USAGE = -2
+        /** [TranslationRow.usageCount] for a key whose usages cannot be searched, as before any scan. */
+        internal const val NOT_SCANNED = -1
         internal const val KEPT_USAGE = -3
 
         /** Namespaces are short words (`common`, `deposit-box`): narrower than a locale value. */

@@ -88,7 +88,7 @@ internal object TranslationFileKeys {
 
     private fun collectJsonProperties(obj: JsonObject, prefix: List<String>, result: MutableMap<List<String>, String>) {
         for (prop in obj.propertyList) {
-            if (JsonElementTree.isRootSchema(prop)) continue
+            if (JsonElementTree.isRootMetadata(prop)) continue
             val path = prefix + prop.name
             when (val value = prop.value) {
                 is JsonStringLiteral -> result[path] = value.value
