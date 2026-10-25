@@ -71,5 +71,6 @@ Open this folder with `./gradlew runIde` and accept the setup wizard: it detects
    three keys missing from `fr`. `i18n-check examples/next-intl --code` also reads the calls, each under its
    namespace, and reports the three keys in no locale: `discount`, `cookies.expiry` and `doesNotExist`.
 
-`t.rich`, `t.markup`, `t.raw` and `t.has` are not read: their keys are neither resolved nor underlined, so this example
-does not call them.
+`t.rich`, `t.markup`, `t.raw` and `t.has` take their key like `t('key')`: it is checked, completed, folded and
+navigable, and counts as a usage. `t.raw` may point at an object or an array, and a key passed to `t.has` is never
+reported missing. This example does not call them.
