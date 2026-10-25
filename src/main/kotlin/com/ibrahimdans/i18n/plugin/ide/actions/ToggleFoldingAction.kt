@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
+import com.ibrahimdans.i18n.plugin.ide.folding.FoldingBuilderBase
 import com.ibrahimdans.i18n.plugin.ide.preview.EditorRefresh
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -33,6 +34,7 @@ class ToggleFoldingAction : ToggleAction() {
         Settings.getInstance(project).foldingEnabled = state
         // Not a bare daemon restart: the folding pass caches on the PSI stamp, which a
         // settings change does not move — see EditorRefresh.
-        EditorRefresh.afterSettingsChange(project)
+        // And the daemon adds the regions of an open editor expanded: they are folded there, as on opening.
+        EditorRefresh.afterSettingsChange(project) { FoldingBuilderBase.refreshOpenEditors(project, fold = state) }
     }
 }
