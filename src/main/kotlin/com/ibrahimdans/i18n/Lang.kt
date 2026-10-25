@@ -31,6 +31,12 @@ interface Lang : CodeLang {
 
     fun resolveLiteral(entry: PsiElement): PsiElement?
 
+    /**
+     * True when the call holding [element] may read an object as well as a string, so a key
+     * pointing at an object is resolved rather than a "Reference to object": next-intl's `t.raw`.
+     */
+    fun allowsObjectValue(element: PsiElement): Boolean = false
+
     override fun canExtractKey(node: CodeNode, translationFunctionNames: List<String>): Boolean =
         node is PsiCodeNode && canExtractKey(node.element, translationFunctionNames)
 

@@ -51,6 +51,22 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
         const val AWAIT = "await"
     }
 
+    /**
+     * The function [call] calls, as written: `t` in `t('title')`, and in next-intl's
+     * `t.rich('title')` too — the method is [NextIntlMethodExtractor]'s, the hook is `t`'s.
+     */
+    private fun translationFunctionOf(call: JSCallExpression): JSReferenceExpression? {
+        val method = call.methodExpression as? JSReferenceExpression ?: return null
+        val qualifier = method.qualifier as? JSReferenceExpression
+        return if (qualifier != null && qualifier.qualifier == null && isNextIntlMethod(call)) qualifier else method
+    }
+
+    /** True for `t.rich(…)`, `t.markup(…)`, `t.raw(…)` and `t.has(…)`: only next-intl's `t` has them. */
+    private fun isNextIntlMethod(call: JSCallExpression): Boolean {
+        val method = call.methodExpression as? JSReferenceExpression ?: return false
+        return method.qualifier != null && method.referenceName in NextIntlMethodExtractor.ALL
+    }
+
     override fun canExtract(element: PsiElement): Boolean {
         // Accept both JSLiteralExpression and its direct leaf token (returned by findElementAt).
         val literal = element as? JSLiteralExpression
@@ -148,7 +164,7 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
     }
 
     private fun resolveTranslationFunctionDefinition(call: JSCallExpression): PsiElement? =
-        PsiTreeUtil.getChildOfType(call, JSReferenceExpression::class.java)?.reference?.resolve()
+        translationFunctionOf(call)?.reference?.resolve()
 
     private fun resolveDestructuringElement(t: PsiElement?): JSDestructuringElement? {
         return PsiTreeUtil.getParentOfType(t, JSDestructuringElement::class.java)
@@ -176,14 +192,16 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
             ?.let { resolveDestructuringElement(it) }
             ?.let { it.initializer as? JSCallExpression }
             ?: callOf((definition as? JSVariable)?.initializer)
-        if (viaRef != null && viaRef.methodExpression?.text in hooksOf(call.project)) return viaRef
+        // A method of `t` is next-intl's: another hook's `t` has none.
+        val hooks = if (isNextIntlMethod(call)) NEXT_INTL_HOOKS else hooksOf(call.project)
+        if (viaRef != null && viaRef.methodExpression?.text in hooks) return viaRef
 
         // Fallback: scope walk when reference resolution goes to type declarations
-        return resolveHookViaScopeWalk(call)
+        return resolveHookViaScopeWalk(call)?.takeIf { it.methodExpression?.text in hooks }
     }
 
     private fun resolveHookViaScopeWalk(tCall: JSCallExpression): JSCallExpression? {
-        val fnName = PsiTreeUtil.getChildOfType(tCall, JSReferenceExpression::class.java)?.text ?: return null
+        val fnName = translationFunctionOf(tCall)?.text ?: return null
         val scope = PsiTreeUtil.getParentOfType(tCall, JSFunction::class.java) ?: return null
         val namePattern = Regex("\\b${Regex.escape(fnName)}\\b")
         PsiTreeUtil.findChildrenOfType(scope, JSDestructuringElement::class.java)

@@ -101,10 +101,11 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
                 } else {
                     if (mostResolvedReference.element?.isLeaf() ?: false) {
                         annotationHelper.annotateResolved(fullKey)
-                    } else if (PluralGroup.isPluralGroup(mostResolvedReference.element)) {
+                    } else if (PluralGroup.isPluralGroup(mostResolvedReference.element) || lang.allowsObjectValue(element)) {
                         // i18n-js and friends pluralize into a nested object rather than through
                         // the flat `key_one` suffixes the resolver expands: the key legitimately
-                        // points at that object, so it is resolved, not a reference to an object.
+                        // points at that object, so it is resolved, not a reference to an object —
+                        // as is a call reading the object itself (next-intl's `t.raw`).
                         annotationHelper.annotateResolved(fullKey)
                     } else if (mostResolvedReference.path.lastOrNull()?.text != "*") {
                         // A terminal wildcard (e.g. a dynamic `${expr}` segment) legitimately
