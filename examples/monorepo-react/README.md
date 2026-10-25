@@ -38,7 +38,9 @@ Measured on this folder:
   template takes any folder name as the locale).
 - Still pooled: the usages seen from a translation file and the unused keys (`posts.empty` in `blog` is not reported),
   in the IDE and with `i18n-check --code`.
-- Without module templates, `gb` is not an ISO language code: no locale folder `gb/` is seen as a locale.
+- Without module templates, `gb` is not an ISO language code: no locale folder `gb/` is seen as a locale, and
+  `i18n-check` names each one it leaves out. *Locale aliases* `gb=en-GB` (settings, or `"localeAliases"` in
+  `i18n-check.json`) makes it the `en-GB` locale.
 
 This section is updated as the monorepo support improves: once it is right, the table above is what the plugin and
 `i18n-check` report.

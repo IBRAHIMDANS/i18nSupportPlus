@@ -101,11 +101,22 @@ object I18nCheck {
         }
         return try {
             val result = check(options)
+            warnUnreadLocales(options, err)
             out.println(options.format.render(result, options.maxProblems))
             if (result.problems > options.maxProblems) PROBLEMS else OK
         } catch (e: CannotCheck) {
             err.println("i18n-check: ${e.message}")
             CANNOT_CHECK
+        }
+    }
+
+    /** A `gb/` folder beside `en/` and `fr/` is no locale: said once per path, on the error stream. */
+    private fun warnUnreadLocales(options: Options, err: PrintStream) {
+        val config = runCatching { SettingsFile.read(options.project) }.getOrNull() ?: return
+        val root = options.locales ?: options.project
+        for (path in UnreadLocales.find(root, config)) {
+            val name = path.substringAfterLast('/').substringBefore('.')
+            err.println("i18n-check: $path not checked, '$name' is a country code, not a language code; to check it, alias it: \"localeAliases\": \"$name=<locale>\"")
         }
     }
 
@@ -122,7 +133,7 @@ object I18nCheck {
             val wanted = options.reference ?: ReferenceLocale.wanted(scope.module, config)
             val reference = LocaleMatching.pick(wanted, labels)
                 ?: throw CannotCheck("reference locale $wanted not found among ${labels.joinToString()}" + scope.module?.let { " in module ${it.name}" }.orEmpty())
-            val result = TranslationCheck.run(scope.translations, reference)
+            val result = TranslationCheck.run(scope.translations, reference, config::aliasedLocale)
             result.copy(
                 locales = result.locales.filter { it.locale == reference || !config.ignoresLocale(it.locale) },
                 module = scope.module?.name,

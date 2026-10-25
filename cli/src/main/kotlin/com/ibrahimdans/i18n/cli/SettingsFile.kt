@@ -33,7 +33,7 @@ object SettingsFile {
 
     private val OPTIONS = setOf(
         "nsSeparator", "keySeparator", "flatKeys", "gettext", "previewLocale", "foldingPreferredLanguage",
-        "defaultNs", "fallbackNs", "translationsRoot", "excludedDirectories", "ignoredLocales",
+        "defaultNs", "fallbackNs", "translationsRoot", "excludedDirectories", "ignoredLocales", "localeAliases",
     )
     private val MODULE_OPTIONS = setOf("name", "pathTemplate", "fileTemplate", "rootDirectory", "referenceLocale")
 
@@ -98,6 +98,7 @@ object SettingsFile {
             translationsRoot = options["translationsRoot"] ?: default.translationsRoot,
             excludedDirectories = options["excludedDirectories"] ?: default.excludedDirectories,
             ignoredLocales = options["ignoredLocales"] ?: default.ignoredLocales,
+            localeAliases = options["localeAliases"] ?: default.localeAliases,
             modules = modules,
         )
     }

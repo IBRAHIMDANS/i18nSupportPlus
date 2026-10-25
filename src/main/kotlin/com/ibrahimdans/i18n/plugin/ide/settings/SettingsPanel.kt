@@ -118,6 +118,10 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                     cell(textField(PluginBundle.message("settings.ignored.locales"), settings::ignoredLocales, columns = 25))
                         .comment(PluginBundle.message("settings.ignored.locales.comment"))
                 }
+                row(PluginBundle.message("settings.locale.aliases")) {
+                    cell(textField(PluginBundle.message("settings.locale.aliases"), settings::localeAliases, columns = 25))
+                        .comment(PluginBundle.message("settings.locale.aliases.comment"))
+                }
             }
 
             group(PluginBundle.message("settings.group.folding")) {

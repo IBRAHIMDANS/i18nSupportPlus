@@ -58,4 +58,14 @@ class ConfigTest {
         assertEquals("4", config.getLocalizationSetting("json", "indent"))
         assertNull(config.getLocalizationSetting("yaml", "indent"))
     }
+
+    @Test
+    fun `locale aliases are read as alias to locale, blanks and halves left out`() {
+        val config = Config(localeAliases = " gb = en-GB, cn=zh-CN;jp=ja , broken, =fr, x= ")
+
+        assertEquals(mapOf("gb" to "en-GB", "cn" to "zh-CN", "jp" to "ja"), config.localeAliasMap())
+        assertEquals("en-GB", config.aliasedLocale("gb"))
+        assertEquals("fr", config.aliasedLocale("fr"))
+        assertEquals(emptyMap<String, String>(), Config().localeAliasMap())
+    }
 }
