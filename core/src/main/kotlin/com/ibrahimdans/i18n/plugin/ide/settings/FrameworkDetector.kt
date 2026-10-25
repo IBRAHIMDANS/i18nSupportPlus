@@ -39,7 +39,7 @@ object FrameworkDetector {
     val LABELS: Map<String, String> = mapOf(
         "i18next" to "i18next / react-i18next",
         "vue-i18n" to "vue-i18n",
-        "lingui" to "lingui",
+        "lingui" to "Lingui",
         "react-intl" to "react-intl (FormatJS)",
         "ngx-translate" to "ngx-translate (Angular)",
         "transloco" to "Transloco (Angular)",
