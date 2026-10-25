@@ -49,7 +49,7 @@ A setup wizard auto-configures it on first launch, a module per application in a
 | Framework | Recognised syntaxes | Config-based |
 |-----------|--------------------|:------------:|
 | i18next / react-i18next | `t('ns:key')`, `` t(`key.${suffix}`) ``, `t('key', { ns: 'other' })`, `useTranslation('ns')`, `<Trans i18nKey="key">` | Yes |
-| vue-i18n (Nuxt: `@nuxtjs/i18n`) | `$t('key')`, `$tc('key')`, `$te('key')`, `<i18n-t keypath="key">`, `v-t="'key'"` | No |
+| vue-i18n (Nuxt: `@nuxtjs/i18n`) | `$t('key')`, `$tc('key')`, `$te('key')`, `<i18n-t keypath="key">`, `v-t="'key'"`, `const { t, te } = useI18n()` then `t('key')` | No |
 | next-intl | `const t = useTranslations('Home')` (or `await getTranslations('Home')`) then `t('title')`, read as the key `Home.title`; `t.rich('terms', { … })`, `t.markup`, `t.raw` (an object or an array is a value) and `t.has` (a usage, never reported missing) | No |
 | lingui (`@lingui/core`, `@lingui/react`, `@lingui/macro`) | `msg('key')`, `i18n._('key')`, source-based `<Trans>Hello world!</Trans>` | No |
 | react-intl (FormatJS) | `formatMessage({ id: 'key' })`, `<FormattedMessage id="key" />` | No |
@@ -260,6 +260,7 @@ Enabled under **Settings > Editor > Inspections > i18n Support Plus**:
 | Duplicate translation value | Two keys of a file holding the same value |
 | Placeholder consistency across locales | A `{name}` or `%s` placeholder present in one locale and not in another, or an unbalanced brace |
 | ICU message format validation | Unbalanced braces, a `plural` block without `one`/`other`, … |
+| vue-i18n plural branches | A vue-i18n plural `a \| b` with fewer branches than its locale's language has forms for an integer (`ru`: `one`, `few`, `many`); only in a vue-i18n module, or a project without modules depending on vue-i18n |
 | Unused translation key | A key of a translation file no code refers to, unless the settings keep it (*Keys used outside the code*); quick fixes: delete it, or keep it |
 | Translation key absent from the reference locale | A key of a locale that the reference locale's file does not hold — renamed in the reference only, or mistyped — plural forms compared as a group (off by default); quick fixes: remove it from the locale, or add it empty to the reference |
 | Translation reviewed on a source that changed since | Where a module keeps reviews, a value still the one reviewed while the key's reference text changed since (weak warning) |
