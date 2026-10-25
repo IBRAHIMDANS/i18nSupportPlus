@@ -299,10 +299,15 @@ It runs the plugin's own checks in CI, with the plugin's settings, whatever the 
   }
   ```
 
-  Settings: `translationsRoot`, `excludedDirectories`, `defaultNs`, `fallbackNs`, `ignoredLocales`, `previewLocale`, `foldingPreferredLanguage`, `nsSeparator`, `keySeparator`, `flatKeys`, `gettext`, `localeAliases`; per module: `name`, `rootDirectory`, `pathTemplate`, `fileTemplate`, `referenceLocale`, `enabled` (`false` puts the module aside: neither checked nor reported).
+  Settings: `translationsRoot`, `excludedDirectories`, `defaultNs`, `fallbackNs`, `ignoredLocales`, `previewLocale`, `foldingPreferredLanguage`, `nsSeparator`, `keySeparator`, `flatKeys`, `gettext`, `localeAliases`; per module: `name`, `rootDirectory`, `pathTemplate`, `fileTemplate`, `preset`, `referenceLocale`, `enabled` (`false` puts the module aside: neither checked nor reported).
 - `--locales <dir>` checks only that directory: a file per locale (`en.json`, `fr.yml`) or a folder per locale with a file per namespace (`en/common.json`); other files are left alone.
 - For each locale, it reports the keys **missing** compared to the reference, the **orphan** keys the reference does not hold, and the **empty** values. Plural keys (`item_one`, `item_other`) are checked against the forms each language needs: `ja` only `item_other`, `ru` also `item_few` and `item_many`.
-- `--code`, for i18next and react-i18next projects, also reads the JavaScript and TypeScript files (`t('key')`, `useTranslation`, `<Trans i18nKey>`) and reports the **unused** keys of the reference locale — a key a template literal may build, such as `` t(`status.${kind}`) `` for `status.*`, is not one — and the **unknown** keys, called by the code but absent from the reference locale, with their file and line.
+- `--code` also reads the JavaScript, TypeScript and Vue files and reports the **unused** keys of the reference locale — a key a template literal may build, such as `` t(`status.${kind}`) `` for `status.*`, is not one — and the **unknown** keys, called by the code but absent from the reference locale, with their file and line. It reads:
+  - **i18next / react-i18next**: `t('key')`, `i18n.t`, `useTranslation(ns, { keyPrefix })`, `<Trans i18nKey>`;
+  - **next-intl**: the `t` of `useTranslations('Ns')` and `await getTranslations('Ns' | { namespace })`, `Ns` prefixing its keys, and `t.rich`, `t.markup`, `t.raw`, `t.has` (a key `t.has` asks for is never unknown);
+  - **vue-i18n**: in `.vue` files, the `<script>` blocks and the template's `{{ }}` and bound attributes — `$t`, `$tc`, `$te`, the `t` / `te` of `useI18n()`, `v-t` and `<i18n-t keypath>` — a component's `<i18n>` block holding keys for its own calls.
+
+  A module whose `preset` names one of these frameworks is read with its calls only, as in the IDE; without a preset all are read, and another framework's preset is read as i18next. PHP (Laravel), PO catalogues, Angular templates (Transloco, ngx-translate), Svelte, Lingui and react-intl are not read: the check embeds no parser for them.
 - Exit code: `0` when the problems, unused and unknown keys included, do not exceed `--max-problems` (0 by default), `1` when they do, `2` on a wrong command line, a file that does not parse, an unknown reference locale or no translation file.
 
 `--format json` prints (`unused` and `unknown` with `--code` only):

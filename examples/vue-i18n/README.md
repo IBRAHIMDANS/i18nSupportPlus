@@ -85,8 +85,9 @@ whose preset is *vue-i18n* reads vue-i18n's calls only: `$t`, `$tc`, `$te`, and 
 cli/build/install/i18n-check/bin/i18n-check examples/vue-i18n
 ```
 
-It reports `home.onlyInEnglish` missing in `fr` and exits with `1`. It reads neither the `<i18n>` blocks nor the
-`.vue` files: `--code` reads i18next calls in JavaScript and TypeScript files only, so it does not apply here.
+It reports `home.onlyInEnglish` missing in `fr` and exits with `1`. With `--code` it also reads the `.vue` files,
+templates included, and reports the two unknown keys, `home.doesNotExist` and `farewell`; the keys of the `<i18n>`
+blocks count for their own component's calls.
 
 ## Left out
 

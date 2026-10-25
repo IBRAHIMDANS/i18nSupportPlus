@@ -85,7 +85,7 @@ object I18nCheck {
 
           project              the project checked, where .idea/i18nSettings.xml is read from (default: the current directory)
           --locales <dir>      only check the directory holding <locale>.json|yml or <locale>/<namespace>.json|yml
-          --code               also report the keys the i18next code never uses, and those it uses but the reference lacks
+          --code               also report the keys the code (i18next, next-intl, vue-i18n) never uses, and those it uses but the reference lacks
           --reference <locale> the locale the others are compared to (default: the module's or the settings', then en)
           --format text|json   the report's format (default: text)
           --max-problems N     the problems allowed before exiting with 1 (default: 0)

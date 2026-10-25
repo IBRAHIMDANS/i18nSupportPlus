@@ -322,6 +322,63 @@ class I18nCheckTest {
         assertEquals(I18nCheck.PROBLEMS, check(exampleProject, "--code", "--max-problems", "12").exit)
     }
 
+    /** What the plugin underlines there: each namespace of `useTranslations` prefixes its keys. */
+    @Test
+    fun `code - next-intl example, the keys read under their namespace`() {
+        val run = check("../examples/next-intl", "--code")
+        assertTrue(run.out.contains("Unused keys: none"), run.out)
+        assertTrue(
+            run.out.contains(
+                """
+                Unknown keys: 3
+                  app/[locale]/Cart.tsx:21  discount
+                  app/[locale]/PrivacySettings.tsx:20  cookies.expiry
+                  app/[locale]/page.tsx:39  doesNotExist
+                """.trimIndent(),
+            ),
+            run.out,
+        )
+    }
+
+    /** The `.vue` templates and scripts are read, and a component's `<i18n>` block holds keys for its own calls. */
+    @Test
+    fun `code - vue-i18n example, templates read and component blocks known`() {
+        val run = check("../examples/vue-i18n", "--code")
+        assertTrue(run.out.contains("Unused keys: none"), run.out)
+        assertTrue(
+            run.out.contains(
+                """
+                Unknown keys: 2
+                  src/App.vue:21  home.doesNotExist
+                  src/components/WelcomeBanner.vue:27  farewell
+                """.trimIndent(),
+            ),
+            run.out,
+        )
+    }
+
+    @Test
+    fun `code - a module's preset chooses the calls read`(@TempDir project: Path) {
+        fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }
+        write("app/locales/en.json", """{"a": "A", "b": "B"}""")
+        // A `t` taken from no `useI18n()` is not vue-i18n's: under its preset, `a` is unused.
+        write("app/src/App.vue", "<script setup>\nimport { t } from './other';\nt('a');\n</script>\n<template>{{ \$t('b') }}</template>")
+        write("i18n-check.json", """{"modules": [{"name": "app", "rootDirectory": "app", "preset": "vue-i18n"}]}""")
+
+        val unused = JsonParser.parseString(check(project.toString(), "--code", "--format", "json").out).asJsonObject["unused"].asJsonArray
+        assertEquals(listOf("a"), unused.map { it.asString })
+    }
+
+    @Test
+    fun `code - next-intl's has asks whether a key exists, it is never unknown`(@TempDir project: Path) {
+        Files.writeString(project.resolve("en.json"), """{"Nav": {"home": "Home"}}""")
+        Files.writeString(project.resolve("Nav.tsx"), "export function Nav() { const t = useTranslations('Nav'); return t.has('beta') ? t('beta') : t('home'); }")
+
+        val unknown = JsonParser.parseString(check(project.toString(), "--code", "--format", "json").out).asJsonObject["unknown"].asJsonArray
+        assertEquals(listOf("beta"), unknown.map { it.asJsonObject["key"].asString })
+        assertEquals(1, unknown.single().asJsonObject["line"].asInt)
+    }
+
     @Test
     fun `no translation file - a clear message and exit 2`() {
         val run = check("--locales", "$resources/empty")

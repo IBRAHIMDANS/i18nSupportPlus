@@ -8,6 +8,7 @@ import com.ibrahimdans.i18n.plugin.KeyUsage
 import com.ibrahimdans.i18n.plugin.KeyUsageIndex
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
+import com.ibrahimdans.i18n.plugin.parser.CodeKeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.KeyContext
 import com.ibrahimdans.i18n.plugin.parser.KeyResolver
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
@@ -29,15 +30,16 @@ import com.ibrahimdans.i18n.plugin.utils.unQuote
  *
  * @param config the settings the keys are read with: separators, default namespaces, flat keys
  * @param fallbackNamespaces i18next's `fallbackNS`, in order
+ * @param extractors what the files are read with: i18next's calls by default
  */
 class TreeSitterKeyUsageIndex(
     private val config: Config = Config(),
     fallbackNamespaces: List<String> = config.fallbackNamespaces(),
     functionNames: Set<String> = I18NEXT_FUNCTIONS,
+    private val extractors: List<CodeKeyExtractor> = i18nextExtractors(functionNames),
 ) : KeyUsageIndex {
 
     private val context = KeyContext(config, fallbackNamespaces = { fallbackNamespaces })
-    private val extractors = i18nextExtractors(functionNames)
     private val defaultNamespaces = config.defaultNamespaces()
 
     /** The call sites of each indexed file. */

@@ -12,7 +12,7 @@
 - [Review] **Suggestions and replies in review threads**: a change request can carry a suggested value, applied in one click with *Apply suggestion*, and each entry can be replied to and resolved
 - [Settings] **Locale aliases**: a folder named with a country code (`gb/`, `jp/`) is read as the locale you map it to (`gb=en-GB`) instead of being left out
 - [Settings] **Import key assistance rules from i18n Ally**: *Import from i18n Ally…*, under the rules, reads `.vscode/i18n-ally-custom-framework.yml` and shows what it takes over before adding anything
-- [CLI] **`i18n-check`, the translation check for CI**: reports missing, orphan and empty keys per locale and, with `--code`, the keys an i18next project no longer uses. It reads the IDE's settings or an `i18n-check.json`, and JSON, JSON5, YAML and TS/JS catalogues; it is attached to each GitHub release and runs as a GitHub Action. See the [README](README.md#command-line-check)
+- [CLI] **`i18n-check`, the translation check for CI**: reports missing, orphan and empty keys per locale and, with `--code`, the keys the code no longer uses and the calls to keys that do not exist, in i18next, next-intl and vue-i18n projects (`.vue` templates included). It reads the IDE's settings or an `i18n-check.json`, and JSON, JSON5, YAML and TS/JS catalogues; it is attached to each GitHub release and runs as a GitHub Action. See the [README](README.md#command-line-check)
 
 ### Fixes
 

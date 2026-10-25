@@ -35,7 +35,7 @@ object SettingsFile {
         "nsSeparator", "keySeparator", "flatKeys", "gettext", "previewLocale", "foldingPreferredLanguage",
         "defaultNs", "fallbackNs", "translationsRoot", "excludedDirectories", "ignoredLocales", "localeAliases",
     )
-    private val MODULE_OPTIONS = setOf("name", "pathTemplate", "fileTemplate", "rootDirectory", "referenceLocale", "enabled")
+    private val MODULE_OPTIONS = setOf("name", "pathTemplate", "fileTemplate", "rootDirectory", "preset", "referenceLocale", "enabled")
 
     /**
      * The [Config] of [project], the defaults when it has no settings file.
@@ -126,6 +126,7 @@ object SettingsFile {
         pathTemplate = options["pathTemplate"].orEmpty(),
         fileTemplate = options["fileTemplate"].orEmpty(),
         rootDirectory = options["rootDirectory"].orEmpty(),
+        preset = options["preset"].orEmpty(),
         referenceLocale = options["referenceLocale"].orEmpty(),
         enabled = options["enabled"]?.toBoolean() ?: true,
     )
