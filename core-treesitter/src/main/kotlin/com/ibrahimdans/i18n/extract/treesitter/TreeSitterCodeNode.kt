@@ -7,6 +7,7 @@ import org.treesitter.TSLanguage
 import org.treesitter.TSNode
 import org.treesitter.TSParser
 import org.treesitter.TSReader
+import org.treesitter.TSTreeCursor
 import org.treesitter.TreeSitterTsx
 
 /**
@@ -18,6 +19,9 @@ import org.treesitter.TreeSitterTsx
  *
  * A child keeps the adapter it was reached from as its [parent]: walking back up then lands on
  * the nodes already built, their [children] included, instead of wrapping each ancestor anew.
+ *
+ * [children] are read with the file's one cursor, a step per child: `getChild(i)` scans the `i`
+ * siblings before it, so reading a wide node child by child grew with the square of its width.
  */
 class TreeSitterCodeNode private constructor(
     private val node: TSNode,
@@ -38,7 +42,11 @@ class TreeSitterCodeNode private constructor(
     }
 
     override val children: List<CodeNode> by lazy(LazyThreadSafetyMode.NONE) {
-        (0 until node.childCount).map { TreeSitterCodeNode(node.getChild(it), source, this) }
+        val cursor = source.cursor(node)
+        if (!cursor.gotoFirstChild()) return@lazy emptyList()
+        buildList {
+            do add(TreeSitterCodeNode(cursor.currentNode(), source, this@TreeSitterCodeNode)) while (cursor.gotoNextSibling())
+        }
     }
 
     override val file: String? get() = source.file
@@ -53,13 +61,20 @@ class TreeSitterCodeNode private constructor(
 
     override fun toString(): String = "$type$span"
 
-    /** The text of one parsed file and the char offset of each of its UTF-8 bytes. */
+    /** The text of one parsed file, the char offset of each of its UTF-8 bytes and the cursor that walks its tree. */
     private class Source(val text: String, val file: String?, val bytes: ByteArray) {
 
         // Null for an ASCII text, whose byte and char offsets are the same.
         private val charOffsets: IntArray? = if (bytes.size == text.length) null else charOffsets(text, bytes.size)
 
+        // One per file, reset to each node walked: a cursor holds native memory, freed with it.
+        private var cursor: TSTreeCursor? = null
+
         fun charOffset(byteOffset: Int): Int = charOffsets?.get(byteOffset) ?: byteOffset
+
+        /** The file's cursor, moved to [node]. */
+        fun cursor(node: TSNode): TSTreeCursor =
+            cursor?.apply { reset(node) } ?: TSTreeCursor(node).also { cursor = it }
     }
 
     companion object {
