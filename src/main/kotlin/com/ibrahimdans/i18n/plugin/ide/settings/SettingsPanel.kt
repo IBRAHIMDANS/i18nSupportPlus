@@ -3,7 +3,6 @@ package com.ibrahimdans.i18n.plugin.ide.settings
 import com.ibrahimdans.i18n.plugin.ide.whatsnew.WhatsNewPreferences
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
-import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import java.awt.Component
@@ -15,6 +14,7 @@ import javax.swing.JComboBox
 import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.JTextField
+import javax.swing.UIManager
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.text.JTextComponent
@@ -25,6 +25,8 @@ private fun addLimitationsAndHandlers(component: JTextComponent, maxLength: Int,
         override fun keyTyped(e: KeyEvent) {
             if (component.text.length - (if (component.selectedText==null) 0 else component.selectedText.length) >= maxLength || !isValid(e.keyChar)) {
                 e.consume()
+                // A refused key used to vanish without a trace.
+                UIManager.getLookAndFeel().provideErrorFeedback(component)
             }
         }
     })
@@ -42,13 +44,23 @@ private fun addLimitationsAndHandlers(component: JTextComponent, maxLength: Int,
  * the UI tests rely on: every control's `name` is its bundle label, and every
  * edit writes to [Settings] immediately (Configurable diffs against a snapshot).
  *
- * Modules and rules are edited by [ModulesEditorPanel] and [RulesEditorPanel], which hold
- * the same contracts. Everything here stays plain Swing on purpose: the settings UI test
- * builds this panel in a bare JFrame, with no running Application behind it.
+ * Modules and rules have pages of their own, [ModulesConfigurable] and [RulesConfigurable]: below
+ * eight groups of project settings, the modules a monorepo is described with came two or three
+ * screens down. Everything here stays plain Swing on purpose: the settings UI test builds this
+ * panel in a bare JFrame, with no running Application behind it — which is also why the locales
+ * listed by the locale fields are handed in by [offerLocales] rather than looked up here.
  */
 class SettingsPanel(val settings: Settings, val project: Project) {
 
     private val diagnosticsPanel = ConfigDiagnosticsPanel(project)
+
+    private val referenceLocale = LocaleChoice.combo(
+        textField(PluginBundle.message("settings.folding.preferredLanguage"), settings::foldingPreferredLanguage, columns = 6)
+    )
+
+    private val previewLocale = LocaleChoice.combo(
+        textField(PluginBundle.message("settings.preview.locale"), settings::previewLocale, columns = 6)
+    )
 
     /**
      * Refreshes the panel state from the current settings (e.g. after a reset).
@@ -66,12 +78,15 @@ class SettingsPanel(val settings: Settings, val project: Project) {
         return panel {
             row { cell(diagnosticsPanel).align(AlignX.FILL) }
 
+            row { comment(PluginBundle.message("settings.modules.moved.comment")) }
+
             group(PluginBundle.message("settings.group.namespaces")) {
                 row(PluginBundle.message("settings.namespace.separator")) {
                     cell(separatorField(PluginBundle.message("settings.namespace.separator"), settings::nsSeparator))
                 }
                 row(PluginBundle.message("settings.key.separator")) {
                     cell(separatorField(PluginBundle.message("settings.key.separator"), settings::keySeparator))
+                        .comment(PluginBundle.message("settings.separator.refused.comment"))
                 }
                 row {
                     cell(checkbox(PluginBundle.message("settings.first.component.ns"), settings::firstComponentNs))
@@ -100,7 +115,10 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                 }
                 row(PluginBundle.message("settings.translations.root")) {
                     cell(textField(PluginBundle.message("settings.translations.root"), settings::translationsRoot, columns = 25))
-                        .comment(PluginBundle.message("settings.translations.root.comment"))
+                        .comment(
+                            PluginBundle.message("settings.translations.root.comment") + "<br>" +
+                                PluginBundle.message("settings.translations.root.modules.comment")
+                        )
                 }
                 row(PluginBundle.message("settings.js.configuration")) {
                     cell(textField(PluginBundle.message("settings.js.configuration"), settings::jsConfiguration, maxLength = 500, columns = 25))
@@ -114,17 +132,25 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                     cell(textField(PluginBundle.message("settings.excluded.file.extensions"), settings::excludedFileExtensions, columns = 25))
                         .comment(PluginBundle.message("settings.excluded.file.extensions.comment"))
                 }
-                row(PluginBundle.message("settings.kept.keys")) {
-                    cell(textField(PluginBundle.message("settings.kept.keys"), settings::keptKeys, maxLength = 2000, columns = 25))
-                        .comment(PluginBundle.message("settings.kept.keys.comment"))
+                row(PluginBundle.message("settings.locale.aliases")) {
+                    cell(textField(PluginBundle.message("settings.locale.aliases"), settings::localeAliases, columns = 25))
+                        .comment(PluginBundle.message("settings.locale.aliases.comment"))
+                }
+            }
+
+            // What the checks report, and what they leave out, side by side — the partially
+            // translated warning used to sit alone in an *Inspections* group of its own.
+            group(PluginBundle.message("settings.group.checks")) {
+                row {
+                    cell(checkbox(PluginBundle.message("settings.annotations.partially.translated.enabled"), settings::partialTranslationInspectionEnabled))
                 }
                 row(PluginBundle.message("settings.ignored.locales")) {
                     cell(textField(PluginBundle.message("settings.ignored.locales"), settings::ignoredLocales, columns = 25))
                         .comment(PluginBundle.message("settings.ignored.locales.comment"))
                 }
-                row(PluginBundle.message("settings.locale.aliases")) {
-                    cell(textField(PluginBundle.message("settings.locale.aliases"), settings::localeAliases, columns = 25))
-                        .comment(PluginBundle.message("settings.locale.aliases.comment"))
+                row(PluginBundle.message("settings.kept.keys")) {
+                    cell(textField(PluginBundle.message("settings.kept.keys"), settings::keptKeys, maxLength = 2000, columns = 25))
+                        .comment(PluginBundle.message("settings.kept.keys.comment"))
                 }
             }
 
@@ -133,14 +159,13 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                     cell(checkbox(PluginBundle.message("settings.folding.enabled"), settings::foldingEnabled))
                 }
                 row(PluginBundle.message("settings.folding.preferredLanguage")) {
-                    cell(textField(PluginBundle.message("settings.folding.preferredLanguage"), settings::foldingPreferredLanguage, columns = 6))
+                    cell(referenceLocale)
                 }
                 row(PluginBundle.message("settings.folding.maxLength")) {
                     cell(numberField(PluginBundle.message("settings.folding.maxLength"), settings::foldingMaxLength))
                 }
                 row(PluginBundle.message("settings.preview.locale")) {
-                    cell(textField(PluginBundle.message("settings.preview.locale"), settings::previewLocale, columns = 6))
-                        .comment(PluginBundle.message("settings.preview.locale.comment"))
+                    cell(previewLocale).comment(PluginBundle.message("settings.preview.locale.comment"))
                 }
             }
 
@@ -166,22 +191,12 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                 }
             }
 
-            group(PluginBundle.message("settings.group.inspections")) {
-                row {
-                    cell(checkbox(PluginBundle.message("settings.annotations.partially.translated.enabled"), settings::partialTranslationInspectionEnabled))
-                }
-            }
-
             group(PluginBundle.message("settings.group.appearance")) {
                 row {
                     cell(checkbox(PluginBundle.message("settings.gutter.icons.enabled"), settings::gutterIconsEnabled))
                 }
                 row {
                     cell(checkbox(PluginBundle.message("settings.setup.wizard.enabled"), settings::setupWizardEnabled))
-                }
-                row {
-                    cell(checkbox(PluginBundle.message("settings.announce.updates"), WhatsNewPreferences::announceUpdates))
-                        .comment(PluginBundle.message("settings.announce.updates.comment"))
                 }
             }
 
@@ -191,18 +206,20 @@ class SettingsPanel(val settings: Settings, val project: Project) {
                 }
             }
 
-            group(PluginBundle.message("settings.modules.label")) {
+            // Last, under its own title: the only setting of the page that is not this project's.
+            group(PluginBundle.message("settings.group.all.projects")) {
                 row {
-                    cell(ModulesEditorPanel(settings, project)).align(Align.FILL)
-                }.resizableRow()
-            }
-
-            group(PluginBundle.message("settings.rules.label")) {
-                row {
-                    cell(RulesEditorPanel(settings)).align(Align.FILL)
-                }.resizableRow()
+                    cell(checkbox(PluginBundle.message("settings.announce.updates"), WhatsNewPreferences::announceUpdates))
+                        .comment(PluginBundle.message("settings.announce.updates.comment"))
+                }
             }
         }
+    }
+
+    /** Lists the project's locales in the two locale fields, once [LocaleChoice.discover] found them. */
+    fun offerLocales(locales: List<String>) {
+        LocaleChoice.offer(referenceLocale, locales)
+        LocaleChoice.offer(previewLocale, locales)
     }
 
     private fun checkbox(label: String, property: KMutableProperty0<Boolean>): JCheckBox {

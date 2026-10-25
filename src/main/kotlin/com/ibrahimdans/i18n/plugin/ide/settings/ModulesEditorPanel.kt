@@ -83,6 +83,8 @@ internal class ModulesEditorPanel(
             module.copy(referenceLocale = value)
         }
 
+    private val referenceLocaleCombo = LocaleChoice.combo(referenceLocaleField)
+
     private val callTemplateField =
         boundTextField(PluginBundle.message("settings.modules.callTemplate"), 24) { module, value ->
             module.copy(callTemplate = value)
@@ -159,7 +161,7 @@ internal class ModulesEditorPanel(
         }
         row("") { cell(keyTemplateProblem) }
         row(PluginBundle.message("settings.modules.referenceLocale")) {
-            cell(referenceLocaleField).comment(PluginBundle.message("settings.modules.referenceLocale.comment"))
+            cell(referenceLocaleCombo).comment(PluginBundle.message("settings.modules.referenceLocale.comment"))
         }
         row(PluginBundle.message("settings.modules.callTemplate")) {
             cell(callTemplateField).comment(PluginBundle.message("settings.modules.callTemplate.comment"))
@@ -275,6 +277,9 @@ internal class ModulesEditorPanel(
         setFormEnabled(selected != null)
     }
 
+    /** Lists the project's locales in the reference locale field, once [LocaleChoice.discover] found them. */
+    fun offerLocales(locales: List<String>) = LocaleChoice.offer(referenceLocaleCombo, locales)
+
     private fun setFormEnabled(enabled: Boolean) {
         nameField.isEnabled = enabled
         rootField.isEnabled = enabled
@@ -282,6 +287,7 @@ internal class ModulesEditorPanel(
         fileField.isEnabled = enabled
         keyField.isEnabled = enabled
         referenceLocaleField.isEnabled = enabled
+        referenceLocaleCombo.isEnabled = enabled
         callTemplateField.isEnabled = enabled
         writeDefaultValueBox.isEnabled = enabled
         enabledBox.isEnabled = enabled

@@ -198,6 +198,12 @@
         <completion.contributor language="JavaScript" order="first" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.TypesafeI18nCompletionContributor"/>
         <projectService serviceImplementation="com.ibrahimdans.i18n.plugin.ide.settings.Settings"/>
         <projectConfigurable groupId="tools" displayName="i18n Support Plus" instance="com.ibrahimdans.i18n.plugin.ide.settings.Configurable"/>
+        <projectConfigurable parentId="preference.i18nPlugin" id="preference.i18nPlugin.modules"
+                             instance="com.ibrahimdans.i18n.plugin.ide.settings.ModulesConfigurable"
+                             bundle="messages.I18nBundle" key="settings.modules.page.title"/>
+        <projectConfigurable parentId="preference.i18nPlugin" id="preference.i18nPlugin.rules"
+                             instance="com.ibrahimdans.i18n.plugin.ide.settings.RulesConfigurable"
+                             bundle="messages.I18nBundle" key="settings.rules.page.title"/>
         <projectConfigurable parentId="preference.i18nPlugin" id="preference.i18nPlugin.machineTranslation"
                              instance="com.ibrahimdans.i18n.plugin.translate.MachineTranslationConfigurable"
                              bundle="messages.I18nBundle" key="settings.translate.title"/>
