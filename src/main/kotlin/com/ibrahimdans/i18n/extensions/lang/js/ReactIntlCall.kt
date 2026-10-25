@@ -10,7 +10,9 @@ import com.ibrahimdans.i18n.plugin.utils.hostFile
 import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
 import com.ibrahimdans.i18n.plugin.utils.of
 import com.ibrahimdans.i18n.plugin.utils.unQuote
+import com.intellij.openapi.editor.Document
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 
 /**
  * What an extraction writes in a react-intl project: `<FormattedMessage id="key" />` for a JSX text,
@@ -23,6 +25,8 @@ import com.intellij.psi.PsiElement
 internal object ReactIntlCall {
 
     const val PRESET = "react-intl"
+    const val MODULE = "react-intl"
+    const val FORMATTED_MESSAGE = "FormattedMessage"
     private val IMPORT = Regex("""from\s*['"]react-intl['"]""")
 
     /** Whether an extraction at [element] writes react-intl's own call. */
@@ -43,7 +47,7 @@ internal object ReactIntlCall {
             defaultMessage?.let { add("defaultMessage=${attribute(it)}") }
             if (variables.isNotEmpty()) add("values={${MessageVariables.inputs(variables)}}")
         }
-        return "<FormattedMessage ${attributes.joinToString(" ")} />"
+        return "<$FORMATTED_MESSAGE ${attributes.joinToString(" ")} />"
     }
 
     /** `intl.formatMessage({ id: 'key', defaultMessage: 'Hello {name}' }, { name })`, [function] the callee in scope. */
@@ -60,6 +64,11 @@ internal object ReactIntlCall {
     fun defaultMessage(element: PsiElement, text: String, original: List<MessageVariable>): (List<MessageVariable>) -> String? {
         if (module(element)?.writeDefaultValue != true) return { null }
         return { variables -> original.zip(variables).fold(text) { acc, (was, now) -> acc.replace(was.placeholder, now.placeholder) } }
+    }
+
+    /** Adds `FormattedMessage` to [file]'s `react-intl` import, or a new import, unless it is imported already. */
+    fun addImport(file: PsiFile, document: Document) {
+        EsImports.insertion(file, MODULE, listOf(FORMATTED_MESSAGE))?.let { document.insertString(it.offset, it.text) }
     }
 
     /** Why a string at [element] cannot become a `formatMessage` call: no `useIntl()` in scope. */

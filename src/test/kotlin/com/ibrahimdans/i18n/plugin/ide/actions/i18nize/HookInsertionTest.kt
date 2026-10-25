@@ -10,6 +10,7 @@ import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.xml.XmlAttributeValue
 import com.intellij.psi.xml.XmlText
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
@@ -105,5 +106,51 @@ class HookInsertionTest : PlatformBaseTest() {
         val helper = myFixture.addFileToProject("src/helpers.tsx", "export function render() { return <p>Hello</p>; }")
 
         Assertions.assertNull(componentOf(helper))
+    }
+
+    /** A react-intl component has no `t`: it gets `const intl = useIntl()`, never react-i18next's hook. */
+    @Test
+    fun aReactIntlComponentGetsUseIntlInsteadOfUseTranslation() = myFixture.runWithConfig(config) {
+        val file = myFixture.addFileToProject("src/Form.tsx", """
+            import { FormattedMessage } from 'react-intl';
+
+            export function Form() {
+                return <input placeholder="Your name" />;
+            }
+        """.trimIndent())
+        Assertions.assertNull(
+            ReadAction.compute<JSFunction?, RuntimeException> { HookInsertion.componentNeedingHook(textOrAttributeOf(file)) },
+            "react-i18next's hook in a react-intl file"
+        )
+        val component = ReadAction.compute<JSFunction?, RuntimeException> { HookInsertion.componentNeedingIntl(textOrAttributeOf(file)) }!!
+        val document = PsiDocumentManager.getInstance(project).getDocument(file)!!
+        WriteCommandAction.runWriteCommandAction(project) {
+            HookInsertion.intlEdits(file, setOf(component), emptySet())
+                .sortedByDescending { it.range.startOffset }
+                .forEach { document.replaceString(it.range.startOffset, it.range.endOffset, it.text) }
+        }
+
+        Assertions.assertEquals("""
+            import { useIntl, FormattedMessage } from 'react-intl';
+
+            export function Form() {
+                const intl = useIntl();
+                return <input placeholder="Your name" />;
+            }
+        """.trimIndent(), document.text)
+    }
+
+    @Test
+    fun aReactIntlComponentWithUseIntlNeedsNothing() = myFixture.runWithConfig(config) {
+        val file = myFixture.addFileToProject("src/Form.tsx", """
+            import { useIntl } from 'react-intl';
+            export function Form() { const intl = useIntl(); return <input placeholder="Your name" />; }
+        """.trimIndent())
+        Assertions.assertNull(ReadAction.compute<JSFunction?, RuntimeException> { HookInsertion.componentNeedingIntl(textOrAttributeOf(file)) })
+    }
+
+    /** The value of the first JSX attribute of [file]. */
+    private fun textOrAttributeOf(file: PsiFile): PsiElement = ReadAction.compute<PsiElement, RuntimeException> {
+        PsiTreeUtil.findChildOfType(file, XmlAttributeValue::class.java)!!
     }
 }

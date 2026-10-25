@@ -104,7 +104,7 @@ class BatchExtractI18nAction : AnAction() {
         val config = Settings.getInstance(project).config()
         val parser = if (config.usesFlatKeys()) KeyParserBuilder.withoutTokenizer()
                      else KeyParserBuilder.withSeparators(config.nsSeparator, config.keySeparator)
-        val replacements = selected.map { (candidate, key) ->
+        val replacements = selected.filter { (candidate, _) -> candidate.refusal == null }.map { (candidate, key) ->
             val extractor = extractors.first { it.canExtract(candidate.literal) }
             Replacement(candidate, key, extractor, editor.document.createRangeMarker(extractor.textRange(candidate.literal)))
         }
@@ -203,7 +203,7 @@ internal object ExtractionCandidates {
             .map { literal ->
                 val extractor = extractors.first { it.canExtract(literal) }
                 val text = extractor.text(literal).trim()
-                Candidate(literal = literal, originalText = text, proposedKey = ExtractKeyModel.proposeKey(text))
+                Candidate(literal = literal, originalText = text, proposedKey = ExtractKeyModel.proposeKey(text), refusal = extractor.refusal(literal))
             }
             .filter { it.originalText.isNotEmpty() }
     }
@@ -214,7 +214,12 @@ internal data class Candidate(
     val originalText: String,
     val proposedKey: String,
     /** The keys already holding [originalText] in the reference locale; none when not looked up. */
-    val existingKeys: List<String> = emptyList()
+    val existingKeys: List<String> = emptyList(),
+    /**
+     * Why the call to write is missing something the code lacks — react-intl's `useIntl()` — as
+     * [TranslationExtractor.refusal] says: such a text is shown, but cannot be extracted.
+     */
+    val refusal: String? = null
 )
 
 /**
@@ -222,11 +227,11 @@ internal data class Candidate(
  * an identifier, a colour is offered unchecked ([TranslatableText.uncheckedReason]).
  */
 internal fun isCheckedByDefault(candidate: Candidate): Boolean =
-    TranslatableText.uncheckedReason(candidate.originalText) == null
+    candidate.refusal == null && TranslatableText.uncheckedReason(candidate.originalText) == null
 
 /** Why [candidate] is offered unchecked, as the dialog shows it; null for a message. */
 internal fun uncheckedReasonText(candidate: Candidate): String? =
-    TranslatableText.uncheckedReason(candidate.originalText)?.message()
+    candidate.refusal ?: TranslatableText.uncheckedReason(candidate.originalText)?.message()
 
 private class BatchExtractDialog(
     project: Project,
@@ -280,7 +285,7 @@ private class BatchExtractDialog(
             .filter { (_, key) -> key.isNotEmpty() }
 
     private inner class Row(val candidate: Candidate) {
-        val checkBox = JBCheckBox("", isCheckedByDefault(candidate))
+        val checkBox = JBCheckBox("", isCheckedByDefault(candidate)).apply { isEnabled = candidate.refusal == null }
         val keyField = JTextField(candidate.proposedKey, 30)
 
         /** Why the row starts unchecked; hidden once the user checks it, as in the *Internationalize…* preview. */

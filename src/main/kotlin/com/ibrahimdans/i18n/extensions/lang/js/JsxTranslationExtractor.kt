@@ -11,7 +11,9 @@ import com.intellij.lang.javascript.psi.JSEmbeddedContent
 import com.intellij.lang.javascript.psi.JSExpression
 import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.lang.javascript.psi.JSThisExpression
+import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.util.TextRange
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.xml.XmlAttributeValue
@@ -125,6 +127,17 @@ internal class JsxTranslationExtractor : TranslationExtractor {
     /** An attribute needs the `intl` of a `useIntl()`; a text becomes an element, which needs nothing. */
     override fun refusal(element: PsiElement): String? =
         if (element.parent is XmlAttributeValue && ReactIntlCall.applies(element)) ReactIntlCall.refusal(element) else null
+
+    /** react-intl: a text that became a `<FormattedMessage>` element needs its import, added once. */
+    override fun postProcess(editor: Editor, offset: Int) {
+        if (!editor.document.charsSequence.startsWith("<${ReactIntlCall.FORMATTED_MESSAGE} ", offset)) return
+        val project = editor.project ?: return
+        val documents = PsiDocumentManager.getInstance(project)
+        documents.commitDocument(editor.document)
+        val file = documents.getPsiFile(editor.document) ?: return
+        val element = file.findElementAt(offset) ?: return
+        if (ReactIntlCall.applies(element)) ReactIntlCall.addImport(file, editor.document)
+    }
 
     override fun scopeNamespaces(element: PsiElement): List<String> =
         TranslationHookInScope.find(element)?.namespaces.orEmpty()

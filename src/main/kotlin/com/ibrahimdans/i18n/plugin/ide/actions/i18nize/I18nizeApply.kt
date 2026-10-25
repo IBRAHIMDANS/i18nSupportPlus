@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin.ide.actions.i18nize
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.Localization
 import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.extensions.lang.js.ReactIntlCall
 import com.ibrahimdans.i18n.plugin.factory.CallTemplate
 import com.ibrahimdans.i18n.plugin.ide.actions.MachineFill
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
@@ -150,7 +151,10 @@ internal class I18nizeApply private constructor(
 
     private class FileEdits(val document: Document, val entries: List<EntryWork>, val edits: List<CodeEdit>)
 
-    /** The calls replacing [work]'s texts, and the hooks they need; null when the file is gone. */
+    /**
+     * The calls replacing [work]'s texts, and the hooks and imports they need — react-intl's
+     * `useIntl()` and `FormattedMessage` included; null when the file is gone.
+     */
     private fun codeEdits(project: Project, work: FileWork): FileEdits? {
         val file = work.plan.file
         if (!file.isValid) return null
@@ -158,6 +162,8 @@ internal class I18nizeApply private constructor(
         val extractors = I18nizeSources.extractors()
         val entries = work.entries.filter { it.entry.candidate.literal.isValid }
         val hooks = linkedMapOf<JSFunction, String>()
+        val intlHooks = linkedSetOf<JSFunction>()
+        val intlImports = sortedSetOf<String>()
         val calls = entries.mapNotNull { entryWork ->
             val literal = entryWork.entry.candidate.literal
             val extractor = extractors.firstOrNull { it.canExtract(literal) } ?: return@mapNotNull null
@@ -166,11 +172,14 @@ internal class I18nizeApply private constructor(
                 hooks.putIfAbsent(component, entryWork.entry.namespace)
                 call = HookInsertion.callThroughHook(call)
             }
+            if (call.startsWith("<${ReactIntlCall.FORMATTED_MESSAGE} ")) intlImports += ReactIntlCall.FORMATTED_MESSAGE
+            else HookInsertion.componentNeedingIntl(literal)?.let { intlHooks += it }
             CodeEdit(extractor.textRange(literal), call)
         }
+        val intl = if (intlHooks.isEmpty() && intlImports.isEmpty()) emptyList() else HookInsertion.intlEdits(file, intlHooks, intlImports)
         // The literals of one message share a range (`'Hello ' + name`): replaced once.
         val vueHooks = VueHookInsertion.edits(entries.map { it.entry.candidate.literal })
-        return FileEdits(document, entries, calls.distinctBy { it.range } + HookInsertion.edits(file, hooks) + vueHooks)
+        return FileEdits(document, entries, calls.distinctBy { it.range } + HookInsertion.edits(file, hooks) + intl + vueHooks)
     }
 
     /**

@@ -1,20 +1,18 @@
 package com.ibrahimdans.i18n.plugin.ide.actions.i18nize
 
+import com.ibrahimdans.i18n.extensions.lang.js.EsImports
+import com.ibrahimdans.i18n.extensions.lang.js.ReactIntlCall
 import com.ibrahimdans.i18n.extensions.lang.js.TranslationHookInScope
+import com.ibrahimdans.i18n.extensions.lang.js.formatMessageInScope
 import com.ibrahimdans.i18n.plugin.factory.CallTemplate
-import com.intellij.lang.ecmascript6.psi.ES6ImportDeclaration
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSExpression
-import com.intellij.lang.javascript.psi.JSExpressionStatement
 import com.intellij.lang.javascript.psi.JSFunction
-import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.lang.javascript.psi.JSVariable
 import com.intellij.lang.javascript.psi.ecmal4.JSClass
 import com.intellij.openapi.util.TextRange
-import com.intellij.psi.PsiComment
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
-import com.intellij.psi.PsiWhiteSpace
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.xml.XmlTag
 
@@ -28,9 +26,12 @@ internal data class CodeEdit(val range: TextRange, val text: String)
  * import: *Internationalize…* gives the component the hook instead, at the top of its body, and the
  * `useTranslation` import — merged into an existing `react-i18next` import when there is one.
  *
+ * In react-intl, whose strings become `intl.formatMessage(…)`, the component gets
+ * `const intl = useIntl()` and the `useIntl` import from `react-intl` instead.
+ *
  * Read-only: it computes [CodeEdit]s on the file as it is, the caller applies them in one command.
  * A component already declaring a `t`, or calling a translation hook (even with a `keyPrefix`,
- * whose `t` the extraction does not use), never gets a second one.
+ * whose `t` the extraction does not use), never gets a second one — nor one declaring an `intl`.
  */
 internal object HookInsertion {
 
@@ -40,6 +41,9 @@ internal object HookInsertion {
     private val HOOKS = setOf(HOOK, "useI18n")
     private const val GLOBAL_CALL = "i18n.t("
 
+    const val USE_INTL = "useIntl"
+    private const val INTL = "intl"
+
     /**
      * The React component [element] is written in when it should receive a hook: no hook in scope,
      * no call template in its module (the module writes its own call), a function named with a capital
@@ -47,9 +51,19 @@ internal object HookInsertion {
      */
     fun componentNeedingHook(element: PsiElement): JSFunction? {
         if (CallTemplate.of(element) != null || TranslationHookInScope.find(element) != null) return null
-        val component = componentOf(element) ?: return null
-        if (PsiTreeUtil.findChildOfType(component, XmlTag::class.java) == null) return null
-        return component.takeUnless(::hasOwnTranslation)
+        // react-intl has no `t`: its component needs `useIntl()`, see [componentNeedingIntl].
+        if (ReactIntlCall.applies(element)) return null
+        return reactComponentOf(element)?.takeUnless(::hasOwnTranslation)
+    }
+
+    /**
+     * The React component a react-intl string at [element] is written in when it should receive
+     * `const intl = useIntl()`: the extraction writes `intl.formatMessage(…)` there, and no `useIntl()`
+     * is in scope. Else null — also for a component that declares an `intl` of its own.
+     */
+    fun componentNeedingIntl(element: PsiElement): JSFunction? {
+        if (!ReactIntlCall.applies(element) || formatMessageInScope(element) != null) return null
+        return reactComponentOf(element)?.takeUnless(::declaresIntl)
     }
 
     /** [written], a call an extraction wrote with the global `i18n.t`, calling the hook's `t` instead. */
@@ -58,12 +72,24 @@ internal object HookInsertion {
     /** The edits giving each of [components] its hook, in the namespace given, and [file] the import. */
     fun edits(file: PsiFile, components: Map<JSFunction, String>): List<CodeEdit> {
         if (components.isEmpty()) return emptyList()
-        return components.mapNotNull { (component, namespace) -> hookEdits(component, namespace) }.flatten() +
-            listOfNotNull(importEdit(file))
+        return components.mapNotNull { (component, namespace) ->
+            statementEdits(component, "const { t } = $HOOK('${namespace.replace("'", "\\'")}');")
+        }.flatten() + listOfNotNull(importEdit(file, MODULE, listOf(HOOK)))
     }
 
-    private fun hookEdits(component: JSFunction, namespace: String): List<CodeEdit>? {
-        val hook = "const { t } = $HOOK('${namespace.replace("'", "\\'")}');"
+    /**
+     * The edits giving each of [components] its `const intl = useIntl();`, and [file] the imports of
+     * [imports] from `react-intl` — `FormattedMessage` for the texts that became elements, `useIntl` as
+     * soon as a component gets the hook.
+     */
+    fun intlEdits(file: PsiFile, components: Set<JSFunction>, imports: Set<String>): List<CodeEdit> {
+        val names = (imports + listOfNotNull(USE_INTL.takeIf { components.isNotEmpty() })).sorted()
+        return components.mapNotNull { statementEdits(it, "const $INTL = $USE_INTL();") }.flatten() +
+            listOfNotNull(importEdit(file, ReactIntlCall.MODULE, names))
+    }
+
+    /** [statement] at the top of [component]'s body. */
+    private fun statementEdits(component: JSFunction, hook: String): List<CodeEdit>? {
         val block = component.block
         if (block == null) {
             // `const Menu = () => <nav>…</nav>`: the body becomes a block returning the expression.
@@ -83,33 +109,13 @@ internal object HookInsertion {
         return listOf(CodeEdit(TextRange.from(first.textRange.startOffset, 0), hook + separator))
     }
 
-    /** `useTranslation` added to the file's `react-i18next` import, or a new import; null when already imported. */
-    private fun importEdit(file: PsiFile): CodeEdit? {
-        val imports = PsiTreeUtil.findChildrenOfType(file, ES6ImportDeclaration::class.java)
-        val existing = imports.filter { it.fromClause?.referenceText?.trim('\'', '"', '`') == MODULE && !it.text.startsWith("import type") }
-        if (existing.any { declaration -> declaration.importSpecifiers.any { it.text.trim() == HOOK } }) return null
-        for (declaration in existing) {
-            val named = declaration.namedImports
-            val specifiers = declaration.importSpecifiers
-            when {
-                // Before the first one: valid whatever follows the last (a trailing comma).
-                specifiers.isNotEmpty() -> return CodeEdit(TextRange.from(specifiers.first().textRange.startOffset, 0), "$HOOK, ")
-                named != null -> return CodeEdit(TextRange.from(named.textRange.startOffset + 1, 0), " $HOOK ")
-                declaration.text.contains('*') -> continue
-                declaration.importedBindings.isNotEmpty() ->
-                    return CodeEdit(TextRange.from(declaration.importedBindings.last().textRange.endOffset, 0), ", { $HOOK }")
-            }
-        }
-        val statement = "import { $HOOK } from '$MODULE';"
-        imports.lastOrNull()?.let { return CodeEdit(TextRange.from(it.textRange.endOffset, 0), "\n$statement") }
-        // After the directives (`'use client'`), which must stay first.
-        val directive = file.children.asSequence()
-            .filterNot { it is PsiWhiteSpace || it is PsiComment }
-            .takeWhile { ((it as? JSExpressionStatement)?.expression as? JSLiteralExpression)?.isQuotedLiteral == true }
-            .lastOrNull()
-        return if (directive != null) CodeEdit(TextRange.from(directive.textRange.endOffset, 0), "\n$statement")
-        else CodeEdit(TextRange.from(0, 0), "$statement\n")
-    }
+    /** [names] added to [file]'s import of [module], or a new import; null when all are imported. */
+    private fun importEdit(file: PsiFile, module: String, names: List<String>): CodeEdit? =
+        EsImports.insertion(file, module, names)?.let { CodeEdit(TextRange.from(it.offset, 0), it.text) }
+
+    /** The component around [element]: a function named with a capital, holding JSX. */
+    private fun reactComponentOf(element: PsiElement): JSFunction? =
+        componentOf(element)?.takeIf { PsiTreeUtil.findChildOfType(it, XmlTag::class.java) != null }
 
     /** The innermost function named with a capital around [element]; null inside a class first. */
     private fun componentOf(element: PsiElement): JSFunction? {
@@ -133,4 +139,9 @@ internal object HookInsertion {
             .any { it.methodExpression?.text in HOOKS && ownedBy(it) }
         return declaresT || callsHook
     }
+
+    /** Whether [component] declares an `intl` (a variable, a parameter) of its own. */
+    private fun declaresIntl(component: JSFunction): Boolean =
+        PsiTreeUtil.findChildrenOfType(component, JSVariable::class.java)
+            .any { it.name == INTL && PsiTreeUtil.getParentOfType(it, JSFunction::class.java) == component }
 }
