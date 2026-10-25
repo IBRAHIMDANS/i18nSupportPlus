@@ -92,11 +92,12 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
             else
                 references.maxByOrNull { v -> v.path.size } ?: return
             if (mostResolvedReference.unresolved.isEmpty()) {
-                // A locale not checked for missing keys never makes a key partially translated.
+                // A locale not checked for missing keys never makes a key partially translated,
+                // and its quick fix creates the key in the checked locales only.
                 val checked = references.filterNot { config.ignoresLocale(it.localizationSource.localeLabel()) }
                 val partial = checked.zipWithNext().any { it.first.path != it.second.path }
                 if (partial && config.partialTranslationInspectionEnabled) {
-                    annotationHelper.annotatePartiallyTranslated(fullKey, references)
+                    annotationHelper.annotatePartiallyTranslated(fullKey, checked)
                 } else {
                     if (mostResolvedReference.element?.isLeaf() ?: false) {
                         annotationHelper.annotateResolved(fullKey)

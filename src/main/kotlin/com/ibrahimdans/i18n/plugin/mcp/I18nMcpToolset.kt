@@ -31,7 +31,9 @@ class I18nMcpToolset : McpToolset {
     @McpTool(name = "i18n_list_modules")
     @McpDescription(
         description = "Lists the project's translation modules: name, reference locale (translated from), locales, " +
-            "and whether translation reviews are on. Call it first to know the module and locale names."
+            "and whether translation reviews are on. Call it first to know the module and locale names. 'notChecked' " +
+            "lists the locales the project leaves out of its missing-key checks (in progress or abandoned): do not " +
+            "fill them unless asked to."
     )
     suspend fun i18n_list_modules(): String = call { tools, _ -> readAction { tools.modules() } }
 

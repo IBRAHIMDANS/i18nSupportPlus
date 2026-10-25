@@ -65,4 +65,18 @@ class KeysSynchronizerRoutingTest {
 
         assertEquals(listOf("locales/locales/fr.json"), missing.map { it.source.displayPath })
     }
+
+    /** #620: a locale not checked for missing keys is no target, and its own keys are proposed to no one. */
+    @Test
+    fun `an ignored locale neither receives nor gives keys`() {
+        val sources = perNamespace + listOf(source("es", "common.json"))
+        val translations = mapOf(
+            "actions.save" to mapOf("en" to "Save"),
+            "actions.only" to mapOf("es" to "Solo"),
+        )
+
+        val missing = KeysSynchronizer().findMissingEntries(translations, listOf("en", "es", "fr"), sources, listOf("common")) { it == "es" }
+
+        assertEquals(listOf("actions.save" to "fr"), missing.map { it.key to it.locale })
+    }
 }

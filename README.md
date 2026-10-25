@@ -323,7 +323,7 @@ On IntelliJ-based IDEs 2025.2.6 and later, the plugin adds four tools to the IDE
 
 | Tool | What it does |
 |------|--------------|
-| `i18n_list_modules` | The translation modules, their reference locale, locales, and whether reviews are on |
+| `i18n_list_modules` | The translation modules, their reference locale, locales, the locales not checked for missing keys, and whether reviews are on |
 | `i18n_missing_translations` | The keys a locale lacks, with the reference text to translate and the plural forms the locale needs |
 | `i18n_stale_translations` | The stale translations of a locale — values still the ones reviewed while their key's reference text changed since — with that text as it reads now and the value to replace. Only in a module keeping reviews |
 | `i18n_write_translations` | Writes translations in one undoable command: fills a missing value, or replaces one that is stale when written — never any other existing value — and a value losing a placeholder or tag of its reference is refused with the reason. Marked *to review* (`machine:<agent>`) with the reference text it was translated from when the module keeps reviews |

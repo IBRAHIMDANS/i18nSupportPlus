@@ -35,7 +35,8 @@ import com.intellij.psi.PsiElementVisitor
  * A group is what [PluralKey.groupForms] calls one, among the keys of a single object: two forms
  * or more of a base, or `_other` alone — `step_one` with no sibling is a key named so. The problem
  * sits on the group's first form, the base having no element of its own. The locale is the
- * file's, the reference file included: an English file lacking `item_one` is reported too.
+ * file's, the reference file included: an English file lacking `item_one` is reported too. A
+ * locale not checked for missing keys (`Config.ignoresLocale`) is not checked here either.
  *
  * The large-number `many` of French, Spanish, Italian, Portuguese and Catalan is only asked for
  * when [largeNumberForms] is set: real, but almost never translated.
@@ -60,6 +61,7 @@ class MissingPluralFormsInspection : LocalInspectionTool() {
         if (DumbService.isDumb(holder.project)) return PsiElementVisitor.EMPTY_VISITOR
         val source = TranslationFileScope.sourceOf(holder.file) ?: return PsiElementVisitor.EMPTY_VISITOR
         val locale = source.localeLabel()
+        if (Settings.getInstance(holder.project).config().ignoresLocale(locale)) return PsiElementVisitor.EMPTY_VISITOR
         val needed = PluralCategories.of(locale, largeNumberForms)
 
         return object : PsiElementVisitor() {

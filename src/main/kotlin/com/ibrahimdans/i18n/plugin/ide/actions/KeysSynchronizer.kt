@@ -63,7 +63,8 @@ class KeysSynchronizer {
 
                 indicator.text = PluginBundle.message("action.sync.progress.computing")
                 val allSources = project.service<LocalizationSourceService>().findAllSources(project)
-                val missing = findMissingEntries(allTranslations, allLocales, allSources, Settings.getInstance(project).config().defaultNamespaces())
+                val config = Settings.getInstance(project).config()
+                val missing = findMissingEntries(allTranslations, allLocales, allSources, config.defaultNamespaces(), config::ignoresLocale)
 
                 ApplicationManager.getApplication().invokeLater {
                     if (missing.isEmpty()) {
@@ -96,18 +97,24 @@ class KeysSynchronizer {
      *
      * [defaultNamespaces] says where a key spelled without a prefix lives — see
      * [findSourceForKeyAndLocale].
+     *
+     * A locale [ignoresLocale] names — not checked for missing keys — is left out on both sides: it
+     * receives nothing, and a key only it holds is proposed to no other locale.
      */
     internal fun findMissingEntries(
         allTranslations: Map<String, Map<String, String>>,
         allLocales: List<String>,
         allSources: List<LocalizationSource>,
         defaultNamespaces: List<String> = Config().defaultNamespaces(),
+        ignoresLocale: (String) -> Boolean = { false },
     ): List<MissingEntry> {
         val missing = mutableListOf<MissingEntry>()
+        val checkedLocales = allLocales.filterNot(ignoresLocale)
 
         for ((key, forms) in PluralKey.groupForms(allTranslations.keys)) {
             val presentLocales = forms.flatMapTo(mutableSetOf()) { allTranslations[it].orEmpty().keys }
-            val absentLocales = allLocales - presentLocales
+            if (presentLocales.all(ignoresLocale)) continue
+            val absentLocales = checkedLocales - presentLocales
             val keyToCreate = if (forms.size == 1 && forms.single() == key) key else PluralKey.defaultForm(key)
 
             for (targetLocale in absentLocales) {
