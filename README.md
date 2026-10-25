@@ -37,9 +37,10 @@ whether a key exists, in which namespace, and whether it's translated everywhere
   Scan Orphans (find keys no code refers to), CSV export/import, and inspections for empty,
   duplicate or inconsistent values.
 
-Works with **i18next, vue-i18n, lingui, react-intl, ngx-translate, Transloco, svelte-i18n, i18n-js & Paraglide JS**
-across JS/TS/JSX/TSX, Vue SFC and PHP, with JSON, YAML and PO/POT files.
-A setup wizard auto-configures it on first launch.
+Works with **i18next / react-i18next, vue-i18n, next-intl, lingui, react-intl, ngx-translate, Transloco, svelte-i18n,
+i18n-js, Paraglide JS, Meteor universe:i18n and Laravel / Blade**, across JS/TS/JSX/TSX, Vue SFC, Svelte, Astro,
+Angular templates, PHP and Blade, with JSON, JSON5, YAML, PO/POT, Laravel PHP arrays and TS/JS catalogues.
+A setup wizard auto-configures it on first launch, a module per application in a monorepo.
 
 **Coming from i18n Ally or Easy I18n?** See the [feature-by-feature comparison](docs/COMPARISON.md) and how to carry your settings over.
 
@@ -93,9 +94,17 @@ message file, in the frontmatter and in template expressions. A ready-to-open pr
 | TSX | `.tsx` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Vue SFC | `.vue` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | PHP | `.php` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Blade | `.blade.php` | ✓ | — | — | — | ✓ |
+| Angular templates | `.html` | ✓ | — | — | — | ✓ |
+| Svelte | `.svelte` | ✓ | — | ✓ | — | — |
+| Astro | `.astro` | ✓ | ✓ | ✓ | — | ✓ |
+
+**—** means no test covers it yet: it may work, it is not promised. A ✓ is backed by a test.
 
 > Vue support requires the Vue.js plugin (optional dependency).
-> PHP support requires the PHP plugin (optional dependency).
+> PHP support requires the PHP plugin (optional dependency); Blade views, the Blade plugin, bundled in PhpStorm.
+> Angular templates require the Angular plugin, and are read inside an Angular project only (see <sup>1</sup> above).
+> Svelte components require the [Svelte plugin](https://plugins.jetbrains.com/plugin/12375-svelte) (see <sup>2</sup> above).
 >
 > Astro components (`.astro`, with astro-i18next or i18next) are analysed provided the [Astro plugin](https://plugins.jetbrains.com/plugin/20959-astro) is installed — it is not bundled with IntelliJ Ultimate, and without it a `.astro` file is plain text to the IDE. With it, `t('key')` in the `---` frontmatter and in `{…}` template expressions is ordinary JavaScript: annotations, completion, folding and references work as in a `.ts` file.
 >
@@ -108,7 +117,13 @@ message file, in the frontmatter and in template expressions. A ready-to-open pr
 | JSON | `.json`, `.json5` | ✓ | ✓ |
 | YAML | `.yaml`, `.yml` | ✓ | ✓ |
 | PO/POT (gettext) | `.po`, `.pot` | ✓ | ✓ |
-| TypeScript (i18next config) | `.ts` | ✓ | — |
+| Laravel PHP arrays | `lang/<locale>/<file>.php`, the file name as namespace | ✓ | ✓ |
+| TS/JS catalogues (an object keyed by locale, as i18n-js writes) | `.ts`, `.js` | — | — |
+| i18next `resources` declared in a TS/JS configuration file | `.ts`, `.js` | — | — |
+
+**—** means no test covers it yet. Keys of the last two formats are read and annotated; whether Ctrl+click reaches
+their value and whether a missing key is written into them is not tested. XLIFF, like CSV, is exported and imported
+from the tool window, not read as a translation source.
 
 Keys are resolved as nested properties by default (`app.header.title` walks three levels).
 Projects storing **flat ids** — one property per key, as react-intl / FormatJS usually do —
@@ -563,6 +578,12 @@ Per-format settings; the first one is the **indentation of the keys generated in
 | YAML | No | `.yaml`/`.yml` translation files |
 | PHP | No | PHP language support |
 | Localization | No | PO/POT gettext files |
+| Angular | No | Translation pipes and Transloco directives in Angular templates (`.html`) |
+| Blade | No | Keys in Blade views (`{{ __('key') }}`, `@lang`) |
+| Svelte | No | Keys in `.svelte` components |
+| Astro | No | Keys in `.astro` components |
+| Git | No | *Compare with Branch* (translation changes of a branch) |
+| MCP Server | No | The tools AI agents call (2025.2.6+) |
 
 ## Installation
 
