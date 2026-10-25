@@ -387,6 +387,11 @@
                     class="com.ibrahimdans.i18n.plugin.ide.actions.FillMissingTranslationsAction"/>
             <action id="com.ibrahimdans.i18n.RetranslateStale"
                     class="com.ibrahimdans.i18n.plugin.ide.actions.RetranslateStaleAction"/>
+            <!-- Hidden with fewer than two modules; the module selector's right-click menu holds them too. -->
+            <action id="com.ibrahimdans.i18n.FocusModule"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.FocusModuleAction"/>
+            <action id="com.ibrahimdans.i18n.ActivateAllModules"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.ActivateAllModulesAction"/>
         </group>
         <action id="com.ibrahimdans.i18n.ToggleFolding"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.ToggleFoldingAction"

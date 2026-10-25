@@ -113,6 +113,31 @@ class I18nToolWindowPanelTest : PlatformBaseTest() {
         assertEquals(listOf("Module", "admin"), names)
     }
 
+    @Test
+    fun `the selector lists the modules put aside after the active ones, even with one active`() {
+        val web = ModuleConfig(name = "web")
+        val admin = ModuleConfig(name = "admin", enabled = false)
+        val blog = ModuleConfig(name = "blog")
+
+        val several = ShellDiagnostics(emptyList(), 3, listOf(web, blog), asideModules = listOf(admin)).selectorItems
+        assertEquals(listOf("web" to false, "blog" to false, "admin" to true), several.map { it.label to it.aside })
+
+        // Focused on web: one active module, the selector stays to switch back.
+        val focused = ShellDiagnostics(emptyList(), 3, listOf(web), asideModules = listOf(admin, blog)).selectorItems
+        assertEquals(listOf("web" to false, "admin" to true, "blog" to true), focused.map { it.label to it.aside })
+
+        assertEquals(emptyList<ModuleSelectorItem>(), ShellDiagnostics(emptyList(), 3, listOf(web)).selectorItems, "one module, none aside")
+    }
+
+    @Test
+    fun `putting a module aside rebuilds the shell`() {
+        val web = ModuleConfig(name = "web")
+        val admin = ModuleConfig(name = "admin")
+        val before = ShellDiagnostics(emptyList(), 3, listOf(web, admin))
+        val after = ShellDiagnostics(emptyList(), 3, listOf(web), asideModules = listOf(admin.copy(enabled = false)))
+        assertTrue(shellNeedsRebuild(before, after))
+    }
+
     // -----------------------------------------------------------------------
     // Where the plugin looked
     // -----------------------------------------------------------------------

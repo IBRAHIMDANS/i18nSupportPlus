@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.plugin.ide.actions.ModuleFocus
 import com.ibrahimdans.i18n.plugin.ide.actions.SyncKeysAction
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
@@ -22,6 +23,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.SimpleToolWindowPanel
+import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.HyperlinkLabel
 import com.intellij.ui.JBColor
 import com.intellij.ui.SearchTextField
@@ -37,7 +39,9 @@ import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JComponent
+import javax.swing.JMenuItem
 import javax.swing.JPanel
+import javax.swing.JPopupMenu
 import javax.swing.Timer
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
@@ -70,7 +74,9 @@ internal enum class ShellLayout { EMPTY, SINGLE, MULTI }
 internal data class ShellDiagnostics(
     val searchedPaths: List<String>,
     val sourceCount: Int,
-    val modules: List<ModuleConfig>
+    val modules: List<ModuleConfig>,
+    /** The modules put aside: listed greyed in the selector after [modules], to switch to them. */
+    val asideModules: List<ModuleConfig> = emptyList()
 ) {
 
     /**
@@ -87,7 +93,25 @@ internal data class ShellDiagnostics(
 
     /** Module labels as the selector shows them, unnamed modules included. */
     val moduleNames: List<String>
-        get() = modules.map { it.name.ifBlank { PluginBundle.message("toolwindow.module.unnamed") } }
+        get() = modules.map(::labelOf)
+
+    /** Labels of the [asideModules]. */
+    val asideNames: List<String>
+        get() = asideModules.map(::labelOf)
+
+    /**
+     * What the selector lists: the active modules when there are several, then the ones put aside —
+     * shown as soon as there is one, or a module focused on could never be left.
+     */
+    val selectorItems: List<ModuleSelectorItem>
+        get() {
+            val active = if (layout == ShellLayout.MULTI || asideModules.isNotEmpty()) modules else emptyList()
+            val items = active.map { ModuleSelectorItem(it, labelOf(it), aside = false) } +
+                asideModules.map { ModuleSelectorItem(it, labelOf(it), aside = true) }
+            return if (items.size >= 2) items else emptyList()
+        }
+
+    private fun labelOf(module: ModuleConfig): String = module.name.ifBlank { PluginBundle.message("toolwindow.module.unnamed") }
 
     companion object {
 
@@ -115,9 +139,15 @@ internal fun shellNeedsRebuild(previous: ShellDiagnostics?, next: ShellDiagnosti
     previous == null -> true
     previous.layout != next.layout -> true
     previous.moduleNames != next.moduleNames -> true
+    previous.asideNames != next.asideNames -> true
     // The empty state prints the diagnostics themselves, so it must follow any change to them.
     next.layout == ShellLayout.EMPTY -> previous != next
     else -> false
+}
+
+/** One entry of the module selector: a module on screen, or one put aside that choosing focuses on. */
+internal data class ModuleSelectorItem(val module: ModuleConfig, val label: String, val aside: Boolean) {
+    override fun toString(): String = label
 }
 
 /**
@@ -388,9 +418,14 @@ class I18nToolWindowPanel internal constructor(
         border = JBUI.Borders.empty(0, 6)
     }
 
-    private val moduleSelector = ComboBox<String>().apply {
+    private val moduleSelector = ComboBox<ModuleSelectorItem>().apply {
         isVisible = false
         toolTipText = PluginBundle.message("toolwindow.module.selector.tooltip")
+        // A module put aside is greyed: it has nothing on screen until it is focused on.
+        renderer = SimpleListCellRenderer.create { label, item, _ ->
+            label.text = item?.label.orEmpty()
+            if (item?.aside == true) label.foreground = secondaryForeground
+        }
     }
 
     private val searchDebouncer = SearchDebouncer(searchDelay) { applySearch(it) }
@@ -441,8 +476,9 @@ class I18nToolWindowPanel internal constructor(
             // Project-wide on purpose: the question the empty state answers is whether the
             // plugin can read anything at all, not whether one module resolves.
             sourceCount = TranslationDataLoader.findSources(project).size,
-            // A module put aside has no file to show: the selector leaves it out.
-            modules = ModuleSources.active(config.modules)
+            // A module put aside has no file to show: it gets no panels, only a greyed selector entry.
+            modules = ModuleSources.active(config.modules),
+            asideModules = config.modules.filterNot { it.enabled }
         )
     }
 
@@ -487,8 +523,15 @@ class I18nToolWindowPanel internal constructor(
     // ---------------------------------------------------------------------------
 
     private fun connectModuleSelector() {
+        moduleSelector.componentPopupMenu = modulePopupMenu()
         moduleSelector.addItemListener { event ->
             if (updatingSelector || event.stateChange != ItemEvent.SELECTED) return@addItemListener
+            val item = moduleSelector.selectedItem as? ModuleSelectorItem ?: return@addItemListener
+            // Choosing a module put aside focuses on it; the settings change rebuilds the shell.
+            if (item.aside) {
+                ModuleFocus.focus(project, item.module)
+                return@addItemListener
+            }
             shellContent?.showModule(moduleSelector.selectedIndex)
             // The count is scoped to the visible module, so it has to be recomputed.
             searchIndex = null
@@ -498,15 +541,27 @@ class I18nToolWindowPanel internal constructor(
 
     /** The selector replaces the outer row of tabs; it is pointless with a single module. */
     private fun updateModuleSelector(diagnostics: ShellDiagnostics) {
-        val names = if (diagnostics.layout == ShellLayout.MULTI) diagnostics.moduleNames else emptyList()
+        val items = diagnostics.selectorItems
         updatingSelector = true
         try {
-            moduleSelector.model = DefaultComboBoxModel(names.toTypedArray())
-            moduleSelector.isVisible = names.isNotEmpty()
-            if (names.isNotEmpty()) moduleSelector.selectedIndex = 0
+            moduleSelector.model = DefaultComboBoxModel(items.toTypedArray())
+            moduleSelector.isVisible = items.isNotEmpty()
+            if (items.isNotEmpty()) moduleSelector.selectedIndex = 0
         } finally {
             updatingSelector = false
         }
+    }
+
+    /** Right-click on the selector: focus on the module it shows, or bring every module back. */
+    private fun modulePopupMenu(): JPopupMenu = JPopupMenu().apply {
+        add(JMenuItem(PluginBundle.message("toolwindow.module.focus")).apply {
+            addActionListener {
+                (moduleSelector.selectedItem as? ModuleSelectorItem)?.let { ModuleFocus.focus(project, it.module) }
+            }
+        })
+        add(JMenuItem(PluginBundle.message("action.com.ibrahimdans.i18n.ActivateAllModules.text")).apply {
+            addActionListener { ModuleFocus.activateAll(project) }
+        })
     }
 
     // ---------------------------------------------------------------------------
