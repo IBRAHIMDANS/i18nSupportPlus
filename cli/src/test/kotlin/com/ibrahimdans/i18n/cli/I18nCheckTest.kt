@@ -357,6 +357,47 @@ class I18nCheckTest {
         )
     }
 
+    /**
+     * What the plugin underlines in the Transloco example: the templates' pipes, directives and `read:`
+     * blocks are read, and the keys of the `admin` scope file are spelled `admin.…`, as the code writes them.
+     */
+    @Test
+    fun `code - transloco example, templates read and scope keys spelled with their scope`() {
+        val run = check("../examples/angular-transloco/transloco", "--code")
+        assertTrue(run.out.contains("missing  admin.onlyInEnglish"), run.out)
+        assertTrue(run.out.contains("Unused keys: none"), run.out)
+        assertTrue(
+            run.out.contains(
+                """
+                Unknown keys: 3
+                  src/app/admin/admin-panel.component.html:6  doesNotExist
+                  src/app/app.component.html:20  home.doesNotExist
+                  src/app/app.component.html:22  title
+                """.trimIndent(),
+            ),
+            run.out,
+        )
+    }
+
+    @Test
+    fun `code - ngx-translate example, pipes, directives and service calls read`() {
+        val run = check("../examples/angular-transloco/ngx-translate", "--code")
+        assertTrue(run.out.contains("Unused keys: none"), run.out)
+        assertTrue(run.out.contains("Unknown keys: 1\n  src/app/app.component.html:18  home.doesNotExist"), run.out)
+    }
+
+    @Test
+    fun `code - a html file is read as a template in an Angular project only`(@TempDir project: Path) {
+        fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }
+        write("locales/en.json", """{"a": "A"}""")
+        write("src/page.html", "<p>{{ 'a' | translate }}</p>")
+        fun unused() = JsonParser.parseString(check(project.toString(), "--code", "--format", "json").out).asJsonObject["unused"].asJsonArray.map { it.asString }
+
+        assertEquals(listOf("a"), unused())
+        write("package.json", """{"dependencies": {"@angular/core": "^20.0.0"}}""")
+        assertEquals(emptyList<String>(), unused())
+    }
+
     @Test
     fun `code - a module's preset chooses the calls read`(@TempDir project: Path) {
         fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }

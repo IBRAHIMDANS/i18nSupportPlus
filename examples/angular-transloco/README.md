@@ -131,18 +131,18 @@ ngx-translate (`ngx-translate/`):
    `menu.settings.title` in `<p translate>…</p>` to `menu.settings.zz`: it is underlined as *Unresolved key*. Nothing is
    underlined in `<p translate="no">`. Inside `{{ 'menu.' | translate }}`, Ctrl+Space proposes the `menu` keys.
 
-The locale files can also be checked from the command line, without the IDE (see *Command Line Check* in the root
-README). The command line does not know Transloco's scopes: check the global files and the scope apart.
+The locale files and the code can also be checked from the command line, without the IDE (see *Command Line Check* in
+the root README):
 
 ```bash
 ./gradlew :cli:installDist
-cli/build/install/i18n-check/bin/i18n-check --locales examples/angular-transloco/transloco/src/assets/i18n
-cli/build/install/i18n-check/bin/i18n-check --locales examples/angular-transloco/transloco/src/assets/i18n/admin
-cli/build/install/i18n-check/bin/i18n-check examples/angular-transloco/ngx-translate
+cli/build/install/i18n-check/bin/i18n-check examples/angular-transloco/transloco --code
+cli/build/install/i18n-check/bin/i18n-check examples/angular-transloco/ngx-translate --code
 ```
 
-Each reports its `onlyInEnglish` as missing from `fr` and exits with `1`. `--code` reads i18next calls only, so it
-says nothing about the unknown `doesNotExist` keys here.
+Each reports its `onlyInEnglish` keys as missing from `fr` — the scope's spelled `admin.onlyInEnglish` — no unused key,
+and as unknown the keys the IDE underlines: `home.doesNotExist`, `title` and the scope's `doesNotExist` for Transloco,
+`home.doesNotExist` for ngx-translate. Both exit with `1`.
 
 ## Left out
 
