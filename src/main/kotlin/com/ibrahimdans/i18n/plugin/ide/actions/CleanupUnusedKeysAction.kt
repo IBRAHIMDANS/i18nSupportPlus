@@ -4,12 +4,15 @@ import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.review.ReviewMigration
 import com.ibrahimdans.i18n.plugin.review.ReviewSpot
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationRow
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
-import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.sourcesOf
 import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.json.psi.JsonProperty
@@ -20,7 +23,6 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.UndoConfirmationPolicy
 import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.openapi.components.service
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
@@ -54,6 +56,10 @@ import javax.swing.table.DefaultTableModel
  * `ReferencesSearch` on the property compares against the property itself, so the
  * answer was always "no reference". It is now [DynamicKeyUsages], asked once by the
  * scan, so the preview and the table agree on the same set of orphans.
+ *
+ * In a monorepo (two modules or more), the scan runs module by module: a key is an orphan of a
+ * module when that module's code does not use it, whatever another module's code does, and it is
+ * deleted from that module's files only.
  */
 class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
 
@@ -70,12 +76,11 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.cleanup.progress.title"), false) {
             override fun run(indicator: ProgressIndicator) {
                 indicator.text = PluginBundle.message("action.cleanup.progress.loading")
-                val rows = viewModel.loadRows(project)
-
-                indicator.text = PluginBundle.message("action.cleanup.progress.counting", rows.size)
-                val candidates = viewModel.countUsages(project, rows).filter { it.usageCount == 0 }
-
-                val orphans = candidates
+                val orphans = orphans(project, viewModel) { rows ->
+                    indicator.text = PluginBundle.message("action.cleanup.progress.counting", rows)
+                }
+                // A key orphaned in several modules is one row per module, told apart by its module.
+                val labels = orphans.associateBy { (module, row) -> if (module == null) row.key else "${row.key} — ${module.name}" }
 
                 ApplicationManager.getApplication().invokeLater {
                     if (orphans.isEmpty()) {
@@ -86,11 +91,12 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
                         )
                         return@invokeLater
                     }
-                    val dialog = CleanupPreviewDialog(project, orphans.map { it.key to it.values.size })
+                    val dialog = CleanupPreviewDialog(project, labels.map { (label, orphan) -> label to orphan.second.values.size })
                     if (dialog.showAndGet()) {
-                        val selected = dialog.selectedKeys()
+                        val selected = dialog.selectedKeys().mapNotNull(labels::get)
                         if (selected.isNotEmpty()) {
-                            val deletedEntries = deleteKeys(project, selected)
+                            val deletedEntries = selected.groupBy({ it.first }, { it.second.key })
+                                .entries.sumOf { (module, keys) -> deleteKeys(project, keys, module) }
                             Messages.showInfoMessage(
                                 project,
                                 PluginBundle.message("action.cleanup.done", selected.size, deletedEntries),
@@ -104,6 +110,25 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
     }
 
     // ── Detection (read actions) ──────────────────────────────────────────────
+
+    /**
+     * The keys no code uses, each with the module it was scanned in: every module with a root
+     * directory in a monorepo, the whole project (a null module) otherwise. [counting] is told how
+     * many rows are about to be counted.
+     */
+    internal fun orphans(
+        project: Project,
+        viewModel: TableViewModel = TableViewModel(),
+        counting: (Int) -> Unit = {},
+    ): List<Pair<ModuleConfig?, TranslationRow>> {
+        val modules = Settings.getInstance(project).config().modules.filter { it.rootDirectory.isNotBlank() }
+        val scopes = if (modules.size < 2) listOf(null) else modules
+        return scopes.flatMap { module ->
+            val rows = viewModel.loadRows(project, module)
+            counting(rows.size)
+            viewModel.countUsages(project, rows, module).filter { it.usageCount == 0 }.map { module to it }
+        }
+    }
 
     /**
      * Resolves [key] in every matching localization source and returns the
@@ -135,10 +160,10 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
      * reviews of the deleted keys included ([ReviewMigration]).
      * Pure of any UI (testable); returns the number of deleted locale entries.
      */
-    internal fun deleteKeys(project: Project, keys: List<String>): Int {
+    internal fun deleteKeys(project: Project, keys: List<String>, module: ModuleConfig? = null): Int {
         val (properties, reviews) = ReadAction.compute<Pair<List<PsiElement>, List<ReviewSpot>>, RuntimeException> {
-            // One source load for the whole batch, not one per key.
-            val sources = project.service<LocalizationSourceService>().findAllSources(project)
+            // One source load for the whole batch, not one per key; [module]'s files only.
+            val sources = ModuleSources.sourcesOf(project, module)
             val config = Settings.getInstance(project).config()
             val found = keys.flatMap { leafProperties(sources, it, config) }
             found to ReviewMigration.spotsOf(found)

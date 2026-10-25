@@ -4,19 +4,21 @@ import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.IdeI18nRegistry
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.DynamicKeyUsages
 import com.ibrahimdans.i18n.plugin.tree.KeyComposer
 import com.ibrahimdans.i18n.plugin.tree.Separators
 import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
 import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.ibrahimdans.i18n.plugin.utils.keyScopeOf
+import com.ibrahimdans.i18n.plugin.utils.usageScope
 import com.intellij.json.psi.JsonProperty
 import com.intellij.openapi.application.ReadAction
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiPolyVariantReference
+import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.parents
@@ -27,6 +29,9 @@ import com.intellij.util.Processor
  * call sites naming it without a reference ([IndirectKeyUsages]), the keys the code builds at
  * runtime that may reach it, and the keys the project keeps. Shared by *Unused translation key* and
  * the usage count shown above each key, so both agree on what "used" means.
+ *
+ * In a monorepo, only the code of the module owning the key's file counts ([ModuleSources.usageScope]):
+ * a key `apps/admin` alone uses is unused in `apps/web`'s file.
  */
 internal object TranslationKeyUsages : KeyComposer<PsiElement> {
 
@@ -42,7 +47,7 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
      */
     fun count(declaration: PsiElement, named: PsiElement, limit: Int = Int.MAX_VALUE): Int {
         val found = linkedSetOf<PsiElement>()
-        ReferencesSearch.search(declaration).forEach(Processor {
+        ReferencesSearch.search(declaration, scopeOf(declaration)).forEach(Processor {
             if (it.element !is JsonProperty) found += it.element
             found.size < limit
         })
@@ -74,7 +79,7 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
             val config = Settings.getInstance(project).config()
             DynamicKeyUsages.isReached(
                 keyOf(element, config),
-                config.searchScope(project),
+                scopeOf(element),
                 PsiSearchHelper.getInstance(project),
                 config.nsSeparator,
                 config.keySeparator,
@@ -96,13 +101,13 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
             val project = element.project
             val config = Settings.getInstance(project).config()
             val key = keyOf(element, config)
+            val scope = scopeOf(element)
             IndirectKeyUsages.textCount(
-                key, config, config.searchScope(project), PsiSearchHelper.getInstance(project),
+                key, config, scope, PsiSearchHelper.getInstance(project),
                 FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry),
             )
                 .takeIf { it > 0 }
-                ?: IndirectKeyUsages.prefixedCounts(project, listOf(key), config)[key]
-                ?: 0
+                ?: IndirectKeyUsages.prefixedUsages(project, listOf(key), config)[key].orEmpty().count { it.isIn(scope) }
         }
 
     /**
@@ -115,6 +120,10 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
             val keepList = KeepList.of(config)
             !keepList.isEmpty() && keepList.matches(keyOf(element, config))
         }
+
+    /** Where the code using [element]'s key is searched: its module's, in a monorepo. */
+    private fun scopeOf(element: PsiElement): GlobalSearchScope =
+        ModuleSources.usageScope(element.project, element.containingFile?.virtualFile)
 
     /** The full key [element] declares, written the way the code would name it. */
     fun keyOf(element: PsiElement, config: Config): String {
@@ -139,3 +148,7 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
             TranslationPsi.nameOf(it) ?: (it as? PsiFile)?.name?.substringBeforeLast(".")
         }.toList().reversed()
 }
+
+/** True when [this] lies in a file [scope] holds: the prefix scan searches the whole project. */
+internal fun PsiElement.isIn(scope: GlobalSearchScope): Boolean =
+    containingFile?.virtualFile?.let(scope::contains) == true

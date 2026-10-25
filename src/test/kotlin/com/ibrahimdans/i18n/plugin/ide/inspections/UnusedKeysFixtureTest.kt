@@ -4,14 +4,17 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.actions.CleanupUnusedKeysAction
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationKeyUsages
 import com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection
+import com.ibrahimdans.i18n.plugin.ide.references.translation.TranslationToCodeReference
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.rules.EditorRuleState
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
+import com.intellij.json.psi.JsonFile
 import com.intellij.json.psi.JsonProperty
 import com.intellij.openapi.application.ReadAction
+import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -24,8 +27,8 @@ import org.junit.jupiter.api.Test
  *
  * - **inspection**: *Unused translation key*, which comes with a *Delete* quick fix;
  * - **scan**: the orphan scan behind *Scan Orphans* in the table, per module when modules exist;
- * - **cleanup**: the candidates *Cleanup Unused Keys* offers for deletion — the same scan over the
- *   whole project — and the deletion itself.
+ * - **cleanup**: the candidates *Cleanup Unused Keys* offers for deletion — the same scan, module by
+ *   module in a monorepo — and the deletion itself.
  *
  * Each case asserts both directions: the true orphans are reported, and the keys that are used
  * although no code names them outright are **never** offered for deletion. A gap is a `@Disabled`
@@ -100,12 +103,16 @@ class UnusedKeysFixtureTest : PlatformBaseTest() {
     }
 
     private fun scanOrphans(module: ModuleConfig? = null): Set<String> =
-        viewModel.countUsages(project, viewModel.loadRows(project, module))
+        viewModel.countUsages(project, viewModel.loadRows(project, module), module)
             .filter { it.usageCount == 0 }
             .mapTo(sortedSetOf()) { it.key }
 
-    /** What [CleanupUnusedKeysAction] offers: the scan over the whole project, modules or not. */
-    private fun cleanupCandidates(): Set<String> = scanOrphans(module = null)
+    /** What [CleanupUnusedKeysAction] offers, keys only. */
+    private fun cleanupCandidates(): Set<String> = cleanupOrphans().mapTo(sortedSetOf()) { it.second }
+
+    /** What [CleanupUnusedKeysAction] offers: (module name, key), the module null without modules. */
+    private fun cleanupOrphans(): Set<Pair<String?, String>> =
+        CleanupUnusedKeysAction().orphans(project, viewModel).mapTo(mutableSetOf()) { (module, row) -> module?.name to row.key }
 
     private fun keysOnDisk(module: ModuleConfig? = null): Set<String> = viewModel.loadRows(project, module).mapTo(sortedSetOf()) { it.key }
 
@@ -228,24 +235,50 @@ class UnusedKeysFixtureTest : PlatformBaseTest() {
     @Test
     fun `monorepo - a key unused in its module is offered`() = withMonorepo {
         assertTrue("common:webDead" in scanOrphans(web))
-        assertTrue("common:webDead" in cleanupCandidates())
-        assertTrue("common:bothDead" in cleanupCandidates())
+        assertTrue("web" to "common:webDead" in cleanupOrphans())
+        assertTrue("web" to "common:bothDead" in cleanupOrphans())
+        assertTrue("admin" to "common:bothDead" in cleanupOrphans())
     }
 
-    /**
-     * `orphan` is unused in web but used in admin, under the same key. The usage search is not
-     * scoped to a module, so neither path offers web's copy: missed, but on the safe side.
-     */
+    /** `orphan` is unused in web but used in admin, under the same key: web's copy is the orphan. */
     @Test
-    fun `monorepo - a key another module uses under the same name is not offered`() = withMonorepo {
-        assertFalse("common:orphan" in scanOrphans(web))
+    fun `monorepo - a key only another module uses is an orphan of its own module`() = withMonorepo {
+        assertTrue("common:orphan" in scanOrphans(web))
         assertFalse("common:orphan" in scanOrphans(admin))
-        assertFalse("common:orphan" in cleanupCandidates())
+        assertEquals(
+            setOf("web" to "common:bothDead", "web" to "common:orphan", "web" to "common:webDead", "admin" to "common:bothDead"),
+            cleanupOrphans(),
+        )
+    }
+
+    @Test
+    fun `monorepo - the inspection reports a key only another module uses`() = withMonorepo {
+        assertEquals(
+            sortedSetOf("common:bothDead", "common:orphan", "common:webDead"),
+            inspectionReports("apps/web/locales/en/common.json"),
+        )
+        assertEquals(sortedSetOf("common:bothDead"), inspectionReports("apps/admin/locales/en/common.json"))
+    }
+
+    /** Ctrl+click on a key of web's file lists web's call site, not admin's. */
+    @Test
+    fun `monorepo - the usages of a key are those of its own module`() = withMonorepo {
+        fun usagesOf(file: String, key: String): List<String> = ReadAction.compute<List<String>, RuntimeException> {
+            val json = PsiManager.getInstance(project).findFile(myFixture.findFileInTempDir(file)) as JsonFile
+            val property = PsiTreeUtil.findChildrenOfType(json, JsonProperty::class.java).single { it.name == key }
+            property.nameElement.references.filterIsInstance<TranslationToCodeReference>()
+                .flatMap { it.findRefs() }
+                .mapNotNull { it.containingFile?.virtualFile?.path?.substringAfter("/apps/") }
+        }
+
+        assertEquals(listOf("web/src/App.tsx"), usagesOf("apps/web/locales/en/common.json", "title").distinct())
+        assertEquals(listOf("admin/src/App.tsx"), usagesOf("apps/admin/locales/en/common.json", "title").distinct())
+        assertEquals(emptyList<String>(), usagesOf("apps/web/locales/en/common.json", "orphan"))
     }
 
     @Test
     fun `monorepo - deleting an orphan of one module leaves the other module alone`() = withMonorepo {
-        CleanupUnusedKeysAction().deleteKeys(project, listOf("common:webDead"))
+        CleanupUnusedKeysAction().deleteKeys(project, listOf("common:webDead"), web)
 
         assertFalse("common:webDead" in keysOnDisk(web))
         assertEquals(setOf("common:adminOnly", "common:bothDead", "common:orphan", "common:title"), keysOnDisk(admin))
