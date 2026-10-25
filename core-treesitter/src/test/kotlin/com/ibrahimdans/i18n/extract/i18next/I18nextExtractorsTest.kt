@@ -94,6 +94,31 @@ class I18nextExtractorsTest {
     }
 
     @Test
+    fun `a nested scope's own hook hides the enclosing one`() {
+        val source = """
+            function Outer() {
+              const { t } = useTranslation('outer');
+              const Inner = () => { const { t } = useTranslation('inner'); return t('a'); };
+              return t('b');
+            }
+        """.trimIndent()
+
+        assertEquals(listOf(literal("a", listOf("inner")), literal("b", listOf("outer"))), keys(source))
+    }
+
+    /** The extractors keep the hooks of the file they read: the next file must not see them. */
+    @Test
+    fun `the same extractors read each file with its own hooks`() {
+        val extractors = i18nextExtractors()
+        fun read(source: String) = findKeys(TreeSitterCodeNode.parseTsx(source), extractors).map { it.key }
+        val component = "export function A() { const { t } = useTranslation('%s'); return t('k'); }"
+
+        assertEquals(listOf(literal("k", listOf("first"))), read(component.format("first")))
+        assertEquals(listOf(literal("k", listOf("second"))), read(component.format("second")))
+        assertEquals(listOf(literal("k")), read("export function A() { return t('k'); }"))
+    }
+
+    @Test
     fun `i18n t takes no hook namespace`() {
         assertEquals(listOf(literal("a")), keys("const A = () => { const { t, i18n } = useTranslation('common'); return i18n.t('a'); };"))
     }

@@ -15,10 +15,14 @@ import org.treesitter.TreeSitterTsx
  * tree-sitter counts UTF-8 bytes, [CodeNode.span] counts chars: [Source] converts. Two adapters are
  * equal when they wrap the same node of the same parsed file — the binding re-creates its node
  * objects on each access, so the node's id decides, never the Java reference.
+ *
+ * A child keeps the adapter it was reached from as its [parent]: walking back up then lands on
+ * the nodes already built, their [children] included, instead of wrapping each ancestor anew.
  */
 class TreeSitterCodeNode private constructor(
     private val node: TSNode,
     private val source: Source,
+    private val knownParent: TreeSitterCodeNode? = null,
 ) : CodeNode {
 
     override val type: String by lazy(LazyThreadSafetyMode.NONE) { node.type }
@@ -29,11 +33,12 @@ class TreeSitterCodeNode private constructor(
 
     override val text: String get() = source.text.substring(span.start, span.end)
 
-    override val parent: CodeNode?
-        get() = node.parent.takeUnless { it.isNull }?.let { TreeSitterCodeNode(it, source) }
+    override val parent: CodeNode? by lazy(LazyThreadSafetyMode.NONE) {
+        knownParent ?: node.parent.takeUnless { it.isNull }?.let { TreeSitterCodeNode(it, source) }
+    }
 
     override val children: List<CodeNode> by lazy(LazyThreadSafetyMode.NONE) {
-        (0 until node.childCount).map { TreeSitterCodeNode(node.getChild(it), source) }
+        (0 until node.childCount).map { TreeSitterCodeNode(node.getChild(it), source, this) }
     }
 
     override val file: String? get() = source.file

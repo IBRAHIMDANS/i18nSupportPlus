@@ -12,10 +12,16 @@ import com.ibrahimdans.i18n.plugin.utils.KeyElement
  * The plugin's `ReactUseTranslationHookExtractor` and `StringLiteralKeyExtractor` in one: when the
  * `t` called is bound by `const { t } = useTranslation(ns, { keyPrefix })`, the key takes the hook's
  * namespaces and key prefix; an explicit `t(key, { ns })` option overrides the namespaces either way.
+ *
+ * The hook bindings of the file being read are kept until a node of another file comes: one walk
+ * per scope, not one per call.
  */
 class TranslationCallKeyExtractor(private val functionNames: Set<String> = I18NEXT_FUNCTIONS) : CodeKeyExtractor {
 
     override fun canExtract(node: CodeNode): Boolean = node.isQuotedString() && translationCallOf(node, functionNames) != null
+
+    @Volatile
+    private var bindings: HookBindings? = null
 
     override fun extract(node: CodeNode): RawKey? {
         if (!node.isQuotedString()) return null
@@ -30,6 +36,12 @@ class TranslationCallKeyExtractor(private val functionNames: Set<String> = I18NE
             namespacesOption(call).ifEmpty { stringsOf(hookArguments.firstOrNull()) },
             listOfNotNull(prefix?.let(KeyElement::literal)),
         )
+    }
+
+    private fun hookOf(call: CodeNode): CodeNode? {
+        val (scopes, root) = scopesAround(call)
+        val current = bindings?.takeIf { it.root == root } ?: HookBindings(root).also { bindings = it }
+        return current.hookOf(call, scopes)
     }
 }
 

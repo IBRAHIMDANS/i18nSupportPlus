@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.extract.i18next
 
 import com.ibrahimdans.i18n.plugin.parser.CodeNode
 import com.ibrahimdans.i18n.plugin.utils.unQuote
+import java.util.concurrent.ConcurrentHashMap
 
 // What the extractors read of tree-sitter's TSX tree. CodeNode has no field names, so a node's
 // parts are found by position and type, the way the grammar lays them out.
@@ -88,15 +89,41 @@ internal fun propertyOf(node: CodeNode?, name: String): CodeNode? {
 internal fun namespacesOption(call: CodeNode): List<String> = stringsOf(propertyOf(call.arguments().getOrNull(1), "ns"))
 
 /**
- * The `useTranslation(…)` call whose result binds [call]'s function, `const { t } = useTranslation()`,
- * in the nearest enclosing scope that declares one — what the plugin's
- * `ReactUseTranslationHookExtractor` finds by resolving `t`. Null for a qualified call, `i18n.t`.
+ * The `useTranslation(…)` calls of one parsed file, by scope: what the plugin's
+ * `ReactUseTranslationHookExtractor` finds by resolving `t`.
+ *
+ * Each scope's declarators are read once, on its first call, rather than on every call of `t`
+ * in it: that walk re-created the scope's nodes each time, the indexing cost growing with
+ * calls × scope size. Safe to share between threads: a scope read twice at once reads the same.
  */
-internal fun hookOf(call: CodeNode): CodeNode? {
-    val callee = call.children.firstOrNull()?.takeIf { it.type == IDENTIFIER } ?: return null
-    return generateSequence(call.parent) { it.parent }
-        .filter { it.type in SCOPES }
-        .firstNotNullOfOrNull { scope -> declaratorsOf(scope).firstNotNullOfOrNull { hookBinding(it, callee.text) } }
+internal class HookBindings(val root: CodeNode) {
+
+    private val byScope = ConcurrentHashMap<CodeNode, Map<String, CodeNode>>()
+
+    /**
+     * The hook call binding [call]'s function, `const { t } = useTranslation()`, in the nearest
+     * enclosing scope that declares one. Null for a qualified call, `i18n.t`.
+     */
+    fun hookOf(call: CodeNode, scopes: List<CodeNode>): CodeNode? {
+        val callee = call.children.firstOrNull()?.takeIf { it.type == IDENTIFIER } ?: return null
+        return scopes.firstNotNullOfOrNull { scope -> byScope.getOrPut(scope) { bindingsOf(scope) }[callee.text] }
+    }
+
+    /** Each name a declarator of [scope] binds to a hook call, the first declarator winning. */
+    private fun bindingsOf(scope: CodeNode): Map<String, CodeNode> {
+        val bindings = mutableMapOf<String, CodeNode>()
+        for (declarator in declaratorsOf(scope)) {
+            val (names, hook) = hookBinding(declarator) ?: continue
+            for (name in names) bindings.putIfAbsent(name, hook)
+        }
+        return bindings
+    }
+}
+
+/** The scopes around [node], nearest first, and the root of its file. */
+internal fun scopesAround(node: CodeNode): Pair<List<CodeNode>, CodeNode> {
+    val ancestors = generateSequence(node.parent) { it.parent }.toList()
+    return ancestors.filter { it.type in SCOPES } to (ancestors.lastOrNull() ?: node)
 }
 
 /** The variable declarators of [scope], not those of the functions nested in it. */
@@ -109,10 +136,10 @@ private fun declaratorsOf(scope: CodeNode): Sequence<CodeNode> = sequence {
     }
 }
 
-/** The hook call of `const { t } = useTranslation(…)` when [declarator] is one binding [name]. */
-private fun hookBinding(declarator: CodeNode, name: String): CodeNode? {
+/** The names `const { t, i18n } = useTranslation(…)` binds and its hook call, null for any other declarator. */
+private fun hookBinding(declarator: CodeNode): Pair<List<String>, CodeNode>? {
     val parts = declarator.children
     val pattern = parts.firstOrNull()?.takeIf { it.type == OBJECT_PATTERN } ?: return null
-    if (pattern.children.none { it.type == SHORTHAND_PATTERN && it.text == name }) return null
-    return parts.lastOrNull()?.takeIf { it.type == CALL_EXPRESSION && it.calleeText() == USE_TRANSLATION }
+    val hook = parts.lastOrNull()?.takeIf { it.type == CALL_EXPRESSION && it.calleeText() == USE_TRANSLATION } ?: return null
+    return pattern.children.filter { it.type == SHORTHAND_PATTERN }.map { it.text } to hook
 }
