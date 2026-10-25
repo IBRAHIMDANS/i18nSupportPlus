@@ -53,8 +53,8 @@ A setup wizard auto-configures it on first launch, a module per application in a
 | next-intl | `const t = useTranslations('Home')` (or `await getTranslations('Home')`) then `t('title')`, read as the key `Home.title`; `t.rich('terms', { … })`, `t.markup`, `t.raw` (an object or an array is a value) and `t.has` (a usage, never reported missing) | No |
 | lingui (`@lingui/core`, `@lingui/react`, `@lingui/macro`) | `msg('key')`, `i18n._('key')`, source-based `<Trans>Hello world!</Trans>` | No |
 | react-intl (FormatJS) | `formatMessage({ id: 'key' })`, `<FormattedMessage id="key" />` | No |
-| ngx-translate (Angular) | `translate.instant('key')`, `.get('key')`, `.stream('key')`, `{{ 'key' \| translate }}` <sup>1</sup> | No |
-| Transloco (Angular) | `translocoService.translate('key')`, `.selectTranslate('key')`, `{{ 'key' \| transloco }}` <sup>1</sup>, `*transloco="let t"` then `t('key')` <sup>4</sup> | No |
+| ngx-translate (Angular) | `translate.instant('key')`, `.get('key')`, `.stream('key')`, `{{ 'key' \| translate }}` <sup>1</sup>, `<p translate>key</p>`, `translate="key"`, `[translate]="'key'"` | No |
+| Transloco (Angular) | `translocoService.translate('key')`, `.selectTranslate('key')`, standalone `translate('key')` and `translateSignal('key')`, `{{ 'key' \| transloco }}` <sup>1</sup>, `transloco="key"`, `[transloco]="'key'"`, `*transloco="let t"` or `<ng-template transloco let-t>` then `t('key')` <sup>4</sup> | No |
 | svelte-i18n | `$_('key')`, `$t`, `$format`, `$_({ id: 'key' })`, `$json('prefix')`, `_('key')` <sup>2</sup> | No |
 | i18n-js (React Native / Expo) | `t('key')`, `i18n.t('key')`, plain locale-keyed TS/JS catalogues, nested plurals <sup>3</sup> | No |
 | Paraglide JS (inlang) | `m.hello()`, `m["user.profile.title"]()`, once the file imports `m` from `…/paraglide/messages.js` <sup>5</sup> | Yes, `project.inlang/settings.json` |
@@ -68,7 +68,7 @@ A setup wizard auto-configures it on first launch, a module per application in a
 
 <sup>3</sup> i18n-js pluralizes into a nested object (`{ one: …, other: … }`) rather than through i18next's flat `key_one` suffixes; such a key is treated as resolved. Its `%{count}` placeholders are displayed verbatim, as the plugin interprets no interpolation syntax.
 
-<sup>4</sup> Transloco's service calls are recognised when the object they are called on names the service (`translocoService`, `transloco`): `translate` alone is too common a method name. Scoped keys resolve in their scope file: `admin.title` reads the key `title` of `i18n/admin/en.json`, a folder named after its scope next to the global locale files. The first segment is read as a scope only when such a folder exists, and only in a Transloco project. A scope set by the directive (`*transloco="let t; read: 'admin'"`, then `t('title')`) is read; the `[translocoRead]` input is not.
+<sup>4</sup> Transloco's service calls are recognised when the object they are called on names the service (`translocoService`, `transloco`): `translate` alone is too common a method name, and a bare `translate('key')` is Transloco's only in a file importing `@jsverse/transloco`. Scoped keys resolve in their scope file: `admin.title` reads the key `title` of `i18n/admin/en.json`, a folder named after its scope next to the global locale files. The first segment is read as a scope only when such a folder exists, and only in a Transloco project; a key naming no scope is never looked up in a scope file. A scope set by the directive is read: `*transloco="let t; read: 'admin'"` or `prefix: 'admin'`, then `t('title')`, and `[translocoRead]` / `[translocoPrefix]` bound to a string literal on `<ng-template transloco let-t>`.
 
 <sup>5</sup> Paraglide compiles each message into a function, so the key is the
 member of the message object, not a string. It is read in a file importing that object from a path ending in `paraglide/messages` — `{ m }`,

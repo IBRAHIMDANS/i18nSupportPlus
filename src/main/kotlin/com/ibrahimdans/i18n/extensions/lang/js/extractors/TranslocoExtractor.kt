@@ -1,5 +1,7 @@
 package com.ibrahimdans.i18n.extensions.lang.js.extractors
 
+import com.ibrahimdans.i18n.extensions.lang.js.AngularDirectiveExtractor
+import com.ibrahimdans.i18n.extensions.lang.js.importsPackage
 import com.ibrahimdans.i18n.extensions.technology.transloco.TranslocoScopes
 import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.RawKey
@@ -14,12 +16,19 @@ import com.intellij.psi.xml.XmlTag
 
 private val TRANSLOCO_METHODS = setOf("translate", "selectTranslate")
 
+/** The functions `@jsverse/transloco` exports for use outside a template, in an injection context. */
+private val TRANSLOCO_FUNCTIONS = setOf("translate", "translateSignal")
+
+private val TRANSLOCO_PACKAGES = listOf("@jsverse/transloco", "@ngneat/transloco")
+
 /**
  * The key of a Transloco service call: `this.translocoService.translate('key')`,
- * `transloco.selectTranslate('key')`.
+ * `transloco.selectTranslate('key')`, and of the standalone functions `translate('key')` and
+ * `translateSignal('key')`.
  *
- * Like [NgxTranslateExtractor], the call is told apart by its qualifier, which must name the
- * service (`transloco` in it, any case): `translate` alone is too common a method name to claim.
+ * Like [NgxTranslateExtractor], a service call is told apart by its qualifier, which must name the
+ * service (`transloco` in it, any case): `translate` alone is too common a method name to claim. For
+ * the same reason a bare `translate('key')` is Transloco's only in a file importing Transloco.
  */
 class TranslocoExtractor : KeyExtractor {
 
@@ -28,8 +37,9 @@ class TranslocoExtractor : KeyExtractor {
         val call = PsiTreeUtil.getParentOfType(element, JSCallExpression::class.java) ?: return false
         if (call.arguments.firstOrNull() !== element) return false
         val method = call.methodExpression as? JSReferenceExpression ?: return false
+        val qualifier = method.qualifier?.text
+            ?: return method.referenceName in TRANSLOCO_FUNCTIONS && TRANSLOCO_PACKAGES.any { importsPackage(it, element) }
         if (method.referenceName !in TRANSLOCO_METHODS) return false
-        val qualifier = method.qualifier?.text ?: return false
         return qualifier.contains("transloco", ignoreCase = true)
     }
 
@@ -38,6 +48,13 @@ class TranslocoExtractor : KeyExtractor {
         return RawKey(listOf(KeyElement.literal(value)))
     }
 }
+
+/**
+ * The key of Transloco's attribute directive: `<span transloco="home.title">` and
+ * `<span [transloco]="'home.title'">`. The structural `<ng-template transloco let-t>` gives it no
+ * value, and holds no key.
+ */
+class TranslocoDirectiveExtractor : AngularDirectiveExtractor("transloco")
 
 /**
  * The key of `{{ 'key' | transloco }}` in an Angular template, recognised like
@@ -79,6 +96,11 @@ class TranslocoPipeExtractor : KeyExtractor {
  * (`<ng-container *transloco="let t" [translocoRead]="'admin'">`), read only when its value is a
  * string literal: a bound expression is not known before runtime, and the call is then left to the
  * generic `t` extraction. A `read:` in the directive wins over the input.
+ *
+ * Transloco 8 renames `read` to `prefix` (`prefix: 'admin'`, `[translocoPrefix]`): both are read the
+ * same. And the input is only accepted by Angular on the directive's own tag, which the `*transloco`
+ * sugar is not — `<ng-template transloco let-t [translocoRead]="'admin'">` is the form that compiles
+ * (NG8002 otherwise), so a `transloco` attribute publishing its function through `let-t` counts too.
  */
 class TranslocoReadExtractor : KeyExtractor {
 
@@ -114,15 +136,17 @@ class TranslocoReadExtractor : KeyExtractor {
         return (READ.find(directive)?.groupValues?.get(2) ?: readInputOf(tag))?.takeIf { it.isNotBlank() }
     }
 
-    /** Whether the `*transloco` of [tag] publishes a function called [name]. */
+    /** Whether the directive of [tag] — `*transloco="let t"`, or `transloco` with `let-t` — publishes a function called [name]. */
     private fun publishes(tag: XmlTag, name: String): Boolean {
+        // Searched by name: `getAttribute("let-t")` finds no Angular `let-` declaration.
+        if (tag.getAttribute(TEMPLATE_DIRECTIVE) != null && tag.attributes.any { it.name == "let-$name" }) return true
         val value = tag.getAttribute(DIRECTIVE)?.value ?: return false
         return LET.findAll(value).any { match -> match.groupValues[1] == name }
     }
 
-    /** The `[translocoRead]` of [tag] when it binds a string literal (`"'admin'"`), or null. */
+    /** The `[translocoRead]` or `[translocoPrefix]` of [tag] when it binds a string literal (`"'admin'"`), or null. */
     private fun readInputOf(tag: XmlTag): String? {
-        val value = tag.getAttribute(READ_INPUT)?.value?.trim() ?: return null
+        val value = READ_INPUTS.firstNotNullOfOrNull { tag.getAttribute(it)?.value?.trim() } ?: return null
         return LITERAL.matchEntire(value)?.groupValues?.get(2)
     }
 
@@ -136,9 +160,10 @@ class TranslocoReadExtractor : KeyExtractor {
 
     private companion object {
         const val DIRECTIVE = "*transloco"
+        const val TEMPLATE_DIRECTIVE = "transloco"
         val LET = Regex("""\blet\s+([\w$]+)""")
-        val READ = Regex("""\bread\s*:\s*(['"])(.*?)\1""")
-        const val READ_INPUT = "[translocoRead]"
+        val READ = Regex("""\b(?:read|prefix)\s*:\s*(['"])(.*?)\1""")
+        val READ_INPUTS = listOf("[translocoRead]", "[translocoPrefix]")
         val LITERAL = Regex("""(['"])([^'"]*)\1""")
     }
 }

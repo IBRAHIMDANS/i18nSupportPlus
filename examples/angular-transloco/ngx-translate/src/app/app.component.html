@@ -10,6 +10,10 @@
 </nav>
 
 <p>{{ 'home.onlyInEnglish' | translate }}</p>
+<!-- The attribute directive: the element's text, and a bound key. `translate="no"` is HTML's own attribute. -->
+<p translate>menu.settings.title</p>
+<p [translate]="'cart.cleared'"></p>
+<p translate="no">ngx-translate</p>
 <!-- On purpose: no locale file holds this key. -->
 <p>{{ 'home.doesNotExist' | translate }}</p>
 

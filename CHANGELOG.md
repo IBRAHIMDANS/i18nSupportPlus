@@ -6,6 +6,7 @@
 
 - [Monorepo] **Work on one application at a time**: each module has an *Active* box, and the tool window's module selector lists the modules set aside and offers *Focus on This Module* and *Activate All Modules* (also under *Tools › i18n Support Plus*), with *Undo*
 - [next-intl] **`t.rich`, `t.markup`, `t.raw` and `t.has` are read**: their keys are checked, completed, folded and navigable like `t('key')`; `t.raw` may point at an object, and `t.has` is never reported missing
+- [Angular] **Attribute directives and Transloco's newer API are read**: `transloco="key"`, `[transloco]="'key'"`, `<p translate>key</p>` and `[translate]="'key'"`, Transloco's standalone `translate()` and `translateSignal()`, `prefix:` and `[translocoRead]` / `[translocoPrefix]` on `<ng-template transloco let-t>` are checked, completed and navigable (`<p translate>key</p>` is checked and completed); keys are also completed before `| translate` and `| transloco`
 - [svelte-i18n] **`$t`, `$format`, `$json` and `$_({ id })` are read**: the aliases of `$_` and the descriptor form are checked, completed and navigable like `$_('key')`, and `$json('nav')` may point at an object
 - [Laravel] **Values folded and shown as inlay hints, keys renamed in the PHP arrays**: `__()`, `trans()`, `trans_choice()`, the translator and Blade's `@lang`, `@choice` and `{{ __() }}` show their value in place; Shift+F6 renames the key in `lang/<locale>/<file>.php` of every locale as well as its calls
 - [React Intl] **Navigate, rename and extract with react-intl's own calls**: Ctrl+click, Find Usages and Shift+F6 work on the ids of `<FormattedMessage>`, `formatMessage` and `defineMessages`; *Extract I18n* writes `<FormattedMessage id="…" />` or `intl.formatMessage(…)` and adds the import, and *Internationalize…* gives a component its `useIntl()`
@@ -19,6 +20,7 @@
 
 ### Fixes
 
+- [Transloco] **A key naming no scope is no longer found in a scope's files**: `'title' | transloco` is reported when only `i18n/admin/en.json` holds `title`, as Transloco needs `admin.title` there
 - [Monorepo] **Each application's keys are checked against its own files** ([#620](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/620)): the setup wizard now roots a module at its application (the folder of its `package.json` or `composer.json`) and gives it its framework; usages, unused keys, *Cleanup Unused Keys* and *Sync Keys* work per module; an attached project with no module is no longer read. Modules already configured are not changed: set their root directory to the application's folder
 - [Settings] **Ignored locales are ignored everywhere** ([#620](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/620)): the gutter, *Create missing keys*, the plural forms inspection, *Sync Keys* and the AI agents' tools no longer ask for a locale listed in *Locales not checked for missing keys*
 - [Settings] ***First component as namespace* works again**: with it ticked, `t('common.title')` is looked up in the `common` file

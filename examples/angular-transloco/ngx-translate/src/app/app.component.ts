@@ -1,11 +1,11 @@
 import { Component, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Title } from '@angular/platform-browser';
-import { TranslatePipe, TranslateService } from '@ngx-translate/core';
+import { TranslateDirective, TranslatePipe, TranslateService } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-root',
-  imports: [TranslatePipe],
+  imports: [TranslateDirective, TranslatePipe],
   templateUrl: './app.component.html',
 })
 export class AppComponent {

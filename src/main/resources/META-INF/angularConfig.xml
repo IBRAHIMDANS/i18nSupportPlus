@@ -15,7 +15,13 @@
     <extensions defaultExtensionNs="com.intellij">
         <annotator language="Angular2" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.AngularCompositeKeyAnnotator"/>
         <psi.referenceContributor language="Angular2" implementation="com.ibrahimdans.i18n.extensions.lang.js.JsReferenceContributor"/>
-        <completion.contributor language="Angular2" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompletionContributor"/>
+        <psi.referenceContributor language="Angular2" implementation="com.ibrahimdans.i18n.extensions.lang.js.AngularDirectiveReferenceContributor"/>
+        <completion.contributor language="Angular2" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.AngularCompletionContributor"/>
+        <!-- The template's markup: the attribute directives written without binding, `transloco="key"`,
+             `<p translate>key</p>`. Angular2Html is the base of every Angular template dialect. -->
+        <annotator language="Angular2Html" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.AngularCompositeKeyAnnotator"/>
+        <psi.referenceContributor language="Angular2Html" implementation="com.ibrahimdans.i18n.extensions.lang.js.AngularDirectiveReferenceContributor"/>
+        <completion.contributor language="Angular2Html" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.AngularCompletionContributor"/>
         <lang.foldingBuilder language="Angular2" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder"/>
         <lang.documentationProvider language="Angular2" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
     </extensions>

@@ -12,7 +12,13 @@
   <p>{{ t('home.onlyInEnglish') }}</p>
 </ng-container>
 
+<!-- The attribute directive, with a key written as is and bound. -->
+<p transloco="menu.settings.title"></p>
+<p [transloco]="'home.onlyInEnglish'"></p>
+
 <!-- On purpose: no locale file holds this key. -->
 <p>{{ 'home.doesNotExist' | transloco }}</p>
+<!-- On purpose: only the `admin` scope holds `title`, which Transloco reads as `admin.title`. -->
+<p>{{ 'title' | transloco }}</p>
 
 <app-admin-panel />
