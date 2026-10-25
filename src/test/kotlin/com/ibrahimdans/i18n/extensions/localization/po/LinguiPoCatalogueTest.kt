@@ -1,6 +1,8 @@
 package com.ibrahimdans.i18n.extensions.localization.po
 
+import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
@@ -9,7 +11,10 @@ import com.ibrahimdans.i18n.plugin.ide.launchActionAndWait
 import com.ibrahimdans.i18n.plugin.ide.quickfix.CreateKeyDialogQuickFix
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.intellij.openapi.actionSystem.DataContext
+import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.TestDialogManager
@@ -149,4 +154,39 @@ class LinguiPoCatalogueTest : PlatformBaseTest() {
         val nav = FileDocumentManager.getInstance().getDocument(myFixture.findFileInTempDir("src/Nav.tsx"))!!.text
         assertTrue(nav.contains("i18n._(\"nav.start\")"), nav)
     }
+
+    // ── Written without a call site: Sync Keys, Fill missing, import ──────────
+
+    /** Writes [key] into the French catalogue the way Sync Keys does: from the key's text alone. */
+    private fun syncIntoFrench(key: String) {
+        val french = ReadAction.compute<LocalizationSource, RuntimeException> {
+            project.service<LocalizationSourceService>().findAllSources(project).first { it.displayPath.endsWith(FRENCH.removePrefix("src/")) }
+        }
+        DialogViewModel(project).saveTranslation(french, KeysSynchronizer().buildFullKey(key, config), "Valeur")
+    }
+
+    private fun french(): String = FileDocumentManager.getInstance().getDocument(myFixture.findFileInTempDir(FRENCH))!!.text
+
+    @Test
+    fun aTransSourceTextCopiedFromAnotherLocaleStaysUnflagged() = withCatalogue("msgid \"Hello world!\"\nmsgstr \"Hello world!\"\n") {
+        myFixture.addFileToProject(FRENCH, HEADER)
+
+        syncIntoFrench("Hello world!")
+
+        val written = french()
+        assertTrue(written.contains("msgid \"Hello world!\"\nmsgstr \"Valeur\""), written)
+        assertFalse(written.contains("js-lingui-explicit-id"), "a source text is no explicit id: $written")
+    }
+
+    @Test
+    fun anExplicitIdCopiedFromAnotherLocaleStaysFlagged() = withCatalogue(
+        "#. js-lingui-explicit-id\n#: src/App.tsx:12\nmsgid \"nav.home\"\nmsgstr \"Home\"\n"
+    ) {
+        myFixture.addFileToProject(FRENCH, HEADER)
+
+        syncIntoFrench("nav.home")
+
+        assertTrue(french().contains("#. js-lingui-explicit-id\nmsgid \"nav.home\"\nmsgstr \"Valeur\""), french())
+    }
 }
+

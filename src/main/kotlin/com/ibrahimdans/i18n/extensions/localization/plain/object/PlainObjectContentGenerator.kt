@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.lang.Language
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.fileTypes.PlainTextFileType
@@ -33,6 +34,8 @@ class PlainObjectContentGenerator : ContentGenerator {
 
         /** The header `lingui extract` writes: `"X-Generator: @lingui/cli\n"`. */
         const val LINGUI_GENERATOR = "X-Generator: @lingui/"
+
+        val PO_EXTENSIONS = setOf("po", "pot")
     }
 
     private object PoFileType : FileType {
@@ -142,10 +145,45 @@ class PlainObjectContentGenerator : ContentGenerator {
         }
     }
 
+    /**
+     * In a Lingui catalogue, the entry is flagged as an explicit id the way the same entry is in
+     * another locale's catalogue; written in none yet, as the key's origin says ([FullKey.sourceText]).
+     *
+     * *Sync Keys*, *Fill missing* and the import build their key from its text alone: a `<Trans>`
+     * source text read that way looks like an id, and flagging it would leave the macro without
+     * its message. The catalogue it is copied from knows which it is.
+     */
     override fun generate(element: PsiElement, fullKey: FullKey, unresolved: List<Literal>, translationValue: String?) {
         val key = unresolved.joinToString(".") { it.text }
-        val explicitId = !fullKey.sourceText && isLinguiCatalogue(element)
+        val explicitId = isLinguiCatalogue(element) && (flaggedElsewhere(element, key) ?: !fullKey.sourceText)
         insertEntry(element, key, translationValue ?: "", explicitId)
+    }
+
+    /**
+     * Whether [key]'s entry is flagged as an explicit id in the catalogue of another locale, null
+     * when no other catalogue holds it. The other locales are the same file name in the sibling
+     * folders (`locales/fr/messages.po` for `locales/en/messages.po`) or the sibling PO files
+     * (`locales/fr.po` for `locales/en.po`).
+     */
+    private fun flaggedElsewhere(element: PsiElement, key: String): Boolean? {
+        val file = element.containingFile?.virtualFile ?: return null
+        val folder = file.parent ?: return null
+        val siblings = folder.children.filter { it.extension?.lowercase() in PO_EXTENSIONS } +
+            folder.parent?.children.orEmpty().mapNotNull { it.takeIf { dir -> dir.isDirectory && dir != folder }?.findChild(file.name) }
+        val msgid = key.escapePo()
+        return siblings.asSequence()
+            .filter { it != file }
+            .mapNotNull { FileDocumentManager.getInstance().getDocument(it)?.text }
+            .firstNotNullOfOrNull { text -> flagOf(text, msgid) }
+    }
+
+    /** Whether the entry of [msgid] (escaped) in [text] carries the explicit-id flag, null when [text] has no such entry. */
+    private fun flagOf(text: String, msgid: String): Boolean? {
+        val lines = text.split("\n")
+        val index = lines.indexOfFirst { MSGID_LINE.find(it)?.groupValues?.get(1) == msgid }
+        if (index < 0) return null
+        return lines.subList(0, index).asReversed().takeWhile { it.trimStart().startsWith("#") }
+            .any { it.trim() == LINGUI_EXPLICIT_ID }
     }
 
     /**
