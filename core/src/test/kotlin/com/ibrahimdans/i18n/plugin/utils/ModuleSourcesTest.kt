@@ -17,6 +17,23 @@ class ModuleSourcesTest {
         ModuleConfig(name = root, rootDirectory = root, pathTemplate = path, fileTemplate = file)
 
     @Test
+    fun aFileUnderAModulePutAsideIsPutAsideUnlessAnActiveModuleNestedThereOwnsIt() {
+        val modules = listOf(module("apps/web"), module("apps/admin").copy(enabled = false), module("apps/admin/inner"))
+        fun putAside(path: String) = ModuleSources.isPutAside(modules, ModuleSources.FilePath(path, anchored = true))
+
+        assertTrue(putAside("apps/admin/src/App.tsx"))
+        assertFalse(putAside("apps/admin/inner/src/App.tsx"))
+        assertFalse(putAside("apps/web/src/App.tsx"))
+        assertFalse(putAside("scripts/build.js"), "a file in no module is not put aside")
+        assertEquals(listOf("apps/web", "apps/admin/inner"), ModuleSources.active(modules).map { it.rootDirectory })
+    }
+
+    @Test
+    fun theLoneModuleIsTheOnlyActiveOne() {
+        assertEquals("apps/web", ModuleSources.lone(listOf(module("apps/web"), module("apps/admin").copy(enabled = false)))?.rootDirectory)
+    }
+
+    @Test
     fun templateStatesLocaleAndNamespace() {
         val modules = listOf(module("apps/web", "i18n/{lang}/{ns}.yml"))
         assertEquals(ModuleSources.Match("english", "home"), ModuleSources.match(modules, "apps/web/i18n/english/home.yml", anchored = true))

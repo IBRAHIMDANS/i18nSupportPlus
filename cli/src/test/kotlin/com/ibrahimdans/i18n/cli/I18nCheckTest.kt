@@ -370,6 +370,28 @@ class I18nCheckTest {
     }
 
     @Test
+    fun `project mode - a module put aside has no section and its files are not read`(@TempDir project: Path) {
+        fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }
+        write("apps/web/locales/en.json", """{"a": "A", "b": "B"}""")
+        write("apps/web/locales/fr.json", """{"a": "A"}""")
+        write("apps/admin/locales/en.json", """{"x": "X"}""")
+        write("apps/admin/locales/fr.json", "not json")
+        write(
+            SettingsFile.JSON_PATH,
+            """{"modules": [
+                {"name": "web", "rootDirectory": "apps/web", "pathTemplate": "locales/{lang}.json"},
+                {"name": "admin", "rootDirectory": "apps/admin", "pathTemplate": "locales/{lang}.json", "enabled": false}
+            ]}""",
+        )
+
+        val run = check(project.toString())
+
+        assertEquals(I18nCheck.PROBLEMS, run.exit, run.err)
+        assertTrue(run.out.contains("missing  b"), run.out)
+        assertTrue("admin" !in run.out, run.out)
+    }
+
+    @Test
     fun `invalid i18n-check json - named, exit 2`(@TempDir project: Path) {
         Files.writeString(project.resolve(SettingsFile.JSON_PATH), """{ "keySeperator": "/" }""")
         val run = check(project.toString())

@@ -125,7 +125,7 @@ On first launch, a wizard guides you through configuration in 3 steps:
 
 1. **Framework detection** — auto-detects i18next, vue-i18n, lingui, react-intl, ngx-translate, Transloco, svelte-i18n, i18n-js or Paraglide JS from your `package.json`
 2. **Translation file discovery** — scans for `.json`, `.yaml`, `.po`, and `.pot` files in `locales/`, `i18n/`, `translations/` folders (PO/POT support requires the optional **GNU GetText** plugin — see Plugin Dependencies)
-3. **Summary** — review and apply the configuration. In a monorepo, where the catalogues sit in several applications (`apps/shop/public/locales`, `apps/admin/public/locales`), it proposes one module per application, ticked by default: each is rooted at the application's folder (the one holding its `package.json` or `composer.json`, else the folder above `public/`, `src/`, `locales/`…), named after it, and given the framework its own manifest declares. Untick a module to leave it out
+3. **Summary** — review and apply the configuration. In a monorepo, where the catalogues sit in several applications (`apps/shop/public/locales`, `apps/admin/public/locales`), it proposes one module per application, ticked by default: each is rooted at the application's folder (the one holding its `package.json` or `composer.json`, else the folder above `public/`, `src/`, `locales/`…), named after it, and given the framework its own manifest declares. Untick a module to put it aside (see *Modules*)
 
 You can reopen it at any time from **Tools > i18n Support Plus > Run Setup Wizard**.
 
@@ -283,7 +283,7 @@ It runs the plugin's own checks in CI, with the plugin's settings, whatever the 
   }
   ```
 
-  Settings: `translationsRoot`, `excludedDirectories`, `defaultNs`, `fallbackNs`, `ignoredLocales`, `previewLocale`, `foldingPreferredLanguage`, `nsSeparator`, `keySeparator`, `flatKeys`, `gettext`, `localeAliases`; per module: `name`, `rootDirectory`, `pathTemplate`, `fileTemplate`, `referenceLocale`.
+  Settings: `translationsRoot`, `excludedDirectories`, `defaultNs`, `fallbackNs`, `ignoredLocales`, `previewLocale`, `foldingPreferredLanguage`, `nsSeparator`, `keySeparator`, `flatKeys`, `gettext`, `localeAliases`; per module: `name`, `rootDirectory`, `pathTemplate`, `fileTemplate`, `referenceLocale`, `enabled` (`false` puts the module aside: neither checked nor reported).
 - `--locales <dir>` checks only that directory: a file per locale (`en.json`, `fr.yml`) or a folder per locale with a file per namespace (`en/common.json`); other files are left alone.
 - For each locale, it reports the keys **missing** compared to the reference, the **orphan** keys the reference does not hold, and the **empty** values. Plural keys (`item_one`, `item_other`) are checked against the forms each language needs: `ja` only `item_other`, `ru` also `item_few` and `item_many`.
 - `--code`, for i18next and react-i18next projects, also reads the JavaScript and TypeScript files (`t('key')`, `useTranslation`, `<Trans i18nKey>`) and reports the **unused** keys of the reference locale — a key a template literal may build, such as `` t(`status.${kind}`) `` for `status.*`, is not one — and the **unknown** keys, called by the code but absent from the reference locale, with their file and line.
@@ -448,7 +448,7 @@ Clicking a cell lists that namespace's untranslated keys in that locale — **mi
 
 ### Multi-Module Support
 
-A monorepo is described as **modules** in the settings (root directory, path template, key template, framework preset). With two or more, the toolbar's module selector switches the three views from one module to the next; a code file inside a module's root directory resolves its keys against that module's translation files only. The root directory is the application's folder (`apps/shop`), not its translations folder: a module rooted at `apps/shop/public/locales` owns no code file, and the application's keys are then resolved against every module's files. [examples/monorepo-react](examples/monorepo-react/README.md) is a four-application monorepo to try it on.
+A monorepo is described as **modules** in the settings (root directory, path template, key template, framework preset). With two or more, the toolbar's module selector switches the three views from one module to the next; a code file inside a module's root directory resolves its keys against that module's translation files only. The root directory is the application's folder (`apps/shop`), not its translations folder: a module rooted at `apps/shop/public/locales` owns no code file, and the application's keys are then resolved against every module's files. Untick a module's **Active** box to put it aside: its translation files are no longer read, the code under its root directory is neither checked nor completed, and the module selector leaves it out — what *Excluded directories* did by hand for the applications you are not working on. [examples/monorepo-react](examples/monorepo-react/README.md) is a four-application monorepo to try it on.
 
 ## Configuration
 

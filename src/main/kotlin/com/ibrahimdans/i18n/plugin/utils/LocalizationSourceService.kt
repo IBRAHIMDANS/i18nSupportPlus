@@ -99,10 +99,21 @@ class LocalizationSourceService {
      * `apps/admin` resolved against `apps/web`'s file too, so a key missing from its own module was
      * never reported, and navigation and hints mixed both. A file in no module, a project without
      * modules, and a module whose translations all live outside its root directory (a shared
-     * package) keep the project-wide result.
+     * package) keep the project-wide result. A file of a module put aside resolves nothing: the
+     * other applications' files are not its own, and its own are no source.
      */
-    fun findSources(fileNames: List<String>, caller: PsiElement): List<LocalizationSource> =
-        componentSources(fileNames, caller) + projectSources(fileNames, caller)
+    fun findSources(fileNames: List<String>, caller: PsiElement): List<LocalizationSource> {
+        if (isPutAside(caller)) return emptyList()
+        return componentSources(fileNames, caller) + projectSources(fileNames, caller)
+    }
+
+    /** Whether [caller]'s file lies in a module put aside ([com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig.enabled]). */
+    private fun isPutAside(caller: PsiElement): Boolean {
+        val modules = Settings.getInstance(caller.project).config().modules
+        if (modules.none { !it.enabled }) return false
+        val file = caller.hostVirtualFile() ?: return false
+        return ModuleSources.isPutAside(modules, projectPath(file, caller.project.basePath ?: ""))
+    }
 
     /**
      * The sources to *read* [fullKey] from, for a key written in [caller]'s file: its own namespaces'
@@ -146,7 +157,7 @@ class LocalizationSourceService {
         if (config.modules.isEmpty()) return sources
         val callerFile = caller.hostVirtualFile() ?: return sources
         val basePath = project.basePath ?: ""
-        val module = ModuleSources.owner(config.modules, projectPath(callerFile, basePath)) ?: return sources
+        val module = ModuleSources.owner(ModuleSources.active(config.modules), projectPath(callerFile, basePath)) ?: return sources
 
         fun inModule(source: LocalizationSource): Boolean {
             val file = (source.tree?.value() ?: source.host)?.containingFile?.virtualFile ?: return false

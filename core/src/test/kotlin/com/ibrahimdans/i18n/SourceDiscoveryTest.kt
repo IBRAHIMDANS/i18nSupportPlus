@@ -63,6 +63,32 @@ class SourceDiscoveryTest {
     }
 
     @Test
+    fun theFilesOfAModulePutAsideAreNoSource() {
+        file("apps/web/locales/en.json")
+        file("apps/admin/locales/en.json")
+        file("apps/admin/tools/inner/locales/en.json")
+        val config = Config(modules = listOf(
+            ModuleConfig(name = "web", rootDirectory = "apps/web"),
+            ModuleConfig(name = "admin", rootDirectory = "apps/admin", enabled = false),
+            ModuleConfig(name = "inner", rootDirectory = "apps/admin/tools/inner"),
+        ))
+
+        assertEquals(
+            listOf("apps/admin/tools/inner/locales/en.json", "apps/web/locales/en.json"),
+            discovery(config).sources().paths().sorted(),
+            "an active module nested in one put aside keeps its own files",
+        )
+    }
+
+    @Test
+    fun aModulePutAsideDesignatesNoFileThroughItsTemplate() {
+        file("apps/admin/messages/english.json")
+        val module = ModuleConfig(name = "admin", rootDirectory = "apps/admin", pathTemplate = "messages/{lang}.json", enabled = false)
+
+        assertEquals(emptyList<String>(), discovery(Config(modules = listOf(module))).sources().paths())
+    }
+
+    @Test
     fun yamlIsReadUnderBothExtensions() {
         file("locales/en.yaml", "menu:\n  home: Home")
         file("locales/fr.yml", "menu:\n  home: Accueil")

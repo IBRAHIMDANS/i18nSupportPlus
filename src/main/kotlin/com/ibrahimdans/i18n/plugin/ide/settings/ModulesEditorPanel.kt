@@ -94,6 +94,10 @@ internal class ModulesEditorPanel(
         isVisible = false
     }
 
+    private val enabledBox = boundCheckBox(PluginBundle.message("settings.modules.enabled")) { module, value ->
+        module.copy(enabled = value)
+    }
+
     private val writeDefaultValueBox =
         boundCheckBox(PluginBundle.message("settings.modules.writeDefaultValue")) { module, value ->
             module.copy(writeDefaultValue = value)
@@ -139,6 +143,7 @@ internal class ModulesEditorPanel(
 
     private fun detailForm(): JPanel = panel {
         row(PluginBundle.message("settings.modules.name")) { cell(nameField) }
+        row("") { cell(enabledBox).comment(PluginBundle.message("settings.modules.enabled.comment")) }
         row(PluginBundle.message("settings.modules.preset")) { cell(presetCombo) }
         row("") { cell(suggestLink) }
         row(PluginBundle.message("settings.modules.rootDirectory")) {
@@ -264,6 +269,7 @@ internal class ModulesEditorPanel(
         referenceLocaleField.text = selected?.referenceLocale ?: ""
         callTemplateField.text = selected?.callTemplate ?: ""
         writeDefaultValueBox.isSelected = selected?.writeDefaultValue ?: false
+        enabledBox.isSelected = selected?.enabled ?: true
         presetCombo.model = DefaultComboBoxModel(presetItems(selected?.preset ?: ""))
         presetCombo.selectedItem = selected?.preset ?: ""
         setFormEnabled(selected != null)
@@ -278,6 +284,7 @@ internal class ModulesEditorPanel(
         referenceLocaleField.isEnabled = enabled
         callTemplateField.isEnabled = enabled
         writeDefaultValueBox.isEnabled = enabled
+        enabledBox.isEnabled = enabled
         presetCombo.isEnabled = enabled
         browseButton.isEnabled = enabled
     }
@@ -299,7 +306,8 @@ internal class ModulesEditorPanel(
 
     /** A module whose root directory has disappeared is flagged in the list itself. */
     private fun label(module: ModuleConfig): String {
-        val name = module.name.ifBlank { PluginBundle.message("settings.modules.unnamed") }
+        val named = module.name.ifBlank { PluginBundle.message("settings.modules.unnamed") }
+        val name = if (module.enabled) named else PluginBundle.message("settings.modules.disabled.marker", named)
         return if (ModuleTemplateResolver.rootStatus(module, basePath()) == RootStatus.MISSING) {
             PluginBundle.message("settings.modules.root.missing.marker", name)
         } else {
