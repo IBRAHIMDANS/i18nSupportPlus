@@ -68,8 +68,8 @@ Open this folder with `./gradlew runIde` and accept the setup wizard: it detects
    files, `HomePage.title` and `Settings.Privacy.title` stay. One Ctrl+Z restores the call and both files.
 9. **Command line**: from the repository root, after `./gradlew :cli:installDist`,
    `cli/build/install/i18n-check/bin/i18n-check examples/next-intl --locales examples/next-intl/messages` reports the
-   three keys missing from `fr`. `--code` is left out: it reads i18next's `useTranslation`, not next-intl's
-   namespaces, and would report the keys written under one as unknown.
+   three keys missing from `fr`. `i18n-check examples/next-intl --code` also reads the calls, each under its
+   namespace, and reports the three keys in no locale: `discount`, `cookies.expiry` and `doesNotExist`.
 
 `t.rich`, `t.markup`, `t.raw` and `t.has` are not read: their keys are neither resolved nor underlined, so this example
 does not call them.
