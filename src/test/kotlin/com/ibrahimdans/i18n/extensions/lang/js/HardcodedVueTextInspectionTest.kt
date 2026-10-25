@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test
  */
 class HardcodedVueTextInspectionTest : PlatformBaseTest() {
 
-    private val message = "Hardcoded text: move it to a translation key"
+    private val message = "Hard-coded text: move it to a translation key"
 
     /** The texts this inspection reports in a component whose template holds [template]. */
     private fun reportedIn(template: String, script: String = ""): List<String> {

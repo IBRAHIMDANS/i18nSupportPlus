@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test
  */
 class HardcodedJsxTextInspectionTest : ExtractionTestBase() {
 
-    private val message = "Hardcoded text: extract it to a translation key"
+    private val message = "Hard-coded text: extract it to a translation key"
 
     /** The texts this inspection reports in a component returning [jsx], in a file of [extension]. */
     private fun reportedIn(jsx: String, extension: String = "tsx", config: Config = config("json")): List<String> {
