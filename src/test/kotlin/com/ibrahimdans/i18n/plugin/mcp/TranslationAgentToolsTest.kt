@@ -56,6 +56,15 @@ class TranslationAgentToolsTest : PlatformBaseTest() {
         Assertions.assertEquals("en", module.referenceLocale)
         Assertions.assertEquals(setOf("en", "de"), module.locales.toSet())
         Assertions.assertFalse(module.reviews)
+        Assertions.assertEquals(emptyList<String>(), module.notChecked)
+    }
+
+    /** #620: an agent filling every locale would fill those the project leaves out of its checks. */
+    @Test
+    fun `the locales not checked for missing keys are named`() = myFixture.runWithConfig(config.copy(ignoredLocales = "de")) {
+        seed()
+
+        Assertions.assertEquals(listOf("de"), tools().modules().single().notChecked)
     }
 
     @Test

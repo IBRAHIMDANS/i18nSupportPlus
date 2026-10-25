@@ -88,17 +88,18 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
         // source per namespace per locale. Counting sources would report `dashboard:title` as
         // 2/4 next to `common.json`, so sources are grouped by locale, and a locale is resolved
         // when any of its namespaces holds the key — the same rule the annotator applies.
-        data class LocaleStatus(val label: String, val resolved: Boolean)
         val statuses = sources.groupBy { it.localeLabel() }.map { (label, localeSources) ->
             val isResolved = localeSources.any { source ->
                 resolve(fullKey.compositeKey, source, pluralSeparator)
                     .any { it.unresolved.isEmpty() && it.element != null }
             }
-            LocaleStatus(label, isResolved)
+            LocaleRow(label, isResolved, !config.ignoresLocale(label))
         }
 
-        val resolvedCount = statuses.count { it.resolved }
-        val total = statuses.size
+        // A locale not checked for missing keys is listed but never counted: the annotator's rule.
+        val checked = statuses.filter { it.checked }
+        val resolvedCount = checked.count { it.resolved }
+        val total = checked.size
 
         val (icon, statusLabel) = when {
             resolvedCount == total -> ICON_RESOLVED to "All locales resolved ($total/$total)"
@@ -106,7 +107,7 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
             else                  -> ICON_PARTIAL  to "Partial translation ($resolvedCount/$total locales)"
         }
 
-        val tooltip = buildTooltip(statusLabel, statuses.map { (it.label to it.resolved) })
+        val tooltip = buildTooltip(statusLabel, statuses)
 
         // Anchor on the first leaf token, as the platform requires: the literal's own token, or `m`
         // in Paraglide's `m.hello`, whose first child is itself a reference expression.
@@ -137,12 +138,16 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
     /**
      * Builds an HTML tooltip summarising the resolution status per locale.
      */
-    private fun buildTooltip(statusLabel: String, locales: List<Pair<String, Boolean>>): String {
-        val rows = locales.joinToString("") { (label, resolved) ->
-            val mark = if (resolved) "✓" else "✗"
-            val color = if (resolved) "green" else "red"
-            "<tr><td><font color='$color'>$mark</font></td><td style='padding-left:4px'>$label</td></tr>"
+    private fun buildTooltip(statusLabel: String, locales: List<LocaleRow>): String {
+        val rows = locales.joinToString("") { (label, resolved, checked) ->
+            val mark = if (resolved) "✓" else if (checked) "✗" else "–"
+            val color = if (resolved) "green" else if (checked) "red" else "gray"
+            val note = if (checked) "" else " (not checked)"
+            "<tr><td><font color='$color'>$mark</font></td><td style='padding-left:4px'>$label$note</td></tr>"
         }
         return "<html><b>i18n: $statusLabel</b><table cellspacing='0' cellpadding='1'>$rows</table></html>"
     }
 }
+
+/** One locale of the tooltip: [checked] false for a locale not checked for missing keys. */
+private data class LocaleRow(val label: String, val resolved: Boolean, val checked: Boolean)

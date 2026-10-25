@@ -133,6 +133,28 @@ class I18nGutterIconProviderTest : PlatformBaseTest() {
         Assertions.assertTrue(tooltip.contains("All locales resolved (2/2)"), tooltip)
     }
 
+    /** #620: a locale not checked for missing keys is listed, but turned the badge to "partial". */
+    @Test
+    fun anIgnoredLocaleIsListedButNotCounted() = myFixture.runWithConfig(Config(ignoredLocales = "es")) {
+        addDashboardAndCommon()
+        addFileToProject("locales/es/dashboard.json", """{"other": "Otro"}""")
+        val file = myFixture.configureByText("Dashboard.tsx", twoNamespaceComponent("dashboard:stats.title"))
+
+        val tooltip = tooltip(file)!!
+        Assertions.assertTrue(tooltip.contains("All locales resolved (2/2)"), tooltip)
+        Assertions.assertTrue(tooltip.contains("es (not checked)"), tooltip)
+    }
+
+    @Test
+    fun aCheckedLocaleLackingTheKeyIsStillPartial() = myFixture.runWithConfig(Config(ignoredLocales = "fr")) {
+        addDashboardAndCommon()
+        addFileToProject("locales/es/dashboard.json", """{"other": "Otro"}""")
+        val file = myFixture.configureByText("Dashboard.tsx", twoNamespaceComponent("dashboard:stats.title"))
+
+        val tooltip = tooltip(file)!!
+        Assertions.assertTrue(tooltip.contains("Partial translation (1/2 locales)"), tooltip)
+    }
+
     /**
      * The daemon replays the line-marker pass without any edit (focus, scroll, restart). The
      * former de-duplication cache lived until the next edit, so the second pass returned nothing

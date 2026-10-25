@@ -30,7 +30,14 @@ class TranslationAgentTools(private val project: Project) {
     /** A refused call, its [message] meant for the agent. */
     class Refused(message: String) : Exception(message)
 
-    data class ModuleInfo(val name: String, val referenceLocale: String, val locales: List<String>, val reviews: Boolean)
+    /** [notChecked]: the [locales] the project does not check for missing keys, in progress or abandoned. */
+    data class ModuleInfo(
+        val name: String,
+        val referenceLocale: String,
+        val locales: List<String>,
+        val reviews: Boolean,
+        val notChecked: List<String>,
+    )
 
     data class Missing(val key: String, val source: String, val pluralFromOther: Boolean, val skipped: String?)
 
@@ -51,7 +58,8 @@ class TranslationAgentTools(private val project: Project) {
     /** Every translation module, the project as one when none is configured. */
     fun modules(): List<ModuleInfo> = scopes().map { (name, module) ->
         val locales = TranslationDataLoader.discoverLocales(project, module)
-        ModuleInfo(name, sourceOf(module, locales).orEmpty(), locales, reviewsOn(module) != null)
+        val config = Settings.getInstance(project).config()
+        ModuleInfo(name, sourceOf(module, locales).orEmpty(), locales, reviewsOn(module) != null, locales.filter(config::ignoresLocale))
     }
 
     /** The first [limit] values [locale] lacks in [moduleName], with the source text to translate. */
