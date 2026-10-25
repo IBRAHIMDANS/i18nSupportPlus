@@ -1,0 +1,9 @@
+{
+  "title": "Blog",
+  "actions": {
+    "save": "Save"
+  },
+  "posts": {
+    "empty": "No post yet"
+  }
+}

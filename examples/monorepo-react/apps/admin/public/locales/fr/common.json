@@ -1,0 +1,7 @@
+{
+  "title": "Administration",
+  "actions": {
+    "save": "Enregistrer",
+    "export": "Exporter"
+  }
+}
