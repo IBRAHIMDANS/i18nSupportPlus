@@ -1,0 +1,17 @@
+{
+  "@@locale": "en",
+  "appTitle": "Shop",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "greeting": "Hello {name}",
+  "@greeting": {
+    "description": "Shown on the home page",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "cartEmpty": "Your cart is empty"
+}

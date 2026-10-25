@@ -1,0 +1,5 @@
+{
+  "@@locale": "fr",
+  "appTitle": "Boutique",
+  "greeting": "Bonjour {name}"
+}
