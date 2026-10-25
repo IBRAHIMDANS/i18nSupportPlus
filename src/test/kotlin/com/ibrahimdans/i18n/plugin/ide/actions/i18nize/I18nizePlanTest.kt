@@ -144,4 +144,45 @@ class I18nizePlanTest : PlatformBaseTest() {
         )
         Assertions.assertEquals(listOf(false, false, false, true, true), planOf(file).files.single().entries.map { it.checkedByDefault })
     }
+
+    /** react-intl: a string outside any component has no `intl` to call and none to receive. */
+    @Test
+    fun aReactIntlStringOutsideAnyComponentIsRefused() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", "{}")
+        val file = addFileToProject("src/labels.ts", """
+            import { defineMessages } from 'react-intl';
+            export function label() { return 'Save changes'; }
+        """.trimIndent())
+
+        val entry = planOf(file).files.single().entries.single()
+
+        Assertions.assertNotNull(entry.refusal, "$entry")
+        Assertions.assertFalse(entry.checkedByDefault)
+        val model = I18nizePreviewModel(planOf(file), emptyMap(), config)
+        model.rows.forEach { it.selected = true }
+        Assertions.assertTrue(model.accepted().files.isEmpty(), "a refused text, even checked, is never applied")
+    }
+
+    /** A component without `useIntl()` receives one, so its string is no refusal. */
+    @Test
+    fun aReactIntlStringOfAComponentIsPlanned() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", "{}")
+        val file = addFileToProject("src/Form.tsx", """
+            import { defineMessages } from 'react-intl';
+            export function Form() { return <input placeholder="Your name" />; }
+        """.trimIndent())
+
+        val entry = planOf(file).files.single().entries.single()
+
+        Assertions.assertNull(entry.refusal, "$entry")
+        Assertions.assertTrue(entry.checkedByDefault)
+    }
+
+    @Test
+    fun anI18nextStringOutsideAnyComponentIsNoRefusal() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", "{}")
+        val file = addFileToProject("src/labels.ts", "export function label() { return 'Save changes'; }")
+
+        Assertions.assertNull(planOf(file).files.single().entries.single().refusal)
+    }
 }
