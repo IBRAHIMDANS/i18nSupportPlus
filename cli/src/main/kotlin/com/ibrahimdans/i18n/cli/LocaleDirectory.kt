@@ -1,8 +1,7 @@
 package com.ibrahimdans.i18n.cli
 
-import com.ibrahimdans.i18n.plugin.format.JsonTranslationTree
+import com.ibrahimdans.i18n.ParsedFormat
 import com.ibrahimdans.i18n.plugin.format.ParsedNode
-import com.ibrahimdans.i18n.plugin.format.YamlTranslationTree
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.LeafReader
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationLeaves
@@ -18,7 +17,7 @@ import kotlin.io.path.nameWithoutExtension
 
 /**
  * The translations of one directory holding a file or a folder per locale:
- * `<dir>/<locale>.json` or `<dir>/<locale>/<namespace>.json`, in JSON or YAML.
+ * `<dir>/<locale>.json` or `<dir>/<locale>/<namespace>.json`, in JSON, JSON5 or YAML.
  *
  * Only names [LocaleNames] reads as a locale count: `README.md` or `scripts/` beside them are left
  * alone. The keys of a namespace file are spelled `namespace:key`, with the configured namespace
@@ -26,7 +25,7 @@ import kotlin.io.path.nameWithoutExtension
  */
 object LocaleDirectory {
 
-    private val EXTENSIONS = setOf("json", "yml", "yaml")
+    private val FORMATS = ParsedFormat.entries.flatMap { format -> format.extensions.map { it to format } }.toMap()
 
     /** Key -> locale -> value, what [TranslationCheck] compares; empty when [dir] holds no translation file. */
     fun read(dir: Path, config: Config): Map<String, Map<String, String>> {
@@ -46,13 +45,12 @@ object LocaleDirectory {
 
     private fun translationFiles(dir: Path): List<Path> = dir.listDirectoryEntries().filter(::isTranslationFile).sorted()
 
-    private fun isTranslationFile(path: Path): Boolean = path.isRegularFile() && path.extension.lowercase() in EXTENSIONS
+    private fun isTranslationFile(path: Path): Boolean = path.isRegularFile() && path.extension.lowercase() in FORMATS
 
     private fun collect(file: Path, nsPrefix: String, locale: String, config: Config, result: MutableMap<String, MutableMap<String, String>>) {
-        val text = Files.readString(file)
-        val json = file.extension.lowercase() == "json"
-        val tree = (if (json) JsonTranslationTree.parse(text) else YamlTranslationTree.parse(text))
-            ?: throw CannotCheck("not a valid ${if (json) "JSON" else "YAML"} translation file: $file")
+        val extension = file.extension.lowercase()
+        val tree = FORMATS.getValue(extension).parse(Files.readString(file), extension)
+            ?: throw CannotCheck("not a valid ${extension.uppercase()} translation file: $file")
         TranslationLeaves.collect(config, tree, nsPrefix, locale, ParsedLeaves, result)
     }
 }

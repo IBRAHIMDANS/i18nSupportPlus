@@ -1,0 +1,5 @@
+{
+  /* menu.close not translated yet */
+  title: 'Bienvenue',
+  menu: { open: 'Ouvrir', },
+}

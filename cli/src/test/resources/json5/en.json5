@@ -1,0 +1,8 @@
+// English, the reference
+{
+  title: 'Welcome',
+  menu: {
+    open: "Open",
+    close: 'Close', // trailing comma below
+  },
+}
