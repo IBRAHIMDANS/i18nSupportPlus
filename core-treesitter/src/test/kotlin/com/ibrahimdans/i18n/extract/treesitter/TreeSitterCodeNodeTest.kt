@@ -50,6 +50,18 @@ class TreeSitterCodeNodeTest {
     }
 
     @Test
+    fun `children read in any order are each node's own, the file's one cursor moving between them`() {
+        val root = TreeSitterCodeNode.parseTsx("t('a'); f([1, 2, 3]);")
+        val array = root.first("array")
+        assertEquals(listOf("[", "number", ",", "number", ",", "number", "]"), array.children.map { it.type })
+        assertEquals(listOf("expression_statement", "expression_statement"), root.children.map { it.type })
+        assertEquals(listOf("'", "string_fragment", "'"), root.first("string").children.map { it.type })
+        assertEquals(emptyList<CodeNode>(), array.children.first().children)
+        assertEquals(listOf("1", "2", "3"), array.children.filter { it.type == "number" }.map { it.text })
+        array.children.forEach { assertEquals(array, it.parent) }
+    }
+
+    @Test
     fun `the root has no parent, and a node knows its file`() {
         val root = TreeSitterCodeNode.parseTsx("t('a');", "src/A.tsx")
         assertNull(root.parent)
