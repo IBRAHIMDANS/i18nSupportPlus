@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.utils.generator.code.TsCodeGenerator
 import com.intellij.codeInsight.daemon.LineMarkerInfo
 import com.intellij.codeInsight.daemon.LineMarkerProviders
+import com.intellij.codeInsight.daemon.impl.DaemonCodeAnalyzerImpl
 import com.intellij.openapi.application.ReadAction
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -201,5 +202,23 @@ class I18nGutterIconProviderTest : PlatformBaseTest() {
                 .count { it is I18nGutterIconProvider }
             Assertions.assertEquals(1, count, ".$ext (${language.id}) must see the gutter provider exactly once")
         }
+    }
+
+    /**
+     * A Vue template's `{{ $t('key') }}` is an injected fragment, whose markers the platform rebuilds
+     * on the element it asked: one returned for the literal expression tripped its leaf-only check
+     * ("LineMarker is supposed to be registered for leaf elements only"), logged as an error in tests.
+     */
+    @Test
+    fun aKeyInAVueTemplateGetsOneBadgeOnALeaf() = myFixture.runWithConfig(Config()) {
+        addFileToProject("locales/en.json", """{"order": {"title": "Your order"}}""")
+        myFixture.configureByText("Order.vue", "<script setup lang=\"ts\">\n</script>\n<template><p>{{ ${'$'}t('order.title') }}</p></template>")
+
+        myFixture.doHighlighting()
+
+        val badges = DaemonCodeAnalyzerImpl.getLineMarkers(myFixture.editor.document, project)
+            .filter { it.lineMarkerTooltip?.contains("i18n:") == true }
+        Assertions.assertEquals(1, badges.size, "${badges.map { it.lineMarkerTooltip }}")
+        Assertions.assertEquals("'order.title'", myFixture.editor.document.text.substring(badges.single().startOffset, badges.single().endOffset))
     }
 }
