@@ -23,7 +23,7 @@ time. The plugin needs none of it: it only reads the files.
 |---|---|
 | Nested keys | `src/locales/*.json`, `home.title`, `order.status.paid` |
 | Message with a parameter, `{name}` | `home.greeting` |
-| Plural in vue-i18n's syntax, `a \| b \| c`: read as one string | `cart.items` |
+| Plural in vue-i18n's syntax, `a \| b \| c`: a branch per form the locale's language uses, checked by *vue-i18n plural branches* | `cart.items` |
 | Linked message, `@:common.save`: the linked key resolves | `actions.saveHint` |
 | Missing in a locale, on purpose | `home.onlyInEnglish` (not in `fr.json`) |
 | Top-level keys out of order, on purpose (for *Sort i18n Keys*) | `src/locales/en.json` |
@@ -73,8 +73,8 @@ Open this folder with `./gradlew runIde`, accept the setup wizard (it detects *v
    nested keys are sorted too. One Ctrl+Z restores the order.
 
 `t` is i18next's name as well as vue-i18n's: without a module, every name applies and `t('…')` is read. A module
-whose preset is *vue-i18n* reads `$t`, `$tc` and `$te` only, so the `t('…')` calls of this project would go unread
-under one.
+whose preset is *vue-i18n* reads vue-i18n's calls only: `$t`, `$tc`, `$te`, and the `t` / `te` a file takes from
+`useI18n()` — a `t` of another origin stays unread there.
 
 ## Command line check
 
@@ -91,4 +91,3 @@ It reports `home.onlyInEnglish` missing in `fr` and exits with `1`. It reads nei
 ## Left out
 
 - `$tc`: the plugin reads it, but vue-i18n 11 removed it; `$t('cart.items', 3)` picks the plural form instead.
-- A plural form check: vue-i18n's `a | b` holds every form in one value, which the plugin reads as plain text.

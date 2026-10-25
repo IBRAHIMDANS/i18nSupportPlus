@@ -46,7 +46,8 @@ open class JsLang : Lang {
          *  - svelte-i18n's `_` / `$_` carry no namespace options, so matching the call
          *    itself is more precise than matching a bare string literal.
          *  - vue-i18n's `<i18n-t keypath>` and `v-t` directive hold the key in template markup,
-         *    outside any call.
+         *    outside any call; its Composition API's `t` is i18next's name, read as vue-i18n's only
+         *    where `useI18n()` returns it.
          *  - Paraglide's `m.hello()` holds no string at all: the key is the member's name.
          *  - next-intl's `t.rich('key')`, `t.markup`, `t.raw` and `t.has` are qualified calls named
          *    after the method, not after `t`.
@@ -69,6 +70,7 @@ open class JsLang : Lang {
             SvelteI18nExtractor(),
             VueI18nKeypathExtractor(),
             VueTDirectiveExtractor(),
+            VueI18nComposableExtractor(),
             PARAGLIDE_MESSAGE,
             NextIntlMethodExtractor(),
         )
@@ -179,7 +181,7 @@ private fun frameworkOf(extractor: KeyExtractor): String? = when (extractor) {
     is NgxTranslateExtractor, is NgxTranslatePipeExtractor -> "ngx-translate"
     is TranslocoExtractor, is TranslocoPipeExtractor, is TranslocoReadExtractor -> "transloco"
     is SvelteI18nExtractor -> "svelte-i18n"
-    is VueI18nKeypathExtractor, is VueTDirectiveExtractor -> "vue-i18n"
+    is VueI18nKeypathExtractor, is VueTDirectiveExtractor, is VueI18nComposableExtractor -> "vue-i18n"
     is LinguiTransKeyExtractor -> "lingui"
     is ParaglideMessageExtractor -> "paraglide"
     is NextIntlMethodExtractor -> "next-intl"

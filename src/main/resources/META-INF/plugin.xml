@@ -263,6 +263,13 @@
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.MissingPluralFormsInspection"/>
         <localInspection
             groupName="i18n Support Plus"
+            key="inspection.vue.plural.display.name"
+            shortName="I18nVuePluralBranches"
+            enabledByDefault="true"
+            level="WEAK WARNING"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.VueI18nPluralBranchesInspection"/>
+        <localInspection
+            groupName="i18n Support Plus"
             key="inspection.markup.display.name"
             shortName="I18nMarkupConsistency"
             enabledByDefault="true"
