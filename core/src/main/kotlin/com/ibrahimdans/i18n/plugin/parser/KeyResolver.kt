@@ -27,9 +27,10 @@ object KeyResolver {
      * a `keyTemplate` ([KeyContext.callerSyntax]), with the syntax that template states: `{ns}.{key}`
      * reads `common.title` as namespace `common`, key `title`; `{key}` reads no namespace at all.
      *
-     * Flat keys (react-intl) are never split, whatever the template says.
+     * Flat keys (react-intl) are never split, whatever the template says, nor is an [RawKey.unsplit] one.
      */
     fun parse(rawKey: RawKey, context: KeyContext): FullKey? {
+        if (rawKey.unsplit) return KeyParserBuilder.withoutTokenizer().build().parse(rawKey, emptyNamespace = true)
         val config = context.config
         if (config.usesFlatKeys()) return KeyParserBuilder.withoutTokenizer().build().parse(rawKey, true, config.firstComponentNs)
             ?.let { flatPrefixed(it, config.keySeparator) }

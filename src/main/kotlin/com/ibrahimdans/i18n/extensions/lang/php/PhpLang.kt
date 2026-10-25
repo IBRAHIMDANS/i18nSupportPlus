@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.extensions.lang.php
 
 import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.extensions.lang.php.extractors.PhpStringLiteralKeyExtractor
+import com.ibrahimdans.i18n.extensions.localization.php.LaravelJsonPhrases
 import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
@@ -21,7 +22,7 @@ class PhpLang: Lang {
         // The one test only a PHP quoted-string token passes, so it goes first: every Lang is asked of
         // every element of every file, and on a JS element the rest allocated a Config, walked up to
         // the file root and built a pattern per name before this answered no.
-        if (extractRawKey(element) == null) return false
+        if (!KEY_EXTRACTOR.canExtract(element)) return false
         val config = Settings.getInstance(element.project).config()
         val decision = phpRuleDecision(element)
         if (decision == RuleDecision.EXCLUDE) return false
@@ -39,10 +40,8 @@ class PhpLang: Lang {
         }
     }
 
-    override fun extractRawKey(element: PsiElement): RawKey? {
-        val extractor = PhpStringLiteralKeyExtractor()
-        return if (extractor.canExtract(element)) extractor.extract(element) else null
-    }
+    override fun extractRawKey(element: PsiElement): RawKey? =
+        if (KEY_EXTRACTOR.canExtract(element)) phpRawKey(element, KEY_EXTRACTOR.extract(element)) else null
 
     override fun foldingProvider(): FoldingProvider = PhpFoldingProvider()
 
@@ -52,7 +51,24 @@ class PhpLang: Lang {
         val typeName = entry.node.elementType.toString()
         return if (typeName == "single quoted string") entry else null
     }
+
+    private companion object {
+        val KEY_EXTRACTOR = PhpStringLiteralKeyExtractor()
+    }
 }
+
+/**
+ * [rawKey], written in [element], read whole when it is a phrase of a Laravel JSON file:
+ * `__('Saved.')` is the key `Saved.` of `lang/en.json`, not `Saved` followed by an empty segment.
+ */
+internal fun phpRawKey(element: PsiElement, rawKey: RawKey): RawKey {
+    val text = rawKey.keyElements.singleOrNull()?.text ?: return rawKey
+    if (PHRASE_SEPARATORS.none { it in text }) return rawKey
+    return if (LaravelJsonPhrases.contains(element.project, text)) rawKey.copy(unsplit = true) else rawKey
+}
+
+/** The characters a JSON phrase may hold that the key parser would cut it at. */
+private val PHRASE_SEPARATORS = listOf('.', ':')
 
 /**
  * The functions a PHP key may be passed to: the GetText aliases in GetText mode, otherwise the

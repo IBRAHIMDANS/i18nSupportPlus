@@ -120,6 +120,13 @@ class KeyResolverTest {
         Assertions.assertEquals("common|title|", describe(KeyResolver.parse(RawKey(listOf(KeyElement.literal("common:title"))), context)))
     }
 
+    @Test
+    fun `an unsplit key is read whole, separators included`() {
+        val key = KeyResolver.parse(RawKey(listOf(KeyElement.literal("Hello, :name. Saved.")), unsplit = true), KeyContext(Config()))
+        Assertions.assertEquals(listOf("Hello, :name. Saved."), key?.compositeKey?.map { it.text })
+        Assertions.assertNull(key?.ns)
+    }
+
     private fun describe(key: FullKey?): String =
         if (key == null) "null"
         else "${key.ns?.text.orEmpty()}|${key.compositeKey.joinToString(".") { it.text }}|${key.fallbackNamespaces.joinToString(",")}"

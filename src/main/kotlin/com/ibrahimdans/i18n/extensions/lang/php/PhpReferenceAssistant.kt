@@ -41,7 +41,7 @@ internal class PhpReferenceAssistant: ReferenceAssistant {
     private fun parse(element: PsiElement, config: Config): FullKey? {
         val text = element.text.unQuote()
         if (text.isBlank()) return null
-        val rawKey = RawKey(listOf(KeyElement.literal(text)))
+        val rawKey = phpRawKey(element, RawKey(listOf(KeyElement.literal(text))))
         if (config.usesFlatKeys()) return KeyParserBuilder.withoutTokenizer().build().parse(rawKey)
         // Like the annotator, so a module's key template reads the key the same way on both sides.
         return RawKeyParser(element.project).parse(rawKey, element)

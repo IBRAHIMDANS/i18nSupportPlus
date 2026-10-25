@@ -4,6 +4,21 @@
         <psi.referenceContributor language="PHP" implementation="com.ibrahimdans.i18n.extensions.lang.php.PhpReferenceContributor"/>
         <completion.contributor language="PHP" implementationClass="com.ibrahimdans.i18n.extensions.lang.php.PhpCompletionContributor"/>
         <lang.foldingBuilder language="PHP" implementationClass="com.ibrahimdans.i18n.extensions.lang.php.PhpFoldingBuilder"/>
+        <!-- A Blade view's calls are injected PHP: folded from the view. Inert without the Blade plugin. -->
+        <lang.foldingBuilder language="Blade" implementationClass="com.ibrahimdans.i18n.extensions.lang.php.PhpFoldingBuilder"/>
+        <!-- The same provider and id as JavaScript's in plugin.xml: one "i18n translations" setting per language. -->
+        <codeInsight.declarativeInlayProvider language="PHP"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"
+            providerId="i18n.translations.inlay"
+            group="OTHER_GROUP"
+            bundle="messages.I18nBundle"
+            nameKey="inlay.hints.name"/>
+        <codeInsight.declarativeInlayProvider language="Blade"
+            implementationClass="com.ibrahimdans.i18n.extensions.lang.php.BladeInlayHintsProvider"
+            providerId="i18n.translations.inlay"
+            group="OTHER_GROUP"
+            bundle="messages.I18nBundle"
+            nameKey="inlay.hints.name"/>
         <lang.documentationProvider language="PHP" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
         <psi.referenceContributor language="PHP" implementation="com.ibrahimdans.i18n.extensions.localization.php.PhpArrayReferenceContributor"/>
     </extensions>
