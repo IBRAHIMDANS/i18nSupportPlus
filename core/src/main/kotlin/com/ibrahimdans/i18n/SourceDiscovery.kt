@@ -167,7 +167,9 @@ class SourceDiscovery<N, F : TranslationFormat>(
      *
      * The fallback is deliberately confined to that case: an explicit namespace matching no file
      * (`t('common:user.name')` with no `common.json`) must keep being reported as an unresolved
-     * namespace rather than quietly resolving against unrelated files.
+     * namespace rather than quietly resolving against unrelated files. Nor does it reach a file a
+     * technology states the namespace of: a Transloco scope's keys are written `admin.title`, so
+     * `'title' | transloco` resolved in `i18n/admin/en.json` and was never reported.
      */
     fun select(
         fileNames: List<String>,
@@ -180,7 +182,8 @@ class SourceDiscovery<N, F : TranslationFormat>(
         val sources = (named(namespaces) + configured.filter { it.namespace == null || it.namespace in namespaces })
             .distinctBy { it.displayPath }
         if (sources.isNotEmpty() || requested != null) return sources
-        return all()
+        val stated = configured.filter { it.namespace != null }.mapTo(HashSet()) { it.displayPath }
+        return all().filter { it.displayPath !in stated }
     }
 
     /**

@@ -8,6 +8,8 @@ import com.ibrahimdans.i18n.extensions.lang.js.extractors.ReactIntlExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.ReactUseTranslationHookExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.SvelteI18nExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.TemplateKeyExtractor
+import com.ibrahimdans.i18n.extensions.lang.js.extractors.TranslocoExtractor
+import com.ibrahimdans.i18n.extensions.lang.js.extractors.TranslocoReadExtractor
 import com.ibrahimdans.i18n.plugin.factory.ReferenceAssistant
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
@@ -68,6 +70,12 @@ internal class JsReferenceAssistant: ReferenceAssistant {
 
         /** svelte-i18n's `$_({ id: 'key' })`: the key is a property of the argument, as react-intl's. */
         private val SVELTE_I18N = listOf(SvelteI18nExtractor())
+
+        /**
+         * Transloco's service and standalone calls (`translate('key')`), matched by no published name, and
+         * `t('key')` under a `read` or `prefix`, whose key the generic extraction reads without it.
+         */
+        private val TRANSLOCO = listOf(TranslocoReadExtractor(), TranslocoExtractor())
     }
 
     private fun isDirectOrConfiguredCall(element: PsiElement): Boolean =
@@ -106,13 +114,13 @@ internal class JsReferenceAssistant: ReferenceAssistant {
             override fun accepts(o: Any?): Boolean {
                 return JSPatterns.jsLiteralExpression().accepts(o) && isAlias(o as JSLiteralExpression)
                     || (v.accepts(o) && (o !is PsiElement || isDirectOrConfiguredCall(o)))
-                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o) || isReactIntlId(o) || isNextIntlMethodKey(o) || isSvelteI18nKey(o)))
+                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o) || isReactIntlId(o) || isNextIntlMethodKey(o) || isSvelteI18nKey(o) || isTranslocoKey(o)))
             }
 
             override fun accepts(o: Any?, context: ProcessingContext?): Boolean {
                 return JSPatterns.jsLiteralExpression().accepts(o) && isAlias(o as JSLiteralExpression)
                     || (v.accepts(o, context) && (o !is PsiElement || isDirectOrConfiguredCall(o)))
-                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o) || isReactIntlId(o) || isNextIntlMethodKey(o) || isSvelteI18nKey(o)))
+                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o) || isReactIntlId(o) || isNextIntlMethodKey(o) || isSvelteI18nKey(o) || isTranslocoKey(o)))
             }
 
             override fun getCondition(): ElementPatternCondition<PsiElement>? {
@@ -127,9 +135,11 @@ internal class JsReferenceAssistant: ReferenceAssistant {
 
     private fun isSvelteI18nKey(element: PsiElement): Boolean = activeExtractorOf(SVELTE_I18N, element) != null
 
+    private fun isTranslocoKey(element: PsiElement): Boolean = activeExtractorOf(TRANSLOCO, element) != null
+
     /** Parsed like the annotator parses it — a module's key template included — so both agree on the key. */
     override fun extractKey(element: PsiElement): FullKey? {
-        val extractor = activeExtractorOf(REACT_INTL_EXTRACTORS + NEXT_INTL_METHODS + SVELTE_I18N, element)
+        val extractor = activeExtractorOf(REACT_INTL_EXTRACTORS + NEXT_INTL_METHODS + SVELTE_I18N + TRANSLOCO, element)
             ?: listOf(
                 ReactUseTranslationHookExtractor(),
                 TemplateKeyExtractor(),

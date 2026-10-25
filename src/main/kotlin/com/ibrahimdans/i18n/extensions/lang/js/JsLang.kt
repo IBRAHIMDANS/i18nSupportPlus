@@ -187,8 +187,8 @@ open class JsLang : Lang {
 /** The framework whose syntax [extractor] recognises, as a module preset names it. */
 private fun frameworkOf(extractor: KeyExtractor): String? = when (extractor) {
     is ReactIntlExtractor, is DefineMessagesExtractor, is FormattedMessageExtractor -> "react-intl"
-    is NgxTranslateExtractor, is NgxTranslatePipeExtractor -> "ngx-translate"
-    is TranslocoExtractor, is TranslocoPipeExtractor, is TranslocoReadExtractor -> "transloco"
+    is NgxTranslateExtractor, is NgxTranslatePipeExtractor, is AngularTranslatePipeExtractor, is NgxTranslateDirectiveExtractor -> "ngx-translate"
+    is TranslocoExtractor, is TranslocoPipeExtractor, is TranslocoReadExtractor, is TranslocoDirectiveExtractor -> "transloco"
     is SvelteI18nExtractor -> "svelte-i18n"
     is VueI18nKeypathExtractor, is VueTDirectiveExtractor, is VueI18nComposableExtractor -> "vue-i18n"
     is LinguiTransKeyExtractor -> "lingui"

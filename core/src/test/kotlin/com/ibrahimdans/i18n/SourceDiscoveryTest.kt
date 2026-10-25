@@ -257,6 +257,26 @@ class SourceDiscoveryTest {
         assertEquals(listOf(scope), discovery.namespaceFiles(listOf("admin")))
     }
 
+    /** `'title' | transloco`: a key naming no namespace falls back to every source but a scope's. */
+    @Test
+    fun aKeyWithoutNamespaceNeverFallsBackToAFileATechnologyStatesTheNamespaceOf() {
+        file("i18n/en.json")
+        file("i18n/admin/en.json")
+        val scope = TranslationSource<ParsedNode, ParsedFormat>(
+            null, "en.json", "admin", "i18n/admin/en.json", ParsedFormat.JSON, namespace = "admin"
+        )
+        val technology = object : TranslationTechnology<ParsedNode, ParsedFormat> {
+            override fun translationFunctionNames() = emptyList<String>()
+            override fun findSourcesByConfiguration(workspace: Workspace) = listOf(scope)
+            override fun initialize(workspace: Workspace) {}
+            override fun cfgNamespaces() = emptyList<String>()
+        }
+        val discovery = discovery(technologies = listOf(technology))
+
+        assertEquals(listOf("i18n/en.json"), discovery.sources(emptyList()).paths())
+        assertEquals(listOf(scope), discovery.sources(listOf("admin")), "the scope is still read under its namespace")
+    }
+
     @Test
     fun namespaceFilesKeepTheNamedListWhenNoTechnologyAddsToIt() {
         val named = listOf(TranslationSource<ParsedNode, ParsedFormat>(null, "common.json", "en", "en/common.json", ParsedFormat.JSON))

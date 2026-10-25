@@ -49,9 +49,13 @@ Transloco, in `transloco/src/app/`:
 | `t('key')` from `*transloco="let t"` | `menu.*`, `home.onlyInEnglish` in `app.component.html` |
 | `t('key')` from `*transloco="let t; read: 'admin'"`: the key of the scope | `title`, `users.count`, `onlyInEnglish` in `admin/admin-panel.component.html` |
 | A scope key written in full under `*transloco="let t"`, next to a global key | `admin.title`, `menu.home` in `admin/admin-panel.component.html` |
+| `t('key')` from `<ng-template transloco let-t [translocoPrefix]="'admin.users'">` | `count` in `admin/admin-panel.component.html` |
+| The attribute directive, `transloco="key"` and `[transloco]="'key'"` | `menu.settings.title`, `home.onlyInEnglish` in `app.component.html` |
 | `transloco.selectTranslate('key')` | `home.title` in `app.component.ts` |
 | `transloco.translate('admin.key', { … })`: a scope key from TypeScript | `admin.saved` in `admin/admin-panel.component.ts` |
+| The standalone `translateSignal('key')` | `admin.title` in `admin/admin-panel.component.ts` |
 | Unknown key at the call site, on purpose | `'home.doesNotExist' \| transloco` in `app.component.html`, `t('doesNotExist')` in `admin/admin-panel.component.html` |
+| A key of the scope written without it, on purpose: not found | `'title' \| transloco` in `app.component.html` |
 | A parameter the message reads and the call does not pass, on purpose | `saveAnonymously()` in `admin/admin-panel.component.ts` |
 
 ngx-translate, in `ngx-translate/src/app/`:
@@ -62,6 +66,8 @@ ngx-translate, in `ngx-translate/src/app/`:
 | `translate.stream('key')` | `home.title` in `app.component.ts` |
 | `translate.get('key', { … })` | `cart.summary` in `app.component.ts` |
 | `translate.instant('key')` | `cart.cleared` in `app.component.ts` |
+| The attribute directive, `<p translate>key</p>` and `[translate]="'key'"` | `menu.settings.title`, `cart.cleared` in `app.component.html` |
+| HTML's own `translate="no"`: never a key | `app.component.html` |
 | Unknown key at the call site, on purpose | `'home.doesNotExist' \| translate` in `app.component.html` |
 | A parameter the message reads and the call does not pass, on purpose | `greetAnonymously()` in `app.component.ts` |
 
@@ -95,6 +101,14 @@ Transloco (`transloco/`):
    back.
 8. `this.transloco.translate('admin.saved')` in `saveAnonymously()` is reported by *Translation variables not passed
    to the call* (`name`); the call of `save()`, which passes `{ name }`, is not.
+9. In `app.component.html`, Ctrl+click `menu.settings.title` in `transloco="…"` and `'home.onlyInEnglish'` in
+   `[transloco]="…"`: they open their keys; inside `transloco="menu."`, Ctrl+Space proposes `home` and `settings`, and
+   inside `{{ '' | transloco }}`, the global keys.
+10. `'title' | transloco` in `app.component.html` is underlined as *Unresolved key*: only the `admin` scope holds
+    `title`, and Transloco reads it there as `admin.title`.
+11. In `admin-panel.component.html`, Ctrl+click `t('count')` under `[translocoPrefix]="'admin.users'"`: it opens
+    `users.count` in `src/assets/i18n/admin/en.json`; in `admin-panel.component.ts`, Ctrl+click `'admin.title'` in
+    `translateSignal(…)`: it opens `title` in the same file.
 
 ngx-translate (`ngx-translate/`):
 
@@ -113,6 +127,9 @@ ngx-translate (`ngx-translate/`):
    now say `cart.emptied`. One Ctrl+Z puts everything back.
 8. `this.translate.instant('home.greeting')` in `greetAnonymously()` is reported by *Translation variables not passed
    to the call* (`name`); `get('cart.summary', { count: … })` is not.
+9. In `app.component.html`, Ctrl+click `'cart.cleared'` in `[translate]="…"`: it opens its key. Change
+   `menu.settings.title` in `<p translate>…</p>` to `menu.settings.zz`: it is underlined as *Unresolved key*. Nothing is
+   underlined in `<p translate="no">`. Inside `{{ 'menu.' | translate }}`, Ctrl+Space proposes the `menu` keys.
 
 The locale files can also be checked from the command line, without the IDE (see *Command Line Check* in the root
 README). The command line does not know Transloco's scopes: check the global files and the scope apart.
@@ -129,16 +146,18 @@ says nothing about the unknown `doesNotExist` keys here.
 
 ## Left out
 
-- Transloco's attribute directive (`<span transloco="home.title">`, `[transloco]="'home.title'"`) and ngx-translate's
-  (`<p translate>home.title</p>`, `[translate]="'home.title'"`): the key sits in an attribute or in the element's text,
-  which the plugin does not read in an Angular template.
-- `[translocoRead]="'admin'"`: the plugin reads it on the tag carrying `*transloco`, where Angular binds it to that
-  element rather than to the directive, and fails the build; the form Angular accepts,
-  `<ng-template transloco let-t [translocoRead]="'admin'">`, carries no `*transloco` and is not read. The scope is
-  therefore read through `read: 'admin'`, deprecated by Transloco 8 but still working until 9.
-- `prefix: 'admin'` and `[translocoPrefix]`, Transloco 8's replacement for `read`: not read yet.
-- Transloco's standalone `translate('key')`, `translateSignal('key')` and `translateObject('key')`: only the service's
-  `translate` and `selectTranslate` are read, on a variable whose name holds `transloco`. Likewise, ngx-translate's
-  `instant`, `get` and `stream` are read on a variable whose name holds `translate`.
+- Folding and inlay hints on the attribute directives (`transloco="key"`, `<p translate>key</p>`): the key is checked,
+  completed and navigable, but its value is not shown in place. A key written as the element's text
+  (`<p translate>key</p>`) is checked and completed only: the IDE gives a template's text no reference, so Ctrl+click
+  does not open it.
+- A `[translocoRead]` or `[translocoPrefix]` bound to anything but a string literal (`[translocoRead]="scope"`): known
+  only at runtime, the keys under it are read as global ones.
+- A scope declared by a component (`provideTranslocoScope('admin')`) changes nothing: Transloco still reads its keys as
+  `admin.…`, so a key naming no scope is never looked up in a scope file. A scope alias
+  (`provideTranslocoScope({ scope: 'admin', alias: 'adm' })`) is not read.
+- Transloco's `translateObject('key')`, which returns the messages under a key: not read. The service's `translate` and
+  `selectTranslate` are read on a variable whose name holds `transloco`, and the standalone `translate` and
+  `translateSignal` in a file importing `@jsverse/transloco`. Likewise, ngx-translate's `instant`, `get` and `stream`
+  are read on a variable whose name holds `translate`.
 - Plurals: neither library pluralises without a MessageFormat compiler (`@jsverse/transloco-messageformat`,
   `ngx-translate-messageformat-compiler`), and the plugin's plural support is i18next's `key_one`/`key_other`.
