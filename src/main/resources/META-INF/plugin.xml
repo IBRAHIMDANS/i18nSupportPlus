@@ -197,7 +197,7 @@
         <completion.contributor language="JavaScript" order="first" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.ParaglideCompletionContributor"/>
         <completion.contributor language="JavaScript" order="first" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.TypesafeI18nCompletionContributor"/>
         <projectService serviceImplementation="com.ibrahimdans.i18n.plugin.ide.settings.Settings"/>
-        <projectConfigurable groupId="tools" displayName="i18n Support Plus Configuration" instance="com.ibrahimdans.i18n.plugin.ide.settings.Configurable"/>
+        <projectConfigurable groupId="tools" displayName="i18n Support Plus" instance="com.ibrahimdans.i18n.plugin.ide.settings.Configurable"/>
         <projectConfigurable parentId="preference.i18nPlugin" id="preference.i18nPlugin.machineTranslation"
                              instance="com.ibrahimdans.i18n.plugin.translate.MachineTranslationConfigurable"
                              bundle="messages.I18nBundle" key="settings.translate.title"/>
@@ -374,40 +374,46 @@
             implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedJsxTextInspection"/>
     </extensions>
     <actions>
+        <!-- One family per section: configuration, keys, machine translation, exchange, generation;
+             Show Translation Changes and Compare with Branch close the menu. -->
         <group id="com.ibrahimdans.i18n.ToolsMenu"
                popup="true">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
             <action id="com.ibrahimdans.i18n.RunSetupWizard"
                     class="com.ibrahimdans.i18n.plugin.ide.actions.SetupWizardAction"/>
-            <action id="com.ibrahimdans.i18n.ExportTranslations"
-                    class="com.ibrahimdans.i18n.plugin.ide.actions.ExportTranslationsAction"/>
-            <action id="com.ibrahimdans.i18n.ImportTranslations"
-                    class="com.ibrahimdans.i18n.plugin.ide.actions.ImportTranslationsAction"/>
-            <action id="com.ibrahimdans.i18n.CleanupUnusedKeys"
-                    class="com.ibrahimdans.i18n.plugin.ide.actions.CleanupUnusedKeysAction"/>
-            <!-- No default keyboard shortcut: three are already taken (ctrl alt shift T/B/M). -->
-            <action id="com.ibrahimdans.i18n.SyncKeys"
-                    class="com.ibrahimdans.i18n.plugin.ide.actions.SyncKeysAction"
-                    icon="AllIcons.General.Modified"/>
-            <!-- Manual only, and hidden outside i18next modules: the generated file is committed. -->
-            <action id="com.ibrahimdans.i18n.GenerateI18nTypes"
-                    class="com.ibrahimdans.i18n.plugin.ide.actions.GenerateI18nTypesAction"/>
-            <action id="com.ibrahimdans.i18n.GeneratePseudoLocale"
-                    class="com.ibrahimdans.i18n.plugin.ide.actions.GeneratePseudoLocaleAction"/>
-            <action id="com.ibrahimdans.i18n.FillMissingTranslations"
-                    class="com.ibrahimdans.i18n.plugin.ide.actions.FillMissingTranslationsAction"/>
-            <action id="com.ibrahimdans.i18n.RetranslateStale"
-                    class="com.ibrahimdans.i18n.plugin.ide.actions.RetranslateStaleAction"/>
             <!-- Hidden with fewer than two modules; the module selector's right-click menu holds them too. -->
             <action id="com.ibrahimdans.i18n.FocusModule"
                     class="com.ibrahimdans.i18n.plugin.ide.actions.FocusModuleAction"/>
             <action id="com.ibrahimdans.i18n.ActivateAllModules"
                     class="com.ibrahimdans.i18n.plugin.ide.actions.ActivateAllModulesAction"/>
+            <separator/>
+            <!-- No default keyboard shortcut: three are already taken (ctrl alt shift T/B/M). -->
+            <action id="com.ibrahimdans.i18n.SyncKeys"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.SyncKeysAction"
+                    icon="AllIcons.General.Modified"/>
+            <action id="com.ibrahimdans.i18n.CleanupUnusedKeys"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.CleanupUnusedKeysAction"/>
+            <separator/>
+            <action id="com.ibrahimdans.i18n.FillMissingTranslations"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.FillMissingTranslationsAction"/>
+            <action id="com.ibrahimdans.i18n.RetranslateStale"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.RetranslateStaleAction"/>
+            <separator/>
+            <action id="com.ibrahimdans.i18n.ExportTranslations"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.ExportTranslationsAction"/>
+            <action id="com.ibrahimdans.i18n.ImportTranslations"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.ImportTranslationsAction"/>
+            <separator/>
+            <!-- Manual only, and hidden outside i18next modules: the generated file is committed. -->
+            <action id="com.ibrahimdans.i18n.GenerateI18nTypes"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.GenerateI18nTypesAction"/>
+            <action id="com.ibrahimdans.i18n.GeneratePseudoLocale"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.GeneratePseudoLocaleAction"/>
+            <separator/>
         </group>
         <action id="com.ibrahimdans.i18n.ToggleFolding"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.ToggleFoldingAction"
                 icon="AllIcons.General.InspectionsEye">
-            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift T"/>
         </action>
         <action id="com.ibrahimdans.i18n.BatchExtractI18n"
@@ -419,20 +425,14 @@
         <action id="com.ibrahimdans.i18n.Internationalize"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.i18nize.I18nizeAction">
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
-            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
         </action>
         <!-- No default shortcut: ctrl alt shift T/B/M are taken; the status bar widget is the click path. -->
         <action id="com.ibrahimdans.i18n.SwitchPreviewLocale"
-                class="com.ibrahimdans.i18n.plugin.ide.actions.SwitchPreviewLocaleAction">
-            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
-        </action>
+                class="com.ibrahimdans.i18n.plugin.ide.actions.SwitchPreviewLocaleAction"/>
         <action id="com.ibrahimdans.i18n.SortI18nKeys"
-                class="com.ibrahimdans.i18n.plugin.ide.actions.SortI18nKeysAction">
-            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
-        </action>
+                class="com.ibrahimdans.i18n.plugin.ide.actions.SortI18nKeysAction"/>
         <action id="com.ibrahimdans.i18n.MoveI18nKey"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.MoveI18nKeyHandler">
-            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift M"/>
         </action>
         <action id="com.ibrahimdans.i18n.ShowTranslationChanges"
@@ -443,21 +443,33 @@
         </action>
         <action id="com.ibrahimdans.i18n.CopyI18nKey"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.CopyI18nKeyAction"
-                icon="AllIcons.Actions.Copy">
-            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
-        </action>
+                icon="AllIcons.Actions.Copy"/>
         <action id="com.ibrahimdans.i18n.DeleteI18nKey"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.DeleteI18nKeyAction"
-                icon="AllIcons.Actions.GC">
-            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
-        </action>
+                icon="AllIcons.Actions.GC"/>
         <!-- ctrl alt shift I ("i18n"): free in the IDE keymaps and bundled plugins, T/B/M are the plugin's own. -->
         <action id="com.ibrahimdans.i18n.EditTranslationAtCaret"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.EditTranslationAtCaretAction"
                 icon="AllIcons.Actions.Edit">
-            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift I"/>
         </action>
+        <!-- The editor's entries, in a submenu of their own rather than eight lines at the end of the
+             context menu. The group hides itself when none of them applies to the file. -->
+        <group id="com.ibrahimdans.i18n.EditorMenu"
+               class="com.ibrahimdans.i18n.plugin.ide.actions.I18nEditorMenuGroup"
+               popup="true">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <reference ref="com.ibrahimdans.i18n.EditTranslationAtCaret"/>
+            <reference ref="com.ibrahimdans.i18n.CopyI18nKey"/>
+            <reference ref="com.ibrahimdans.i18n.MoveI18nKey"/>
+            <reference ref="com.ibrahimdans.i18n.DeleteI18nKey"/>
+            <separator/>
+            <reference ref="com.ibrahimdans.i18n.Internationalize"/>
+            <reference ref="com.ibrahimdans.i18n.SortI18nKeys"/>
+            <separator/>
+            <reference ref="com.ibrahimdans.i18n.ToggleFolding"/>
+            <reference ref="com.ibrahimdans.i18n.SwitchPreviewLocale"/>
+        </group>
         <!-- Consumed by the tool window toolbar, which resolves it by id; it belongs to no
              group so that the table's own scan button could disappear without the feature
              becoming unreachable from Find Action. -->

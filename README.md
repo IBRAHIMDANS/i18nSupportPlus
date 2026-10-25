@@ -135,7 +135,7 @@ getter of the generated class, which the Dart analyzer already checks, so an ARB
 
 Keys are resolved as nested properties by default (`app.header.title` walks three levels).
 Projects storing **flat ids** — one property per key, as react-intl / FormatJS usually do —
-should enable **Treat keys as flat** in *Settings → Tools → i18n Support Plus Configuration*.
+should enable **Treat keys as flat** in *Settings | Tools | i18n Support Plus*.
 The setting turns off key-separator splitting and namespace parsing altogether, so the whole
 id is looked up as a single property and translation files are located through the default
 namespace.
@@ -229,11 +229,11 @@ Displays the resolved translation value inline after each i18n key expression, d
 
 ### Preview Locale
 
-`i18n: en` in the status bar says which locale inlay hints, hover, Ctrl+click and folding read in. Click it to pick another of the project's locales; **Switch Preview Locale** in the editor's context menu cycles through them, ready for a shortcut. The *Preview locale* and *Preferred folding language* settings stay for anyone who wants the two apart.
+`i18n: en` in the status bar says which locale inlay hints, hover, Ctrl+click and folding read in. Click it to pick another of the project's locales; **Switch Preview Locale**, under *i18n* in the editor's context menu, cycles through them, ready for a shortcut. The *Preview locale* and *Preferred folding language* settings stay for anyone who wants the two apart.
 
 ### Code Folding
 
-Replaces i18n keys with their translation values inline for better readability. Toggle with **Ctrl+Alt+Shift+T** or via the editor context menu.
+Replaces i18n keys with their translation values inline for better readability. Toggle with **Ctrl+Alt+Shift+T** or under *i18n* in the editor context menu.
 
 ![Folding before](docs/img/folding-before.png)
 ![Folding after](docs/img/folding-after.png)
@@ -249,8 +249,8 @@ With the caret on an intermediate level of a key (`button` in `common:button.sav
 | Action | Where | What it does |
 |--------|-------|--------------|
 | Batch Extract i18n Keys | **Code** menu, `Ctrl+Alt+Shift+B` | Extract several hardcoded strings of a file as keys in one pass |
-| Move i18n Key to Namespace… | editor context menu, `Ctrl+Alt+Shift+M` | Move a key to another namespace, updating every locale file and code reference |
-| Sort i18n Keys Alphabetically | editor context menu, in a translation file | Reorder the file's keys, recursively |
+| Move i18n Key to Namespace… | editor context menu › *i18n*, `Ctrl+Alt+Shift+M` | Move a key to another namespace, updating every locale file and code reference |
+| Sort i18n Keys Alphabetically | editor context menu › *i18n*, in a translation file | Reorder the file's keys, recursively |
 | Sync Keys | **Tools > i18n Support Plus**, tool window toolbar | Create in every locale the keys it lacks, with a batch dialog to fill the values |
 | Export Translations to CSV… | **Tools > i18n Support Plus** | One row per key, one column per locale |
 | Import Translations from CSV… | **Tools > i18n Support Plus** | Write values back from a CSV, with a preview of what changes before anything is written |
@@ -483,7 +483,7 @@ A monorepo is described as **modules** in the settings (root directory, path tem
 
 ## Configuration
 
-**Settings > Tools > i18n Support Plus Configuration**
+**Settings | Tools | i18n Support Plus**
 
 ![Settings](docs/img/settings.png)
 
