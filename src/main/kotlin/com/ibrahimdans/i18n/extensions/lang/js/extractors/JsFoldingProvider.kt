@@ -32,6 +32,9 @@ internal class JsFoldingProvider: FoldingProvider {
 
         /** Paraglide's `m.hello` / `m["a.b"]`: a member access, no string. */
         val PARAGLIDE_MESSAGE = ParaglideMessageExtractor()
+
+        /** next-intl's `t.rich('key')`, `t.markup`, `t.raw`: calls named after the method, not after `t`. */
+        val NEXT_INTL_MESSAGE = NextIntlMethodExtractor(NextIntlMethodExtractor.MESSAGE_METHODS)
     }
 
     /**
@@ -43,6 +46,7 @@ internal class JsFoldingProvider: FoldingProvider {
             .filter { PARAGLIDE_MESSAGE.canExtract(it) && ModulePresets.allows(ModulePresets.presetOf(it), "paraglide") }
 
     private fun isI18nArgument(element: PsiElement): Boolean {
+        if (NEXT_INTL_MESSAGE.canExtract(element)) return ModulePresets.allows(ModulePresets.presetOf(element), "next-intl")
         val argument = ternaryArgument(element) ?: element
         if (!JSPatterns.jsArgument("t", 0).accepts(argument) &&
             !JSPatterns.jsArgument("\$t", 0).accepts(argument)) return false

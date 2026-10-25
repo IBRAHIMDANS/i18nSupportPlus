@@ -48,8 +48,15 @@ open class JsLang : Lang {
          *  - vue-i18n's `<i18n-t keypath>` and `v-t` directive hold the key in template markup,
          *    outside any call.
          *  - Paraglide's `m.hello()` holds no string at all: the key is the member's name.
+         *  - next-intl's `t.rich('key')`, `t.markup`, `t.raw` and `t.has` are qualified calls named
+         *    after the method, not after `t`.
          */
         private val PARAGLIDE_MESSAGE = ParaglideMessageExtractor()
+
+        /** `t.has('key')`: read for its usages and references, never annotated — it tests existence. */
+        private val NEXT_INTL_HAS = NextIntlMethodExtractor(setOf(NextIntlMethodExtractor.HAS))
+
+        private val NEXT_INTL_RAW = NextIntlMethodExtractor(setOf(NextIntlMethodExtractor.RAW))
 
         private val FORMATTED_MESSAGE = FormattedMessageExtractor()
 
@@ -63,6 +70,7 @@ open class JsLang : Lang {
             VueI18nKeypathExtractor(),
             VueTDirectiveExtractor(),
             PARAGLIDE_MESSAGE,
+            NextIntlMethodExtractor(),
         )
     }
 
@@ -79,6 +87,7 @@ open class JsLang : Lang {
     override fun canExtractKey(element: PsiElement, translationFunctionNames: List<String>): Boolean {
         val decision = jsRuleDecision(element)
         if (decision == RuleDecision.EXCLUDE) return false
+        if (NEXT_INTL_HAS.canExtract(element)) return false
         // A module preset keeps its framework's calls only; a rule including a call still wins.
         val preset = ModulePresets.presetOf(element)
         if (activeExtractors(preset).any { it.canExtract(element) }) return true
@@ -146,6 +155,9 @@ open class JsLang : Lang {
             ).find {it.canExtract(element)}?.extract(element)
         }
 
+    /** next-intl's `t.raw('list')` returns the message as written, so it may be an object or an array. */
+    override fun allowsObjectValue(element: PsiElement): Boolean = NEXT_INTL_RAW.canExtract(element)
+
     override fun foldingProvider(): FoldingProvider = JsFoldingProvider()
 
     override fun translationExtractor(): TranslationExtractor = JsTranslationExtractor()
@@ -170,6 +182,7 @@ private fun frameworkOf(extractor: KeyExtractor): String? = when (extractor) {
     is VueI18nKeypathExtractor, is VueTDirectiveExtractor -> "vue-i18n"
     is LinguiTransKeyExtractor -> "lingui"
     is ParaglideMessageExtractor -> "paraglide"
+    is NextIntlMethodExtractor -> "next-intl"
     is XmlAttributeKeyExtractor -> "i18next"
     else -> null
 }

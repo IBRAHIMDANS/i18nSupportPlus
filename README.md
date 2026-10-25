@@ -49,7 +49,7 @@ A setup wizard auto-configures it on first launch.
 |-----------|--------------------|:------------:|
 | i18next / react-i18next | `t('ns:key')`, `` t(`key.${suffix}`) ``, `t('key', { ns: 'other' })`, `useTranslation('ns')`, `<Trans i18nKey="key">` | Yes |
 | vue-i18n (Nuxt: `@nuxtjs/i18n`) | `$t('key')`, `$tc('key')`, `$te('key')`, `<i18n-t keypath="key">`, `v-t="'key'"` | No |
-| next-intl | `const t = useTranslations('Home')` then `t('title')`, read as the key `Home.title` | No |
+| next-intl | `const t = useTranslations('Home')` (or `await getTranslations('Home')`) then `t('title')`, read as the key `Home.title`; `t.rich('terms', { … })`, `t.markup`, `t.raw` (an object or an array is a value) and `t.has` (a usage, never reported missing) | No |
 | lingui (`@lingui/core`, `@lingui/react`, `@lingui/macro`) | `msg('key')`, `i18n._('key')`, source-based `<Trans>Hello world!</Trans>` | No |
 | react-intl (FormatJS) | `formatMessage({ id: 'key' })`, `<FormattedMessage id="key" />` | No |
 | ngx-translate (Angular) | `translate.instant('key')`, `.get('key')`, `.stream('key')`, `{{ 'key' \| translate }}` <sup>1</sup> | No |
