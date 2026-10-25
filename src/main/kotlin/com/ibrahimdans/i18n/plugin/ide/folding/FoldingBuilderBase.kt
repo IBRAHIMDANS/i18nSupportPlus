@@ -18,15 +18,24 @@ import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.ibrahimdans.i18n.plugin.utils.renderIcu
 import com.ibrahimdans.i18n.plugin.utils.unQuote
+import com.intellij.codeInsight.folding.CodeFoldingManager
 import com.intellij.lang.ASTNode
 import com.intellij.lang.folding.FoldingBuilderEx
 import com.intellij.lang.folding.FoldingDescriptor
+import com.intellij.lang.folding.LanguageFolding
 import com.intellij.lang.injection.InjectedLanguageManager
+import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Document
+import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.project.DumbAware
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
+import com.intellij.util.concurrency.AppExecutorUtil
 
 internal data class ElementToReferenceBinding(val psiElement: PsiElement, val reference: PropertyReference<PsiElement>)
 
@@ -40,6 +49,11 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
     override fun buildFoldRegions(root: PsiElement, document: Document, quick: Boolean): Array<FoldingDescriptor> {
         val config = Settings.getInstance(root.project).config()
         if (!config.foldingEnabled) return arrayOf()
+        return keyDescriptors(root, config)
+    }
+
+    /** The keys of [root] folding would show, whether or not folding is on. */
+    private fun keyDescriptors(root: PsiElement, config: Config): Array<FoldingDescriptor> {
         val foldingProvider = lang.foldingProvider()
         val injectionManager = InjectedLanguageManager.getInstance(root.project)
 
@@ -100,4 +114,68 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
     }
 
     override fun isCollapsedByDefault(node: ASTNode): Boolean = true
+
+    companion object {
+
+        /**
+         * Brings the key regions of the editors already open of [project] in line with folding
+         * just turned on ([fold]) or off.
+         *
+         * Not left to the daemon, which gets both wrong in an open editor. Only an editor's first
+         * folding pass applies [isCollapsedByDefault]: a region that appears later is added
+         * expanded (`UpdateFoldRegionsOperation.shouldExpandNewRegion`). And a folded region the
+         * builders no longer return is kept as long as it is folded. So the regions are updated
+         * here, as the daemon's folding pass does it: on turning on, those of the keys are then
+         * collapsed; on turning off, they are expanded first, so that the update drops them. Only
+         * the keys: the user's own folding is left as it was, and the key under the caret is not
+         * collapsed, as the platform leaves it open on an editor's first pass too.
+         */
+        fun refreshOpenEditors(project: Project, fold: Boolean) {
+            EditorFactory.getInstance().allEditors
+                .filter { it.project == project }
+                .forEach { editor ->
+                    ReadAction.nonBlocking<Pair<Runnable?, Set<TextRange>>> {
+                        val update = CodeFoldingManager.getInstance(project).updateFoldRegionsAsync(editor, false)
+                        update to keyRanges(project, editor.document)
+                    }
+                        .withDocumentsCommitted(project)
+                        .expireWhen { editor.isDisposed || project.isDisposed }
+                        .finishOnUiThread(ModalityState.defaultModalityState()) { (update, ranges) ->
+                            if (fold) {
+                                update?.run()
+                                setExpanded(editor, ranges, expanded = false)
+                            } else {
+                                setExpanded(editor, ranges, expanded = true)
+                                update?.run()
+                            }
+                        }
+                        .submit(AppExecutorUtil.getAppExecutorService())
+                }
+        }
+
+        /** The ranges this plugin folds, or would fold, in [document]'s file, every language of it. */
+        private fun keyRanges(project: Project, document: Document): Set<TextRange> {
+            val file = PsiDocumentManager.getInstance(project).getPsiFile(document) ?: return emptySet()
+            val config = Settings.getInstance(project).config()
+            val provider = file.viewProvider
+            return provider.languages.flatMapTo(mutableSetOf()) { language ->
+                val root = provider.getPsi(language) ?: return@flatMapTo emptyList()
+                LanguageFolding.INSTANCE.allForLanguage(language)
+                    .filterIsInstance<FoldingBuilderBase>()
+                    .flatMap { builder -> builder.keyDescriptors(root, config).map { it.range } }
+            }
+        }
+
+        private fun setExpanded(editor: Editor, ranges: Set<TextRange>, expanded: Boolean) {
+            if (ranges.isEmpty()) return
+            val caret = editor.caretModel.offset
+            val folding = editor.foldingModel
+            folding.runBatchFoldingOperation {
+                folding.allFoldRegions
+                    .filter { it.isExpanded != expanded && it.textRange in ranges }
+                    .filter { expanded || caret !in it.startOffset + 1 until it.endOffset }
+                    .forEach { it.isExpanded = expanded }
+            }
+        }
+    }
 }
