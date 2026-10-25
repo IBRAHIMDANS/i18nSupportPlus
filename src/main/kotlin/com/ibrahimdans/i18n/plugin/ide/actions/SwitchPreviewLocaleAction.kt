@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.util.concurrency.AppExecutorUtil
@@ -21,8 +22,10 @@ class SwitchPreviewLocaleAction : AnAction() {
 
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
 
+    /** Offered in code and translation files, and only when the project has translations to preview. */
     override fun update(e: AnActionEvent) {
-        e.presentation.isEnabledAndVisible = e.project != null
+        val file = e.getData(CommonDataKeys.PSI_FILE)
+        e.presentation.isEnabledAndVisible = file != null && I18nEditorScope.isCodeOrTranslation(file) && I18nEditorScope.hasSources(file)
     }
 
     override fun actionPerformed(e: AnActionEvent) {

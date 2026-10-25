@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.plugin.ide.preview.EditorRefresh
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.ToggleAction
 
 /**
@@ -14,6 +15,13 @@ import com.intellij.openapi.actionSystem.ToggleAction
 class ToggleFoldingAction : ToggleAction() {
 
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
+
+    /** Folding replaces keys in code only: offered there, and only when the project has translations. */
+    override fun update(e: AnActionEvent) {
+        super.update(e)
+        val file = e.getData(CommonDataKeys.PSI_FILE)
+        e.presentation.isEnabledAndVisible = file != null && I18nEditorScope.isCode(file) && I18nEditorScope.hasSources(file)
+    }
 
     override fun isSelected(e: AnActionEvent): Boolean {
         val project = e.project ?: return false
