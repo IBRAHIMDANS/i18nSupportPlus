@@ -27,6 +27,7 @@
 ### Fixes
 
 - [Folding] **Show Translations Inline applies to the files already open**: turning it on folds their keys at once, instead of leaving them unfolded until *Collapse All*, and turning it off unfolds them; the rest of your folding is left as it was
+- [Translate] **No stray AI note in the translation dialog**: without an engine that reads instructions, *Create Translation* and *Edit Translation* no longer show the instruction field's note on its own, under no field
 - [Settings] **Switching the preview locale no longer changes the reference locale**: picking another locale in the status bar only changes what inlay hints, hover and folding show; missing keys, *Fill Missing Translations*, stale values and the statistics keep comparing against the module's reference locale, else *Preferred folding language*. A project that relied on the preview locale keeps its reference on update
 - [UI] **One name per idea across menus, inspections and settings**: *Cleanup Unused Keys…* is now *Clean Up Keys with No Reference…*, *Scan Orphan Keys* is *Count Key Usages*, *Preferred folding language* is *Project reference locale*; menu entries that ask for input end with “…”, and the settings paths quoted in messages match the settings page. Keymaps and inspection profiles are unchanged
 - [Transloco] **A key naming no scope is no longer found in a scope's files**: `'title' | transloco` is reported when only `i18n/admin/en.json` holds `title`, as Transloco needs `admin.title` there
