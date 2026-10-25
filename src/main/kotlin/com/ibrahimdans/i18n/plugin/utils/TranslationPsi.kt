@@ -72,6 +72,19 @@ object TranslationPsi {
         if (isYaml(element)) YamlTranslationPsi.keyValueOf(element, strict)
         else PsiTreeUtil.getParentOfType(element, JsonProperty::class.java, strict)
 
+    /**
+     * The name element of the key-value whose value is [value] — a JSON property name, a YAML key, a
+     * Laravel array key — or null: what renaming the key rewrites in a translation file.
+     *
+     * Apart from [entryOf] for PHP: the inspections of translation files read every PHP array
+     * through it, and a Laravel array key is renamed, never checked like a JSON one.
+     */
+    fun keyElementOf(value: PsiElement): PsiElement? {
+        if (isPhp(value)) return PhpTranslationPsi.keyOf(value)
+        val property = propertyOf(value, strict = false) ?: value.parent ?: return null
+        return entryOf(property)?.keyElement
+    }
+
     /** The name of [element] when it is a key-value, else null. */
     fun nameOf(element: PsiElement): String? = when {
         element is JsonProperty -> element.name

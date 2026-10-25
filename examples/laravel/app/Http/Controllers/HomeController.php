@@ -16,6 +16,9 @@ class HomeController
             'throttle' => Lang::get('messages.auth.throttle', ['seconds' => 30]),
             'partial' => __('messages.only_in_english'),
             'thanks' => __('Thanks for your order'),
+            // JSON phrases holding `.` and `:`: the text is the key, whole.
+            'saved' => __('Saved.'),
+            'hello' => __('Hello, :name', ['name' => 'Ada']),
             // Unknown on purpose: reported as an unresolved key.
             'missing' => __('messages.does_not_exist'),
             // A request parameter, not a translation: never reported.

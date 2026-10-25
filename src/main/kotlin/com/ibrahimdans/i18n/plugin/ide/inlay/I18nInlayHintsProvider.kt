@@ -18,10 +18,13 @@ import com.intellij.codeInsight.hints.declarative.InlayHintsProvider
 import com.intellij.codeInsight.hints.declarative.InlayTreeSink
 import com.intellij.codeInsight.hints.declarative.InlineInlayPosition
 import com.intellij.codeInsight.hints.declarative.SharedBypassCollector
+import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Editor
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiLanguageInjectionHost
+import com.intellij.psi.util.PsiTreeUtil
 
 /**
  * Displays the resolved i18n translation inline after each key expression.
@@ -33,7 +36,14 @@ import com.intellij.psi.PsiFile
  * showed no hint at all. The duplicate it was actually hiding within a pass — a literal expression
  * and its leaf token both claimed — is filtered below without any state.
  */
-class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiElement> {
+open class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiElement> {
+
+    /**
+     * Whether the keys sit in the language fragments injected into the file rather than in its own
+     * PSI: a Blade view's `@lang('…')` and `{{ __('…') }}` are PHP injected into it, and the pass
+     * visits the view's elements only.
+     */
+    protected open fun readsInjectedFragments(): Boolean = false
 
     override fun createCollector(file: PsiFile, editor: Editor): InlayHintsCollector {
         // One collector per file and pass, asked of every PSI element: what does not depend on the
@@ -43,8 +53,23 @@ class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiEleme
         val config = Settings.getInstance(file.project).config()
         val translationFunctionNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
         val langs = Extensions.LANG.extensionList
+        val injections = InjectedLanguageManager.getInstance(file.project)
+        // One fragment may span several hosts — Blade injects all of a view's PHP as one file —
+        // and is read once per pass, not once per host holding a part of it.
+        val visitedFragments = mutableSetOf<PsiFile>()
         return object : SharedBypassCollector {
             override fun collectFromElement(element: PsiElement, sink: InlayTreeSink) {
+                if (!readsInjectedFragments()) return collect(element, sink) { it }
+                if (element !is PsiLanguageInjectionHost) return
+                injections.getInjectedPsiFiles(element)?.forEach { injected ->
+                    val fragment = injected.first as? PsiFile ?: return@forEach
+                    if (!visitedFragments.add(fragment)) return@forEach
+                    PsiTreeUtil.processElements(fragment) { collect(it, sink) { offset -> injections.injectedToHost(it, offset) }; true }
+                }
+            }
+
+            /** Adds the hint of [element], placed at the offset [toHost] gives for its end. */
+            private fun collect(element: PsiElement, sink: InlayTreeSink, toHost: (Int) -> Int) {
                 val project = element.project
                 val lang = langs.firstOrNull { it.canExtractKey(element, translationFunctionNames) } ?: return
 
@@ -78,7 +103,7 @@ class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<PsiEleme
                     ?.ellipsis(config.foldingMaxLength)
                     ?: return
 
-                val offset = element.textRange.endOffset
+                val offset = toHost(element.textRange.endOffset)
                 sink.addPresentation(InlineInlayPosition(offset, true), null, null, HintFormat.default) {
                     text("↦ $translation")
                 }
