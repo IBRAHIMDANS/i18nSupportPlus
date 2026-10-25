@@ -37,7 +37,7 @@ class KeyParser(private val tokenizer: Tokenizer) {
                 // The prefix leads the composite key, which is what resolution walks, while
                 // `source` stays the text the literal writes: ranges and references are computed
                 // against that text, where the prefix does not appear.
-                (ns, key) -> FullKey(source, ns, prefix + key, rawKey.arguments, prefix, prefixSource)
+                (ns, key) -> FullKey(source, ns, prefix + key, rawKey.arguments, prefix, prefixSource, sourceText = rawKey.sourceText)
             }
     }
 

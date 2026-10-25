@@ -19,6 +19,11 @@ data class FullKey(
      * alone, which keeps a typo in it visible.
      */
     val fallbackNamespaces: List<String> = listOf(),
+    /**
+     * The key is the message's source text, not an id: a Lingui `<Trans>` (see `RawKey.sourceText`).
+     * A Lingui PO catalogue flags the other keys, the explicit ids, when it creates them.
+     */
+    val sourceText: Boolean = false,
 ) {
     /**
      * The namespaces the key is looked up in: the one written in the key, or else those its hook

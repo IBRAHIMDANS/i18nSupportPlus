@@ -23,6 +23,16 @@ class PlainObjectContentGenerator : ContentGenerator {
     private companion object {
         /** A `msgid` opening an entry. Leading blanks are tolerated: fixtures carry some. */
         val MSGID_LINE = Regex("""^[ \t]*msgid[ \t]+"(.*)"[ \t]*$""")
+
+        /**
+         * The comment `lingui extract` writes above an entry whose msgid is an id the code chose
+         * (`i18n._("nav.home")`), not the message itself. Without it, `lingui compile` takes the
+         * msgid for a source message and catalogues it under a hash of it: the call finds nothing.
+         */
+        const val LINGUI_EXPLICIT_ID = "#. js-lingui-explicit-id"
+
+        /** The header `lingui extract` writes: `"X-Generator: @lingui/cli\n"`. */
+        const val LINGUI_GENERATOR = "X-Generator: @lingui/"
     }
 
     private object PoFileType : FileType {
@@ -52,11 +62,16 @@ class PlainObjectContentGenerator : ContentGenerator {
         return ext == "po" || ext == "pot"
     }
 
-    override fun generateTranslationEntry(item: PsiElement, key: String, value: String) {
+    override fun generateTranslationEntry(item: PsiElement, key: String, value: String) =
+        insertEntry(item, key, value, explicitId = false)
+
+    /** Writes [key]'s entry, flagged as a Lingui explicit id when [explicitId]. */
+    private fun insertEntry(item: PsiElement, key: String, value: String, explicitId: Boolean) {
         val file = item.containingFile ?: return
         val manager = PsiDocumentManager.getInstance(item.project)
         val document = manager.getDocument(file) ?: return
-        val entry = generateContent(listOf(Literal(key)), value)
+        val marker = if (explicitId) "$LINGUI_EXPLICIT_ID\n" else ""
+        val entry = marker + generateContent(listOf(Literal(key)), value)
 
         val settings = Settings.getInstance(item.project)
         val anchor = if (settings.extractSorted) {
@@ -129,7 +144,17 @@ class PlainObjectContentGenerator : ContentGenerator {
 
     override fun generate(element: PsiElement, fullKey: FullKey, unresolved: List<Literal>, translationValue: String?) {
         val key = unresolved.joinToString(".") { it.text }
-        generateTranslationEntry(element, key, translationValue ?: "")
+        val explicitId = !fullKey.sourceText && isLinguiCatalogue(element)
+        insertEntry(element, key, translationValue ?: "", explicitId)
+    }
+
+    /**
+     * Whether [element]'s catalogue is Lingui's: its header names `@lingui/cli`, or an entry already
+     * carries the explicit-id flag. A gettext catalogue has no use for the flag.
+     */
+    private fun isLinguiCatalogue(element: PsiElement): Boolean {
+        val text = element.containingFile?.text ?: return false
+        return text.contains(LINGUI_GENERATOR) || text.contains(LINGUI_EXPLICIT_ID)
     }
 
     private fun String.escapePo(): String = replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")

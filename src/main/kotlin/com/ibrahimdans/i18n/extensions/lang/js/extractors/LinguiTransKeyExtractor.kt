@@ -54,7 +54,8 @@ class LinguiTransKeyExtractor : KeyExtractor {
 
     override fun extract(element: PsiElement): RawKey {
         if (element !is XmlTag) return RawKey(emptyList())
-        return RawKey(listOf(KeyElement.literal(buildMsgid(element))))
+        // The msgid is the source text: a key created for it must not be flagged as an explicit id.
+        return RawKey(listOf(KeyElement.literal(buildMsgid(element))), sourceText = true)
     }
 
     private fun buildMsgid(tag: XmlTag): String = MessageBuilder(tag.containingFile.text).apply { appendContent(tag) }.toString()

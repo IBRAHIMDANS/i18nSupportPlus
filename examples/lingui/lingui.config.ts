@@ -10,6 +10,6 @@ export default defineConfig({
       include: ["src"],
     },
   ],
-  // No `#: src/App.tsx:12` origin lines: the plugin finds an entry only when its msgid opens it.
-  format: formatter({ origins: false }),
+  // Origin lines `#: src/App.tsx:27` are kept, as `lingui extract` writes them by default.
+  format: formatter(),
 });
