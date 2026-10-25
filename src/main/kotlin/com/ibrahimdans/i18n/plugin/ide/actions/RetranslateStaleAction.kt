@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
@@ -49,7 +50,7 @@ class RetranslateStaleAction : AnAction() {
         val source = ReferenceLocale.of(scope.config, config, locales) ?: return
         val targets = locales.filter { it != source }.toTypedArray()
         if (targets.isEmpty()) {
-            Messages.showInfoMessage(project, PluginBundle.message("action.fill.noTarget", source), title)
+            PluginNotifications.notify(project, PluginBundle.message("action.fill.noTarget", source), title = title)
             return
         }
         val all = PluginBundle.message("action.fill.target.all")

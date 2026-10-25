@@ -11,6 +11,7 @@ import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
 import com.ibrahimdans.i18n.plugin.utils.sourcesOf
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.command.WriteCommandAction
@@ -19,7 +20,6 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import java.awt.BorderLayout
@@ -49,15 +49,8 @@ class KeysSynchronizer {
                 val allLocales = ModuleSources.scopes(config.modules).flatMap { TranslationDataLoader.discoverLocales(project, it) }.distinct()
 
                 if (allLocales.isEmpty()) {
-                    ApplicationManager.getApplication().invokeLater {
-                        // `project` is the one this Task.Backgroundable was built with:
-                        // passing it as parent anchors the dialog to the IDE frame.
-                        Messages.showInfoMessage(
-                            project,
-                            PluginBundle.message("action.sync.none.sources"),
-                            PluginBundle.message("action.sync.title")
-                        )
-                    }
+                    // Nothing to decide: a notification, not a modal.
+                    PluginNotifications.notify(project, PluginBundle.message("action.sync.none.sources"), title = PluginBundle.message("action.sync.title"))
                     return
                 }
 
@@ -66,11 +59,7 @@ class KeysSynchronizer {
 
                 ApplicationManager.getApplication().invokeLater {
                     if (missing.isEmpty()) {
-                        Messages.showInfoMessage(
-                            project,
-                            PluginBundle.message("action.sync.none.missing"),
-                            PluginBundle.message("action.sync.title")
-                        )
+                        PluginNotifications.notify(project, PluginBundle.message("action.sync.none.missing"), title = PluginBundle.message("action.sync.title"))
                         return@invokeLater
                     }
                     val dialog = SyncPreviewDialog(project, missing)

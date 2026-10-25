@@ -11,9 +11,9 @@ import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.readableFile
 import com.ibrahimdans.i18n.plugin.utils.sourcesOf
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
-import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
@@ -169,10 +169,7 @@ class GenerateI18nTypesAction : AnAction() {
     }
 
     private fun notify(project: Project, content: String, type: NotificationType) {
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("i18n Support Plus")
-            .createNotification(PluginBundle.message("action.generate.types.title"), content, type)
-            .notify(project)
+        PluginNotifications.notify(project, content, type, PluginBundle.message("action.generate.types.title"))
     }
 
     internal companion object {

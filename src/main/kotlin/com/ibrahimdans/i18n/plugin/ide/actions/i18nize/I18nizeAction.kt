@@ -13,8 +13,8 @@ import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.of
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
-import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
@@ -254,10 +254,7 @@ class I18nizeAction : AnAction() {
 
         private fun notify(project: Project, content: String, type: NotificationType) {
             if (ApplicationManager.getApplication().isUnitTestMode) return
-            NotificationGroupManager.getInstance()
-                .getNotificationGroup("i18n Support Plus")
-                .createNotification(PluginBundle.message("action.i18nize.title"), content, type)
-                .notify(project)
+            PluginNotifications.notify(project, content, type, PluginBundle.message("action.i18nize.title"))
         }
     }
 
