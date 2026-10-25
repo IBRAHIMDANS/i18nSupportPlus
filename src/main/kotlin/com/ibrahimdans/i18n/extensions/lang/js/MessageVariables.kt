@@ -30,6 +30,8 @@ internal object MessageVariables {
             preset == I18N_JS -> { name -> "%{$name}" }
             // Paraglide's message format interpolates single braces, preset or not once the file imports `m`.
             ParaglideCall.applies(element) -> { name -> "{$name}" }
+            // So does react-intl's ICU, for a file no module holds once it imports react-intl.
+            ReactIntlCall.applies(element) -> { name -> "{$name}" }
             preset != null && preset in InterpolationArgumentsInspection.SINGLE_BRACE_FRAMEWORKS -> { name -> "{$name}" }
             else -> { name -> "{{$name}}" }
         }

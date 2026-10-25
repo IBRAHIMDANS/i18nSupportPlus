@@ -71,9 +71,18 @@ internal class JsTranslationExtractor: TranslationExtractor {
             val messages = ParaglideCall.objectName(element)
             return { argument, variables -> ParaglideCall.call(messages, argument.unQuote(), MessageVariables.inputs(variables)) }
         }
+        if (ReactIntlCall.applies(element)) {
+            val function = formatMessageInScope(element) ?: ReactIntlCall.DEFAULT_FORMAT_MESSAGE
+            val defaultMessage = ReactIntlCall.defaultMessage(element, text(element), variables(element))
+            return { argument, variables -> ReactIntlCall.call(function, argument, variables, defaultMessage(variables)) }
+        }
         val function = translationFunction(element)
         return { argument, variables -> "$function($argument${MessageVariables.options(variables)})" }
     }
+
+    /** react-intl: a string becomes `intl.formatMessage(…)`, which needs the `intl` of a `useIntl()`. */
+    override fun refusal(element: PsiElement): String? =
+        if (!ParaglideCall.applies(element) && ReactIntlCall.applies(element)) ReactIntlCall.refusal(element) else null
 
     /** Paraglide: the call just written needs the message object, imported once if the file lacks it. */
     override fun postProcess(editor: Editor, offset: Int) {

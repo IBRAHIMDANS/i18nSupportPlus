@@ -64,3 +64,37 @@ internal object TranslationHookInScope {
  */
 internal fun translationFunction(element: PsiElement): String =
     if (TranslationHookInScope.find(element) != null) "t" else "i18n.t"
+
+/**
+ * The `formatMessage` react-intl's `useIntl()` gives the functions enclosing [element]:
+ * `intl.formatMessage` under `const intl = useIntl()` — `i.formatMessage` under `const i = useIntl()` —
+ * and `formatMessage` under `const { formatMessage } = useIntl()`. Null without one: the `intl` an
+ * extraction would call is not there, and inventing it writes code that does not run.
+ */
+internal fun formatMessageInScope(element: PsiElement): String? {
+    var scope = PsiTreeUtil.getParentOfType(element, JSFunction::class.java)
+    while (scope != null) {
+        val owner = scope
+        PsiTreeUtil.findChildrenOfType(owner, JSVariable::class.java)
+            .asSequence()
+            .filter { PsiTreeUtil.getParentOfType(it, JSFunction::class.java) == owner }
+            .firstNotNullOfOrNull(::formatMessageOf)
+            ?.let { return it }
+        scope = PsiTreeUtil.getParentOfType(owner, JSFunction::class.java)
+    }
+    return null
+}
+
+private fun formatMessageOf(variable: JSVariable): String? {
+    val destructuring = PsiTreeUtil.getParentOfType(variable, JSDestructuringElement::class.java)
+    val initializer = destructuring?.initializer ?: variable.initializer
+    if ((initializer as? JSCallExpression)?.methodExpression?.text != USE_INTL) return null
+    return when {
+        destructuring == null -> variable.name?.let { "$it.$FORMAT_MESSAGE" }
+        variable.name == FORMAT_MESSAGE -> FORMAT_MESSAGE
+        else -> null
+    }
+}
+
+private const val USE_INTL = "useIntl"
+private const val FORMAT_MESSAGE = "formatMessage"

@@ -65,6 +65,13 @@ interface TranslationExtractor {
      */
     fun scopeNamespaces(element: PsiElement): List<String> = emptyList()
 
+    /**
+     * Why the text at [element] cannot be extracted although [canExtract] holds — the call to write
+     * needs something the code lacks, react-intl's `useIntl()` — shown to the user instead; null when
+     * it can.
+     */
+    fun refusal(element: PsiElement): String? = null
+
     fun postProcess(editor: Editor, offset: Int) {}
 }
 
