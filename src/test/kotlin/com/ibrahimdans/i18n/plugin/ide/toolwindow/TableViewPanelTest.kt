@@ -518,6 +518,8 @@ class TableViewPanelTest : PlatformBaseTest() {
             panel.usageHeader() == PluginBundle.message("toolwindow.table.column.usage.not.scanned"),
             "the header carries the one 'not counted yet' of the column"
         )
+        // At its usual width the column cut the header to "Usage (not c…".
+        assertTrue(panel.usageColumnWidth() >= panel.headerWidth(3), "the header is readable whole")
         val cell = table.columnModel.getColumn(3).cellRenderer
             .getTableCellRendererComponent(table, -1, false, false, 0, 3) as JLabel
         assertTrue(cell.text.isEmpty(), "no 'Not scanned' repeated on every row")

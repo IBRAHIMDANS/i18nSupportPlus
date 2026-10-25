@@ -32,6 +32,7 @@ import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.table.JBTable
 import com.intellij.util.messages.MessageBusConnection
+import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.event.ActionEvent
@@ -378,6 +379,18 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     internal val usageScanned: Boolean
         get() = allRows.any { viewModel.usageStatus(it.usageCount) != UsageStatus.NOT_SCANNED }
 
+    /** The width the header of view column [index] needs to show its text whole, margin included. */
+    internal fun headerWidth(index: Int): Int {
+        val column = table.columnModel.getColumn(index)
+        val renderer = column.headerRenderer ?: table.tableHeader.defaultRenderer
+        val drawn = renderer.getTableCellRendererComponent(table, column.headerValue, false, false, -1, index)
+        return drawn.preferredSize.width + JBUI.scale(8)
+    }
+
+    /** The Usage column's width; for the tests. */
+    internal fun usageColumnWidth(): Int =
+        table.columnModel.columns.toList().lastOrNull()?.preferredWidth ?: 0
+
     /** The header text of the Usage column, as drawn; for the tests. */
     internal fun usageHeader(): String? =
         table.columnModel.columns.toList().lastOrNull()?.headerValue?.toString()
@@ -630,8 +643,12 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         for (i in 0 until table.columnCount) {
             val column = table.columnModel.getColumn(i)
             column.cellRenderer = if (i == usageColIdx) usageRenderer else translationRenderer
-            if (i == usageColIdx && !scanned) column.headerValue = PluginBundle.message("toolwindow.table.column.usage.not.scanned")
             widths.getOrNull(i)?.let { column.preferredWidth = it }
+            if (i == usageColIdx && !scanned) {
+                column.headerValue = PluginBundle.message("toolwindow.table.column.usage.not.scanned")
+                // The column's usual width cut the header to "Usage (not c…": it grows to the whole of it.
+                column.preferredWidth = maxOf(column.preferredWidth, headerWidth(i))
+            }
         }
 
         val sorter = TableRowSorter(tableModel)
