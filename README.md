@@ -125,7 +125,7 @@ On first launch, a wizard guides you through configuration in 3 steps:
 
 1. **Framework detection** — auto-detects i18next, vue-i18n, lingui, react-intl, ngx-translate, Transloco, svelte-i18n, i18n-js or Paraglide JS from your `package.json`
 2. **Translation file discovery** — scans for `.json`, `.yaml`, `.po`, and `.pot` files in `locales/`, `i18n/`, `translations/` folders (PO/POT support requires the optional **GNU GetText** plugin — see Plugin Dependencies)
-3. **Summary** — review and apply the configuration
+3. **Summary** — review and apply the configuration. In a monorepo, where the catalogues sit in several applications (`apps/shop/public/locales`, `apps/admin/public/locales`), it proposes one module per application, ticked by default: each is rooted at the application's folder (the one holding its `package.json` or `composer.json`, else the folder above `public/`, `src/`, `locales/`…), named after it, and given the framework its own manifest declares. Untick a module to leave it out
 
 You can reopen it at any time from **Tools > i18n Support Plus > Run Setup Wizard**.
 
@@ -276,7 +276,7 @@ It runs the plugin's own checks in CI, with the plugin's settings, whatever the 
     "translationsRoot": "src/locales",
     "keySeparator": ".",
     "ignoredLocales": "xx",
-    "modules": [{ "name": "web", "rootDirectory": "apps/web/locales", "referenceLocale": "fr" }]
+    "modules": [{ "name": "web", "rootDirectory": "apps/web", "pathTemplate": "public/locales/{lang}/{ns}.json", "referenceLocale": "fr" }]
   }
   ```
 
@@ -445,7 +445,7 @@ Clicking a cell lists that namespace's untranslated keys in that locale — **mi
 
 ### Multi-Module Support
 
-A monorepo is described as **modules** in the settings (root directory, path template, key template, framework preset). With two or more, the toolbar's module selector switches the three views from one module to the next; a code file inside a module's root directory resolves its keys against that module's translation files only.
+A monorepo is described as **modules** in the settings (root directory, path template, key template, framework preset). With two or more, the toolbar's module selector switches the three views from one module to the next; a code file inside a module's root directory resolves its keys against that module's translation files only. The root directory is the application's folder (`apps/shop`), not its translations folder: a module rooted at `apps/shop/public/locales` owns no code file, and the application's keys are then resolved against every module's files. [examples/monorepo-react](examples/monorepo-react/README.md) is a four-application monorepo to try it on.
 
 ## Configuration
 

@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 
@@ -96,7 +97,7 @@ class WizardPlanTest {
     // -- The modules offered instead of a root that is too wide
 
     @Test
-    fun `each module is named after its application, not after its locales folder`() {
+    fun `each module is rooted at and named after its application, not its locales folder`() {
         val plan = WizardPlan.of(
             listOf("apps/web/locales/en/common.json", "apps/api/locales/en/common.json"),
             emptySet()
@@ -108,7 +109,7 @@ class WizardPlanTest {
         ), emptySet())
 
         Assertions.assertEquals(listOf("api", "web"), modules.map { it.name })
-        Assertions.assertEquals(listOf("apps/api/locales", "apps/web/locales"), modules.map { it.rootDirectory })
+        Assertions.assertEquals(listOf("apps/api", "apps/web"), modules.map { it.rootDirectory })
     }
 
     @Test
@@ -118,8 +119,8 @@ class WizardPlanTest {
 
         val templates = WizardPlan.modulesFor(plan.root, paths, emptySet()).associate { it.name to it.pathTemplate }
 
-        Assertions.assertEquals("{lang}/{ns}.json", templates["web"])
-        Assertions.assertEquals("{lang}.json", templates["api"], "a file named after a locale is not a namespace")
+        Assertions.assertEquals("locales/{lang}/{ns}.json", templates["web"])
+        Assertions.assertEquals("locales/{lang}.json", templates["api"], "a file named after a locale is not a namespace")
     }
 
     @Test
@@ -128,7 +129,7 @@ class WizardPlanTest {
         val plan = WizardPlan.of(paths, emptySet())
 
         Assertions.assertEquals(
-            "{lang}/LC_MESSAGES/{ns}.po",
+            "locales/{lang}/LC_MESSAGES/{ns}.po",
             WizardPlan.modulesFor(plan.root, paths, emptySet()).single().pathTemplate
         )
     }
@@ -164,5 +165,86 @@ class WizardPlanTest {
             "apps/web/locales/en/common.json",
             ModuleTemplateResolver.resolve(ModuleTemplateResolver.combine(module), "en", "common")
         )
+    }
+
+    // -- The application a module stands for
+
+    private val monorepo = listOf(
+        "apps/shop/public/locales/en/common.json",
+        "apps/shop/public/locales/fr/common.json",
+        "apps/admin/public/locales/en/common.json",
+    )
+
+    @Test
+    fun `the folder of the application's manifest is the root, the template relative to it`() {
+        val plan = WizardPlan.of(monorepo, emptySet())
+        val manifests = mapOf("apps/shop" to "{}", "apps/admin" to "{}")
+
+        val modules = WizardPlan.modulesFor(plan.root, monorepo, emptySet(), manifests)
+
+        Assertions.assertEquals(listOf("apps/admin", "apps/shop"), modules.map { it.rootDirectory })
+        Assertions.assertEquals(listOf("admin", "shop"), modules.map { it.name })
+        Assertions.assertEquals(listOf("public/locales/{lang}/{ns}.json"), modules.map { it.pathTemplate }.distinct())
+    }
+
+    @Test
+    fun `without a manifest, the asset and translations folders are left out of the root`() {
+        val paths = listOf("apps/shop/public/locales/en/common.json", "packages/ui/src/i18n/en.json", "services/api/resources/lang/en.json")
+        val plan = WizardPlan.of(paths, emptySet())
+
+        val modules = WizardPlan.modulesFor(plan.root, paths, emptySet())
+
+        Assertions.assertEquals(listOf("apps/shop", "packages/ui", "services/api"), modules.map { it.rootDirectory })
+        Assertions.assertEquals(listOf("shop", "ui", "api"), modules.map { it.name })
+    }
+
+    @Test
+    fun `the nearest manifest wins, the project root's is never one`() {
+        val paths = listOf("apps/shop/web/locales/en.json", "apps/blog/locales/en.json")
+        val plan = WizardPlan.of(paths, emptySet())
+        val manifests = mapOf("apps/shop" to "{}", "apps/shop/web" to "{}")
+
+        val roots = WizardPlan.modulesFor(plan.root, paths, emptySet(), manifests).map { it.rootDirectory }
+
+        Assertions.assertEquals(listOf("apps/blog", "apps/shop/web"), roots)
+    }
+
+    @Test
+    fun `a code file of the application belongs to its module`() {
+        val plan = WizardPlan.of(monorepo, emptySet())
+        val modules = WizardPlan.modulesFor(plan.root, monorepo, emptySet(), mapOf("apps/shop" to "{}", "apps/admin" to "{}"))
+
+        val owner = ModuleSources.owner(modules, ModuleSources.FilePath("apps/shop/src/App.tsx", anchored = true))
+
+        Assertions.assertEquals("shop", owner?.name)
+        Assertions.assertEquals(
+            "apps/shop/public/locales/fr/common.json",
+            ModuleTemplateResolver.resolve(ModuleTemplateResolver.combine(owner!!), "fr", "common")
+        )
+    }
+
+    @Test
+    fun `each module takes the framework its own manifest declares`() {
+        val paths = listOf("apps/shop/locales/en.json", "apps/blog/locales/en.json", "apps/docs/locales/en.json")
+        val plan = WizardPlan.of(paths, setOf("i18next", "vue-i18n"))
+        val manifests = mapOf(
+            "apps/shop" to """{"dependencies": {"react-i18next": "17"}}""",
+            "apps/blog" to """{"dependencies": {"vue-i18n": "11"}}""",
+            "apps/docs" to """{"dependencies": {"react": "19"}}""",
+        )
+
+        val presets = WizardPlan.modulesFor(plan.root, paths, setOf("i18next", "vue-i18n"), manifests).associate { it.name to it.preset }
+
+        Assertions.assertEquals(mapOf("blog" to "vue-i18n", "docs" to "", "shop" to "i18next"), presets)
+    }
+
+    @Test
+    fun `two catalogues of one application keep their own roots`() {
+        val paths = listOf("apps/shop/public/locales/en.json", "apps/shop/src/i18n/en.json")
+        val plan = WizardPlan.of(paths, emptySet())
+
+        val roots = WizardPlan.modulesFor(plan.root, paths, emptySet(), mapOf("apps/shop" to "{}")).map { it.rootDirectory }
+
+        Assertions.assertEquals(listOf("apps/shop/public/locales", "apps/shop/src/i18n"), roots)
     }
 }
