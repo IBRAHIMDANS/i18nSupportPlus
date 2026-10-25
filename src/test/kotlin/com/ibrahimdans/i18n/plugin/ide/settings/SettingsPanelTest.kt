@@ -52,6 +52,11 @@ class SettingsPanelTest {
     }
 
     @Test
+    fun testFirstComponentNs() {
+        checkBooleanProperty(PluginBundle.getMessage("settings.first.component.ns"), Settings::firstComponentNs)
+    }
+
+    @Test
     fun testExtractSorted() {
         checkBooleanProperty(PluginBundle.getMessage("settings.extraction.sorted"), Settings::extractSorted)
     }

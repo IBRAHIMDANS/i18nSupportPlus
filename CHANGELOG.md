@@ -26,7 +26,7 @@
 - [Transloco] **A key naming no scope is no longer found in a scope's files**: `'title' | transloco` is reported when only `i18n/admin/en.json` holds `title`, as Transloco needs `admin.title` there
 - [Monorepo] **Each application's keys are checked against its own files** ([#620](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/620)): the setup wizard now roots a module at its application (the folder of its `package.json` or `composer.json`) and gives it its framework; usages, unused keys, *Cleanup Unused Keys* and *Sync Keys* work per module; an attached project with no module is no longer read. Modules already configured are not changed: set their root directory to the application's folder
 - [Settings] **Ignored locales are ignored everywhere** ([#620](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/620)): the gutter, *Create missing keys*, the plural forms inspection, *Sync Keys* and the AI agents' tools no longer ask for a locale listed in *Locales not checked for missing keys*
-- [Settings] ***First component as namespace* works again**: with it ticked, `t('common.title')` is looked up in the `common` file
+- [Settings] ***First component as namespace* works again, and has its box back**: the setting had no control on the settings page; tick it under *Namespaces and separators* and `t('common.title')` is looked up in the `common` file
 - [Settings] **A project stored under a folder named `build`, `dist` or `node_modules` finds its translation files again**
 - [Review] **A nested plural form (`steps.few`) turns stale when its `other` form changes**, as a flat `item_few` does
 - [Lingui] **`<Trans>Hello {name}!</Trans>` is found in the catalogue again**: its key is built the way Lingui's macro builds it
