@@ -7,6 +7,7 @@
 - [Monorepo] **Work on one application at a time**: each module has an *Active* box, and the tool window's module selector lists the modules set aside and offers *Focus on This Module* and *Activate All Modules* (also under *Tools › i18n Support Plus*), with *Undo*
 - [next-intl] **`t.rich`, `t.markup`, `t.raw` and `t.has` are read**: their keys are checked, completed, folded and navigable like `t('key')`; `t.raw` may point at an object, and `t.has` is never reported missing
 - [svelte-i18n] **`$t`, `$format`, `$json` and `$_({ id })` are read**: the aliases of `$_` and the descriptor form are checked, completed and navigable like `$_('key')`, and `$json('nav')` may point at an object
+- [Laravel] **Values folded and shown as inlay hints, keys renamed in the PHP arrays**: `__()`, `trans()`, `trans_choice()`, the translator and Blade's `@lang`, `@choice` and `{{ __() }}` show their value in place; Shift+F6 renames the key in `lang/<locale>/<file>.php` of every locale as well as its calls
 - [React Intl] **Navigate, rename and extract with react-intl's own calls**: Ctrl+click, Find Usages and Shift+F6 work on the ids of `<FormattedMessage>`, `formatMessage` and `defineMessages`; *Extract I18n* writes `<FormattedMessage id="…" />` or `intl.formatMessage(…)` and adds the import, and *Internationalize…* gives a component its `useIntl()`
 - [vue-i18n] **`useI18n()` under the vue-i18n preset, and plural branches checked**: `t('…')` and `te('…')` taken from `useI18n()` are read in the script and the template; the *vue-i18n plural branches* inspection reports a plural `a | b` with fewer branches than the language needs (`ru`: `one`, `few`, `many`)
 - [Review] **Suggestions and replies in review threads**: a change request can carry a suggested value, applied in one click with *Apply suggestion*, and each entry can be replied to and resolved
@@ -26,6 +27,7 @@
 - [React Intl] ***Internationalize…* leaves out a string outside any component** instead of calling an `intl` that is not there
 - [Translation] **The translation dialog's *Translate* button and *Instruction* field are translated into French**
 - [svelte-i18n] **The `default` and `values` of a `$_` call are no longer reported as unresolved keys**
+- [Laravel] **A JSON phrase holding `.` or `:` resolves**: `__('Saved.')` and `__('Hello, :name')` are looked up whole in `lang/<locale>.json`, as Laravel does, instead of being cut at the separators
 - [Gutter] **No more error logged for a key in a Vue template** (*LineMarker is supposed to be registered for leaf elements only*)
 
 ### Documentation

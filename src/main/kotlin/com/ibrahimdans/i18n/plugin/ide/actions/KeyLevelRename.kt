@@ -120,8 +120,7 @@ internal class KeyLevelRename(
         if (name != levelName && name.startsWith(levelName)) newName + name.removePrefix(levelName) else newName
 
     private fun renamedProperty(node: PsiElement, newName: String): Edit? {
-        val property = TranslationPsi.propertyOf(node, strict = false) ?: node.parent ?: return null
-        val nameElement = TranslationPsi.entryOf(property)?.keyElement ?: return null
+        val nameElement = TranslationPsi.keyElementOf(node) ?: return null
         val document = documentOf(nameElement) ?: return null
         val raw = nameElement.text
         val quote = raw.firstOrNull()?.takeIf { it in QUOTES && raw.length > 1 && raw.last() == it }

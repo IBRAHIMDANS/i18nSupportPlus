@@ -302,8 +302,7 @@ class RenameI18nKeyHandler : RenameHandler {
      * null when that property is not named after [lastSegment].
      */
     private fun renamedProperty(translation: PsiElement, lastSegment: String, newSegment: String, config: Config): Edit? {
-        val property = TranslationPsi.propertyOf(translation, strict = false) ?: translation.parent ?: return null
-        val nameElement = TranslationPsi.entryOf(property)?.keyElement ?: return null
+        val nameElement = TranslationPsi.keyElementOf(translation) ?: return null
         val document = documentOf(nameElement) ?: return null
         val raw = nameElement.text
         val quote = raw.firstOrNull()?.takeIf { it in QUOTES && raw.length > 1 && raw.last() == it }

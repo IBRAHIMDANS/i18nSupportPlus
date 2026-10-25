@@ -5,6 +5,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.util.PsiTreeUtil
 import com.jetbrains.php.lang.PhpFileType
+import com.jetbrains.php.lang.psi.elements.ArrayHashElement
 import com.jetbrains.php.lang.psi.elements.StringLiteralExpression
 
 /**
@@ -37,6 +38,16 @@ internal object PhpTranslationPsi {
                 }
             }
         }
+    }
+
+    /**
+     * The key literal of the translation entry whose value is [value] — `'failed'` in
+     * `'auth' => ['failed' => '…']` — or null when [value] is no value of a translation file's array.
+     */
+    fun keyOf(value: PsiElement): StringLiteralExpression? {
+        val entry = PsiTreeUtil.getParentOfType(value, ArrayHashElement::class.java) ?: return null
+        if (PhpArrays.valueOf(entry) != value) return null
+        return PhpArrays.keyOf(entry)?.takeIf { PhpArrays.pathOf(it) != null }
     }
 
     /** Replaces the string literal [element] with [newValue], single-quoted; any other value is left. */
