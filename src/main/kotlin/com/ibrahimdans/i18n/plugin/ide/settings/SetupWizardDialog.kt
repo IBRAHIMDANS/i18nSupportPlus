@@ -182,6 +182,10 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         private val applyBoxes = mutableMapOf<WizardPlan.Field, JBCheckBox>()
         private val valueFields = mutableMapOf<WizardPlan.Field, JBTextField>()
 
+        // Unticked: the checks stay off unless asked for, as their defaults have them.
+        private val unusedKeysBox = JBCheckBox(PluginBundle.message("wizard.summary.check.unused"))
+        private val hardcodedTextBox = JBCheckBox(PluginBundle.message("wizard.summary.check.hardcoded"))
+
         /** The plan the form currently shows; a rebuild would discard what the user typed. */
         private var shownPlan: WizardPlan.Plan? = null
 
@@ -321,6 +325,12 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
                 cell(nsSeparatorField).comment(separatorOrigin(plan.separators?.ns, nsSeparatorField))
             }
 
+            if (RecommendedInspections.canEnable(project)) {
+                row(PluginBundle.message("wizard.summary.field.checks")) { cell(unusedKeysBox) }
+                row("") { cell(hardcodedTextBox) }
+                    .rowComment(PluginBundle.message("wizard.summary.checks.comment"))
+            }
+
             if (foundFiles.any { it.endsWith(".po") || it.endsWith(".pot") }) {
                 row {
                     cell(
@@ -386,6 +396,12 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
                 keySeparator = keySeparatorField.text,
                 nsSeparator = nsSeparatorField.text
             )
+        }
+
+        /** The short names of the inspections ticked on this step. */
+        fun checks(): List<String> = buildList {
+            if (unusedKeysBox.isSelected) add(RecommendedInspections.UNUSED_KEY)
+            if (hardcodedTextBox.isSelected) addAll(RecommendedInspections.HARDCODED_TEXT)
         }
 
         private fun isTicked(field: WizardPlan.Field): Boolean = applyBoxes[field]?.isSelected == true
@@ -472,6 +488,7 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
      */
     override fun doOKAction() {
         summaryStep.choices().applyTo(Settings.getInstance(project))
+        RecommendedInspections.enable(project, summaryStep.checks())
         super.doOKAction()
     }
 
