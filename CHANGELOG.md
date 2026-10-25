@@ -17,7 +17,8 @@
 - [Settings] **Import key assistance rules from i18n Ally**: *Import from i18n Ally…*, under the rules, reads `.vscode/i18n-ally-custom-framework.yml` and shows what it takes over before adding anything
 - [Settings] **The setup wizard reads your `i18next.config.ts`**: with an i18next-cli configuration at the project root, the wizard proposes its output folder as the translations root, and its default namespace and separators, each marked as read from that file.
 - [CLI] **`i18n-check`, the translation check for CI**: reports missing, orphan and empty keys per locale and, with `--code`, the keys an i18next project no longer uses. It reads the IDE's settings or an `i18n-check.json`, and JSON, JSON5, YAML and TS/JS catalogues; it is attached to each GitHub release and runs as a GitHub Action. See the [README](README.md#command-line-check)
-- [Lingui] **Complete and rename msgids in PO catalogues**: in `i18n._("")`, Ctrl+Space offers every msgid with its value, and Shift+F6 renames a key in the code and in every `messages.po`; *Create i18n key* flags an explicit id `#. js-lingui-explicit-id`, as `lingui extract` does, so `lingui compile` finds it; *Sync Keys*, *Fill missing* and the import copy the flag from the other locales, so a `<Trans>` text never gets it
+- [Lingui] **Complete and rename msgids in PO catalogues**: in `i18n._("")`, Ctrl+Space offers every msgid with its value, and Shift+F6 renames a key in the code and in every `messages.po`; *Create i18n key* flags an explicit id `#. js-lingui-explicit-id`, as `lingui extract` does, so `lingui compile` finds it
+- [typesafe-i18n] **typesafe-i18n is recognised**: `LL.home.title()` and Svelte's `$LL.home.title()` are checked against each `<locale>/index.ts`, with unknown keys and keys missing in a locale reported, and Ctrl+Space after `LL.` offers each level's messages with their value, before the generator runs again
 
 ### Fixes
 

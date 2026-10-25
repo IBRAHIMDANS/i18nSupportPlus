@@ -58,6 +58,7 @@ A setup wizard auto-configures it on first launch, a module per application in a
 | svelte-i18n | `$_('key')`, `$t`, `$format`, `$_({ id: 'key' })`, `$json('prefix')`, `_('key')` <sup>2</sup> | No |
 | i18n-js (React Native / Expo) | `t('key')`, `i18n.t('key')`, plain locale-keyed TS/JS catalogues, nested plurals <sup>3</sup> | No |
 | Paraglide JS (inlang) | `m.hello()`, `m["user.profile.title"]()`, once the file imports `m` from `…/paraglide/messages.js` <sup>5</sup> | Yes, `project.inlang/settings.json` |
+| typesafe-i18n | `LL.home.title()`, `$LL.home.title()` (Svelte), read as the key `home.title`, once the file imports typesafe-i18n's generated code <sup>7</sup> | Yes, `.typesafe-i18n.json` |
 | Meteor universe:i18n | the application's own hook, `useTranslator('Home')` or `useTranslation('Home')`, then `t('title')`, read as the key `Home.title` <sup>6</sup> | No |
 
 `useTranslation` supports both string form (`useTranslation('ns')`) and array form (`useTranslation(['ns1', 'ns2'])`). The namespace can also come from an options object (`t('key', { ns: 'auth' })`) or from the key itself (`t('auth:key')`).
@@ -83,6 +84,8 @@ message file, in the frontmatter and in template expressions. A ready-to-open pr
 [examples/paraglide-js](examples/paraglide-js/README.md).
 
 <sup>6</sup> universe:i18n ships no React hook since its v2: its documentation has the application write one, and the plugin reads the argument of `useTranslator` — or of `useTranslation`, unless the file imports it from an i18next package — as a key prefix once `.meteor/packages` declares `universe:i18n`. `i18n.__()`, `getTranslation()` and `*.i18n.json` files are not read yet.
+
+<sup>7</sup> typesafe-i18n reads its messages as a member chain, so the key is the path of members after `LL` (or `$LL`, its Svelte store), not a string. It is read in a file importing typesafe-i18n's generated adapter or utilities (`…/i18n-react`, `…/i18n-svelte`, `…/i18n-util`, …). The messages are the object each `<locale>/index.ts` of the output folder default-exports — `outputPath` in `.typesafe-i18n.json`, `./src/i18n/` by default — each locale holding the default namespace. Annotation (unknown key, key missing in a locale) and completion after `LL.` and each level of it, with the messages not yet generated and their values, work on it. Not yet: Ctrl+click to the message (the IDE goes to the generated types), Shift+F6, folding and inlay hints, Node's `L.en.key()`. A ready-to-open project: [examples/typesafe-i18n](examples/typesafe-i18n/README.md).
 
 ## Supported Languages
 
