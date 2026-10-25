@@ -31,11 +31,14 @@ Measured on this folder:
 - Without settings, the four applications are one pool: the 12 `fr`/`en`/`es` files are read together, and the lookup
   of `t('title')` gets the 16 `common.json` files of all four applications. `i18n-check examples/monorepo-react --code`
   answers *No problem found*: none of the traps is seen.
-- The setup wizard proposes `apps` as the translations root and says it is a guess. Its *Create 4 modules instead*
-  option, unticked by default, gives each module `apps/<app>/public/locales` as root directory, so `apps/shop/src/App.tsx`
-  belongs to no module and its keys are still resolved against the four applications. The four modules are all named
-  `public`.
-- `gb` is not an ISO language code: no locale folder `gb/` is seen as a locale.
+- The setup wizard proposes one module per application, ticked by default: `apps/shop`, `apps/admin`… with the path
+  template `public/locales/{lang}/{ns}.json`. With them, `apps/shop/src/App.tsx` belongs to `shop` and resolves against
+  `shop`'s files only: the hint, the unknown `actions.export` and the missing `fr` `actions.save` are those of `shop`.
+  `i18n-check` with the same modules in `i18n-check.json` reports `shop`'s missing `fr` key, and reads `gb` (a module
+  template takes any folder name as the locale).
+- Still pooled: the usages seen from a translation file and the unused keys (`posts.empty` in `blog` is not reported),
+  in the IDE and with `i18n-check --code`.
+- Without module templates, `gb` is not an ISO language code: no locale folder `gb/` is seen as a locale.
 
 This section is updated as the monorepo support improves: once it is right, the table above is what the plugin and
 `i18n-check` report.

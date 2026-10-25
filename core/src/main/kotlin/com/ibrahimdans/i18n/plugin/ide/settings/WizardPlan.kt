@@ -99,13 +99,32 @@ object WizardPlan {
     /**
      * One module per candidate root, for the monorepo the single root would flatten.
      *
-     * Each module is given the template its own files actually follow, rather than the generic
-     * `{lang}/{ns}.json` a hand-added module starts from: a proposal that resolves to nothing
-     * would be one more value presented as configured while configuring nothing.
+     * A module's root directory is its application's folder, not its translations folder: a code
+     * file belongs to the module whose root its path starts with, so a root of `apps/web/locales`
+     * left `apps/web/src/App.tsx` in no module, resolved against every application's files. The
+     * application is the nearest folder above the catalogues holding one of [manifests]
+     * (project-relative folder -> `package.json` / `composer.json` text, the project root left
+     * out); without one, the catalogues' root minus its translations and asset folders
+     * (`apps/web/public/locales` -> `apps/web`). Two candidates of the same application keep their
+     * own roots: one module cannot hold two templates.
+     *
+     * Each module is given the template its own files actually follow, relative to its root,
+     * rather than the generic `{lang}/{ns}.json` a hand-added module starts from: a proposal that
+     * resolves to nothing would be one more value presented as configured while configuring
+     * nothing. Its preset is the one framework its own manifest declares, else the project's one.
      */
-    fun modulesFor(plan: RootPlan, relativeFilePaths: List<String>, frameworks: Set<String>): List<ModuleConfig> {
-        val preset = frameworks.singleOrNull().orEmpty()
-        return plan.candidates.map { root ->
+    fun modulesFor(
+        plan: RootPlan,
+        relativeFilePaths: List<String>,
+        frameworks: Set<String>,
+        manifests: Map<String, String> = emptyMap(),
+    ): List<ModuleConfig> {
+        val appRoots = plan.candidates.associateWith { appRootOf(it, manifests) }
+        val shared = appRoots.values.groupingBy { it }.eachCount().filterValues { it > 1 }.keys
+        return plan.candidates.map { candidate ->
+            val root = appRoots.getValue(candidate).takeUnless { it in shared } ?: candidate
+            val preset = manifests[root]?.let { FrameworkDetector.detect(it).singleOrNull() }
+                ?: frameworks.singleOrNull().orEmpty()
             ModuleConfig(
                 name = moduleNameOf(root),
                 pathTemplate = pathTemplateOf(root, relativeFilePaths),
@@ -115,14 +134,32 @@ object WizardPlan {
         }
     }
 
+    /** The folder of the application whose catalogues sit in [catalogueRoot]; see [modulesFor]. */
+    private fun appRootOf(catalogueRoot: String, manifests: Map<String, String>): String {
+        val segments = catalogueRoot.split('/').filter { it.isNotEmpty() }
+        (segments.size downTo 1).map { segments.take(it).joinToString("/") }
+            .firstOrNull { it in manifests }
+            ?.let { return it }
+        var kept = segments
+        while (kept.size > 1 && kept.last() in NOT_AN_APPLICATION) kept = kept.dropLast(1)
+        return kept.joinToString("/")
+    }
+
     /**
-     * The segment that names the module, which is the one *above* the translations folder:
-     * `apps/web/locales` is the web app's catalogue, not a module called "locales". A root that
-     * is nothing but a translations folder keeps its own name.
+     * The folders a catalogue sits in that do not name an application: the translations folders,
+     * and the asset and source folders holding them (`public/locales`, `src/i18n`, `resources/lang`).
+     */
+    private val NOT_AN_APPLICATION = TranslationFileScanner.FOLDER_NAMES + setOf("public", "src", "assets", "static", "resources")
+
+    /**
+     * The segment that names the module: the application's folder, the root's last segment that
+     * is no translations or asset folder (`apps/web/public/locales` is the web app's catalogue,
+     * not a module called "locales" or "public"). A root that is nothing but such folders keeps
+     * its own name.
      */
     private fun moduleNameOf(root: String): String {
         val segments = root.split('/').filter { it.isNotEmpty() }
-        return segments.lastOrNull { it !in TranslationFileScanner.FOLDER_NAMES }
+        return segments.lastOrNull { it !in NOT_AN_APPLICATION }
             ?: segments.lastOrNull()
             ?: root
     }

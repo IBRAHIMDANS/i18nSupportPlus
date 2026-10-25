@@ -58,6 +58,9 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
 
     // -- Step 2: Translation files
     private val foundFiles = mutableListOf<String>()
+
+    /** The manifests of the applications holding the catalogues, by project-relative folder; see [manifestsAbove]. */
+    private val appManifests = mutableMapOf<String, String>()
     private val fileListModel = DefaultListModel<String>()
     private val fileList = JBList(fileListModel)
 
@@ -160,8 +163,11 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         private val splitIntoModules = JBCheckBox().apply {
             // Registered once: the form is rebuilt whenever the plan changes, and a listener
             // added there would pile up a copy per rebuild.
-            addActionListener { rootField.isEnabled = !isSelected }
+            addActionListener { syncSplit() }
         }
+
+        /** One box per module the split would create, ticked: an unticked one is not created. */
+        private val moduleBoxes = mutableListOf<Pair<ModuleConfig, JBCheckBox>>()
         private val keySeparatorField = JBTextField(6)
         private val nsSeparatorField = JBTextField(6)
         private val applyBoxes = mutableMapOf<WizardPlan.Field, JBCheckBox>()
@@ -201,17 +207,21 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
             val defaults = Config()
 
             rootField.text = plan.root.detected.orEmpty()
-            // A previous plan may have left the field disabled behind a split that no longer
-            // applies; the two must be reset together or the root becomes uneditable.
-            rootField.isEnabled = true
             keySeparatorField.text = settings.keySeparator
             nsSeparatorField.text = settings.nsSeparator
-            splitIntoModules.isSelected = false
-            splitIntoModules.text = PluginBundle.message(
-                "wizard.summary.root.split",
-                plan.root.candidates.size,
-                plan.root.candidates.joinToString(", ")
-            )
+            // Several catalogue roots are several applications: a module each is the answer that
+            // keeps their keys apart, the widened root the one that pools them.
+            splitIntoModules.isSelected = plan.root.widened
+            splitIntoModules.text = PluginBundle.message("wizard.summary.root.split", plan.root.candidates.size)
+            moduleBoxes.clear()
+            if (plan.root.widened) {
+                WizardPlan.modulesFor(plan.root, foundFiles, selectedFrameworks(), appManifests).mapTo(moduleBoxes) { module ->
+                    module to JBCheckBox(PluginBundle.message("wizard.summary.module", module.name, module.rootDirectory), true)
+                }
+            }
+            // A previous plan may have left the root field disabled behind a split that no longer
+            // applies; the two must be reset together or the root becomes uneditable.
+            syncSplit()
 
             applyBoxes.clear()
             valueFields.clear()
@@ -277,6 +287,9 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
             }
             if (plan.root.widened) {
                 row("") { cell(splitIntoModules) }
+                for ((_, box) in moduleBoxes) {
+                    row("") { cell(box) }
+                }
             }
 
             for (deduction in plan.deductions) {
@@ -327,17 +340,20 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
                 )
         }
 
+        /** The root field and the module boxes follow the split: one or the other is stored. */
+        private fun syncSplit() {
+            rootField.isEnabled = !splitIntoModules.isSelected
+            moduleBoxes.forEach { (_, box) -> box.isEnabled = splitIntoModules.isSelected }
+        }
+
         /** What the form says should be stored — nothing is re-derived at this point. */
         fun choices(): WizardChoices {
             val plan = shownPlan ?: return WizardChoices()
-            val splitting = plan.root.widened && splitIntoModules.isSelected
+            val modules = moduleBoxes.filter { (_, box) -> box.isSelected }.map { (module, _) -> module }
+            val splitting = plan.root.widened && splitIntoModules.isSelected && modules.isNotEmpty()
             return WizardChoices(
                 translationsRoot = rootField.text.trim().takeUnless { splitting },
-                modules = if (splitting) {
-                    WizardPlan.modulesFor(plan.root, foundFiles, selectedFrameworks())
-                } else {
-                    emptyList()
-                },
+                modules = if (splitting) modules else emptyList(),
                 defaultNs = chosenValue(WizardPlan.Field.DEFAULT_NS),
                 gettext = true.takeIf { isTicked(WizardPlan.Field.GETTEXT) },
                 flatKeys = true.takeIf { isTicked(WizardPlan.Field.FLAT_KEYS) },
@@ -375,6 +391,12 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         for (relative in scanOffEdt(base)) {
             foundFiles.add(relative)
             fileListModel.addElement(relative)
+        }
+        appManifests.clear()
+        appManifests.putAll(manifestsAbove(base, TranslationRootDetector.candidates(foundFiles)))
+        // A monorepo's root manifest seldom declares the applications' libraries: theirs do.
+        for (key in appManifests.values.flatMap { FrameworkDetector.detect(it) }) {
+            frameworkCheckboxes[key]?.isSelected = true
         }
     }
 
@@ -468,5 +490,21 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
                 .map { File(base, it) }
                 .filter { it.isFile }
                 .flatMapTo(mutableSetOf()) { FrameworkDetector.detect(it.readText()) }
+
+        /**
+         * Project-relative folder -> the text of its manifests, for each folder holding one between
+         * [base] (left out: a monorepo's root manifest names no application) and each of [roots],
+         * the folders the catalogues sit in. What [WizardPlan.modulesFor] roots the modules at.
+         */
+        internal fun manifestsAbove(base: File, roots: List<String>): Map<String, String> {
+            val folders = roots.flatMap { root ->
+                val segments = root.replace('\\', '/').split('/').filter { it.isNotEmpty() }
+                (1..segments.size).map { segments.take(it).joinToString("/") }
+            }.distinct()
+            return folders.mapNotNull { folder ->
+                val texts = MANIFESTS.map { File(base, "$folder/$it") }.filter { it.isFile }.map { it.readText() }
+                if (texts.isEmpty()) null else folder to texts.joinToString("\n")
+            }.toMap()
+        }
     }
 }

@@ -420,4 +420,24 @@ class SetupWizardDialogTest : PlatformBaseTest() {
             tempDir.deleteRecursively()
         }
     }
+
+    @org.junit.jupiter.api.Test
+    fun `manifestsAbove finds each application's manifest, never the project root's`() {
+        val base = createTempDir("wizard-monorepo")
+        try {
+            File(base, "package.json").writeText("""{"workspaces": ["apps/*"]}""")
+            File(base, "apps/shop/public/locales/en").mkdirs()
+            File(base, "apps/shop/package.json").writeText("""{"dependencies": {"react-i18next": "17"}}""")
+            File(base, "apps/api/lang").mkdirs()
+            File(base, "apps/api/composer.json").writeText("""{"require": {"laravel/framework": "11"}}""")
+
+            val manifests = SetupWizardDialog.manifestsAbove(base, listOf("apps/shop/public/locales", "apps/api/lang"))
+
+            assertEquals(setOf("apps/shop", "apps/api"), manifests.keys)
+            assertEquals(setOf("i18next"), FrameworkDetector.detect(manifests.getValue("apps/shop")))
+            assertEquals(setOf("laravel"), FrameworkDetector.detect(manifests.getValue("apps/api")))
+        } finally {
+            base.deleteRecursively()
+        }
+    }
 }
