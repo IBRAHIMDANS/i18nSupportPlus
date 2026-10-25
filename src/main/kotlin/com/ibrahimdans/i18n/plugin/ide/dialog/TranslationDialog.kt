@@ -238,9 +238,12 @@ class TranslationDialog(
                 cell(sourcesHost).align(Align.FILL)
             }.resizableRow()
 
-            row(PluginBundle.message("dialog.translation.instruction.label")) {
-                cell(instructionField).align(AlignX.FILL).comment(PluginBundle.message("dialog.translation.instruction.comment"))
-            }.visible(instructionField.isVisible)
+            // Left out rather than hidden: a hidden row still showed its comment, under no field.
+            if (instructionField.isVisible) {
+                row(PluginBundle.message("dialog.translation.instruction.label")) {
+                    cell(instructionField).align(AlignX.FILL).comment(PluginBundle.message("dialog.translation.instruction.comment"))
+                }
+            }
 
             row {
                 copyButton = button(PluginBundle.message("dialog.translation.copy.button")) {
@@ -263,6 +266,7 @@ class TranslationDialog(
             refreshSources(sources, fullKey.ns?.text)
         }
 
+        centerPanel = content
         val scrollPane = JBScrollPane(content)
         scrollPane.border = JBUI.Borders.empty()
         scrollPane.preferredSize = JBUI.size(PREFERRED_WIDTH, PREFERRED_HEIGHT)
@@ -837,6 +841,10 @@ class TranslationDialog(
     internal val translateMessage: String get() = translateStatus.text
 
     internal val instructionVisible: Boolean get() = instructionField.isVisible
+
+    /** The rows as built: a headless dialog has no content pane to walk. */
+    internal var centerPanel: JComponent? = null
+        private set
 
     internal fun setInstruction(text: String) {
         instructionField.text = text

@@ -8,7 +8,10 @@ import com.ibrahimdans.i18n.plugin.translate.Cancellation
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.util.Disposer
+import com.intellij.util.ui.UIUtil
+import javax.swing.JEditorPane
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
@@ -154,11 +157,15 @@ class TranslationDialogMachineTranslationTest : PlatformBaseTest() {
         seed()
         TranslationDialog.machineTranslator = { engine { Translation.Done("x") } }
         TranslationDialog.machineReadsInstruction = { false }
-        withDialog { Assertions.assertFalse(it.instructionVisible, "no engine reads it: DeepL alone") }
+        withDialog {
+            Assertions.assertFalse(it.instructionVisible, "no engine reads it: DeepL alone")
+            Assertions.assertFalse(it.holdsInstructionComment(), "no comment left under no field")
+        }
 
         TranslationDialog.machineReadsInstruction = { true }
         withDialog { dialog ->
             Assertions.assertTrue(dialog.instructionVisible)
+            Assertions.assertTrue(dialog.holdsInstructionComment())
             dialog.setInstruction("  formal tone ")
             dialog.translateEmptyLocales()
             dialog.translateLocale("de")
@@ -175,7 +182,18 @@ class TranslationDialogMachineTranslationTest : PlatformBaseTest() {
         seed()
         TranslationDialog.machineTranslator = { null }
         TranslationDialog.machineReadsInstruction = { true }
-        withDialog { Assertions.assertFalse(it.instructionVisible) }
+        withDialog {
+            Assertions.assertFalse(it.instructionVisible)
+            Assertions.assertFalse(it.holdsInstructionComment())
+        }
+    }
+
+    /** Whether the dialog holds the instruction's comment, its HTML reduced to plain words. */
+    private fun TranslationDialog.holdsInstructionComment(): Boolean {
+        val comment = PluginBundle.message("dialog.translation.instruction.comment")
+        return UIUtil.uiTraverser(centerPanel).filter(JEditorPane::class.java).any {
+            it.text.replace(Regex("<[^>]+>"), " ").replace(Regex("\\s+"), " ").contains(comment)
+        }
     }
 
     @Test
