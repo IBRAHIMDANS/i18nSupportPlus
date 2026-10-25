@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.plugin.ide.quickfix.CreateKeyDialogQuickFix
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
@@ -17,7 +18,7 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.TextEditor
 import com.intellij.openapi.util.IconLoader
 import com.intellij.psi.PsiElement
-import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.PsiFile
 import java.awt.event.MouseEvent
 import javax.swing.Icon
 
@@ -41,28 +42,21 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
     }
 
     override fun getLineMarkerInfo(element: PsiElement): LineMarkerInfo<*>? {
+        // A marker goes on a leaf, as the platform requires. It used to be returned for the literal
+        // expression and anchored on its token, which a plain JS file accepts; but a marker found in
+        // an injected fragment — a Vue template's `{{ $t('key') }}` — is rebuilt on the element the
+        // platform asked, and the literal tripped its leaf-only check there. The key is read from
+        // the element this leaf starts ([claimedFrom]): the literal for `'key'`, `m.hello` for `m`.
+        if (element.firstChild != null) return null
         val project = element.project
         if (!Settings.getInstance(project).config().gutterIconsEnabled) return null
 
         val translationFunctionNames = Extensions.TECHNOLOGY.extensionList
             .flatMap { it.translationFunctionNames() }
+        val (keyElement, lang) = claimedFrom(element, translationFunctionNames) ?: return null
 
-        // Only process elements that a known Lang can handle
-        val lang = Extensions.LANG.extensionList.firstOrNull {
-            it.canExtractKey(element, translationFunctionNames)
-        } ?: return null
-
-        // A literal expression and its leaf token are both claimed, and both anchor on the leaf.
-        // The parent owns the marker; the leaf would stack a second badge on the same range.
-        if (element.firstChild == null) {
-            val parent = element.parent
-            if (parent != null && parent.firstChild === element &&
-                Extensions.LANG.extensionList.any { it.canExtractKey(parent, translationFunctionNames) }
-            ) return null
-        }
-
-        val rawKey = lang.extractRawKey(element) ?: return null
-        val fullKey = RawKeyParser(project).parse(rawKey, element) ?: return null
+        val rawKey = lang.extractRawKey(keyElement) ?: return null
+        val fullKey = RawKeyParser(project).parse(rawKey, keyElement) ?: return null
         if (fullKey.compositeKey.isEmpty()) return null
         // A runtime segment cannot be verified statically: the annotator reports nothing on
         // such a key, and this provider used to show it as missing in every locale — with a
@@ -79,7 +73,7 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
         // for an explicit namespace matching no file too, so `t('common:user.name')` with no
         // common.json would show per-locale statuses computed against unrelated files while
         // the annotator reports an unresolved namespace — two verdicts on one key.
-        val sources = sourceService.findReadSources(fullKey, element)
+        val sources = sourceService.findReadSources(fullKey, keyElement)
         if (sources.isEmpty()) return null
 
         val pluralSeparator = config.pluralSeparator
@@ -109,10 +103,6 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
 
         val tooltip = buildTooltip(statusLabel, statuses)
 
-        // Anchor on the first leaf token, as the platform requires: the literal's own token, or `m`
-        // in Paraglide's `m.hello`, whose first child is itself a reference expression.
-        val anchor = PsiTreeUtil.getDeepestFirst(element)
-
         // Navigation handler: trigger CreateKeyQuickFix when icon is clicked and key is missing/partial
         val navHandler: GutterIconNavigationHandler<PsiElement>? = if (resolvedCount < total) {
             GutterIconNavigationHandler { _: MouseEvent, psiElement: PsiElement ->
@@ -125,14 +115,32 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
         } else null
 
         return LineMarkerInfo(
-            anchor,
-            anchor.textRange,
+            element,
+            element.textRange,
             icon,
             { _: PsiElement -> tooltip },
             navHandler,
             GutterIconRenderer.Alignment.LEFT,
             { tooltip }
         )
+    }
+
+    /**
+     * The outermost element starting with [leaf] that a [Lang] reads a key from, with that Lang. A
+     * literal expression and its token are both claimed: the expression owns the key, and its token
+     * the one badge. Each element starts with exactly one leaf, so every element is still asked once.
+     */
+    private fun claimedFrom(leaf: PsiElement, translationFunctionNames: List<String>): Pair<PsiElement, Lang>? {
+        var claimed: Pair<PsiElement, Lang>? = null
+        var current = leaf
+        while (true) {
+            Extensions.LANG.extensionList.firstOrNull { it.canExtractKey(current, translationFunctionNames) }
+                ?.let { claimed = current to it }
+            val parent = current.parent ?: break
+            if (parent is PsiFile || parent.firstChild !== current) break
+            current = parent
+        }
+        return claimed
     }
 
     /**
