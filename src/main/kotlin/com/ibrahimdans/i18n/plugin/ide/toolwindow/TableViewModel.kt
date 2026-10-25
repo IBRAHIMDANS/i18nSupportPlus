@@ -602,14 +602,15 @@ class TableViewModel {
     }
 
     /**
-     * Counts usages of each key in the project's source files through [IdeKeyUsageIndex].
+     * Counts usages of each key in the project's source files through [IdeKeyUsageIndex], in
+     * [moduleConfig]'s code only when given — the module the rows were loaded from.
      * Returns a new list of rows with [TranslationRow.usageCount] filled in.
      *
      * This method performs PSI reads and must be called from a background thread.
      */
-    fun countUsages(project: Project, rows: List<TranslationRow>): List<TranslationRow> {
+    fun countUsages(project: Project, rows: List<TranslationRow>, moduleConfig: ModuleConfig? = null): List<TranslationRow> {
         val config = Settings.getInstance(project).config()
-        val index = IdeKeyUsageIndex(project)
+        val index = IdeKeyUsageIndex(project, moduleConfig)
         val counts = index.usageCounts(rows.map { it.key })
         val withPrefixed = rows.map { row -> row.copy(usageCount = counts[row.key] ?: 0) }
 

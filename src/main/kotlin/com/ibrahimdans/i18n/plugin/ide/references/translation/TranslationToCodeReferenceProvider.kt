@@ -4,11 +4,12 @@ import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideOutdir
 import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
 import com.ibrahimdans.i18n.plugin.tree.KeyComposer
 import com.ibrahimdans.i18n.plugin.tree.Separators
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.keyScopeOf
 import com.ibrahimdans.i18n.plugin.utils.unQuote
+import com.ibrahimdans.i18n.plugin.utils.usageScope
 import com.intellij.codeInsight.daemon.impl.DaemonProgressIndicator
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.progress.ProgressManager
@@ -44,7 +45,7 @@ internal class TranslationToCodeReferenceProvider : KeyComposer<PsiElement> {
         )
         @Suppress("DEPRECATION")
         if (PsiSearchHelper.SearchCostResult.FEW_OCCURRENCES ==
-                PsiSearchHelper.getInstance(project).isCheapEnoughToSearch(key, config.searchScope(project), null)
+                PsiSearchHelper.getInstance(project).isCheapEnoughToSearch(key, ModuleSources.usageScope(project, element.containingFile?.virtualFile), null)
         ) {
             return listOf(TranslationToCodeReference(element, textRange, key))
         }
@@ -154,9 +155,10 @@ class TranslationToCodeReference(element: PsiElement, textRange: TextRange, val 
                     separators,
                     if (namespace.isEmpty()) config.defaultNamespaces() else listOf(namespace),
                 )
+                // In a monorepo, the code of the module owning this translation file only.
                 PsiSearchHelper.getInstance(project).processElementsWithWord(
                     referencesAccumulator.process(),
-                    config.searchScope(project),
+                    ModuleSources.usageScope(project, element.containingFile?.virtualFile),
                     composedKey,
                     UsageSearchContext.ANY,
                     true

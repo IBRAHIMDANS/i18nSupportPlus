@@ -894,7 +894,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("toolwindow.table.scan.progress.title"), false) {
             override fun run(indicator: ProgressIndicator) {
                 indicator.text = PluginBundle.message("toolwindow.table.scan.progress.text")
-                val scanned = viewModel.countUsages(project, rowsToScan)
+                val scanned = viewModel.countUsages(project, rowsToScan, moduleConfig)
 
                 ApplicationManager.getApplication().invokeLater {
                     // Merge scanned usage counts back into allRows, preserving original order
