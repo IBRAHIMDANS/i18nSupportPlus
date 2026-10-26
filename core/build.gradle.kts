@@ -21,12 +21,12 @@ dependencies {
     // (intellij.libraries.jackson and intellij.libraries.snakeyaml.engine, loading="embedded"),
     // at these versions from 2025.3 to 2026.2. Use no API newer than them.
     compileOnly("com.fasterxml.jackson.core:jackson-core:2.19.0")
-    compileOnly("org.snakeyaml:snakeyaml-engine:2.9")
+    compileOnly("org.snakeyaml:snakeyaml-engine:3.2")
 
     testImplementation("org.jetbrains.kotlin:kotlin-stdlib:2.4.21")
     testImplementation("com.google.code.gson:gson:2.11.0")
     testImplementation("com.fasterxml.jackson.core:jackson-core:2.19.0")
-    testImplementation("org.snakeyaml:snakeyaml-engine:2.9")
+    testImplementation("org.snakeyaml:snakeyaml-engine:3.2")
     testImplementation(platform("org.junit:junit-bom:6.1.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
