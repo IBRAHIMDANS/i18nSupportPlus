@@ -187,11 +187,15 @@ Highlights i18n keys with visual feedback on resolution status:
 
 Autocomplete i18n keys as you type, with full namespace support. Suggestions are drawn from all translation files in the project.
 
+![Completing a key, with each key's value](docs/img/marketplace/key-completion.gif)
+
 ![Completion](docs/img/completion.png)
 
 ### Key Extraction
 
 Extract hard-coded strings into translation files via **Alt+Enter** intention action. Supports sorted insertion (*Insert new keys in key order* setting).
+
+![Extracting a JSX text into a key](docs/img/marketplace/extract-i18n-key.gif)
 
 In a react-intl project — a module on the `react-intl` preset, or, without modules, a file importing `react-intl` — a JSX text becomes `<FormattedMessage id="key" />` (variables in `values`), and an attribute or a string `intl.formatMessage({ id: 'key' })`, with the name the component gives `useIntl()`. `FormattedMessage` is imported from `react-intl`, merged into the file's import when it has one. Without a `useIntl()` in scope, a string is not extracted — the hint asks for one, and *Batch Extract* lists it unchecked with that reason — while *Internationalize…* gives the component `const intl = useIntl()` and its import. *Write the default value in the call* adds `defaultMessage`; a module's call template still wins.
 
@@ -448,6 +452,8 @@ Intermediate `*` wildcards in composite key resolution allow matching any segmen
 | Create missing key | Unresolved key annotation |
 | Create translation file | Missing namespace file annotation |
 | Create namespace on the fly | `+` button in Create Translation dialog |
+
+![Creating an unknown key with its values](docs/img/marketplace/create-key-quickfix.gif)
 
 ## Tool Window
 
