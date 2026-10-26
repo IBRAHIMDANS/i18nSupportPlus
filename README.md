@@ -7,7 +7,7 @@ Turns i18n keys into first-class code symbols in **WebStorm, IntelliJ IDEA Ultim
 
 Maintained successor of **I18n Support**, which no longer installs on IDEs after 2023.1: a fork of it, installed separately rather than as an update, that reads its project settings back as they are — see [Coming from I18n Support?](https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/docs/COMPARISON.md#coming-from-i18n-support).
 
-Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-intl, ngx-translate, Transloco, svelte-i18n, i18n-js, Paraglide JS and Laravel / Blade**, in JS, TS, JSX, TSX, Vue SFC, Angular templates and PHP, with **JSON, JSON5, YAML, PO/POT** and plain **TS/JS catalogues**. A setup wizard configures it on first launch, monorepo modules included.
+Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-intl, ngx-translate, Transloco, svelte-i18n, i18n-js, Paraglide JS, typesafe-i18n, Meteor universe:i18n and Laravel / Blade**, in JS, TS, JSX, TSX, Vue SFC, Svelte, Astro, Angular templates, PHP and Blade, with **JSON, JSON5, YAML, PO/POT, Laravel PHP arrays, Flutter ARB** and plain **TS/JS catalogues**. A setup wizard configures it on first launch, monorepo modules included.
 
 - **See** — gutter status per key (all / some / no locale), inline value hints, folding and hover in a preview locale, completion of real keys, namespaces included
 - **Edit safely** — extract hard-coded strings (variables and plural forms included), rename a key or a whole level across every locale and call site (`Shift+F6`), move a key to another namespace; one Ctrl+Z undoes the files and the code
@@ -31,15 +31,15 @@ whether a key exists, in which namespace, and whether it's translated everywhere
   real keys (namespaces included), dynamic/wildcard keys supported.
 - **Edit safely** — extract hard-coded strings (`Alt+Enter`), rename across all
   locales and code (`Shift+F6`), move a key to another namespace (`Ctrl+Alt+Shift+M`),
-  sort keys alphabetically.
+  sort keys in the order you choose.
 - **Stay healthy** — tool window with tree/table views grouped by namespace, coverage
   stats per namespace and locale, Keys Synchronizer (propagate missing keys in bulk),
-  Count Key Usages (find keys no code refers to), CSV export/import, and inspections for empty,
-  duplicate or inconsistent values.
+  Count Key Usages (find keys no code refers to), CSV and XLIFF export/import, and inspections for missing,
+  empty, duplicate or inconsistent values.
 
 Works with **i18next / react-i18next, vue-i18n, next-intl, lingui, react-intl, ngx-translate, Transloco, svelte-i18n,
-i18n-js, Paraglide JS, Meteor universe:i18n and Laravel / Blade**, across JS/TS/JSX/TSX, Vue SFC, Svelte, Astro,
-Angular templates, PHP and Blade, with JSON, JSON5, YAML, PO/POT, Laravel PHP arrays and TS/JS catalogues.
+i18n-js, Paraglide JS, typesafe-i18n, Meteor universe:i18n and Laravel / Blade**, across JS/TS/JSX/TSX, Vue SFC, Svelte, Astro,
+Angular templates, PHP and Blade, with JSON, JSON5, YAML, PO/POT, Laravel PHP arrays, Flutter ARB and TS/JS catalogues.
 A setup wizard auto-configures it on first launch, a module per application in a monorepo.
 
 **Coming from i18n Ally or Easy I18n?** See the [feature-by-feature comparison](docs/COMPARISON.md) and how to carry your settings over.
@@ -97,8 +97,8 @@ message file, in the frontmatter and in template expressions. A ready-to-open pr
 | TSX | `.tsx` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Vue SFC | `.vue` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | PHP | `.php` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Blade | `.blade.php` | ✓ | — | ✓ | — | ✓ |
-| Angular templates | `.html` | ✓ | — | — | — | ✓ |
+| Blade | `.blade.php` | ✓ | — | ✓ | ✓ | ✓ |
+| Angular templates | `.html` | ✓ | ✓ | — | — | ✓ |
 | Svelte | `.svelte` | ✓ | — | ✓ | — | — |
 | Astro | `.astro` | ✓ | ✓ | ✓ | — | ✓ |
 
@@ -127,7 +127,7 @@ message file, in the frontmatter and in template expressions. A ready-to-open pr
 
 **—** means no test covers it yet. Keys of the last two formats are read and annotated; whether Ctrl+click reaches
 their value and whether a missing key is written into them is not tested. XLIFF, like CSV, is exported and imported
-from the tool window, not read as a translation source.
+from *Tools › i18n Support Plus*, not read as a translation source.
 
 Flutter ARB catalogues feed the tool window, the statistics, the missing-key checks and *Sync Keys*; their `@key`
 and `@@locale` metadata is no key. Dart code is not read: `AppLocalizations.of(context)!.greeting` names its key as a
@@ -146,8 +146,8 @@ namespace.
 
 On first launch, a wizard guides you through configuration in 3 steps:
 
-1. **Framework detection** — auto-detects i18next, vue-i18n, lingui, react-intl, ngx-translate, Transloco, svelte-i18n, i18n-js or Paraglide JS from your `package.json`
-2. **Translation file discovery** — scans for `.json`, `.yaml`, `.po`, and `.pot` files in `locales/`, `i18n/`, `translations/` folders (PO/POT support requires the optional **GNU GetText** plugin — see Plugin Dependencies)
+1. **Framework detection** — auto-detects i18next, vue-i18n, next-intl, lingui, react-intl, ngx-translate, Transloco, svelte-i18n, i18n-js or Paraglide JS from your `package.json`, and Laravel from your `composer.json`
+2. **Translation file discovery** — scans for `.json`, `.yaml`, `.yml`, `.po` and `.pot` files in `locales/`, `locale/`, `i18n/`, `translations/`, `lang/` and `langs/` folders (PO/POT support requires the optional **Localization** plugin — see Plugin Dependencies)
 3. **Summary** — review and apply the configuration. In a monorepo, where the catalogues sit in several applications (`apps/shop/public/locales`, `apps/admin/public/locales`), it proposes one module per application, ticked by default: each is rooted at the application's folder (the one holding its `package.json` or `composer.json`, else the folder above `public/`, `src/`, `locales/`…), named after it, and given the framework its own manifest declares. Untick a module to put it aside (see *Modules*)
 
 You can reopen it at any time from **Tools > i18n Support Plus > Run Setup Wizard…**.
@@ -175,7 +175,7 @@ Highlights i18n keys with visual feedback on resolution status:
 
 ### Navigation
 
-**Ctrl+Click** on any i18n key navigates directly to the translation value in the JSON/YAML file.
+**Ctrl+Click** on any i18n key navigates directly to the translation value in its translation file.
 
 - Opens the **preview locale** (the project reference locale when none is set) rather than asking which file; when that locale lacks the key, every target is offered
 - Works with partially resolved keys (navigates to the deepest resolved node)
@@ -219,6 +219,8 @@ Hovering a badge lists the locales; clicking a partial/missing badge triggers th
 
 Displays the resolved translation value inline after each i18n key expression, directly in the editor. Toggle via **Editor > Inlay Hints > i18n translations**.
 
+In a JSON or YAML translation file, the reference locale's value follows each value of another locale, or *missing in* the reference when it lacks the key. Toggle via **Editor > Inlay Hints > i18n reference values**.
+
 ![Inlay Hints](docs/img/inlay-hints.png)
 
 ### Hover Hints
@@ -233,7 +235,7 @@ Displays the resolved translation value inline after each i18n key expression, d
 
 ### Code Folding
 
-Replaces i18n keys with their translation values inline for better readability. Toggle with **Ctrl+Alt+Shift+T** or under *i18n* in the editor context menu.
+Replaces i18n keys with their translation values inline for better readability. Toggle with **Show Translations Inline** (**Ctrl+Alt+Shift+T**, under *i18n* in the editor context menu): the files already open fold or unfold at once.
 
 ![Folding before](docs/img/folding-before.png)
 ![Folding after](docs/img/folding-after.png)
@@ -248,31 +250,62 @@ With the caret on an intermediate level of a key (`button` in `common:button.sav
 
 | Action | Where | What it does |
 |--------|-------|--------------|
+| Edit Translation… | editor context menu › *i18n*, `Ctrl+Alt+Shift+I` | Edit the values of the key under the caret in every locale, or create it when no file holds it |
 | Batch Extract i18n Keys… | **Code** menu, `Ctrl+Alt+Shift+B` | Extract several hard-coded strings of a file as keys in one pass |
+| Internationalize… | Project view context menu, editor context menu › *i18n* | Replace every hard-coded text of the selected JS/TS and Vue files and folders by a key, after a preview where texts are unchecked and keys edited |
 | Move i18n Key to Namespace… | editor context menu › *i18n*, `Ctrl+Alt+Shift+M` | Move a key to another namespace, updating every locale file and code reference |
 | Sort i18n Keys | editor context menu › *i18n*, in a translation file | Reorder the file's keys in the *Key order* of the settings, recursively |
 | Sync Keys… | **Tools > i18n Support Plus**, tool window toolbar | Create in every locale the keys it lacks, with a batch dialog to fill the values |
-| Export Translations to CSV… | **Tools > i18n Support Plus** | One row per key, one column per locale |
-| Import Translations from CSV… | **Tools > i18n Support Plus** | Write values back from a CSV, with a preview of what changes before anything is written |
-| Show Translation Changes | **Tools > i18n Support Plus**, Commit tool window | The keys the working copy adds, removes or changes, per locale, and the locales left behind |
-| Compare Translations with Branch… | **Tools > i18n Support Plus**, Commit tool window | The same against a branch (`origin/main` by default), committed changes included: the translations of a pull request. Needs the Git plugin |
+| Count Key Usages | tool window toolbar | Count the code usages of every key and fill the table's *Usage* column |
 | Clean Up Keys with No Reference… | **Tools > i18n Support Plus** | Find the keys no code refers to and delete the selected ones from every locale. A key used outside the code (API, config, database) cannot be detected: keep it in *Keys used outside the code* |
+| Clean Up Reviews of Removed Values… | **Tools > i18n Support Plus** | Delete, once confirmed, the reviews whose key no longer has a value in its locale |
+| Export Translations to CSV… | **Tools > i18n Support Plus** | CSV, one row per key and one column per locale (or the missing keys only), or XLIFF 1.2 for a CAT tool, one file per target locale |
+| Import Translations from CSV… | **Tools > i18n Support Plus** | Write values back from a CSV or XLIFF file, with a preview of what changes before anything is written |
+| Generate i18next Types | **Tools > i18n Support Plus**, i18next modules only | Write `src/@types/i18next.d.ts` from the reference locale's keys, so that `tsc` rejects an unknown key, in CI too. Meant to be committed, regenerated on demand only |
+| Generate Pseudo-Locale… | **Tools > i18n Support Plus** | Write `en-XA`, an accented copy of the reference locale 30% longer, next to it: switched to it, the running application shows the text never extracted and the text that overflows |
+| Show Translation Changes | **Tools > i18n Support Plus**, Commit tool window | The keys the working copy adds, removes or changes, per locale, and the locales lagging behind the reference |
+| Compare Translations with Branch… | **Tools > i18n Support Plus**, Commit tool window | The same against a branch (`origin/main` by default), committed changes included: the translations of a pull request. Needs the Git plugin |
+
+### Machine Translation
+
+Off until a project turns it on, in *Settings | Tools | i18n Support Plus | Machine Translation*: the text of the translations is sent to the engines listed there, tried in their order. Out of the box:
+
+- **OpenAI-compatible**, pointing at a local Ollama (`http://localhost:11434`) — nothing leaves the machine — or at OpenAI, Mistral, Groq, OpenRouter or LM Studio;
+- **LibreTranslate**, local as well;
+- **DeepL** and **Google Cloud Translation**, with your API key.
+
+Each engine's URL, headers, request body and the path of the translation in the answer can be edited, and *Test* translates a sample. The glossary, one term per line, protects a name from translation (`Acme`) or gives a term's translations (`cart = fr: panier; de: Warenkorb`), sent to DeepL as a glossary and to the LLM engines in their prompt.
+
+- *Create Translation* and *Edit Translation*: **Translate Empty Locales**, or *Translate* next to one locale, fills the fields from the reference locale; nothing is written before OK. An *Instruction* (formal tone, a length) is sent along to the OpenAI-compatible engines.
+- **Fill Missing Translations…** (*Tools > i18n Support Plus*): the keys a locale lacks, translated from the reference locale, with a preview before writing.
+- **Retranslate Stale Translations…**: in a module keeping reviews, the values whose source changed since they were reviewed, next to the value each one replaces.
+- *Internationalize…* can translate the new keys into the module's other locales.
+
+Variables, tags and the plural forms of the target language are kept; a proposal that lost a variable comes unchecked.
 
 ### Inspections
 
-Enabled under **Settings > Editor > Inspections > i18n Support Plus**:
+Under *Settings | Editor | Inspections | i18n Support Plus*, those marked *off* to be turned on there (the setup wizard offers the first two):
 
 | Inspection | Reports |
 |------------|---------|
-| Empty translation value | A key whose value is blank in a translation file |
-| Duplicate translation value | Two keys of a file holding the same value |
+| Translation key with no reference in code | A key of a translation file no code refers to, unless the settings keep it (*Keys used outside the code*); quick fixes: delete it, or keep it (off) |
+| Hard-coded text in JSX / in a Vue template | A text written as is, `<button>Save</button>`, with a quick fix extracting it; code tags, punctuation alone and technical attributes are never reported (off) |
+| Translation key missing from a locale | In a locale file, each key of the reference locale's file for the same namespace that it lacks, plural forms compared as a group; quick fix: add it empty |
+| Translation key absent from the reference locale | A key of a locale that the reference locale's file does not hold — renamed in the reference only, or mistyped — plural forms compared as a group; quick fixes: remove it from the locale, or add it empty to the reference (off) |
+| Plural forms missing for the language of the locale | An i18next plural group lacking a category its language needs (`ru`: `item_few`, `item_many`) |
+| vue-i18n plural with fewer branches than the language has forms | A vue-i18n plural `a \| b` with fewer branches than its locale's language has forms for an integer (`ru`: `one`, `few`, `many`); only in a vue-i18n module, or a project without modules depending on vue-i18n |
+| Translation variables not passed to the call | A call that does not pass a variable its message needs: `t('greeting')` for `Hello {{name}}` |
 | Placeholder consistency across locales | A `{name}` or `%s` placeholder present in one locale and not in another, or an unbalanced brace |
+| Markup consistency across locales | A translation whose tags differ from the reference's, which breaks react-i18next's `<Trans>`; tags may be reordered |
 | ICU message format validation | Unbalanced braces, a `plural` block without `one`/`other`, … |
-| vue-i18n plural branches | A vue-i18n plural `a \| b` with fewer branches than its locale's language has forms for an integer (`ru`: `one`, `few`, `many`); only in a vue-i18n module, or a project without modules depending on vue-i18n |
-| Translation key with no reference in code | A key of a translation file no code refers to, unless the settings keep it (*Keys used outside the code*); quick fixes: delete it, or keep it |
-| Translation key absent from the reference locale | A key of a locale that the reference locale's file does not hold — renamed in the reference only, or mistyped — plural forms compared as a group (off by default); quick fixes: remove it from the locale, or add it empty to the reference |
+| Value copied from the reference locale | A value of more than one word identical to the reference's, counted as translated but never taken up; *Mark as intended* keeps it |
+| Translation much longer than the reference | A value likely to overflow what the reference was sized for; ratio and minimal length are options (off) |
+| Final punctuation and whitespace across locales | A final `.`, `:` or `?`, or surrounding whitespace, present in one locale and not in the reference (off) |
+| Empty translation value | A key whose value is blank in a translation file (off) |
+| Duplicate translation value | Two keys of a file holding the same value (off) |
 | Stale translation: reviewed on a source that changed since | Where a module keeps reviews, a value still the one reviewed while the key's reference text changed since (weak warning) |
-| Key naming convention | A key not following the project's convention — camelCase, snake_case, kebab-case or a pattern of your own — segment by segment, plural suffixes aside (off by default); quick fix: rename it in every locale and call site |
+| Key naming convention | A key not following the project's convention — camelCase, snake_case, kebab-case or a pattern of your own — segment by segment, plural suffixes aside; quick fix: rename it in every locale and call site (off) |
 
 ### Continuous Integration
 
@@ -295,7 +328,7 @@ It runs the plugin's own checks in CI, with the plugin's settings, whatever the 
 - Translation files are read in JSON (`.json`, strict), JSON5 (`.json5`: comments, unquoted keys, single quotes, trailing commas), YAML (`.yml`, `.yaml`) and as TypeScript / JavaScript catalogues (`.ts`, `.js`). A `.json5` file takes the JSON settings, as in the plugin.
 - A catalogue is the object literal the file exports: `export default { … }` (or the `const` it names), `module.exports = { … }`, or the only `export const messages = { … }`, with `as const` or `satisfies …` allowed. Keys and values must be literals: a spread (`...common`), a computed key, an imported or built value (`` `Hi ${name}` ``, `t('x')`) stop the check with exit `2`, naming the file and the line, since the keys it hides would be reported missing. A `.ts` or `.js` file exporting no object, a helper beside the catalogues, is left out.
 - A folder or file named with a country code beside real locales (`locales/gb/` next to `locales/en/`) is not a locale: the check leaves it out and says so on the error output, naming the path. `"localeAliases": "gb=en-GB"` makes it one, checked with `en-GB`'s plural forms.
-- `.idea/i18nSettings.xml`, when the project has one, applies: the translations root, the excluded folders, the default namespaces, the ignored locales (left out of the report), the reference locale (the module's, then the preview locale, then `en`), the key and namespace separators, and the modules — with several, each is checked on its own, with its own reference locale. `--reference` overrides it; `en` also finds `en-US`.
+- `.idea/i18nSettings.xml`, when the project has one, applies: the translations root, the excluded folders, the default namespaces, the ignored locales (left out of the report), the reference locale (the module's, then the project's — *Project reference locale*, `foldingPreferredLanguage` —, then `en`; never the preview locale), the key and namespace separators, and the modules — with several, each is checked on its own, with its own reference locale. `--reference` overrides it; `en` also finds `en-US`.
 - `i18n-check.json`, at the project's root, takes the place of `.idea/i18nSettings.xml` for a project that keeps `.idea/` out of version control; when both exist, it wins and the XML is not read. It takes the names of the IDE's settings, and fails the check (exit `2`) on a name it does not know:
 
   ```json
@@ -420,7 +453,7 @@ Intermediate `*` wildcards in composite key resolution allow matching any segmen
 
 The **I18n** tool window (bottom panel) provides a centralized view of all translations in the project.
 
-The toolbar holds the actions — add a translation, add a namespace, refresh, Sync Keys, Count Key Usages, settings —, a **search field** filtering the tree and the table by key or value (with a result count), and, when several modules are configured, a **module selector**. A project in which nothing can be read shows where the plugin looked and links to the setup wizard and the settings. The window reloads itself when a translation file changes.
+The toolbar picks the view — **Tree**, **Table** or **Stats** — and holds the actions — add a translation, add a namespace, refresh, Sync Keys, Count Key Usages, settings —, a **search field** filtering the tree and the table by key or value (with a result count), and, when several modules are configured, a **module selector**. In a wide window, the table's *Namespace* and *Status* filters sit next to the search field. A project in which nothing can be read shows where the plugin looked and links to the setup wizard and the settings. The window reloads itself when a translation file changes.
 
 **Add translation** opens the same dialog as the quick fix: the key is checked as you type, one field per locale says which file it writes to, **Copy Reference to Empty Locales** fills the blanks from the reference locale, and the `+` next to the namespace creates a new one on the spot.
 
@@ -446,19 +479,19 @@ Flat table: a **Namespace** column while the rows span several namespaces, the *
 - Locale cells are **editable in place**; the value is written straight to the file, and the entry created when the locale lacks it
 - Namespace filter in the dropdown; right-click the header to hide locale columns
 - Status filter: keys missing or empty in a shown locale, with no reference found, or holding a value another key of the same namespace holds too
-- **Count Key Usages** (toolbar) fills the Usage column; keys reached only through a dynamic key (`` t(`status.${kind}`) ``) are told from unused ones
+- **Count Key Usages** (toolbar) fills the Usage column, whose header says *(not counted)* until then; keys reached only through a dynamic key (`` t(`status.${kind}`) ``) are told from unused ones
 - Keys used outside the code (received from an API, stored elsewhere) can be listed in the settings, *Keys used outside the code* (`errors.*`, `*.label`, `common:status.ok`): they show as *Kept* and are never offered for deletion
 - Right-click: edit, open file, delete a key with no reference found
 
 ![Tool Window Table](docs/img/toolwindow-table.png)
 ![Tool Window namespace filter](docs/img/toolwindow-table-namespace-filter.png)
-![Tool Window Orphans](docs/img/toolwindow-table-orphans.png)
+![Tool Window keys with no reference](docs/img/toolwindow-table-orphans.png)
 
 ### Reviews
 
-A module with a `.i18n-reviews/` folder keeps a review per key and locale, versioned with the code so the whole team shares it. The table then shows each cell's review (an icon and a tooltip), the status filter adds *To review*, *Source changed* and *Changes requested*, and right-clicking locale cells approves them, requests changes, marks them for review or opens their thread.
+A module with a `.i18n-reviews/` folder keeps a review per key and locale, versioned with the code so the whole team shares it. The table then shows each cell's review (an icon and a tooltip), the status filter adds *To review*, *Stale* and *Changes requested*, and right-clicking locale cells approves them, requests changes, marks them for review or opens their thread. A change request can carry a suggested value, applied in one click with *Apply suggestion*, and each entry of a thread can be replied to and resolved. The reviewer name is set in *Settings | Tools | i18n Support Plus | Reviews*.
 
-- **Source changed**: the value is still the one decided on, but the key's text in the module's reference locale changed since. An approval made on "Save" no longer holds once the source says "Save and close". The cell counts as *to review*, and its tooltip shows the source as it reads now: approve the value if it still fits, or translate it again. The reference locale itself is never *source changed*
+- **Stale**: the value is still the one decided on, but the key's text in the module's reference locale changed since. An approval made on "Save" no longer holds once the source says "Save and close". The cell counts as *to review*, and its tooltip shows the source as it reads now: approve the value if it still fits, or translate it again (*Retranslate Stale Translations…*). The reference locale itself is never stale
 - A review decided before 1.13.0 records no source: it reads as before until its next decision
 - Have the whole team on 1.13.0 or later: an older version rewriting a locale's review file drops the sources recorded in it. That never turns into a false approval, but the locale stops telling stale translations until their next decision
 
@@ -483,7 +516,7 @@ A monorepo is described as **modules** on the *Modules* settings page, *Settings
 
 ## Configuration
 
-**Settings | Tools | i18n Support Plus**, with two pages below it: **Modules** (the applications of a monorepo) and **Key Assistance Rules**. The locale fields list the project's locales and still accept one typed by hand.
+**Settings | Tools | i18n Support Plus**, with four pages below it: **Modules** (the applications of a monorepo), **Key Assistance Rules**, **Machine Translation** (see [Machine Translation](#machine-translation)) and **Reviews** (the name your reviews are signed with). The locale fields list the project's locales and still accept one typed by hand.
 
 ![Settings](docs/img/settings.png)
 
@@ -509,6 +542,14 @@ A monorepo is described as **modules** on the *Modules* settings page, *Settings
 | Excluded directories | *(empty)* | Directory names skipped when scanning for translation files |
 | Locale aliases | *(empty)* | Folder or file names that are no language code, mapped to their locale: `gb=en-GB, cn=zh-CN`. A `gb/` folder is then the `en-GB` locale, shown as `gb`, with its plural forms. Without an alias, a folder named with a country code (`gb`, `jp`, `ua`) is not read as a locale |
 | Excluded file extensions | *(empty)* | Extensions on which annotations are suppressed (`php,vue`) |
+
+### Checks
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Warn in code when a key is missing from some locales | `false` | Warn when a key exists in some locales but not others |
+| Locales not checked for missing keys | *(empty)* | Comma-separated locales (`de, pt-BR`) left out of the missing-key checks: a translation in progress or abandoned |
+| Keys used outside the code | *(empty)* | Comma-separated keys never reported as having no reference (`errors.*`, `*.label`): a key received from an API leaves no trace in the code |
 
 ### Modules
 
@@ -537,7 +578,7 @@ The import is partial by design: a rule names a function, whose calls the plugin
 
 ### Folding and preview
 
-![Settings — folding, extraction, gettext, inspections](docs/img/settings-folding.png)
+![Settings — folding, extraction, gettext, appearance](docs/img/settings-folding.png)
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -554,14 +595,6 @@ The import is partial by design: a rule names a function, whose calls the plugin
 | Re-sort JSON files after each new key | `false` | Sort the whole JSON translation file in the *Key order* after every key creation |
 | Key order | Ignore case | Order used by the two settings above and by *Sort i18n Keys*: *Ignore case* (`apple`, `Banana`, `cherry`), *Character code, like the IDE* (`Banana`, `apple`, `cherry`), the order of the IDE's *Sort properties alphabetically*, or *Natural* (`item1`, `Item2`, `item10`), case ignored and numbers compared by value |
 
-### Checks
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Warn in code when a key is missing from some locales | `false` | Warn when a key exists in some locales but not others |
-| Locales not checked for missing keys | *(empty)* | Comma-separated locales (`de, pt-BR`) left out of the missing-key checks: a translation in progress or abandoned |
-| Keys used outside the code | *(empty)* | Comma-separated keys never reported as having no reference (`errors.*`, `*.label`): a key received from an API leaves no trace in the code |
-
 ### PHP / gettext
 
 | Setting | Default | Description |
@@ -569,16 +602,16 @@ The import is partial by design: a rule names a function, whose calls the plugin
 | PHP gettext and PO file support | `false` | Enable gettext/PO file support |
 | gettext aliases | `gettext,_,__` | Function names recognized as gettext calls |
 
-### Translation file formats
-
-Per-format settings; the first one is the **indentation of the keys generated in YAML files** (2 spaces). JSON follows the IDE's code style.
-
 ### Appearance
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Show gutter icons | `true` | Display resolution badges in the editor gutter |
 | Show setup wizard on new projects | `true` | Run the wizard the first time an unconfigured project opens |
+
+### Translation file formats
+
+Per-format settings; the first one is the **indentation of the keys generated in YAML files** (2 spaces). JSON follows the IDE's code style.
 
 ### All projects
 

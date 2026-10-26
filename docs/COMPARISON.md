@@ -69,7 +69,7 @@ a notification offers the setup wizard when the project opens.
 |---|---|---|---|---|
 | Editor | WebStorm, IntelliJ IDEA Ultimate, PhpStorm 2025.2+ (needs the bundled JavaScript plugin) | Any IntelliJ-based IDE 2025.2+ | IntelliJ-based IDEs 2024.1–2024.2 | VS Code |
 | Code languages | JS, TS, JSX, TSX, Vue SFC, Angular templates, Svelte, PHP, Blade, Astro with the Astro plugin | HTML/XML, JS(X), TS(X), Vue, Svelte, PHP, Ruby, Rust, Go, Dart, Python, Kotlin, Java ([Marketplace](https://plugins.jetbrains.com/plugin/16316-easy-i18n)) | JS, TS, React, Vue, PHP, Blade, Twig ([Marketplace](https://plugins.jetbrains.com/plugin/17212-i18n-ally)) | Per framework, including Flutter, Rails and Ember ([wiki](https://github.com/lokalise/i18n-ally/wiki/Supported-Frameworks)) |
-| Translation files | JSON, JSON5, YAML, PO/POT, TS/JS catalogues, Laravel PHP arrays | JSON, JSON5, YAML, Properties | JSON, JS/TS, PHP, PO/POT, XLIFF 1/2, YAML | JSON, YAML, JSON5; INI, properties, POT and read-only JS/TS/PHP when enabled ([wiki](https://github.com/lokalise/i18n-ally/wiki/Locale-Formats)) |
+| Translation files | JSON, JSON5, YAML, PO/POT, TS/JS catalogues, Laravel PHP arrays, Flutter ARB <sup>next</sup> | JSON, JSON5, YAML, Properties | JSON, JS/TS, PHP, PO/POT, XLIFF 1/2, YAML | JSON, YAML, JSON5; INI, properties, POT and read-only JS/TS/PHP when enabled ([wiki](https://github.com/lokalise/i18n-ally/wiki/Locale-Formats)) |
 | Laravel PHP array files (`lang/en/*.php`) | Yes, read and written, the file name as namespace; package keys (`package::file.key`) read from the overrides in `lang/vendor/` | Preset reads `resources/lang/{locale}.json` ([presets](https://marhali.github.io/easy-i18n/configuration/presets/)) | Yes | Read-only |
 | Monorepo, one configuration per app | Modules (root, path template, key template, preset), rooted at each application by the setup wizard; an *Active* box sets one aside, and a key's usages are those of its module <sup>next</sup> | Modules, since 5.0 ([migration](https://marhali.github.io/easy-i18n/migration/v5/)) | — | Multi-root workspaces |
 | Setup | Wizard and per-framework presets, Laravel detected from `composer.json` | Per-framework presets | Automatic for Vue, Nuxt, Laravel, Symfony, Yii, CodeIgniter, CakePHP | Framework detected from `package.json` |
@@ -106,7 +106,7 @@ a notification offers the setup wizard when the project opens.
 
 | | I18n Support Plus | Easy I18n | i18n Ally (JetBrains) | i18n Ally (VS Code) |
 |---|---|---|---|---|
-| Extract a hardcoded string | Dialog: reuse an existing key, namespace, parent group, variables, plural forms | Extract translation action | Quick fix, and in bulk | Quick fix, and batch per file |
+| Extract a hard-coded string | Dialog: reuse an existing key, namespace, parent group, variables, plural forms | Extract translation action | Quick fix, and in bulk | Quick fix, and batch per file |
 | Internationalize a file or a folder at once | JS/TS and Vue components, previewed per file, one undo, other locales machine-translated | — | In bulk | Batch per file |
 | Rename a key everywhere | `Shift+F6`: every locale and call site, a whole level too, one undo | — | Keys and params | `rename-key` command |
 | Move a key to another namespace | Yes | — | — | — |
@@ -119,12 +119,12 @@ a notification offers the setup wizard when the project opens.
 |---|---|---|---|---|
 | Overview | Tool window: tree, editable table, coverage matrix per namespace and locale | Tool window: tree and editable table | — | Sidebar, Editor UI (webview) |
 | Missing translations | Inspection, filters, keys synchronizer | Missing filter | Inspection over project, folder or file | Reported |
-| Unused keys | Inspection, Scan Orphans, Cleanup Unused Keys | — | — | Usage Report: keys not in use |
+| Unused keys | Inspection, *Count Key Usages*, *Clean Up Keys with No Reference…* | — | — | Usage Report: keys not in use |
 | Keys used outside the code | Keep list (exact, prefix, glob) | — | — | `keysInUse` |
 | Locales left out of the checks | Yes | — | — | `ignoredLocales`: locales ignored altogether |
-| Value checks | Empty, duplicate, placeholders, ICU, markup, copied from reference, punctuation, length; key names against a naming convention, renamed by a quick fix | Duplicate filter | — | — |
+| Value checks | Empty, duplicate, placeholders, ICU, markup, copied from reference, punctuation, length, variables not passed to the call, hard-coded text in JSX and Vue templates; key names against a naming convention, renamed by a quick fix | Duplicate filter | — | — |
 | CSV / XLIFF export and import | Yes, with preview | — | — | — |
-| Translation changes of a branch | Compare with a Git branch; the locales left behind the reference retranslated in one go | — | — | — |
+| Translation changes of a branch | Compare with a Git branch; the locales lagging behind the reference retranslated in one go | — | — | — |
 | Review: approve, request changes, comment | Per key and locale in the table and the key dialog, stored in `.i18n-reviews/`; machine translations marked to review; reviews follow renamed, moved and deleted keys; a translation whose source changed since its review flagged in the table, the key dialog and an inspection, and retranslated in one go; a change request can carry a suggested value, applied in one click, and a thread takes replies and is resolved <sup>next</sup> | — | — | Approve, request changes, comment, suggest a value, from the editor, side panel and Editor UI; stored in `.vscode/i18n-ally-reviews.yml` ([wiki](https://github.com/lokalise/i18n-ally/wiki/Review-&-Collaboration-System), [source](https://github.com/lokalise/i18n-ally/blob/main/src/core/types.ts)) |
 | Checks in CI | Inspections in Qodana or a headless IDE, ready-made configuration; `i18n-check` on the command line and as a GitHub Action: missing, orphan and empty keys per locale, and unused keys for i18next <sup>next</sup> ([README](../README.md#command-line-check)) | — | — | — |
 
@@ -154,10 +154,10 @@ IDEs.
 | Setup | Wizard and per-framework presets | Framework detected from `package.json` ([README](https://github.com/lydanne/i18n-ally-next)) | A `project.inlang/settings.json` and a Git repository; a module per file format, a matcher per call syntax ([README](https://github.com/opral/sherlock)) |
 | Value next to the key | Inlay hint, folding, Ctrl+hover | Inline annotation, hover | Inline annotation, hover |
 | Missing translations | Inspection, filters, keys synchronizer | Usage report: missing keys ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/usage-report.md)) | Message lint: missing translations and other issues ([README](https://github.com/opral/sherlock)) |
-| Unused keys | Inspection, Scan Orphans, Cleanup Unused Keys | Usage report: idle keys | — |
-| Extract a hardcoded string | Dialog, file or folder at once | Quick fix, per file, and the whole project at once ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/extraction.md), [announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)) | One click |
+| Unused keys | Inspection, *Count Key Usages*, *Clean Up Keys with No Reference…* | Usage report: idle keys | — |
+| Extract a hard-coded string | Dialog, file or folder at once | Quick fix, per file, and the whole project at once ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/extraction.md), [announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)) | One click |
 | Review | Tool window table and key dialog, `.i18n-reviews/` | Gutter and comment threads in the translation file, `.vscode/i18n-ally-next-reviews.yml` ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/review.md)) | — |
-| Translations outdated by a changed source text | Where reviews are kept: source text recorded with each decision, changed ones flagged in the table, the key dialog and an inspection, retranslated in one go. Everywhere: the locales a change of the reference left behind, in the working copy or against a branch, retranslated in one go | Snapshot of the source text per key, compared on demand ([announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)) | — |
+| Translations outdated by a changed source text | Where reviews are kept: source text recorded with each decision, changed ones flagged in the table, the key dialog and an inspection, retranslated in one go. Everywhere: the locales lagging behind a change of the reference, in the working copy or against a branch, retranslated in one go | Snapshot of the source text per key, compared on demand ([announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)) | — |
 | Machine translation | Ollama, OpenAI-compatible API, DeepL, LibreTranslate, Google; opt-in | Google (default), DeepL, Baidu, LibreTranslate, OpenAI, Ollama, the editor's built-in model through Copilot ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/translation.md)) | The command opens an inlang Cloud page, announced as coming, and points to the inlang CLI ([source](https://github.com/opral/sherlock/blob/main/src/commands/cloud.ts)) |
 | AI agents (MCP) | Tools on the IDE's MCP server; stale translations listed and retranslated | — | — |
 | Paraglide JS `m.hello()` | Yes, from the `project.inlang` settings | — | Its own format: the m-function matcher plugin reads `m.hello()` ([README](https://github.com/opral/sherlock)) |
@@ -170,8 +170,8 @@ IDEs.
   option: it is a JetBrains plugin.
 - **i18n Ally Next detects translations left behind by a changed source text** and offers to translate them again,
   one by one or all at once ([announcement](https://github.com/lydanne/i18n-ally-next/blob/main/docs/blog/introducing-i18n-ally-next.md)).
-  I18n Support Plus records the source text only in modules keeping reviews; elsewhere it catches the locales a change
-  of the reference leaves behind, in the working copy or against a branch, not a translation outdated by an older change.
+  I18n Support Plus records the source text only in modules keeping reviews; elsewhere it catches the locales lagging behind
+  a change of the reference, in the working copy or against a branch, not a translation outdated by an older change.
 - **i18n Ally reviews from the editor**: approvals, requested changes, comments and suggested values in the gutter, the side panel and its Editor UI,
   stored in the repository ([wiki](https://github.com/lokalise/i18n-ally/wiki/Review-&-Collaboration-System)).
   I18n Support Plus reviews from the tool window table and the key dialog, not from the code editor.
@@ -199,9 +199,9 @@ IDEs.
 | `i18n-ally.displayLanguage` | *Preview locale*, also in the status bar |
 | `i18n-ally.keysInUse` | *Keys used outside the code* |
 | `i18n-ally.ignoredLocales` | *Locales not checked for missing keys* (the locale stays visible) |
-| `i18n-ally.translate.engines` | *Settings → Tools → i18n Support Plus → Machine Translation*: engines tried in order |
+| `i18n-ally.translate.engines` | *Settings | Tools | i18n Support Plus | Machine Translation*: engines tried in order |
 | `i18n-ally.refactor.templates` | The module's *Call template* (`translate({key})`, `t({key}, {text})` with the text as default value) |
-| `i18n-ally.sortKeys` | *Sort keys alphabetically* |
+| `i18n-ally.sortKeys` | *Re-sort JSON files after each new key* (or *Sort i18n Keys* on demand), in the *Key order* you choose |
 | Custom framework (`.vscode/i18n-ally-custom-framework.yml`) | *Key assistance rules*: a trigger per function name; *Import from i18n Ally…* reads the file and shows what it takes over <sup>next</sup> |
 
 ### From I18n Support
@@ -219,5 +219,5 @@ Nothing to carry over by hand: see [Coming from I18n Support?](#coming-from-i18n
 | I18n flavor template (`t("{i18nKey}")`) | Call template (`t({key})`) |
 | Preview locale | Preview locale |
 
-Then run **Tools → i18n Support Plus → Run Setup Wizard**: it detects the framework and the translation files and
+Then run **Tools › i18n Support Plus › Run Setup Wizard…**: it detects the framework and the translation files and
 fills the rest.

@@ -30,6 +30,9 @@ include:
   # - name: I18nUnusedKey             # a key no code refers to
   # - name: I18nUntranslatedValue     # a value copied from the reference locale
   # - name: I18nEmptyValue
+  # - name: I18nOrphanKey             # a key the reference locale does not hold
+  # - name: I18nHardcodedJsxText      # `<button>Save</button>` not extracted
+  # - name: I18nHardcodedVueText
   # Needs `.i18n-reviews/` in the module: silent without it.
   # - name: I18nStaleTranslation      # a reviewed value whose reference text changed since
   # Off by default: set the convention in the inspection options of the profile first.

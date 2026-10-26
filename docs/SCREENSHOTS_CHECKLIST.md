@@ -12,56 +12,43 @@
 
 ---
 
-## Captures de la fenêtre d'outil et des réglages — refaites le 2026-09-14
+## Captures de l'éditeur et de l'assistant — refaites le 2026-10-25 (#670)
 
-Sources : `~/Pictures/Screenshots/Screenshot from 2026-09-14 14-4*.png`, rognées avec ImageMagick
-(`convert -crop`), sans mise à l'échelle.
+`Setup-wizard-step-{1,2,3}.png`, `annotation-{resolved,unresolved,missing-file}.png`, `completion.png`,
+`extraction.png`, `extraction-intent.png`, `extraction-add-namespace.png`, `gutter-icons.png`,
+`gutter-icons-tooltip.png`, `hover-hint.png`, `inlay-hints.png`, `navigation.png`.
 
-| Fichier | Contenu | Statut |
-|---|---|---|
-| `toolwindow-tree-namespaces.png` | les cinq groupes repliés avec leur complétude, dont `common (default)` (#273) — capture 15-41-00 | DONE (nouvelle) |
-| `toolwindow-tree.png` | groupes de namespace dépliés (`auth`, `common`, `dashboard`), badges `EN✓ FR✓`, légende | DONE |
-| `toolwindow-table.png` | colonne Namespace avec `common (default)`, clés sans préfixe, une cellule *Missing* — capture 15-41-24 | DONE (refaite après #273) |
-| `toolwindow-table-namespace-filter.png` | combo *All namespaces* déroulée, `common (default)` en tête — capture 15-41-35 | DONE (refaite après #273) |
-| `toolwindow-stats.png` | matrice Namespace × locale, ligne Total, `common (default)`, barres vertes/orange — capture 15-41-44 | DONE (refaite après #273) |
-| `toolwindow-stats-popup.png` | popup `common — 'fr': 2 missing, 0 empty — reference: en` sous la cellule | DONE |
-| `gutter-icons.png` | `DepositBox.tsx` avec badges vert / orange / rouge | DONE (refaite) |
-| `gutter-icons-tooltip.png` | tooltip *Partial translation (1/2 locales)* | DONE (refaite) |
-| `hover-hint.png` | table de survol `en` / `fr` avec liens ↗ et crayon | DONE (refaite) |
-| `settings.png` | *Namespaces and separators*, *Where translations are searched* | DONE |
-| `settings-folding.png` | *Folding and preview*, *Key extraction*, *PHP / gettext*, *Inspections* | DONE (nouvelle) |
-| `settings-modules.png` | *Appearance*, *Translation file formats*, *Modules configuration* | DONE (nouvelle) |
-| `settings-rules.png` | *Key assistance rules* | DONE (nouvelle) |
-| `toolwindow-create-translation.png` | dialogue *Create Translation* rempli (clé vérifiée, chemins, *Copy to empty locales*) — frame de `Screencast from 2026-09-14 14-45-40.mp4` à 26 s | DONE (nouvelle) |
-| `toolwindow-create-namespace.png` | sous-dialogue *Add Namespace* ouvert par le `+` — même vidéo à 12 s | DONE (nouvelle) |
+## À refaire
 
-### Reste à refaire
+### Fenêtre d'outil — périmées depuis #669 (vues *Tree / Table / Stats* dans la barre d'outils, plus d'onglets)
 
-#### Tool Window — Orphans
-- **Fichier** : `toolwindow-table-orphans.png`
-- **Comment** : onglet **Table**, après **Scan Orphans** (toolbar), clic droit sur une ligne *Unused*
-- **Contenu** : la colonne Usage remplie, le menu contextuel ouvert avec *Delete key with no reference found*
-- **Périmé car** : capture d'avril, sans colonne Namespace ni états *Dynamic*
+Capturées le 2026-09-14 avec la rangée d'onglets. Refaire avec la barre d'outils actuelle, fenêtre ≥ 1400 px
+pour que les filtres *Namespace* et *Status* de la table soient à côté de la recherche.
 
-### À vérifier
-- `navigation.png` : ne doit plus montrer de popup *Choose Declaration* (depuis #268 le Ctrl+clic
-  ouvre directement la locale de prévisualisation)
-- `sync-missing-keys.png` : refaire seulement si le dialogue a changé d'aspect
+| Fichier | Contenu attendu |
+|---|---|
+| `toolwindow-tree-namespaces.png` | les cinq groupes repliés avec leur complétude, dont `common (default)` |
+| `toolwindow-tree.png` | groupes de namespace dépliés (`auth`, `common`, `dashboard`), badges `EN✓ FR✓`, légende |
+| `toolwindow-table.png` | colonne Namespace avec `common (default)`, clés sans préfixe, une cellule *Missing*, en-tête *Usage (not counted)* |
+| `toolwindow-table-namespace-filter.png` | combo *All namespaces* déroulée, `common (default)` en tête |
+| `toolwindow-table-orphans.png` | vue **Table**, après **Count Key Usages** (barre d'outils), clic droit sur une ligne *No reference* : colonne Usage remplie, états *Dynamic*, menu ouvert sur *Delete Key with No Reference* (capture de mars) |
+| `toolwindow-stats.png` | matrice Namespace × locale, ligne Total, `common (default)`, barres vertes/orange |
+| `toolwindow-stats-popup.png` | popup `common — 'fr': 2 missing, 0 empty — reference: en` sous la cellule |
+| `toolwindow-create-translation.png` | dialogue *Create Translation* rempli (clé vérifiée, chemins, *Copy Reference to Empty Locales*) |
+| `toolwindow-create-namespace.png` | sous-dialogue *Add Namespace* ouvert par le `+` |
 
----
+### Réglages — périmées depuis #666 et #667 (libellés renommés, sous-pages *Modules* et *Key Assistance Rules*, groupe *Checks*)
 
-## Inchangées — à garder
+| Fichier | Contenu attendu |
+|---|---|
+| `settings.png` | page principale : *Namespaces and separators*, *Where translations are searched*, *Checks* |
+| `settings-folding.png` | *Folding and preview* (*Project reference locale*), *Key extraction*, *PHP / gettext*, *Appearance* |
+| `settings-modules.png` | sous-page *Modules* : liste à gauche, case *Active*, panneau *Resolution* |
+| `settings-rules.png` | sous-page *Key Assistance Rules*, bouton *Import from i18n Ally…* |
 
-| # | Feature | Fichier(s) |
-|---|---------|------------|
-| 1 | Setup Wizard | `Setup-wizard-step-{1,2,3}.png` |
-| 2 | Annotation — clé résolue | `annotation-resolved.png` |
-| 3 | Annotation — segment non résolu | `annotation-unresolved.png` |
-| 4 | Annotation — fichier manquant | `annotation-missing-file.png` |
-| 6 | Completion | `completion.png` |
-| 7 | Extraction | `extraction.png`, `extraction-intent.png`, `extraction-add-namespace.png`, `extraction-translation-value.png` |
-| 10 | Code Folding | `folding-before.png`, `folding-after.png` |
-| 9 | Inlay Hints | `inlay-hints.png` |
+## À vérifier
+- `sync-missing-keys.png` (mars) : refaire si le dialogue a changé d'aspect
+- `folding-before.png`, `folding-after.png`, `extraction-translation-value.png` (mars) : comparer avec l'IDE actuel
 
 ### Captures supplémentaires disponibles (non référencées par le README)
 - `annotation-partial.png` — Code JSX avec icônes gutter orange (partial translation)
@@ -71,7 +58,6 @@ Sources : `~/Pictures/Screenshots/Screenshot from 2026-09-14 14-4*.png`, rognée
 
 | Statut | Nombre |
 |--------|--------|
-| Refaites le 2026-09-14 | 15 |
-| À refaire | 1 (`toolwindow-table-orphans`) |
-| À vérifier | 2 (`sync-missing-keys`, `navigation`) |
-| Inchangées | 15 |
+| Refaites le 2026-10-25 | 15 |
+| À refaire | 13 (fenêtre d'outil 9, réglages 4) |
+| À vérifier | 4 |
