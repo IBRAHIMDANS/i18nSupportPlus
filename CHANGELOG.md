@@ -26,6 +26,7 @@
 
 ### Fixes
 
+- [Settings] **Cancel undoes what you typed in the settings**: closing *Settings | Tools | i18n Support Plus* or its *Modules* and *Key Assistance Rules* pages with *Cancel* puts back the values last applied, and a module renamed with *OK* keeps its tool window tab and hidden locales.
 - [Folding] **Show Translations Inline and the *Enable folding* setting apply to the files already open**: turning folding on folds their keys at once, instead of leaving them unfolded until *Collapse All*, and turning it off unfolds them; the rest of your folding is left as it was
 - [Translate] **No stray AI note in the translation dialog**: without an engine that reads instructions, *Create Translation* and *Edit Translation* no longer show the instruction field's note on its own, under no field
 - [Settings] **Switching the preview locale no longer changes the reference locale**: picking another locale in the status bar only changes what inlay hints, hover and folding show; missing keys, *Fill Missing Translations*, stale values and the statistics keep comparing against the module's reference locale, else *Preferred folding language*. A project that relied on the preview locale keeps its reference on update

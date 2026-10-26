@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.ibrahimdans.i18n.plugin.ide.preview.EditorRefresh
 import com.ibrahimdans.i18n.plugin.ide.settings.rules.EditorRuleState
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.options.SearchableConfigurable
@@ -12,8 +13,8 @@ import javax.swing.JComponent
 /**
  * *Settings | Tools | i18n Support Plus | Key Assistance Rules*: the calls that behave like `t`.
  *
- * Like the main page, it writes to [Settings] as it is typed and compares the rules with a
- * [snapshot] for *Apply*.
+ * Like the main page, it writes to [Settings] as it is typed. [snapshot] holds the rules last
+ * validated, which *Cancel* puts back.
  */
 class RulesConfigurable(private val project: Project) : SearchableConfigurable {
 
@@ -38,7 +39,16 @@ class RulesConfigurable(private val project: Project) : SearchableConfigurable {
         snapshot = Settings.getInstance(project).config().rules
     }
 
+    /** *OK* has applied by now; rules still apart from [snapshot] were left by *Cancel* and go back. */
     override fun disposeUIResources() {
+        snapshot?.let { kept ->
+            val settings = Settings.getInstance(project)
+            val current = settings.config()
+            if (current.rules != kept) {
+                settings.setConfig(current.copy(rules = kept))
+                EditorRefresh.afterSettingsChange(project)
+            }
+        }
         snapshot = null
     }
 
