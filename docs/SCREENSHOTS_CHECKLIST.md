@@ -32,7 +32,7 @@ Vues *Tree / Table / Stats* dans la barre d'outils (#669), libellés et sous-pag
 | `toolwindow-tree.png` | groupes de namespace dépliés (`common`, `auth`, `dashboard`), badges `EN✓ FR✓`, légende |
 | `toolwindow-table.png` | colonne Namespace avec `common (default)`, deux cellules *Missing*, en-tête *Usage (not counted)* |
 | `toolwindow-table-namespace-filter.png` | combo *All namespaces* déroulée, `common (default)` en tête |
-| `toolwindow-table-orphans.png` | après **Count Key Usages** : colonne Usage remplie, menu ouvert sur *Delete Key with No Reference* (l'exemple n'a pas de clé *Dynamic*) |
+| `toolwindow-table-orphans.png` | filtre `deposit-box`, après **Count Key Usages** : ligne *No reference* (`activity.entry.fileAdded`) avec le menu ouvert sur *Delete Key with No Reference*, lignes *Dynamic* `status.*` (appel `` t(`deposit-box:status.${status}`) ``) |
 | `toolwindow-stats.png` | matrice Namespace × locale, ligne Total, `common (default)`, barres vertes/orange |
 | `toolwindow-stats-popup.png` | popup `common (default) — 'fr': 2 missing, 0 empty` sous la cellule (titre tronqué par la popup) |
 | `toolwindow-create-translation.png` | dialogue *Create Translation* rempli (clé vérifiée, chemins, *Copy Reference to Empty Locales*) |
