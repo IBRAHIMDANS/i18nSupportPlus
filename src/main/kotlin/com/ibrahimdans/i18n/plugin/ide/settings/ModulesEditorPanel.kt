@@ -251,13 +251,7 @@ internal class ModulesEditorPanel(
             null
         ) ?: return
         // The field is the single source of truth: writing to it runs the usual binding.
-        rootField.text = relativize(chosen.path)
-    }
-
-    /** A path under the project directory is stored relative to it, like every other root. */
-    private fun relativize(path: String): String {
-        val base = basePath() ?: return path
-        return if (path.startsWith("$base/")) path.removePrefix("$base/") else path
+        rootField.text = relativeToProject(chosen.path, basePath())
     }
 
     // --- selection ---
@@ -360,14 +354,16 @@ internal class ModulesEditorPanel(
     private fun lookupLine(resolution: TemplateResolution): String {
         val absolutePath = resolution.absolutePath
             ?: return PluginBundle.message("settings.modules.resolution.unknownBase")
+        // Shown as the root and the templates are written: a full path wraps and says nothing more.
+        val path = relativeToProject(absolutePath, basePath())
         return when {
-            resolution.exists -> PluginBundle.message("settings.modules.resolution.found", absolutePath)
+            resolution.exists -> PluginBundle.message("settings.modules.resolution.found", path)
             resolution.neighbours.isNotEmpty() -> PluginBundle.message(
                 "settings.modules.resolution.notFoundNearby",
-                absolutePath,
+                path,
                 resolution.neighbours.joinToString(", ")
             )
-            else -> PluginBundle.message("settings.modules.resolution.notFound", absolutePath)
+            else -> PluginBundle.message("settings.modules.resolution.notFound", path)
         }
     }
 
@@ -422,4 +418,15 @@ internal class ModulesEditorPanel(
         /** How much of the item list is visible before it scrolls. */
         const val EDITOR_HEIGHT = 260
     }
+}
+
+/**
+ * [path] relative to the project directory [base] when it sits under it, else unchanged: a root
+ * picked with *Browse…* is stored this way, and a resolved file shown this way.
+ */
+internal fun relativeToProject(path: String, base: String?): String {
+    if (base.isNullOrBlank()) return path
+    val normalized = path.replace('\\', '/')
+    val prefix = base.replace('\\', '/').trimEnd('/') + "/"
+    return if (normalized.startsWith(prefix)) normalized.removePrefix(prefix) else path
 }
