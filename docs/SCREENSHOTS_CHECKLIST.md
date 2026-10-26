@@ -44,6 +44,19 @@ Vues *Tree / Table / Stats* dans la barre d'outils (#669), libellés et sous-pag
 
 Le module et la règle des deux dernières captures sont saisis pour l'occasion puis abandonnés par *Cancel*.
 
+## GIF de la page Marketplace — enregistrés le 2026-10-26
+
+`docs/img/marketplace/`, 960 px de large, WebStorm 2026.1, `examples/react-multi-namespace/` (`DepositBox.tsx`).
+Recette (ffmpeg `x11grab` + xdotool sous Xvfb, sandbox sans indices ni erreurs TypeScript) : mémoire du projet, 2026-10-26.
+
+| Fichier | Contenu |
+|---|---|
+| `extract-i18n-key.gif` | Alt+Entrée sur `<h3>Status</h3>`, *Extract i18n key*, clé `sections.status` et valeur `fr`, valeur affichée en ligne |
+| `key-completion.gif` | `t('auth:` puis `login.button.` : complétion des clés avec leur valeur |
+| `create-key-quickfix.gif` | clé inconnue `deposit-box:status.help`, *Create i18n key*, valeurs `en` / `fr`, clé résolue |
+
+À faire : *Show Translations Inline*, après TASK-INLINE-TOGGLE-OPEN-EDITORS (l'activation ne replie pas les éditeurs ouverts).
+
 ## À vérifier
 - `sync-missing-keys.png` (mars) : refaire si le dialogue a changé d'aspect
 - `folding-before.png`, `folding-after.png`, `extraction-translation-value.png` (mars) : comparer avec l'IDE actuel
