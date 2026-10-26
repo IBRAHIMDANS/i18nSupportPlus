@@ -9,6 +9,14 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
+    # `core` compiles these compileOnly against the versions the IDE provides at runtime
+    # (Gson 2.13.x, snakeyaml-engine 2.9 from 2025.2 to 2026.2): a newer version could bring APIs
+    # the IDE lacks. jackson-core is not listed: the CLI ships its own and takes its security fixes.
+    ignore:
+      - dependency-name: "com.google.code.gson:gson"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "org.snakeyaml:snakeyaml-engine"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
