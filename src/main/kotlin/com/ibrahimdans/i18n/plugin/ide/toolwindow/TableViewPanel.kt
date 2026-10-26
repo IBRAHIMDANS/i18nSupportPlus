@@ -234,6 +234,10 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      * project-relative paths are not where a light fixture keeps its files.
      */
     internal var resolveReviewRoot: () -> VirtualFile? = { viewModel.reviewRoot(project, moduleConfig) }
+
+    /** Counts the usages of the rows, off the EDT; replaced by tests to fail or be interrupted. */
+    internal var countUsages: (List<TranslationRow>) -> List<TranslationRow> =
+        { rows -> viewModel.countUsages(project, rows, moduleConfig) }
     private var reviewRoot: VirtualFile? = null
 
     /** The reviews of the loaded locales; [TableReviews.OFF] while the module has no reviews folder. */
@@ -247,6 +251,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      * table back through its usual path. Set by the tool window; a lone panel has no field.
      */
     var onClearSearch: () -> Unit = {}
+    @Volatile
     private var scanning: Boolean = false
 
     /** Loads started by [refresh] and not finished yet; the table paints busy while any is. */
@@ -951,25 +956,48 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      * Public because the trigger is [com.ibrahimdans.i18n.plugin.ide.actions.ScanOrphanKeysAction]
      * now, in the tool window toolbar, rather than a button of this panel's own.
      */
-    fun scanOrphans() {
+    fun scanOrphans() = scanOrphans(retried = false)
+
+    /**
+     * [scanning] is reset when the count ends, however it ends: resetting it only once a
+     * successful count had been applied on the EDT left the action disabled for the session.
+     * The task cannot be cancelled by the user, so a cancellation is a write action that
+     * interrupted the reads: the scan runs again once.
+     */
+    private fun scanOrphans(retried: Boolean) {
         if (scanning) return
         scanning = true
         val rowsToScan = allRows.toList()
 
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("toolwindow.table.scan.progress.title"), false) {
+            private var scanned: List<TranslationRow> = emptyList()
+            private var interrupted = false
+
             override fun run(indicator: ProgressIndicator) {
                 indicator.text = PluginBundle.message("toolwindow.table.scan.progress.text")
-                val scanned = viewModel.countUsages(project, rowsToScan, moduleConfig)
-
-                ApplicationManager.getApplication().invokeLater {
-                    // Merge scanned usage counts back into allRows, preserving original order
-                    val usageByKey = scanned.associate { it.key to it.usageCount }
-                    allRows = allRows.map { row ->
-                        row.copy(usageCount = usageByKey[row.key] ?: row.usageCount)
-                    }
-                    applyFilters()
+                // Reset here, off the EDT, not in an EDT callback that a modal dialog can hold back.
+                try {
+                    scanned = countUsages(rowsToScan)
+                } finally {
                     scanning = false
                 }
+            }
+
+            override fun onSuccess() {
+                // Merge scanned usage counts back into allRows, preserving original order
+                val usageByKey = scanned.associate { it.key to it.usageCount }
+                allRows = allRows.map { row ->
+                    row.copy(usageCount = usageByKey[row.key] ?: row.usageCount)
+                }
+                applyFilters()
+            }
+
+            override fun onCancel() {
+                interrupted = true
+            }
+
+            override fun onFinished() {
+                if (interrupted && !retried) scanOrphans(retried = true)
             }
         })
     }

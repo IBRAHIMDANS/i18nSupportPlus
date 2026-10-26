@@ -17,6 +17,7 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.ui.TestDialog
 import com.intellij.openapi.ui.TestDialogManager
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.ui.table.JBTable
 import io.mockk.every
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.awt.Container
+import java.util.concurrent.atomic.AtomicInteger
 import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JList
@@ -546,6 +548,55 @@ class TableViewPanelTest : PlatformBaseTest() {
         val cell = table.columnModel.getColumn(3).cellRenderer
             .getTableCellRendererComponent(table, 0, false, false, 0, 3) as JLabel
         assertTrue(cell.text == PluginBundle.message("toolwindow.table.usage.orphan"), "an orphan reads as one again")
+        pumpUntil { !panel.isScanning }
+        assertFalse(panel.isScanning, "a finished scan lets the action run again")
+    }
+
+    @Test
+    fun `a scan interrupted by a write runs again once, and the action is usable after`() {
+        stubTranslations()
+        val panel = TableViewPanel(project)
+        loadedTable(panel)
+        val calls = AtomicInteger()
+        panel.countUsages = { rows ->
+            if (calls.incrementAndGet() == 1) throw ProcessCanceledException()
+            rows.map { it.copy(usageCount = 1) }
+        }
+
+        panel.scanOrphans()
+        pumpUntil { panel.usageScanned && !panel.isScanning }
+
+        assertEquals(2, calls.get(), "the interrupted count ran again")
+        assertTrue(panel.usageScanned, "the second count filled the column")
+        assertFalse(panel.isScanning)
+    }
+
+    @Test
+    fun `a scan interrupted twice gives up without leaving the action disabled`() {
+        stubTranslations()
+        val panel = TableViewPanel(project)
+        loadedTable(panel)
+        val calls = AtomicInteger()
+        panel.countUsages = { calls.incrementAndGet(); throw ProcessCanceledException() }
+
+        panel.scanOrphans()
+        pumpUntil { calls.get() == 2 && !panel.isScanning }
+        // Long enough for a third attempt to have started, were there one.
+        pumpUntil(timeoutMs = 500) { false }
+
+        assertEquals(2, calls.get(), "one retry, no loop")
+        assertFalse(panel.usageScanned)
+        assertFalse(panel.isScanning, "the action can be run again by hand")
+    }
+
+    /** Pumps the EDT, where the scan's callbacks run, until [done] holds or the time is up. */
+    private fun pumpUntil(timeoutMs: Long = 15_000, done: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (!done() && System.currentTimeMillis() < deadline) {
+            PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+            Thread.sleep(20)
+        }
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
     }
 
     // ── Empty state ───────────────────────────────────────────────────────────
