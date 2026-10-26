@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.16.0 - 2026-10-26
+
 ### Features
 
 - [Flutter] **ARB catalogues are read**: `lib/l10n/app_en.arb`, `app_fr.arb` show in the tool window and the statistics, a key missing from a locale is reported and *Sync Keys* fills it in; the `@key` and `@@locale` metadata is left out.
