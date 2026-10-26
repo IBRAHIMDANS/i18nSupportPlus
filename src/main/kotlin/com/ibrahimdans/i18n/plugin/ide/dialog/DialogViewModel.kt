@@ -11,10 +11,12 @@ import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.MessagePlaceholders
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
+import com.ibrahimdans.i18n.plugin.utils.ownerOf
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
@@ -224,16 +226,19 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
     /**
      * The whole project's translations, read once per dialog.
      *
-     * Both the key check and the "most complete locale" ask the same question of this map, and
-     * the dialog is modal — nothing edits the translation files underneath while it is open.
-     * Lazy, so a dialog whose key check and copy button are never used pays nothing for it.
+     * The "most complete locale" asks its question of this map, and the dialog is modal — nothing
+     * edits the translation files underneath while it is open. Lazy, so a dialog whose copy
+     * button is never used pays nothing for it.
      */
     private val allTranslations: Map<String, Map<String, String>> by lazy {
         TranslationDataLoader.loadAllTranslations(project)
     }
 
     /**
-     * The keys already defined under [namespace], stripped of their namespace prefix.
+     * The keys already defined under [namespace] in [sources], stripped of their namespace prefix.
+     *
+     * [sources] are the files the dialog writes to, not the project's: in a monorepo, a key that
+     * only another module defines is not overwritten by saving it here, so it is not taken (#687).
      *
      * Read through [TranslationDataLoader] rather than re-walking the trees here: it is the one
      * place that already knows how a namespace is spelled inside a full key — prefixed, unless
@@ -245,12 +250,33 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
      * project separating keys otherwise gets no "already taken" hint. It errs towards saying
      * nothing rather than towards refusing a key that is in fact free.
      */
-    fun existingKeys(namespace: String?): Set<String> {
+    fun existingKeys(namespace: String?, sources: Collection<LocalizationSource>): Set<String> {
         val defaultNamespaces = Settings.getInstance(project).config().defaultNamespaces()
-        val allKeys = allTranslations.keys
+        val allKeys = TranslationDataLoader.translationsOf(project, sources.toList()).keys
         val prefix = if (namespace.isNullOrBlank() || namespace in defaultNamespaces) "" else "$namespace:"
         return if (prefix.isEmpty()) allKeys.filterNot { it.contains(':') }.toSet()
         else allKeys.filter { it.startsWith(prefix) }.map { it.removePrefix(prefix) }.toSet()
+    }
+
+    /**
+     * The keys of [namespace] defined outside [shown], each with the names of the modules whose
+     * files define it: a dialog scoped to one module tells where a key it does not show lives,
+     * rather than offering it as free with no word about the other module's values (#687).
+     *
+     * Empty in a project without modules. A file in no module names nothing: there is no module
+     * to point the user to.
+     */
+    fun keysInOtherModules(namespace: String?, shown: Collection<LocalizationSource>): Map<String, List<String>> {
+        if (Settings.getInstance(project).config().modules.isEmpty()) return emptyMap()
+        val shownPaths = shown.map { it.displayPath }.toSet()
+        val others = TranslationDataLoader.findSources(project).filter { it.displayPath !in shownPaths }
+        val byModule = ReadAction.compute<Map<String?, List<LocalizationSource>>, RuntimeException> {
+            others.groupBy { source -> ModuleSources.ownerOf(project, (source.tree?.value() ?: source.host)?.containingFile?.virtualFile)?.name }
+        }
+        return byModule
+            .flatMap { (module, sources) -> if (module == null) emptyList() else existingKeys(namespace, sources).map { it to module } }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, modules) -> modules.distinct().sorted() }
     }
 
     /**

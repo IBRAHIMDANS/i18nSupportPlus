@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- [Monorepo] **Creating a key no longer calls it taken because another module has it** ([#687](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/687)): *Create Translation*, *Edit Translation* on a missing key and *Extract i18n Key* only say *already exists* when the files they write to hold it. In the translation dialog, a key only another module defines reads *Key is available in this module — it already exists in 'webapp'*.
+
 ## 1.16.0 - 2026-10-26
 
 ### Features

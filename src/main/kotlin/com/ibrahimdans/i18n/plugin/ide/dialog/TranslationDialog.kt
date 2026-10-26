@@ -188,6 +188,9 @@ class TranslationDialog(
     /** Keys already defined under the selected namespace; refreshed together with the sources. */
     private var keysInNamespace: Set<String> = emptySet()
 
+    /** Keys of the selected namespace that only other modules define, with their names; refreshed with the sources. */
+    private var keysInOtherModules: Map<String, List<String>> = emptyMap()
+
     /** What *Translate* filled each locale with, and the engine it came from; dropped with the rows. */
     private val machineProposals = LinkedHashMap<LocalizationSource, MachineProposal>()
 
@@ -339,8 +342,11 @@ class TranslationDialog(
         machineProposals.clear()
         reviewBadges.clear()
         // Only CREATE mode asks whether a key is free; EDIT mode is looking at one that exists,
-        // so it never pays for the project-wide read behind existingKeys().
-        keysInNamespace = if (mode == Mode.CREATE) viewModel.existingKeys(namespace) else emptySet()
+        // so it never pays for these reads. Without a caller the rows are the project's: no
+        // other module's file is left out to point to.
+        keysInNamespace = if (mode == Mode.CREATE) viewModel.existingKeys(namespace, sourcesMap.keys) else emptySet()
+        keysInOtherModules =
+            if (mode == Mode.CREATE && caller != null) viewModel.keysInOtherModules(namespace, sourcesMap.keys) else emptyMap()
         namespacePrefixLabel.text =
             if (mode == Mode.CREATE && !namespace.isNullOrBlank() && nsSeparator.isNotEmpty()) "$namespace$nsSeparator" else ""
 
@@ -520,8 +526,16 @@ class TranslationDialog(
                 keyStatusLabel.icon = AllIcons.General.Warning
             }
             KeyCheck.AVAILABLE -> {
-                keyStatusLabel.text = PluginBundle.message("dialog.translation.key.status.available")
-                keyStatusLabel.icon = AllIcons.General.InspectionsOK
+                val elsewhere = keysInOtherModules[keyText().trim()]
+                if (elsewhere == null) {
+                    keyStatusLabel.text = PluginBundle.message("dialog.translation.key.status.available")
+                    keyStatusLabel.icon = AllIcons.General.InspectionsOK
+                } else {
+                    keyStatusLabel.text = PluginBundle.message(
+                        "dialog.translation.key.status.other.module", elsewhere.joinToString { "'$it'" }
+                    )
+                    keyStatusLabel.icon = AllIcons.General.Information
+                }
             }
         }
     }
