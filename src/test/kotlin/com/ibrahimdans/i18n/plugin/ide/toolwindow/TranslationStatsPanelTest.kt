@@ -177,4 +177,22 @@ class TranslationStatsPanelTest {
     fun `reviewCounts is empty without reviews`() {
         assertTrue(reviewCounts(report, TableReviews.OFF).isEmpty())
     }
+
+    // ---- missingKeysPopupWidth ----
+
+    @Test
+    fun `popup is widened to a title longer than its lines`() {
+        assertEquals(448, missingKeysPopupWidth(contentWidth = 300, titleWidth = 400, padding = 24, titlePadding = 48, min = 320, max = 720))
+    }
+
+    @Test
+    fun `popup keeps the width of lines wider than its title`() {
+        assertEquals(524, missingKeysPopupWidth(contentWidth = 500, titleWidth = 200, padding = 24, titlePadding = 48, min = 320, max = 720))
+    }
+
+    @Test
+    fun `popup width stays within its bounds`() {
+        assertEquals(720, missingKeysPopupWidth(contentWidth = 300, titleWidth = 900, padding = 24, titlePadding = 48, min = 320, max = 720))
+        assertEquals(320, missingKeysPopupWidth(contentWidth = 100, titleWidth = 100, padding = 24, titlePadding = 48, min = 320, max = 720))
+    }
 }

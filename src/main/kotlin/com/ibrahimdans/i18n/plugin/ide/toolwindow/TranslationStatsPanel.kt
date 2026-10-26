@@ -73,6 +73,8 @@ private const val POPUP_MAX_ROWS = 12
 private const val POPUP_MIN_WIDTH = 320
 private const val POPUP_MAX_WIDTH = 720
 private const val POPUP_PADDING = 24
+/** Room the popup's title bar keeps around its text: insets and the resize/move gestures. */
+private const val POPUP_TITLE_PADDING = 48
 /** Title bar plus hint line of the popup, added to the list's own height. */
 private const val POPUP_CHROME_HEIGHT = 56
 
@@ -101,6 +103,14 @@ internal fun parseTranslationKey(fullKey: String, config: Config = Config()): Pa
  * hold it, otherwise the most translated one — a better guess than the project-wide settings for a
  * table of coverage.
  */
+/**
+ * Width of the untranslated-keys popup: wide enough for its widest line and for its title,
+ * within [min] and [max]. Sized on the lines alone, a short list cut a long title such as
+ * `common (default) — 'fr': 2 missing, 0 empty — reference: en` in the middle of a word.
+ */
+internal fun missingKeysPopupWidth(contentWidth: Int, titleWidth: Int, padding: Int, titlePadding: Int, min: Int, max: Int): Int =
+    maxOf(contentWidth + padding, titleWidth + titlePadding).coerceIn(min, max)
+
 internal fun selectReferenceLocale(
     stats: List<LocaleStats>,
     module: ModuleConfig? = null,
@@ -377,14 +387,13 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
         }
         ListSpeedSearch.installOn(list) { it.key }
 
+        val title = PluginBundle.message(
+            "toolwindow.stats.missing.popup.title",
+            rowLabel, cell.locale, cell.missing, cell.empty, referenceLocale
+        )
         val popup = JBPopupFactory.getInstance()
             .createComponentPopupBuilder(JScrollPane(list), list)
-            .setTitle(
-                PluginBundle.message(
-                    "toolwindow.stats.missing.popup.title",
-                    rowLabel, cell.locale, cell.missing, cell.empty, referenceLocale
-                )
-            )
+            .setTitle(title)
             .setAdText(PluginBundle.message("toolwindow.stats.missing.popup.hint", referenceLocale))
             .setResizable(true)
             .setMovable(true)
@@ -419,9 +428,15 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
         list.selectedIndex = 0
 
         // Under the cell, sized to its lines: the popup is an annotation of the cell, not a window.
+        // The title is measured in the bold label font the popup header uses, so it is not cut.
         val preferred = list.preferredScrollableViewportSize
+        val titleWidth = list.getFontMetrics(JBUI.Fonts.label().asBold()).stringWidth(title)
         popup.size = Dimension(
-            (preferred.width + JBUI.scale(POPUP_PADDING)).coerceIn(JBUI.scale(POPUP_MIN_WIDTH), JBUI.scale(POPUP_MAX_WIDTH)),
+            missingKeysPopupWidth(
+                preferred.width, titleWidth,
+                JBUI.scale(POPUP_PADDING), JBUI.scale(POPUP_TITLE_PADDING),
+                JBUI.scale(POPUP_MIN_WIDTH), JBUI.scale(POPUP_MAX_WIDTH)
+            ),
             preferred.height + JBUI.scale(POPUP_CHROME_HEIGHT)
         )
         popup.show(at)
