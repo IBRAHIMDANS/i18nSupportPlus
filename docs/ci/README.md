@@ -15,6 +15,8 @@ for someone to open the file.
 | A call not passing a variable its message needs | `I18nInterpolationArguments` |
 | A key or namespace the code uses and no file holds | the plugin's annotator, through `Annotator` |
 | A key no code uses (opt-in) | `I18nUnusedKey` |
+| A key of a locale the reference locale does not hold (opt-in) | `I18nOrphanKey` |
+| Hard-coded text in JSX or a Vue template (opt-in) | `I18nHardcodedJsxText`, `I18nHardcodedVueText` |
 | A reviewed value whose reference text changed since (opt-in, needs `.i18n-reviews/`) | `I18nStaleTranslation` |
 | A key not following the project's naming convention (opt-in) | `I18nKeyNaming` |
 
