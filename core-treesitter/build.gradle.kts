@@ -19,7 +19,7 @@ dependencies {
     implementation("io.github.bonede:tree-sitter-tsx:0.23.2")
 
     // `core` declares its parsers compileOnly: the translation trees the tests resolve against need them.
-    testImplementation("com.fasterxml.jackson.core:jackson-core:2.19.0")
+    testImplementation("com.fasterxml.jackson.core:jackson-core:2.22.4")
     testImplementation(platform("org.junit:junit-bom:6.1.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

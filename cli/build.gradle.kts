@@ -18,7 +18,7 @@ dependencies {
     // `core` declares them compileOnly, the IDE providing them: outside it, the CLI ships them.
     // Same versions as `core` compiles against.
     implementation("com.google.code.gson:gson:2.11.0")
-    implementation("com.fasterxml.jackson.core:jackson-core:2.19.0")
+    implementation("com.fasterxml.jackson.core:jackson-core:2.22.4")
     implementation("org.snakeyaml:snakeyaml-engine:2.9")
 
     testImplementation(platform("org.junit:junit-bom:6.1.3"))
