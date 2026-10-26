@@ -26,6 +26,7 @@
 
 ### Fixes
 
+- [Tool window] **The *Stats* popup shows its whole title**: the list of untranslated keys opened from a cell is now as wide as its title, `common (default) — 'fr': 2 missing, 0 empty — reference: en`, instead of cutting it.
 - [Settings] **Cancel undoes what you typed in the settings**: closing *Settings | Tools | i18n Support Plus* or its *Modules* and *Key Assistance Rules* pages with *Cancel* puts back the values last applied, and a module renamed with *OK* keeps its tool window tab and hidden locales.
 - [Folding] **Show Translations Inline and the *Enable folding* setting apply to the files already open**: turning folding on folds their keys at once, instead of leaving them unfolded until *Collapse All*, and turning it off unfolds them; the rest of your folding is left as it was
 - [Translate] **No stray AI note in the translation dialog**: without an engine that reads instructions, *Create Translation* and *Edit Translation* no longer show the instruction field's note on its own, under no field
