@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.ibrahimdans.i18n.plugin.ide.preview.EditorRefresh
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.ToolWindowViewState
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.options.SearchableConfigurable
@@ -12,11 +13,12 @@ import javax.swing.JComponent
 /**
  * *Settings | Tools | i18n Support Plus | Modules*: the applications of a monorepo.
  *
- * Like the main page, it writes to [Settings] as it is typed and compares the modules with a
- * [snapshot] for *Apply*.
+ * Like the main page, it writes to [Settings] as it is typed. [snapshot] holds the modules last
+ * validated, which *Cancel* puts back; [opened], the ones the dialog opened with.
  */
 class ModulesConfigurable(private val project: Project) : SearchableConfigurable {
 
+    private var opened: List<ModuleConfig>? = null
     private var snapshot: List<ModuleConfig>? = null
     private var editor: ModulesEditorPanel? = null
 
@@ -27,7 +29,8 @@ class ModulesConfigurable(private val project: Project) : SearchableConfigurable
 
     override fun createComponent(): JComponent {
         val settings = Settings.getInstance(project)
-        snapshot = settings.config().modules
+        opened = settings.config().modules
+        snapshot = opened
         val modules = ModulesEditorPanel(settings, project).also { editor = it }
         LocaleChoice.discover(project, alive = { editor === modules }) { modules.offerLocales(it) }
         return panel {
@@ -42,17 +45,28 @@ class ModulesConfigurable(private val project: Project) : SearchableConfigurable
     }
 
     /**
-     * The modules are compared with the [snapshot] once the dialog closes, when a renamed module
-     * has its final name: following each keystroke would move a module's view state through the
-     * names typed on the way, one of which may be another module's.
+     * *OK* has applied by now; modules still apart from [snapshot] were left by *Cancel* and go back.
+     *
+     * The modules kept are then compared with the [opened] ones, when a renamed module has its
+     * final name: following each keystroke would move a module's view state through the names typed
+     * on the way, one of which may be another module's.
      */
     override fun disposeUIResources() {
-        snapshot?.let { before ->
+        val before = opened
+        val kept = snapshot
+        if (before != null && kept != null) {
+            val settings = Settings.getInstance(project)
+            val current = settings.config()
+            if (current.modules != kept) {
+                settings.setConfig(current.copy(modules = kept))
+                EditorRefresh.afterSettingsChange(project)
+            }
             val viewState = ToolWindowViewState.getInstance(project)
-            ToolWindowViewState.renamedModules(before, Settings.getInstance(project).config().modules)
+            ToolWindowViewState.renamedModules(before, kept)
                 .forEach { (from, to) -> viewState.moveModuleState(from, to) }
         }
         editor = null
+        opened = null
         snapshot = null
     }
 
