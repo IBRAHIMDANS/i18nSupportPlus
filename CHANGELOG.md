@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Fixes
+
+- [Monorepo] **Creating a key no longer calls it taken because another module has it** ([#687](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/687)): *Create Translation*, *Edit Translation* on a missing key and *Extract i18n Key* only say *already exists* when the files they write to hold it. In the translation dialog, a key only another module defines reads *Key is available in this module — it already exists in 'webapp'*.
+- [Monorepo] **The translation dialog opened from the tool window shows the tab's module only** ([#687](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/687)): editing a key from the table, the tree or *Stats*, or adding one with *Add Translation*, lists and writes that module's locales, as from the code; *Translate Empty Locales* and *Copy Reference to Empty Locales* no longer fill another application's files.
+- [Translation dialog] **The dialog keeps the size you give it** ([#687](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/687)) instead of reopening at its default size.
+
 ## 1.16.0 - 2026-10-26
 
 ### Features

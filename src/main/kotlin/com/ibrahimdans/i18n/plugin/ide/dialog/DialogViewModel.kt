@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.dialog
 
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
@@ -11,10 +12,13 @@ import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.MessagePlaceholders
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
+import com.ibrahimdans.i18n.plugin.utils.ownerOf
+import com.ibrahimdans.i18n.plugin.utils.sourcesOf
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
@@ -46,16 +50,16 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
      * Returns null for a source if the key is missing in that locale.
      *
      * With a [caller], the dialog opened from a code file, the sources are those of its module: in a
-     * monorepo, another application's files and locales are not this key's.
+     * monorepo, another application's files and locales are not this key's. A [module] given
+     * instead — the dialog opened from a tool window tab — scopes them the same way (#687).
      */
-    fun loadTranslations(fullKey: FullKey, caller: PsiElement? = null): Map<LocalizationSource, String?> =
+    fun loadTranslations(fullKey: FullKey, caller: PsiElement? = null, module: ModuleConfig? = null): Map<LocalizationSource, String?> =
         ReadAction.compute<Map<LocalizationSource, String?>, RuntimeException> {
-            val sourceService = project.service<LocalizationSourceService>()
             // Fall back to all sources when namespace lookup yields nothing (e.g. CREATE mode with empty FullKey,
             // or projects using locale-named files like en.json/fr.json instead of namespace-named files).
             val namespaces = listOfNotNull(fullKey.ns?.text)
-            val sources = (if (caller != null) sourceService.findSources(namespaces, caller) else sourceService.findSources(namespaces, project))
-                .ifEmpty { if (namespaces.isEmpty()) sourceService.findAllSources(project) else emptyList() }
+            val sources = scopedSources(namespaces, caller, module)
+                .ifEmpty { if (namespaces.isEmpty()) ModuleSources.sourcesOf(project, module) else emptyList() }
             sources.associateWith { source ->
                 val ref = resolveCompositeKey(fullKey.compositeKey, source)
                 val element = ref?.element
@@ -90,20 +94,22 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
      * Loads all sources matching the given namespace name (file stem).
      * Returns empty values since this is for CREATE mode (no existing key to resolve).
      */
-    fun loadSourcesForNamespace(namespace: String, caller: PsiElement? = null): Map<LocalizationSource, String?> =
-        sourcesFor(listOf(namespace), caller).associateWith { null }
+    fun loadSourcesForNamespace(namespace: String, caller: PsiElement? = null, module: ModuleConfig? = null): Map<LocalizationSource, String?> =
+        sourcesFor(listOf(namespace), caller, module).associateWith { null }
 
     /**
      * The sources of [namespaces], in the module of [caller] when one is given — a key created
-     * from a code file goes to that file's module, not to its neighbour's — and project-wide
-     * otherwise. Falls back to the files holding the namespace when the lookup finds none.
+     * from a code file goes to that file's module, not to its neighbour's — or in [module], and
+     * project-wide otherwise. Falls back to the files holding the namespace when the lookup finds none.
      */
-    fun sourcesFor(namespaces: List<String>, caller: PsiElement? = null): List<LocalizationSource> {
-        val sourceService = project.service<LocalizationSourceService>()
-        val found = if (caller != null) sourceService.findSources(namespaces, caller) else sourceService.findSources(namespaces, project)
-        return found.ifEmpty {
-            sourceService.findAllSources(project).filter { namespaceOf(it) in namespaces }
+    fun sourcesFor(namespaces: List<String>, caller: PsiElement? = null, module: ModuleConfig? = null): List<LocalizationSource> =
+        scopedSources(namespaces, caller, module).ifEmpty {
+            ModuleSources.sourcesOf(project, module).filter { namespaceOf(it) in namespaces }
         }
+
+    private fun scopedSources(namespaces: List<String>, caller: PsiElement?, module: ModuleConfig?): List<LocalizationSource> {
+        val sourceService = project.service<LocalizationSourceService>()
+        return if (caller != null) sourceService.findSources(namespaces, caller) else sourceService.findSources(namespaces, project, module)
     }
 
     /**
@@ -224,16 +230,19 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
     /**
      * The whole project's translations, read once per dialog.
      *
-     * Both the key check and the "most complete locale" ask the same question of this map, and
-     * the dialog is modal — nothing edits the translation files underneath while it is open.
-     * Lazy, so a dialog whose key check and copy button are never used pays nothing for it.
+     * The "most complete locale" asks its question of this map, and the dialog is modal — nothing
+     * edits the translation files underneath while it is open. Lazy, so a dialog whose copy
+     * button is never used pays nothing for it.
      */
     private val allTranslations: Map<String, Map<String, String>> by lazy {
         TranslationDataLoader.loadAllTranslations(project)
     }
 
     /**
-     * The keys already defined under [namespace], stripped of their namespace prefix.
+     * The keys already defined under [namespace] in [sources], stripped of their namespace prefix.
+     *
+     * [sources] are the files the dialog writes to, not the project's: in a monorepo, a key that
+     * only another module defines is not overwritten by saving it here, so it is not taken (#687).
      *
      * Read through [TranslationDataLoader] rather than re-walking the trees here: it is the one
      * place that already knows how a namespace is spelled inside a full key — prefixed, unless
@@ -245,12 +254,33 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
      * project separating keys otherwise gets no "already taken" hint. It errs towards saying
      * nothing rather than towards refusing a key that is in fact free.
      */
-    fun existingKeys(namespace: String?): Set<String> {
+    fun existingKeys(namespace: String?, sources: Collection<LocalizationSource>): Set<String> {
         val defaultNamespaces = Settings.getInstance(project).config().defaultNamespaces()
-        val allKeys = allTranslations.keys
+        val allKeys = TranslationDataLoader.translationsOf(project, sources.toList()).keys
         val prefix = if (namespace.isNullOrBlank() || namespace in defaultNamespaces) "" else "$namespace:"
         return if (prefix.isEmpty()) allKeys.filterNot { it.contains(':') }.toSet()
         else allKeys.filter { it.startsWith(prefix) }.map { it.removePrefix(prefix) }.toSet()
+    }
+
+    /**
+     * The keys of [namespace] defined outside [shown], each with the names of the modules whose
+     * files define it: a dialog scoped to one module tells where a key it does not show lives,
+     * rather than offering it as free with no word about the other module's values (#687).
+     *
+     * Empty in a project without modules. A file in no module names nothing: there is no module
+     * to point the user to.
+     */
+    fun keysInOtherModules(namespace: String?, shown: Collection<LocalizationSource>): Map<String, List<String>> {
+        if (Settings.getInstance(project).config().modules.isEmpty()) return emptyMap()
+        val shownPaths = shown.map { it.displayPath }.toSet()
+        val others = TranslationDataLoader.findSources(project).filter { it.displayPath !in shownPaths }
+        val byModule = ReadAction.compute<Map<String?, List<LocalizationSource>>, RuntimeException> {
+            others.groupBy { source -> ModuleSources.ownerOf(project, (source.tree?.value() ?: source.host)?.containingFile?.virtualFile)?.name }
+        }
+        return byModule
+            .flatMap { (module, sources) -> if (module == null) emptyList() else existingKeys(namespace, sources).map { it to module } }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, modules) -> modules.distinct().sorted() }
     }
 
     /**

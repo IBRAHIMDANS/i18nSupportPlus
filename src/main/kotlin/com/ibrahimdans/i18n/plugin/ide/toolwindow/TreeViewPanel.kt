@@ -249,7 +249,7 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
 
     private fun editTranslation(data: TranslationNodeData) {
         if (!data.isLeaf) return
-        val dialog = TranslationDialog(project, buildFullKey(data.fullPath), Mode.EDIT)
+        val dialog = TranslationDialog(project, buildFullKey(data.fullPath), Mode.EDIT, tabModule = moduleConfig)
         if (dialog.showAndGet()) {
             refresh()
         }

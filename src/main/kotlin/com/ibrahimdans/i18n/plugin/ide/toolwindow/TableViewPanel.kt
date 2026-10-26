@@ -683,7 +683,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             return
         }
         val key = table.getValueAt(row, keyColumn) as? String ?: return
-        val dialog = TranslationDialog(project, buildFullKey(key), Mode.EDIT)
+        val dialog = TranslationDialog(project, buildFullKey(key), Mode.EDIT, tabModule = moduleConfig)
         if (dialog.showAndGet()) {
             refresh()
         }
