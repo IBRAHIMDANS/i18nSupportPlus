@@ -56,7 +56,7 @@ finds `src/locales/`), then:
 2. Inside `$_("nav.")`, Ctrl+Space proposes `home` and `settings`; the same inside `$t("nav.")` and
    `$_({ id: "nav." })`.
 3. `$_("app.title")` shows its value, *svelte-i18n example*, folded in place or as an inlay hint after the key
-   (Ctrl+Alt+Shift+T toggles the folding); the same for `$_("nav.settings")` in `src/lib/labels.ts`.
+   (*Show Translations Inline*, under *i18n* in the editor context menu, toggles the folding); the same for `$_("nav.settings")` in `src/lib/labels.ts`.
 4. `"does.not.exist"` is underlined as *Unresolved key*, `"only_in_english"` as *Partially translated key*.
 5. On `"does.not.exist"`, Alt+Enter → *Create i18n key*, type a value, pick a locale: the key is written there, nested
    as `does` → `not` → `exist`, and the dialog that follows offers to fill the other locale. The underline goes. One

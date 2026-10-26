@@ -18,7 +18,7 @@
         <li>Multi-language translation hints on hover with locale table and PSI navigation</li>
         <li>Inlay hints — displays resolved translation value inline after each key expression</li>
         <li>Gutter badges showing key resolution status at a glance</li>
-        <li>Code folding — replace keys with translation values inline (Ctrl+Alt+Shift+T)</li>
+        <li>Code folding — replace keys with translation values inline</li>
         <li>Rename refactoring for i18n keys across all files (Shift+F6)</li>
         <li>Missing namespace/key quick fixes; create namespace on the fly</li>
         <li>Text to translation extraction (Alt+Enter)</li>
@@ -393,7 +393,7 @@
             <action id="com.ibrahimdans.i18n.ActivateAllModules"
                     class="com.ibrahimdans.i18n.plugin.ide.actions.ActivateAllModulesAction"/>
             <separator/>
-            <!-- No default keyboard shortcut: three are already taken (ctrl alt shift T/B/M). -->
+            <!-- No default keyboard shortcut: ctrl alt shift and a letter is taken in the default keymap for nearly every letter. -->
             <action id="com.ibrahimdans.i18n.SyncKeys"
                     class="com.ibrahimdans.i18n.plugin.ide.actions.SyncKeysAction"
                     icon="AllIcons.General.Modified"/>
@@ -417,26 +417,27 @@
                     class="com.ibrahimdans.i18n.plugin.ide.actions.GeneratePseudoLocaleAction"/>
             <separator/>
         </group>
+        <!-- No default shortcut: ctrl alt shift T is Refactor This in the default keymap, which won. -->
         <action id="com.ibrahimdans.i18n.ToggleFolding"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.ToggleFoldingAction"
-                icon="AllIcons.General.InspectionsEye">
-            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift T"/>
-        </action>
+                icon="AllIcons.General.InspectionsEye"/>
+        <!-- No default shortcut: ctrl alt shift B is Surround With in the Linux keymaps (GNOME, KDE, XWin). -->
         <action id="com.ibrahimdans.i18n.BatchExtractI18n"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.BatchExtractI18nAction">
             <add-to-group group-id="CodeMenu" anchor="last"/>
-            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift B"/>
         </action>
         <!-- Files and folders of the Project view, or the file of the editor: hidden elsewhere by its update(). -->
         <action id="com.ibrahimdans.i18n.Internationalize"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.i18nize.I18nizeAction">
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
         </action>
-        <!-- No default shortcut: ctrl alt shift T/B/M are taken; the status bar widget is the click path. -->
+        <!-- No default shortcut (see SyncKeys); the status bar widget is the click path. -->
         <action id="com.ibrahimdans.i18n.SwitchPreviewLocale"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.SwitchPreviewLocaleAction"/>
         <action id="com.ibrahimdans.i18n.SortI18nKeys"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.SortI18nKeysAction"/>
+        <!-- ctrl alt shift M is also bound in the default keymap, but only by Database and Kotlin actions,
+             disabled in the files this one works on: checked in WebStorm on Linux. -->
         <action id="com.ibrahimdans.i18n.MoveI18nKey"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.MoveI18nKeyHandler">
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift M"/>
@@ -453,12 +454,11 @@
         <action id="com.ibrahimdans.i18n.DeleteI18nKey"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.DeleteI18nKeyAction"
                 icon="AllIcons.Actions.GC"/>
-        <!-- ctrl alt shift I ("i18n"): free in the IDE keymaps and bundled plugins, T/B/M are the plugin's own. -->
+        <!-- No default shortcut: ctrl alt shift I is Run Inspection by Name in the default keymap, which won.
+             The editor's i18n submenu and the Edit link of the Ctrl+hover hint are the click paths. -->
         <action id="com.ibrahimdans.i18n.EditTranslationAtCaret"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.EditTranslationAtCaretAction"
-                icon="AllIcons.Actions.Edit">
-            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift I"/>
-        </action>
+                icon="AllIcons.Actions.Edit"/>
         <!-- The editor's entries, in a submenu of their own rather than eight lines at the end of the
              context menu. The group hides itself when none of them applies to the file. -->
         <group id="com.ibrahimdans.i18n.EditorMenu"
