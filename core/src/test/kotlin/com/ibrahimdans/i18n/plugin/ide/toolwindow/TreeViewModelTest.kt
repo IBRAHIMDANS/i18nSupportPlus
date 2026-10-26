@@ -194,6 +194,73 @@ class TreeViewModelTest {
     }
 
     @Test
+    fun `describeTree counts a plural group as one key`() {
+        val data = mapOf(
+            "dashboard:stats.count_one" to mapOf("en" to "{{count}} user", "fr" to "{{count}} utilisateur"),
+            "dashboard:stats.count_other" to mapOf("en" to "{{count}} users", "fr" to "{{count}} utilisateurs"),
+            "dashboard:stats.label" to mapOf("en" to "Users", "fr" to "Utilisateurs")
+        )
+
+        val statuses = viewModel.describeTree(viewModel.buildTree(data, Config()), listOf("en", "fr"))
+
+        assertEquals(NodeCompleteness(complete = 2, total = 2), statuses.getValue("dashboard:stats").completeness)
+        assertEquals(NodeCompleteness(complete = 2, total = 2), statuses.getValue("dashboard:").completeness)
+    }
+
+    @Test
+    fun `describeTree reads a plural group as translated by any of its forms`() {
+        // ru has few and many, en has not: each language holds the group with its own categories.
+        val data = mapOf(
+            "item_one" to mapOf("en" to "item", "ru" to "предмет"),
+            "item_few" to mapOf("ru" to "предмета"),
+            "item_many" to mapOf("ru" to "предметов"),
+            "item_other" to mapOf("en" to "items", "ru" to "предмета")
+        )
+
+        val root = viewModel.describeTree(viewModel.buildTree(data, Config()), listOf("en", "ru")).getValue("")
+
+        assertEquals(NodeCompleteness(complete = 1, total = 1), root.completeness)
+    }
+
+    @Test
+    fun `describeTree reports a plural group no locale form of which is filled as incomplete`() {
+        val data = mapOf(
+            "item_one" to mapOf("en" to "item", "fr" to ""),
+            "item_other" to mapOf("en" to "items")
+        )
+
+        val root = viewModel.describeTree(viewModel.buildTree(data, Config()), listOf("en", "fr")).getValue("")
+
+        assertEquals(NodeCompleteness(complete = 0, total = 1), root.completeness)
+    }
+
+    @Test
+    fun `describeTree gives each namespace the totals of the Stats view`() {
+        val data = mapOf(
+            "dashboard:title" to mapOf("en" to "Dashboard", "fr" to "Tableau de bord"),
+            "dashboard:stats.users.count" to mapOf("en" to "{{count}} users", "fr" to "{{count}} utilisateurs"),
+            "dashboard:stats.users.count_one" to mapOf("en" to "{{count}} user", "fr" to "{{count}} utilisateur"),
+            "dashboard:stats.users.count_other" to mapOf("en" to "{{count}} users", "fr" to "{{count}} utilisateurs"),
+            "dashboard:notifications.unread_one" to mapOf("en" to "{{count}} unread"),
+            "dashboard:notifications.unread_other" to mapOf("en" to "{{count}} unread"),
+            "common:save" to mapOf("en" to "Save", "fr" to "Enregistrer")
+        )
+        val locales = listOf("en", "fr")
+
+        val statuses = viewModel.describeTree(viewModel.buildTree(data, Config()), locales)
+        val report = TranslationCoverage.report(data)
+
+        for (namespace in report.namespaces) {
+            val group = namespace.group as NamespaceFilter.Named
+            val completeness = statuses.getValue(group.name + ":").completeness
+            assertEquals(namespace.total, completeness.total, group.name)
+            // Here every key translated in fr is translated in en too: the least translated locale gives the count.
+            val translatedEverywhere = locales.minOf { namespace.of(it)!!.translated }
+            assertEquals(translatedEverywhere, completeness.complete, group.name)
+        }
+    }
+
+    @Test
     fun `filter keeps the namespace group of a matching key`() {
         val data = mapOf(
             "common:actions.save" to mapOf("en" to "Save"),

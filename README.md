@@ -462,7 +462,7 @@ The toolbar picks the view — **Tree**, **Table** or **Stats** — and holds th
 
 ### Tree View
 
-Keys grouped by **namespace**, then by segment. Every key carries its status three times over — an icon, per-locale badges (`EN✓ FR✗`) and a colour — so it survives a colour-blind reader or a custom theme; a branch shows how many of its keys are fully translated (`12/14 (86%)`), and a namespace row how complete the namespace is.
+Keys grouped by **namespace**, then by segment. Every key carries its status three times over — an icon, per-locale badges (`EN✓ FR✗`) and a colour — so it survives a colour-blind reader or a custom theme; a branch shows how many of its keys are fully translated (`12/14 (86%)`), and a namespace row how complete the namespace is. A plural group (`item_one`, `item_other`) counts as one key, as in **Stats**.
 
 - **Enter** or double-click edits the key — the dialog can also delete it from every locale —, **F4** opens the translation file at the key, typing jumps to a key
 - Right-click: edit, open file, copy key

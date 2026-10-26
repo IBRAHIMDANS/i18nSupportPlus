@@ -26,6 +26,7 @@
 
 ### Fixes
 
+- [Tool window] **The tree and the statistics give a namespace the same number of keys**: a plural group (`item_one`, `item_other`) now counts once in the tree's `n/m (%)` too, so `dashboard` no longer reads `14/14` there and 10 keys in *Stats*
 - [Settings] **Cancel undoes what you typed in the settings**: closing *Settings | Tools | i18n Support Plus* or its *Modules* and *Key Assistance Rules* pages with *Cancel* puts back the values last applied, and a module renamed with *OK* keeps its tool window tab and hidden locales.
 - [Folding] **Show Translations Inline and the *Enable folding* setting apply to the files already open**: turning folding on folds their keys at once, instead of leaving them unfolded until *Collapse All*, and turning it off unfolds them; the rest of your folding is left as it was
 - [Translate] **No stray AI note in the translation dialog**: without an engine that reads instructions, *Create Translation* and *Edit Translation* no longer show the instruction field's note on its own, under no field
