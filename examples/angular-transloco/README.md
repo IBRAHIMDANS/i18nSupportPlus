@@ -89,8 +89,8 @@ Transloco (`transloco/`):
    `t('admin.title')` in the footer.
 3. Inside `t('')` under `read: 'admin'`, Ctrl+Space proposes the scope's keys (`title`, `users`, `save`, …), and no
    global key such as `home` or `menu`.
-4. `t('menu.home')` shows *Home*, folded in place or as an inlay hint after the key (Ctrl+Alt+Shift+T toggles the
-   folding); `t('title')` under `read: 'admin'` shows *Administration*.
+4. `t('menu.home')` shows *Home*, folded in place or as an inlay hint after the key (*Show Translations Inline*, under *i18n* in the
+   editor context menu, toggles the folding); `t('title')` under `read: 'admin'` shows *Administration*.
 5. `'home.doesNotExist'` and `t('doesNotExist')` are underlined as *Unresolved key*; `t('home.onlyInEnglish')` and
    `t('onlyInEnglish')` under `read: 'admin'` as *Partially translated key*.
 6. On `t('doesNotExist')`, Alt+Enter → *Create i18n key*, type a value, pick `admin/en.json`: the key is written in the

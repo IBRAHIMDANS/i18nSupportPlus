@@ -70,8 +70,8 @@ Open this folder with `./gradlew runIde` and accept the setup wizard (it detects
    `lang/en/messages.php` and `lang/fr/messages.php`, and the underline goes away. One Ctrl+Z undoes it.
 7. **Rename.** In `HomeController.php`, Shift+F6 on `messages.auth.failed` → `denied`: `'failed'` becomes `'denied'` in
    `lang/en/messages.php` and `lang/fr/messages.php`, under `'auth'`, and the call sites follow. One Ctrl+Z undoes it.
-8. **Folding and inlay hints.** In `HomeController.php`, `__('messages.welcome')` folds to *Welcome* (Ctrl+Alt+Shift+T
-   toggles the folding), or shows `↦ Welcome` after the key with folding off; the same on `@lang(…)` and `{{ __(…) }}`
+8. **Folding and inlay hints.** In `HomeController.php`, `__('messages.welcome')` folds to *Welcome* (*Show Translations Inline*
+   under *i18n* in the editor context menu toggles the folding), or shows `↦ Welcome` after the key with folding off; the same on `@lang(…)` and `{{ __(…) }}`
    in `welcome.blade.php`.
 9. **JSON phrases with `.` and `:`.** Ctrl+click `Saved.` and `Hello, :name` in `HomeController.php`: they open
    `lang/en.json`; neither is underlined.

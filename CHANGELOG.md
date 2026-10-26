@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- [Editor] ***Show Translations Inline*, *Edit Translation* and *Batch Extract i18n Keys* no longer come with a shortcut that opened something else**: `Ctrl+Alt+Shift+T` and `Ctrl+Alt+Shift+I` open the IDE's *Refactor This* and *Run Inspection by Name*, and `Ctrl+Alt+Shift+B` its *Surround With* on Linux. The actions stay under *i18n* in the editor context menu (*Batch Extract* in the **Code** menu) and in *Find Action*; give them a shortcut of your own in *Settings › Keymap*. `Ctrl+Alt+Shift+M` (*Move i18n Key to Namespace*) is kept.
+
 ## 1.16.0 - 2026-10-26
 
 ### Features

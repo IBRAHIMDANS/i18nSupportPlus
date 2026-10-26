@@ -239,7 +239,7 @@ In a JSON or YAML translation file, the reference locale's value follows each va
 
 ### Code Folding
 
-Replaces i18n keys with their translation values inline for better readability. Toggle with **Show Translations Inline** (**Ctrl+Alt+Shift+T**, under *i18n* in the editor context menu): the files already open fold or unfold at once.
+Replaces i18n keys with their translation values inline for better readability. Toggle with **Show Translations Inline** (under *i18n* in the editor context menu, or *Find Action*; give it a shortcut in *Settings › Keymap*): the files already open fold or unfold at once.
 
 ![Folding before](docs/img/folding-before.png)
 ![Folding after](docs/img/folding-after.png)
@@ -254,8 +254,8 @@ With the caret on an intermediate level of a key (`button` in `common:button.sav
 
 | Action | Where | What it does |
 |--------|-------|--------------|
-| Edit Translation… | editor context menu › *i18n*, `Ctrl+Alt+Shift+I` | Edit the values of the key under the caret in every locale, or create it when no file holds it |
-| Batch Extract i18n Keys… | **Code** menu, `Ctrl+Alt+Shift+B` | Extract several hard-coded strings of a file as keys in one pass |
+| Edit Translation… | editor context menu › *i18n*, *Edit* link of the Ctrl+hover hint | Edit the values of the key under the caret in every locale, or create it when no file holds it |
+| Batch Extract i18n Keys… | **Code** menu | Extract several hard-coded strings of a file as keys in one pass |
 | Internationalize… | Project view context menu, editor context menu › *i18n* | Replace every hard-coded text of the selected JS/TS and Vue files and folders by a key, after a preview where texts are unchecked and keys edited |
 | Move i18n Key to Namespace… | editor context menu › *i18n*, `Ctrl+Alt+Shift+M` | Move a key to another namespace, updating every locale file and code reference |
 | Sort i18n Keys | editor context menu › *i18n*, in a translation file | Reorder the file's keys in the *Key order* of the settings, recursively |
