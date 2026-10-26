@@ -26,6 +26,7 @@
 
 ### Fixes
 
+- [Tool window] ***Count Key Usages* no longer stays greyed out after an interrupted count**: a count cut short by an edit or an indexing pass runs again once, and the button is usable again whatever happened.
 - [Tool window] **The tree and the statistics give a namespace the same number of keys**: a plural group (`item_one`, `item_other`) now counts once in the tree's `n/m (%)` too, so `dashboard` no longer reads `14/14` there and 10 keys in *Stats*
 - [Tool window] **The *Stats* popup shows its whole title**: the list of untranslated keys opened from a cell is now as wide as its title, `common (default) — 'fr': 2 missing, 0 empty — reference: en`, instead of cutting it.
 - [Settings] **The *Modules* page shows the file a template resolves to relative to the project**: *Found* and *Not found* read `public/locales/en/common.json` instead of a full path wrapped over two lines; a file outside the project keeps its full path.
