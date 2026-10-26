@@ -45,7 +45,8 @@ class SettingsPanelLayoutTest {
     fun `the partially translated warning sits with the other checks, and the Inspections group is gone`() {
         val labels = labels(rootPanel())
 
-        assertFalse(labels.contains(PluginBundle.message("settings.group.inspections")))
+        // The group's title, spelled out: its bundle key went with the group.
+        assertFalse(labels.contains("Inspections"))
         val checks = labels.indexOf(PluginBundle.message("settings.group.checks"))
         assertTrue(checks >= 0)
         assertTrue(labels.indexOf(PluginBundle.message("settings.ignored.locales")) > checks)
