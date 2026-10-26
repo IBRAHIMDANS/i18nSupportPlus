@@ -36,6 +36,18 @@ class DialogViewModelModuleScopeTest : PlatformBaseTest() {
         assertEquals(setOf("App", "Web", "Webb"), projectWide.values.toSet(), "without a caller, the whole project")
     }
 
+    /** Opened from a tool window tab (#687): no code file, the tab's module scopes the sources the same way. */
+    @Test
+    fun theDialogOpenedFromATabListsTheSourcesOfItsModule() = myFixture.runWithConfig(monorepo) {
+        addFileToProject("apps/app/locales/en/common.json", """{"title": "App"}""")
+        addFileToProject("apps/webapp/locales/en/common.json", """{"title": "Web"}""")
+        val viewModel = DialogViewModel(project)
+        val app = monorepo.modules.first()
+
+        assertEquals(listOf("App"), viewModel.loadTranslations(title, module = app).values.toList())
+        assertEquals(1, viewModel.loadSourcesForNamespace("common", module = app).size, "creation writes app's file only")
+    }
+
     /**
      * A key only `webapp` defines, created from `app`'s code (#687): saving writes `app`'s files and
      * overwrites nothing, so it is not taken; the dialog names the module that holds it instead.

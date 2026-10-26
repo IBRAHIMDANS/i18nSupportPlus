@@ -8,6 +8,7 @@ import com.ibrahimdans.i18n.SourceDiscovery
 import com.ibrahimdans.i18n.SourceWorkspace
 import com.ibrahimdans.i18n.WorkspaceFile
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
 import com.ibrahimdans.i18n.plugin.key.FullKey
@@ -154,12 +155,23 @@ class LocalizationSourceService {
 
     private fun projectSources(fileNames: List<String>, caller: PsiElement): List<LocalizationSource> {
         val project = caller.project
-        val sources = findSources(fileNames, project)
         val config = Settings.getInstance(project).config()
-        if (config.modules.isEmpty()) return sources
-        val callerFile = caller.hostVirtualFile() ?: return sources
+        val callerFile = caller.hostVirtualFile()
+        val module = if (config.modules.isEmpty() || callerFile == null) null
+        else ModuleSources.owner(ModuleSources.active(config.modules), projectPath(callerFile, project.basePath ?: ""))
+        return findSources(fileNames, project, module)
+    }
+
+    /**
+     * [findSources] restricted to [module]'s root directory, for a view that already knows its
+     * module — a tool window tab — rather than a code file to take it from. No module, or one whose
+     * translations all live outside its root directory (a shared package), keeps the project-wide
+     * result, as for a caller.
+     */
+    fun findSources(fileNames: List<String>, project: Project, module: ModuleConfig?): List<LocalizationSource> {
+        val sources = findSources(fileNames, project)
+        if (module == null) return sources
         val basePath = project.basePath ?: ""
-        val module = ModuleSources.owner(ModuleSources.active(config.modules), projectPath(callerFile, basePath)) ?: return sources
 
         fun inModule(source: LocalizationSource): Boolean {
             val file = (source.tree?.value() ?: source.host)?.containingFile?.virtualFile ?: return false

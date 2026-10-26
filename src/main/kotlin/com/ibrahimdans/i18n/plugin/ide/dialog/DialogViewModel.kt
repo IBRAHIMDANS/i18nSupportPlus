@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.dialog
 
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
@@ -17,6 +18,7 @@ import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.ibrahimdans.i18n.plugin.utils.ownerOf
+import com.ibrahimdans.i18n.plugin.utils.sourcesOf
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
@@ -48,16 +50,16 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
      * Returns null for a source if the key is missing in that locale.
      *
      * With a [caller], the dialog opened from a code file, the sources are those of its module: in a
-     * monorepo, another application's files and locales are not this key's.
+     * monorepo, another application's files and locales are not this key's. A [module] given
+     * instead — the dialog opened from a tool window tab — scopes them the same way (#687).
      */
-    fun loadTranslations(fullKey: FullKey, caller: PsiElement? = null): Map<LocalizationSource, String?> =
+    fun loadTranslations(fullKey: FullKey, caller: PsiElement? = null, module: ModuleConfig? = null): Map<LocalizationSource, String?> =
         ReadAction.compute<Map<LocalizationSource, String?>, RuntimeException> {
-            val sourceService = project.service<LocalizationSourceService>()
             // Fall back to all sources when namespace lookup yields nothing (e.g. CREATE mode with empty FullKey,
             // or projects using locale-named files like en.json/fr.json instead of namespace-named files).
             val namespaces = listOfNotNull(fullKey.ns?.text)
-            val sources = (if (caller != null) sourceService.findSources(namespaces, caller) else sourceService.findSources(namespaces, project))
-                .ifEmpty { if (namespaces.isEmpty()) sourceService.findAllSources(project) else emptyList() }
+            val sources = scopedSources(namespaces, caller, module)
+                .ifEmpty { if (namespaces.isEmpty()) ModuleSources.sourcesOf(project, module) else emptyList() }
             sources.associateWith { source ->
                 val ref = resolveCompositeKey(fullKey.compositeKey, source)
                 val element = ref?.element
@@ -92,20 +94,22 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
      * Loads all sources matching the given namespace name (file stem).
      * Returns empty values since this is for CREATE mode (no existing key to resolve).
      */
-    fun loadSourcesForNamespace(namespace: String, caller: PsiElement? = null): Map<LocalizationSource, String?> =
-        sourcesFor(listOf(namespace), caller).associateWith { null }
+    fun loadSourcesForNamespace(namespace: String, caller: PsiElement? = null, module: ModuleConfig? = null): Map<LocalizationSource, String?> =
+        sourcesFor(listOf(namespace), caller, module).associateWith { null }
 
     /**
      * The sources of [namespaces], in the module of [caller] when one is given — a key created
-     * from a code file goes to that file's module, not to its neighbour's — and project-wide
-     * otherwise. Falls back to the files holding the namespace when the lookup finds none.
+     * from a code file goes to that file's module, not to its neighbour's — or in [module], and
+     * project-wide otherwise. Falls back to the files holding the namespace when the lookup finds none.
      */
-    fun sourcesFor(namespaces: List<String>, caller: PsiElement? = null): List<LocalizationSource> {
-        val sourceService = project.service<LocalizationSourceService>()
-        val found = if (caller != null) sourceService.findSources(namespaces, caller) else sourceService.findSources(namespaces, project)
-        return found.ifEmpty {
-            sourceService.findAllSources(project).filter { namespaceOf(it) in namespaces }
+    fun sourcesFor(namespaces: List<String>, caller: PsiElement? = null, module: ModuleConfig? = null): List<LocalizationSource> =
+        scopedSources(namespaces, caller, module).ifEmpty {
+            ModuleSources.sourcesOf(project, module).filter { namespaceOf(it) in namespaces }
         }
+
+    private fun scopedSources(namespaces: List<String>, caller: PsiElement?, module: ModuleConfig?): List<LocalizationSource> {
+        val sourceService = project.service<LocalizationSourceService>()
+        return if (caller != null) sourceService.findSources(namespaces, caller) else sourceService.findSources(namespaces, project, module)
     }
 
     /**
