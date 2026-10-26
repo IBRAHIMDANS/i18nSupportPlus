@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.tree.PluralKey
 
 /**
  * Represents a node in the hierarchical translation tree.
@@ -38,13 +39,19 @@ enum class LocaleState { PRESENT, EMPTY, MISSING }
 enum class KeyStatus { COMPLETE, EMPTY, MISSING }
 
 /**
- * How many of the leaf keys under a node are fully translated.
+ * How many of the keys under a node are fully translated.
  * Drives the `12/14 (86%)` badge shown on branch nodes, so that a group holding a
  * gap can be spotted without expanding it.
+ *
+ * A plural group (`item_one`, `item_other`) counts as one key, as in the Stats view
+ * ([TranslationCoverage]): the two views used to give one namespace two different totals.
  */
 data class NodeCompleteness(val complete: Int, val total: Int) {
     val percent: Int get() = if (total <= 0) 100 else complete * 100 / total
     val isComplete: Boolean get() = complete >= total
+
+    operator fun plus(other: NodeCompleteness): NodeCompleteness =
+        NodeCompleteness(complete + other.complete, total + other.total)
 }
 
 /**
@@ -171,6 +178,9 @@ class TreeViewModel {
         return result
     }
 
+    /** A described node, and the completeness of the keys strictly below it. */
+    private class Described(val status: NodeStatus, val below: NodeCompleteness)
+
     /**
      * Per-locale state of a leaf key, in the order of [allLocales].
      * Locales the key carries but that were not discovered in the project are appended,
@@ -193,26 +203,42 @@ class TreeViewModel {
         node: TranslationNode,
         allLocales: List<String>,
         out: MutableMap<String, NodeStatus>,
-    ): NodeStatus {
+    ): Described {
         // Children first: a branch's own status and completeness are aggregates of theirs.
-        val childStatuses = node.children.values.map { describeNode(it, allLocales, out) }
+        val children = node.children.values.map { describeNode(it, allLocales, out) }
 
         val localeStates = localeStates(node, allLocales)
         // A node can be both a leaf and a branch (a key that also has sub-keys):
         // its own status counts alongside its children's.
         val ownStatus = if (node.isLeaf) worstStatus(localeStates.values) else null
 
-        val status = worstOf(listOfNotNull(ownStatus) + childStatuses.map { it.status })
-        val completeness = childStatuses.fold(ownCompleteness(node.isLeaf, ownStatus)) { acc, child ->
-            NodeCompleteness(
-                complete = acc.complete + child.completeness.complete,
-                total = acc.total + child.completeness.total,
-            )
-        }
+        val status = worstOf(listOfNotNull(ownStatus) + children.map { it.status.status })
+        val below = children.fold(leafChildrenCompleteness(node, allLocales)) { acc, child -> acc + child.below }
+        val completeness = below + ownCompleteness(node.isLeaf, ownStatus)
 
         val nodeStatus = NodeStatus(status, localeStates, completeness)
         out[node.fullPath] = nodeStatus
-        return nodeStatus
+        return Described(nodeStatus, below)
+    }
+
+    /**
+     * The keys among [node]'s children, counted the way [TranslationCoverage] counts them: one per
+     * plural group ([PluralKey.groupForms]), complete when every locale holds a non-blank form of
+     * it — `ru` and `en` do not share their categories. The forms of a group are siblings, so the
+     * group is counted here, at their parent, and never by the forms themselves.
+     */
+    private fun leafChildrenCompleteness(node: TranslationNode, allLocales: List<String>): NodeCompleteness {
+        val leaves = node.children.values.filter { it.isLeaf }.associateBy { it.fullPath }
+        return PluralKey.groupForms(leaves.keys).values
+            .map { paths -> paths.mapNotNull { leaves[it] } }
+            .fold(NodeCompleteness(0, 0)) { acc, forms ->
+                acc + NodeCompleteness(complete = if (isTranslatedEverywhere(forms, allLocales)) 1 else 0, total = 1)
+            }
+    }
+
+    private fun isTranslatedEverywhere(forms: List<TranslationNode>, allLocales: List<String>): Boolean {
+        val locales = (allLocales + forms.flatMap { it.values.keys }).distinct()
+        return locales.all { locale -> forms.any { !it.values[locale].isNullOrBlank() } }
     }
 
     private fun ownCompleteness(isLeaf: Boolean, ownStatus: KeyStatus?): NodeCompleteness =
