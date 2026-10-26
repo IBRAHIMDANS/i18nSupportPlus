@@ -18,6 +18,7 @@ import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewActions
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewCell
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewThreadDialog
+import com.intellij.ide.ActivityTracker
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
@@ -997,6 +998,9 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             }
 
             override fun onFinished() {
+                // The toolbar only re-reads the action's state on the next UI event: ask now,
+                // or the button stays drawn disabled after the count.
+                ActivityTracker.getInstance().inc()
                 if (interrupted && !retried) scanOrphans(retried = true)
             }
         })
