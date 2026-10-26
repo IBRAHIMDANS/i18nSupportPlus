@@ -1,5 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.ibrahimdans.i18n.plugin.ide.folding.FoldingBuilderBase
+import com.ibrahimdans.i18n.plugin.ide.preview.EditorRefresh
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.options.BaseConfigurable
 import com.intellij.openapi.options.SearchableConfigurable
@@ -36,8 +38,17 @@ class Configurable(val project: Project) : BaseConfigurable(), SearchableConfigu
 
     override fun isModified(): Boolean = Settings.getInstance(project).config() != snapshot
 
+    /**
+     * The page writes [Settings] as it is edited; validating is when a change of *Enable folding*
+     * reaches the open editors, once, as *Show Translations Inline* does it.
+     */
     override fun apply() {
-        snapshot = Settings.getInstance(project).config()
+        val before = snapshot
+        val after = Settings.getInstance(project).config()
+        snapshot = after
+        if (before != null && before.foldingEnabled != after.foldingEnabled) {
+            EditorRefresh.afterSettingsChange(project) { FoldingBuilderBase.refreshOpenEditors(project, fold = after.foldingEnabled) }
+        }
     }
 
     override fun disposeUIResources() {
