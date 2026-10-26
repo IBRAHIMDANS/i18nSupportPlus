@@ -449,7 +449,7 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
     /** Opens the translation dialog on [key] and reloads the tab once a value is written. */
     private fun editTranslation(key: String) {
         val fullKey = KeysSynchronizer().buildFullKey(key, Settings.getInstance(project).config())
-        if (TranslationDialog(project, fullKey, Mode.EDIT).showAndGet()) refresh()
+        if (TranslationDialog(project, fullKey, Mode.EDIT, tabModule = moduleConfig).showAndGet()) refresh()
     }
 
     /**

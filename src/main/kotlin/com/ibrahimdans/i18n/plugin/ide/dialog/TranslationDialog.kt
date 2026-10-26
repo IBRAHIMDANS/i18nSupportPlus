@@ -110,10 +110,12 @@ class TranslationDialog(
     private val mode: Mode = Mode.EDIT,
     /** The code file the key is created from, when there is one: its module scopes the files offered. */
     private val caller: PsiFile? = null,
+    /** The tool window tab's module, when opened from one: it scopes the files offered as [caller]'s does. */
+    private val tabModule: ModuleConfig? = null,
 ) : DialogWrapper(project) {
 
     private val viewModel = DialogViewModel(project)
-    private val sources: Map<LocalizationSource, String?> = viewModel.loadTranslations(fullKey, caller)
+    private val sources: Map<LocalizationSource, String?> = viewModel.loadTranslations(fullKey, caller, tabModule)
 
     private val textAreas = LinkedHashMap<LocalizationSource, JBTextArea>()
     private val variableWarnings = LinkedHashMap<LocalizationSource, JBLabel>()
@@ -188,6 +190,9 @@ class TranslationDialog(
     /** Keys already defined under the selected namespace; refreshed together with the sources. */
     private var keysInNamespace: Set<String> = emptySet()
 
+    /** Keys of the selected namespace that only other modules define, with their names; refreshed with the sources. */
+    private var keysInOtherModules: Map<String, List<String>> = emptyMap()
+
     /** What *Translate* filled each locale with, and the engine it came from; dropped with the rows. */
     private val machineProposals = LinkedHashMap<LocalizationSource, MachineProposal>()
 
@@ -259,7 +264,7 @@ class TranslationDialog(
         if (mode == Mode.CREATE) {
             val namespace = selectedNamespace()
             refreshSources(
-                if (namespace == null) emptyMap() else viewModel.loadSourcesForNamespace(namespace, caller),
+                if (namespace == null) emptyMap() else viewModel.loadSourcesForNamespace(namespace, caller, tabModule),
                 namespace
             )
         } else {
@@ -286,7 +291,7 @@ class TranslationDialog(
         if (initialNamespace in namespaces) combo.selectedItem = initialNamespace
         combo.addActionListener {
             val selected = combo.selectedItem as? String ?: return@addActionListener
-            refreshSources(viewModel.loadSourcesForNamespace(selected, caller), selected)
+            refreshSources(viewModel.loadSourcesForNamespace(selected, caller, tabModule), selected)
         }
         return combo
     }
@@ -323,7 +328,7 @@ class TranslationDialog(
             combo.selectedItem = input
             // Selecting an item the combo already held fires no event, so the refresh the
             // listener would have done is asked for explicitly.
-            refreshSources(viewModel.loadSourcesForNamespace(input, caller), input)
+            refreshSources(viewModel.loadSourcesForNamespace(input, caller, tabModule), input)
         }
         return addButton
     }
@@ -339,8 +344,11 @@ class TranslationDialog(
         machineProposals.clear()
         reviewBadges.clear()
         // Only CREATE mode asks whether a key is free; EDIT mode is looking at one that exists,
-        // so it never pays for the project-wide read behind existingKeys().
-        keysInNamespace = if (mode == Mode.CREATE) viewModel.existingKeys(namespace) else emptySet()
+        // so it never pays for these reads. Without a caller or a tab's module the rows are the
+        // project's: no other module's file is left out to point to.
+        keysInNamespace = if (mode == Mode.CREATE) viewModel.existingKeys(namespace, sourcesMap.keys) else emptySet()
+        keysInOtherModules = if (mode == Mode.CREATE && (caller != null || tabModule != null))
+            viewModel.keysInOtherModules(namespace, sourcesMap.keys) else emptyMap()
         namespacePrefixLabel.text =
             if (mode == Mode.CREATE && !namespace.isNullOrBlank() && nsSeparator.isNotEmpty()) "$namespace$nsSeparator" else ""
 
@@ -432,7 +440,7 @@ class TranslationDialog(
         val last = fullKey.compositeKey.lastOrNull() ?: return null
         val text = ReviewSources.sourceTextOf(last.text, config.pluralSeparator) { segment ->
             val values = if (segment == last.text) sources
-            else viewModel.loadTranslations(fullKey.copy(compositeKey = fullKey.compositeKey.dropLast(1) + Literal(segment)), caller)
+            else viewModel.loadTranslations(fullKey.copy(compositeKey = fullKey.compositeKey.dropLast(1) + Literal(segment)), caller, tabModule)
             values.entries.firstOrNull { it.key.localeLabel() == reference && moduleOf(it.key) == module }?.value
         }
         return text?.let { reference to it }
@@ -520,8 +528,16 @@ class TranslationDialog(
                 keyStatusLabel.icon = AllIcons.General.Warning
             }
             KeyCheck.AVAILABLE -> {
-                keyStatusLabel.text = PluginBundle.message("dialog.translation.key.status.available")
-                keyStatusLabel.icon = AllIcons.General.InspectionsOK
+                val elsewhere = keysInOtherModules[keyText().trim()]
+                if (elsewhere == null) {
+                    keyStatusLabel.text = PluginBundle.message("dialog.translation.key.status.available")
+                    keyStatusLabel.icon = AllIcons.General.InspectionsOK
+                } else {
+                    keyStatusLabel.text = PluginBundle.message(
+                        "dialog.translation.key.status.other.module", elsewhere.joinToString { "'$it'" }
+                    )
+                    keyStatusLabel.icon = AllIcons.General.Information
+                }
             }
         }
     }
@@ -813,6 +829,9 @@ class TranslationDialog(
     override fun getPreferredFocusedComponent(): JComponent =
         if (mode == Mode.CREATE) keyField else textAreas.values.firstOrNull() ?: keyField
 
+    /** The size the user last gave the dialog is kept: with many locales, it was redone on every opening (#687). */
+    override fun getDimensionServiceKey(): String = DIMENSION_KEY
+
     /**
      * Rejects an invalid namespace while the user types, so the input dialog cannot be
      * confirmed with a name we would have to reject afterwards in a second dialog.
@@ -925,6 +944,7 @@ class TranslationDialog(
         private const val MIN_HEIGHT = 300
         private const val PREFERRED_WIDTH = 620
         private const val PREFERRED_HEIGHT = 420
+        private const val DIMENSION_KEY = "com.ibrahimdans.i18n.TranslationDialog"
 
         /** Light enough to read black or white text through it, in either theme. */
         private val VARIABLE_HIGHLIGHT = JBColor(0xFFF2C4, 0x4C4426)

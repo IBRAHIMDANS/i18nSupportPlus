@@ -400,7 +400,7 @@ internal class ExtractKeyModel(
                 existingKeys = existingKeys,
                 namespaces = namespaces,
                 sourcesByNamespace = sources,
-                keysByNamespace = namespaces.associateWith { viewModel.existingKeys(it) },
+                keysByNamespace = namespaces.associateWith { viewModel.existingKeys(it, sources.getValue(it)) },
                 referenceLocale = viewModel.localeToCopyFrom(sources.values.flatten()),
                 config = config,
                 call = call,

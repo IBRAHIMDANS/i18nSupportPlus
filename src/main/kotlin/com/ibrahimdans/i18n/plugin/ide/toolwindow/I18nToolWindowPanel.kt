@@ -774,7 +774,7 @@ class I18nToolWindowPanel internal constructor(
     ) {
         override fun actionPerformed(e: AnActionEvent) {
             val fullKey = FullKey(source = "", ns = null, compositeKey = emptyList())
-            val dialog = TranslationDialog(project, fullKey, Mode.CREATE)
+            val dialog = TranslationDialog(project, fullKey, Mode.CREATE, tabModule = shellContent?.activeModule)
             if (dialog.showAndGet()) {
                 refresh()
             }
