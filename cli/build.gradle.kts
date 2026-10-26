@@ -17,7 +17,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.4.21")
     // `core` declares them compileOnly, the IDE providing them: outside it, the CLI ships them.
     // Same versions as `core` compiles against.
-    implementation("com.google.code.gson:gson:2.11.0")
+    implementation("com.google.code.gson:gson:2.14.0")
     implementation("com.fasterxml.jackson.core:jackson-core:2.19.0")
     implementation("org.snakeyaml:snakeyaml-engine:2.9")
 

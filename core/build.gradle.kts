@@ -16,7 +16,7 @@ dependencies {
     // Provided at runtime by the platform the plugin runs in: compileOnly, so the plugin ZIP
     // never ships a second copy that would clash with the platform's class loader.
     compileOnly("org.jetbrains.kotlin:kotlin-stdlib:2.4.21")
-    compileOnly("com.google.code.gson:gson:2.11.0")
+    compileOnly("com.google.code.gson:gson:2.14.0")
     // The translation file parsers: the platform loads both in its core class loader
     // (intellij.libraries.jackson and intellij.libraries.snakeyaml.engine, loading="embedded"),
     // at these versions from 2025.3 to 2026.2. Use no API newer than them.
@@ -24,7 +24,7 @@ dependencies {
     compileOnly("org.snakeyaml:snakeyaml-engine:2.9")
 
     testImplementation("org.jetbrains.kotlin:kotlin-stdlib:2.4.21")
-    testImplementation("com.google.code.gson:gson:2.11.0")
+    testImplementation("com.google.code.gson:gson:2.14.0")
     testImplementation("com.fasterxml.jackson.core:jackson-core:2.19.0")
     testImplementation("org.snakeyaml:snakeyaml-engine:2.9")
     testImplementation(platform("org.junit:junit-bom:6.1.3"))
