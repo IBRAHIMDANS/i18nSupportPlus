@@ -16,13 +16,17 @@ translations deliberately gather the key shapes a real codebase mixes.
 | Multiline value | `deposit-box:activity.tooltipInfo` |
 | Key built at runtime as a template literal — no call site names the key; Scan Orphans reports the three `status.*` keys as *Dynamic*, not *Unused* | `deposit-box:status.${status}` |
 | A key passed as an option of another key | `deposit-box:activity.entry.boxShared` |
-| Missing key, on purpose | `dashboardd:statss.users.count`, `common:actions.saxve` |
+| Missing key, on purpose — also the one error `tsc` reports (TS2345) | `dashboardd:statss.users.count` |
 
 ## What the call sites cover
 
 `useTranslation()` with no namespace and fully prefixed keys, `useTranslation('ns')`,
 `useTranslation(['ns', 'common'])` with its fallback, `i18n.t(…)` outside any hook, and the
 `<Trans>` component.
+
+`useTranslation()` with no argument accepts the prefixed keys of every namespace because
+`src/i18next.d.ts` declares `defaultNS` as a list starting with `common`: with a single
+namespace there, i18next's types reject every `ns:key` of another namespace (TS2345).
 
 ---
 
