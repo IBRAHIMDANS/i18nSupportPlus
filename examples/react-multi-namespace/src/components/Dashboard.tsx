@@ -23,7 +23,8 @@ export default function Dashboard({ userName }: DashboardProps) {
 
       <section style={{ marginBottom: '1.5rem' }}>
         <h3>{t('stats.users.label')}</h3>
-        {/* Pluralization: count_one vs count_other key selected by i18next */}
+        {/* Missing on purpose: misspelled namespace and key. The plugin flags it, and so does
+            TypeScript (TS2345) — the one type error this example keeps. */}
         <p>{t('dashboardd:statss.users.count', { count: userCount })}</p>
         <p>{t('stats.files.count', { count: fileCount })}</p>
       </section>
