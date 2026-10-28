@@ -21,3 +21,6 @@ TODO.md
 TODO-DONE.md
 HANDOFF.md
 .rtk/
+
+# IDE Starter test reports (generateUiScreenshots / verifyUiScreenshots)
+/allure-results/

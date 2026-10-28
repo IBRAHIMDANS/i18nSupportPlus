@@ -37,6 +37,44 @@ start one, run the plugin in a locally installed WebStorm instead:
 To try your build in your own IDE: `./gradlew buildPlugin`, then
 *Settings › Plugins › ⚙ › Install Plugin from Disk* with the ZIP from `build/distributions/`.
 
+## UI screenshots
+
+The README images are taken by `src/uiTest`, with JetBrains Starter + Driver: a clean, licensed
+**WebStorm 2025.3.4** opens a disposable copy of `examples/react-multi-namespace/`, each scenario
+drives the IDE to the state an image shows and captures the exact bounds of the panel, dialog,
+popup or editor lines it needs. One WebStorm session per group (tool window, settings, editor,
+folding, setup wizard). It is intentionally outside `check`: a run takes several minutes.
+
+The copy shares the example's `node_modules`, without which TypeScript underlines every JSX line:
+run `npm install --no-package-lock` in `examples/react-multi-namespace/` once.
+
+Set `LICENSE_KEY` to the Base64-encoded contents of a WebStorm key file, as required by Starter's
+`setLicense`. An activated WebStorm already has one in `~/.config/JetBrains/WebStorm<version>/webstorm.key`.
+Then run under Xvfb; the fake `WAYLAND_DISPLAY` keeps the IDE off your desktop session:
+
+```bash
+export LICENSE_KEY="$(base64 -w0 ~/.config/JetBrains/WebStorm2026.2/webstorm.key)"
+export WAYLAND_DISPLAY=bogus XDG_SESSION_TYPE=x11
+
+xvfb-run -a --server-args="-screen 0 1920x1440x24" \
+  ./gradlew generateUiScreenshots --no-daemon
+
+xvfb-run -a --server-args="-screen 0 1920x1440x24" \
+  ./gradlew verifyUiScreenshots --no-daemon
+```
+
+`generateUiScreenshots` takes every image in two fresh IDE sessions, requires pixel-identical
+output, and only then replaces the files in `docs/img/`. Review the image diff before committing
+it. `verifyUiScreenshots` repeats the two-run check and compares the result with the committed
+PNGs. `-PuiScreenshots=completion.png,hover-hint.png` takes only those images. Both write their
+disposable projects and candidates below `build/ui-screenshots/`; a failing scenario leaves a
+full-screen `failed-<image>.png` there.
+
+The manual **UI screenshots** workflow is disabled for now (`if: false`): it would need the license
+as the repository secret `JETBRAINS_LICENSE_KEY`, and a personal license must not go there. Never
+put license material in a Gradle property, checked-in file, or workflow input.
+The former `runWebStorm` + xdotool process remains the fallback for an image no scenario takes yet.
+
 ## Run tests
 
 ```bash
