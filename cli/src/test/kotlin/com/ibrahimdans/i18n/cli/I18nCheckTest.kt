@@ -14,6 +14,20 @@ class I18nCheckTest {
 
     private val resources = "src/test/resources"
     private val exampleProject = "../examples/react-multi-namespace"
+
+    /**
+     * The 1-based line where [fragment] is written, once, in [path] under [project]. The examples are
+     * documentation and get edited (#698 added a comment line): reading the line off the file keeps
+     * these tests about the line the report gives, not about the example's layout.
+     */
+    private fun lineOf(project: String, path: String, fragment: String): Int {
+        val text = java.io.File(project, path).readText()
+        val offset = text.indexOf(fragment)
+        check(offset >= 0 && text.indexOf(fragment, offset + 1) < 0) { "'$fragment' is not written once in $path" }
+        return text.substring(0, offset).count { it == '\n' } + 1
+    }
+
+    private val unknownKeyLine get() = lineOf(exampleProject, "src/components/Dashboard.tsx", "'dashboardd:statss.users.count'")
     private val example = "$exampleProject/public/locales"
 
     private class Run(val exit: Int, val out: String, val err: String)
@@ -289,7 +303,7 @@ class I18nCheckTest {
               navigation:breadcrumb.home
 
             Unknown keys: 1
-              src/components/Dashboard.tsx:28  dashboardd:statss.users.count
+              src/components/Dashboard.tsx:$unknownKeyLine  dashboardd:statss.users.count
 
             13 problems found (allowed: 0).
             """.trimIndent(),
@@ -311,7 +325,7 @@ class I18nCheckTest {
         assertEquals(13, report["problems"].asInt)
         assertEquals(9, report["unused"].asJsonArray.size())
         assertEquals(
-            JsonParser.parseString("""[{"key": "dashboardd:statss.users.count", "file": "src/components/Dashboard.tsx", "line": 28}]"""),
+            JsonParser.parseString("""[{"key": "dashboardd:statss.users.count", "file": "src/components/Dashboard.tsx", "line": $unknownKeyLine}]"""),
             report["unknown"],
         )
     }
@@ -325,15 +339,16 @@ class I18nCheckTest {
     /** What the plugin underlines there: each namespace of `useTranslations` prefixes its keys. */
     @Test
     fun `code - next-intl example, the keys read under their namespace`() {
-        val run = check("../examples/next-intl", "--code")
+        val project = "../examples/next-intl"
+        val run = check(project, "--code")
         assertTrue(run.out.contains("Unused keys: none"), run.out)
         assertTrue(
             run.out.contains(
                 """
                 Unknown keys: 3
-                  app/[locale]/Cart.tsx:21  discount
-                  app/[locale]/PrivacySettings.tsx:20  cookies.expiry
-                  app/[locale]/page.tsx:39  doesNotExist
+                  app/[locale]/Cart.tsx:${lineOf(project, "app/[locale]/Cart.tsx", "'discount'")}  discount
+                  app/[locale]/PrivacySettings.tsx:${lineOf(project, "app/[locale]/PrivacySettings.tsx", "'cookies.expiry'")}  cookies.expiry
+                  app/[locale]/page.tsx:${lineOf(project, "app/[locale]/page.tsx", "'doesNotExist'")}  doesNotExist
                 """.trimIndent(),
             ),
             run.out,
@@ -343,14 +358,15 @@ class I18nCheckTest {
     /** The `.vue` templates and scripts are read, and a component's `<i18n>` block holds keys for its own calls. */
     @Test
     fun `code - vue-i18n example, templates read and component blocks known`() {
-        val run = check("../examples/vue-i18n", "--code")
+        val project = "../examples/vue-i18n"
+        val run = check(project, "--code")
         assertTrue(run.out.contains("Unused keys: none"), run.out)
         assertTrue(
             run.out.contains(
                 """
                 Unknown keys: 2
-                  src/App.vue:21  home.doesNotExist
-                  src/components/WelcomeBanner.vue:27  farewell
+                  src/App.vue:${lineOf(project, "src/App.vue", "'home.doesNotExist'")}  home.doesNotExist
+                  src/components/WelcomeBanner.vue:${lineOf(project, "src/components/WelcomeBanner.vue", "'farewell'")}  farewell
                 """.trimIndent(),
             ),
             run.out,

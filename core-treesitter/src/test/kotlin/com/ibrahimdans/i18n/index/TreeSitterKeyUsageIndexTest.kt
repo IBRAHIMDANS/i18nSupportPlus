@@ -20,12 +20,27 @@ class TreeSitterKeyUsageIndexTest {
     private fun sourcesUnder(dir: File): List<File> =
         dir.walkTopDown().onEnter { it.name != "node_modules" }.filter { it.isFile && it.extension in SOURCES }.toList()
 
-    /** The usage of [literal], quotes included, written at [line] and [column] (1-based) of [path] under the example. */
-    private fun at(path: String, line: Int, column: Int, literal: String): KeyUsage {
+    // The example is documentation and gets edited (#698 added a comment line): positions are read
+    // off its text rather than written here, so only a wrong position fails, not a moved one.
+
+    /** The usage of [literal], quotes included, written once in [path] under the example. */
+    private fun at(path: String, literal: String): KeyUsage {
         val file = example.resolve(path)
-        val start = file.readText().lineSequence().take(line - 1).sumOf { it.length + 1 } + column - 1
+        val start = offsetsOf(file.readText(), literal).single()
         return KeyUsage(file.path, TextSpan(start, start + literal.length))
     }
+
+    /** `File.tsx:line` for every place [fragment] is written in [path], as [linesOf] reports usages. */
+    private fun linesWith(path: String, fragment: String): List<String> {
+        val file = example.resolve(path)
+        val text = file.readText()
+        return offsetsOf(text, fragment).map { "${file.name}:${text.substring(0, it).count { c -> c == '\n' } + 1}" }.sorted()
+    }
+
+    private fun offsetsOf(text: String, fragment: String): List<Int> =
+        generateSequence(text.indexOf(fragment).takeIf { it >= 0 }) { previous ->
+            text.indexOf(fragment, previous + 1).takeIf { it >= 0 }
+        }.toList().also { check(it.isNotEmpty()) { "'$fragment' is not in the example" } }
 
     private fun linesOf(usages: List<KeyUsage>): List<String> = usages.map { usage ->
         val file = File(usage.path)
@@ -37,27 +52,27 @@ class TreeSitterKeyUsageIndexTest {
     @Test
     fun `a key written with its namespace is found at its literal`() {
         assertEquals(
-            listOf(at("components/Navigation.tsx", 17, 58, "'navigation:menu.home'")),
+            listOf(at("components/Navigation.tsx", "'navigation:menu.home'")),
             exampleIndex.usages("navigation:menu.home"),
         )
     }
 
     @Test
     fun `a key written without its namespace is found under its hook's namespace only`() {
-        assertEquals(listOf(at("components/LoginForm.tsx", 30, 14, "'login.title'")), exampleIndex.usages("auth:login.title"))
+        assertEquals(listOf(at("components/LoginForm.tsx", "'login.title'")), exampleIndex.usages("auth:login.title"))
         assertEquals(emptyList<KeyUsage>(), exampleIndex.usages("common:login.title"))
     }
 
     @Test
     fun `a key spelled without namespace is found only in a default one`() {
-        assertEquals(listOf(at("App.tsx", 32, 40, "'appName'")), exampleIndex.usages("common:appName"))
+        assertEquals(listOf(at("App.tsx", "'appName'")), exampleIndex.usages("common:appName"))
         assertEquals(emptyList<KeyUsage>(), exampleIndex.usages("appName"))
     }
 
     @Test
     fun `a Trans i18nKey attribute is a usage`() {
         assertEquals(
-            listOf(at("components/DepositBox.tsx", 62, 21, "\"deposit-box:activity.entry.fileAdded\"")),
+            listOf(at("components/DepositBox.tsx", "\"deposit-box:activity.entry.fileAdded\"")),
             exampleIndex.usages("deposit-box:activity.entry.fileAdded"),
         )
     }
@@ -65,7 +80,7 @@ class TreeSitterKeyUsageIndexTest {
     @Test
     fun `a plural form stands for the key the code writes`() {
         assertEquals(
-            listOf("DepositBox.tsx:31", "DepositBox.tsx:38"),
+            linesWith("components/DepositBox.tsx", "'deposit-box:myBoxes.myTrustees.modal.confirmPassword.addTrustee.description'"),
             linesOf(exampleIndex.usages("deposit-box:myBoxes.myTrustees.modal.confirmPassword.addTrustee.description_one")),
         )
     }
@@ -73,7 +88,7 @@ class TreeSitterKeyUsageIndexTest {
     @Test
     fun `a key holding an object is reached by the calls under it`() {
         assertEquals(
-            listOf("Navigation.tsx:17", "Navigation.tsx:18", "Navigation.tsx:19", "Navigation.tsx:20", "Navigation.tsx:25"),
+            linesWith("components/Navigation.tsx", "'navigation:menu."),
             linesOf(exampleIndex.usages("navigation:menu")),
         )
         assertEquals(emptyList<KeyUsage>(), exampleIndex.usages("navigation:menu.hom"))
@@ -81,8 +96,14 @@ class TreeSitterKeyUsageIndexTest {
 
     @Test
     fun `a typo in a written namespace hides the call from the right key`() {
-        assertEquals(listOf("Navigation.tsx:14"), linesOf(exampleIndex.usages("dashboard:stats.users.count")))
-        assertEquals(listOf("Dashboard.tsx:27"), linesOf(exampleIndex.usages("dashboardd:statss.users.count")))
+        assertEquals(
+            linesWith("components/Navigation.tsx", "'dashboard:stats.users.count'"),
+            linesOf(exampleIndex.usages("dashboard:stats.users.count")),
+        )
+        assertEquals(
+            linesWith("components/Dashboard.tsx", "'dashboardd:statss.users.count'"),
+            linesOf(exampleIndex.usages("dashboardd:statss.users.count")),
+        )
     }
 
     @Test
