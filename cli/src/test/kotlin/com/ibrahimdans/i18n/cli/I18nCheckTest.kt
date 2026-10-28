@@ -289,7 +289,7 @@ class I18nCheckTest {
               navigation:breadcrumb.home
 
             Unknown keys: 1
-              src/components/Dashboard.tsx:27  dashboardd:statss.users.count
+              src/components/Dashboard.tsx:28  dashboardd:statss.users.count
 
             13 problems found (allowed: 0).
             """.trimIndent(),
@@ -311,7 +311,7 @@ class I18nCheckTest {
         assertEquals(13, report["problems"].asInt)
         assertEquals(9, report["unused"].asJsonArray.size())
         assertEquals(
-            JsonParser.parseString("""[{"key": "dashboardd:statss.users.count", "file": "src/components/Dashboard.tsx", "line": 27}]"""),
+            JsonParser.parseString("""[{"key": "dashboardd:statss.users.count", "file": "src/components/Dashboard.tsx", "line": 28}]"""),
             report["unknown"],
         )
     }
