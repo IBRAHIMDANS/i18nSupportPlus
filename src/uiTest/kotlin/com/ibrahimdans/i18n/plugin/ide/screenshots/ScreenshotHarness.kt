@@ -188,7 +188,8 @@ object ScreenshotHarness {
         // Without its dependencies TypeScript underlines every JSX line and WebStorm asks to install
         // them: the copy shares the example's node_modules (installed with npm install --no-package-lock).
         val dependencies = projectSource.resolve("node_modules")
-        check(Files.isDirectory(dependencies)) {
+        // An empty folder passes for installed: look for a package the example imports.
+        check(Files.isDirectory(dependencies.resolve("react-i18next"))) {
             "Run 'npm install --no-package-lock' in $projectSource first: the editor screenshots need its node_modules"
         }
         Files.createSymbolicLink(normalized.resolve("node_modules"), dependencies)
