@@ -37,6 +37,39 @@ start one, run the plugin in a locally installed WebStorm instead:
 To try your build in your own IDE: `./gradlew buildPlugin`, then
 *Settings › Plugins › ⚙ › Install Plugin from Disk* with the ZIP from `build/distributions/`.
 
+## UI screenshots
+
+The first automated README capture is `docs/img/toolwindow-table.png`. It uses JetBrains Starter +
+Driver to start a clean, licensed **WebStorm 2025.3.4**, opens a disposable copy of
+`examples/react-multi-namespace/`, then captures the exact Swing bounds of the i18n tool window.
+It is intentionally outside `check`: a cold IDE download and start take several minutes.
+
+Set `LICENSE_KEY` to the Base64-encoded contents of a WebStorm key file, as required by Starter's
+`setLicense`. An activated WebStorm already has one in `~/.config/JetBrains/WebStorm<version>/webstorm.key`.
+Then run under Xvfb; the fake `WAYLAND_DISPLAY` keeps the IDE off your desktop session:
+
+```bash
+export LICENSE_KEY="$(base64 -w0 ~/.config/JetBrains/WebStorm2026.2/webstorm.key)"
+export WAYLAND_DISPLAY=bogus XDG_SESSION_TYPE=x11
+
+xvfb-run -a --server-args="-screen 0 1920x1440x24" \
+  ./gradlew generateUiScreenshots --no-daemon
+
+xvfb-run -a --server-args="-screen 0 1920x1440x24" \
+  ./gradlew verifyUiScreenshots --no-daemon
+```
+
+`generateUiScreenshots` takes the same capture in two fresh IDE sessions, requires pixel-identical
+output, and only then replaces `docs/img/toolwindow-table.png`. Review that image diff before
+committing it. `verifyUiScreenshots` repeats the two-run check and compares the result with the
+committed PNG. Both write their disposable projects and candidates below `build/ui-screenshots/`.
+
+The manual **UI screenshots** workflow is disabled for now (`if: false`): it would need the license
+as the repository secret `JETBRAINS_LICENSE_KEY`, and a personal license must not go there. Never
+put license material in a Gradle property, checked-in file, or workflow input.
+The former `runWebStorm` + xdotool process remains the fallback for captures that have not yet
+joined this suite.
+
 ## Run tests
 
 ```bash

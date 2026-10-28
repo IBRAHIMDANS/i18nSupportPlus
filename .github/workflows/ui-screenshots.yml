@@ -1,0 +1,53 @@
+name: UI screenshots
+
+# Disabled: the WebStorm license is personal and must not become a repository secret. Re-enable
+# (drop `if: false`) once JetBrains confirms an open source license may run automated UI tests.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-screenshots-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6.4.0
+
+      - name: Verify the WebStorm screenshot
+        env:
+          LICENSE_KEY: ${{ secrets.JETBRAINS_LICENSE_KEY }}
+        run: |
+          if [ -z "$LICENSE_KEY" ]; then
+            echo "The JETBRAINS_LICENSE_KEY repository secret is required for licensed WebStorm UI tests."
+            exit 1
+          fi
+          xvfb-run -a --server-args="-screen 0 1920x1440x24" \
+            ./gradlew verifyUiScreenshots --no-daemon --stacktrace
+
+      - name: Upload UI screenshot artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-screenshots
+          path: |
+            build/ui-screenshots/
+            build/reports/tests/verifyUiScreenshots/
+            build/test-results/verifyUiScreenshots/

@@ -2,15 +2,21 @@
 
 ## Setup
 
-1. Lancer `./gradlew runWebStorm` (propriété `webStormPath` requise) : le sandbox `runIde` d'IntelliJ IDEA Ultimate
-   démarre sans licence et ne charge pas le support JavaScript
-2. Ouvrir `examples/react-multi-namespace/` — c'est le projet de référence : cinq namespaces
+1. Prototype automatisé : `generateUiScreenshots` et `verifyUiScreenshots` démarrent WebStorm 2025.3.4 avec
+   Starter + Driver, dans deux sessions fraîches. Sous Linux, lancer la tâche via
+   `xvfb-run -a --server-args="-screen 0 1920x1440x24"`; `LICENSE_KEY` doit déjà contenir l'encodage Base64
+   de la clé offline WebStorm attendue par Starter. La tâche fixe l'anglais et l'échelle UI à 100 % ; la génération
+   ne remplace `toolwindow-table.png` qu'après deux images identiques au pixel près.
+2. Le prototype ne couvre pour l'instant que `toolwindow-table.png`. Les autres captures gardent la recette
+   manuelle ci-dessous, avec `runWebStorm` (propriété `webStormPath` requise) : le sandbox `runIde` d'IntelliJ IDEA
+   Ultimate démarre sans licence et ne charge pas le support JavaScript.
+3. Ouvrir `examples/react-multi-namespace/` — c'est le projet de référence : cinq namespaces
    (`auth`, `common`, `dashboard`, `deposit-box`, `navigation`), deux locales (`en`, `fr`),
    des clés manquantes et vides prêtes à l'emploi
-3. Thème sombre par défaut de l'IDE, fenêtre d'outil ancrée en bas, largeur ≥ 1400 px
-4. Outil recommandé : [ScreenToGif](https://www.screentogif.com/) ou la capture système ;
+4. Thème sombre par défaut de l'IDE, fenêtre d'outil ancrée en bas, largeur ≥ 1400 px
+5. Outil recommandé : [ScreenToGif](https://www.screentogif.com/) ou la capture système ;
    PNG, sans mise à l'échelle, rognée à la zone utile
-5. Sous Xvfb, sans gestionnaire de fenêtres : `WAYLAND_DISPLAY` bidon et `XDG_SESSION_TYPE=x11` pour que l'IDE
+6. Sous Xvfb, sans gestionnaire de fenêtres : `WAYLAND_DISPLAY` bidon et `XDG_SESSION_TYPE=x11` pour que l'IDE
    s'ouvre sur l'écran virtuel, écran de 1920×1440 pour que la page de réglages tienne de *Namespaces* à *Checks*.
    Ne jamais capturer un chemin absolu local (panneau *Resolution* des modules) ni la modale de licence
 

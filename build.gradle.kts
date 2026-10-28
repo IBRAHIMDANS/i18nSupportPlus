@@ -1,5 +1,6 @@
 import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel
 import java.nio.file.Files
 import java.util.zip.ZipEntry
@@ -12,6 +13,12 @@ fun properties(key: String) = providers.gradleProperty(key)
 val effectivePlatformVersion: String
     get() = providers.gradleProperty("platformVersion").orNull
         ?: properties("platformVersion").get()
+
+// Kept independent from the compilation platform: screenshots must come from one pinned product
+// build, otherwise font and UI changes make the README images churn on every IDE update.
+val uiTestWebStormVersion = "2025.3.4"
+// Starter/Driver artifacts follow IntelliJ IDEA builds, not WebStorm's (253.32098.39 is not published).
+val uiTestStarterVersion = "253.32098.37"
 
 plugins {
     id("org.jetbrains.kotlin.jvm") version "2.4.21"
@@ -30,6 +37,18 @@ repositories {
         defaultRepositories()
     }
 }
+
+sourceSets {
+    create("uiTest") {
+        compileClasspath += sourceSets.main.get().output
+        runtimeClasspath += sourceSets.main.get().output
+    }
+}
+
+val uiTestImplementation by configurations.getting {
+    extendsFrom(configurations.implementation.get())
+}
+val uiTestRuntimeOnly by configurations.getting
 
 dependencies {
     intellijPlatform {
@@ -76,6 +95,24 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher") {
         because("Only needed to run tests in a version of IntelliJ IDEA that bundles older versions")
     }
+
+    // Starter controls a complete IDE from a second JVM. Keep its JUnit 5 stack separate from the
+    // platform fixture's JUnit 6 dependencies used by src/test.
+    intellijPlatform {
+        testFramework(
+            TestFrameworkType.Starter,
+            uiTestStarterVersion,
+            configurationName = "uiTestImplementation"
+        )
+    }
+    // The UI test runs in its own JVM, not inside the IDE, so it needs a stdlib of its own:
+    // without it Starter's transitive 2.1.20 meets kotlin-reflect 2.2.20 (NoSuchFieldError CONTEXT).
+    uiTestImplementation(kotlin("stdlib"))
+    uiTestImplementation("org.junit.jupiter:junit-jupiter-api:5.13.4")
+    uiTestRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.13.4")
+    uiTestRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    uiTestImplementation("org.kodein.di:kodein-di-jvm:7.26.1")
+    uiTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.1")
     // junit-vintage-engine removed: all tests use JUnit 5 engine exclusively
 }
 
@@ -248,6 +285,43 @@ val webStormPath: String? = providers.gradleProperty("webStormPath").orNull
 if (webStormPath != null && File(webStormPath, "product-info.json").isFile) {
     intellijPlatformTesting.runIde.register("runWebStorm") {
         localPath = file(webStormPath)
+    }
+}
+
+// ── Reproducible README screenshots ─────────────────────────────────────────
+//
+// These tasks deliberately sit outside `check`: each starts a licensed WebStorm and takes minutes
+// on a cold cache. The first scenario is intentionally small; new README captures join it only
+// once its component locator and output prove repeatable.
+// task name to (test mode, description): both run the same scenario, only the verdict differs.
+mapOf(
+    "generateUiScreenshots" to ("record" to "Regenerates the approved README UI screenshots in WebStorm."),
+    "verifyUiScreenshots" to ("verify" to "Verifies the approved README UI screenshots in WebStorm."),
+).forEach { (taskName, modeAndDescription) ->
+    val (mode, taskDescription) = modeAndDescription
+    intellijPlatformTesting.testIdeUi.register(taskName) {
+        type = IntelliJPlatformType.WebStorm
+        version = uiTestWebStormVersion
+        testFramework(TestFrameworkType.Starter, uiTestStarterVersion)
+        task {
+            val uiTestSourceSet = sourceSets.named("uiTest")
+            description = taskDescription
+            testClassesDirs = uiTestSourceSet.get().output.classesDirs
+            classpath = uiTestSourceSet.get().runtimeClasspath
+            dependsOn(tasks.buildPlugin)
+            useJUnitPlatform()
+            maxParallelForks = 1
+            jvmArgs("--add-opens=java.base/sun.nio.fs=ALL-UNNAMED")
+            // The capture reads the Xvfb screen directly. Without this, a WAYLAND_DISPLAY in the
+            // environment sends java.awt.Robot through the screencast portal, which refuses.
+            systemProperty("awt.robot.screenshotMethod", "x11")
+            systemProperty("i18n.ui.screenshots.mode", mode)
+            systemProperty("i18n.ui.screenshots.ideVersion", uiTestWebStormVersion)
+            systemProperty("i18n.ui.screenshots.baseline", layout.projectDirectory.file("docs/img/toolwindow-table.png").asFile.absolutePath)
+            systemProperty("i18n.ui.screenshots.output", layout.buildDirectory.dir("ui-screenshots/$mode").get().asFile.absolutePath)
+            systemProperty("i18n.ui.screenshots.projectSource", layout.projectDirectory.dir("examples/react-multi-namespace").asFile.absolutePath)
+            testLogging { events("passed", "skipped", "failed") }
+        }
     }
 }
 
