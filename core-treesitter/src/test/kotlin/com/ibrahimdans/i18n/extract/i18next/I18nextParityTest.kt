@@ -43,65 +43,103 @@ class I18nextParityTest {
 
     private val example = "examples/react-multi-namespace/src"
 
+    // The example is documentation and gets edited (#698 added a comment line): the lines are read
+    // off its text, so a moved call still passes and only a call reported on the wrong line fails.
+
+    /** `line: description` for every place a fragment is written in [path] outside a `//` comment, in file order. */
+    private fun written(path: String, vararg fragments: Pair<String, String>): List<String> {
+        val text = root.resolve(path).readText()
+        return fragments.flatMap { (fragment, description) ->
+            generateSequence(text.indexOf(fragment).takeIf { it >= 0 }) { previous ->
+                text.indexOf(fragment, previous + 1).takeIf { it >= 0 }
+            }.filterNot { offset -> "//" in text.substring(text.lastIndexOf('\n', offset) + 1, offset) } // a commented call
+                .toList().also { check(it.isNotEmpty()) { "'$fragment' is not in $path" } }
+                .map { offset -> text.substring(0, offset).count { it == '\n' } + 1 to description }
+        }.sortedBy { it.first }.map { (line, description) -> "$line: $description" }
+    }
+
+    /** Calls `t('key'` of [keys] (the call, not the literal: `'title'` is also a type field), described with [suffix]. */
+    private fun calls(keys: List<String>, suffix: String = ""): Array<Pair<String, String>> =
+        keys.map { "t('$it'" to "$it$suffix" }.toTypedArray()
+
     @Test
     fun `Dashboard - two hook namespaces on every literal`() {
-        val ns = " [dashboard, common]"
+        val path = "$example/components/Dashboard.tsx"
         assertEquals(
-            listOf(
-                "19: title$ns", "22: welcome$ns", "25: stats.users.label$ns", "27: dashboardd:statss.users.count$ns",
-                "28: stats.files.count$ns", "32: dashboard:notifications.title$ns", "39: dashboard:notifications.unread$ns",
-                "43: emptyState.title$ns", "44: emptyState.description$ns", "52: common:actions.edit$ns",
-                "53: common:actions.delete$ns", "54: common:actions.cancel$ns", "61: common:pagination.page$ns",
-                "63: common:pagination.previous$ns", "64: common:pagination.next$ns",
+            written(
+                path,
+                *calls(
+                    listOf(
+                        "title", "welcome", "stats.users.label", "dashboardd:statss.users.count", "stats.files.count",
+                        "dashboard:notifications.title", "dashboard:notifications.unread", "emptyState.title",
+                        "emptyState.description", "common:actions.edit", "common:actions.delete", "common:actions.cancel",
+                        "common:pagination.page", "common:pagination.previous", "common:pagination.next",
+                    ),
+                    suffix = " [dashboard, common]",
+                ),
             ),
-            keysOf("$example/components/Dashboard.tsx"),
+            keysOf(path),
         )
     }
 
     @Test
     fun `DepositBox - template, nested key, Trans and i18n t`() {
+        val path = "$example/components/DepositBox.tsx"
         assertEquals(
-            listOf(
-                "24: deposit-box:status.\${status}",
-                "28: deposit-box:title",
-                "31: deposit-box:myBoxes.myTrustees.modal.confirmPassword.addTrustee.description",
-                "38: deposit-box:myBoxes.myTrustees.modal.confirmPassword.addTrustee.description",
-                "42: deposit-box:myBoxes.myTrustees.modal.confirmPassword.removeTrustee.description",
-                "43: deposit-box:myBoxes.myTrustees.toasts.trusteeAdded",
-                "51: deposit-box:activity.entry.boxShared",
-                "52: deposit-box:title",
-                "62: deposit-box:activity.entry.fileAdded",
-                "68: deposit-box:activity.tooltipInfo",
-                "74: deposit-box:retention.unit.day",
+            written(
+                path,
+                "t(`deposit-box:status." to "deposit-box:status.\${status}",
+                "\"deposit-box:activity.entry.fileAdded\"" to "deposit-box:activity.entry.fileAdded",
+                *calls(
+                    listOf(
+                        "deposit-box:title",
+                        "deposit-box:myBoxes.myTrustees.modal.confirmPassword.addTrustee.description",
+                        "deposit-box:myBoxes.myTrustees.modal.confirmPassword.removeTrustee.description",
+                        "deposit-box:myBoxes.myTrustees.toasts.trusteeAdded",
+                        "deposit-box:activity.entry.boxShared",
+                        "deposit-box:activity.tooltipInfo",
+                        "deposit-box:retention.unit.day",
+                    ),
+                ),
             ),
-            keysOf("$example/components/DepositBox.tsx"),
+            keysOf(path),
         )
     }
 
     @Test
     fun `LoginForm - one hook namespace`() {
+        val path = "$example/components/LoginForm.tsx"
         assertEquals(
-            listOf(20, 30, 35, 40, 49, 54, 66, 68).zip(
-                listOf(
-                    "errors.invalidCredentials", "login.title", "login.form.email.label", "login.form.email.placeholder",
-                    "login.form.password.label", "login.form.password.placeholder", "login.button.submit", "login.button.forgotPassword",
+            written(
+                path,
+                *calls(
+                    listOf(
+                        "errors.invalidCredentials", "login.title", "login.form.email.label", "login.form.email.placeholder",
+                        "login.form.password.label", "login.form.password.placeholder", "login.button.submit", "login.button.forgotPassword",
+                    ),
+                    suffix = " [auth]",
                 ),
-            ).map { (line, key) -> "$line: $key [auth]" },
-            keysOf("$example/components/LoginForm.tsx"),
+            ),
+            keysOf(path),
         )
     }
 
     @Test
     fun `Navigation and App`() {
+        val navigation = "$example/components/Navigation.tsx"
         assertEquals(
-            listOf(
-                "14: dashboard:stats.users.count", "15: navigation:breadrumb.home", "17: navigation:menu.home",
-                "18: navigation:menu.dashboard", "19: navigation:menu.profile", "20: navigation:menu.settings",
-                "25: navigation:menu.logout",
+            written(
+                navigation,
+                *calls(
+                    listOf(
+                        "dashboard:stats.users.count", "navigation:breadrumb.home", "navigation:menu.home",
+                        "navigation:menu.dashboard", "navigation:menu.profile", "navigation:menu.settings", "navigation:menu.logout",
+                    ),
+                ),
             ),
-            keysOf("$example/components/Navigation.tsx"),
+            keysOf(navigation),
         )
-        assertEquals(listOf("32: appName [common]"), keysOf("$example/App.tsx"))
+        assertEquals(written("$example/App.tsx", *calls(listOf("appName"), suffix = " [common]")), keysOf("$example/App.tsx"))
     }
 
     @Test
