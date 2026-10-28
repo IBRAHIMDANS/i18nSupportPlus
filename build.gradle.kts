@@ -317,7 +317,9 @@ mapOf(
             systemProperty("awt.robot.screenshotMethod", "x11")
             systemProperty("i18n.ui.screenshots.mode", mode)
             systemProperty("i18n.ui.screenshots.ideVersion", uiTestWebStormVersion)
-            systemProperty("i18n.ui.screenshots.baseline", layout.projectDirectory.file("docs/img/toolwindow-table.png").asFile.absolutePath)
+            systemProperty("i18n.ui.screenshots.baselineDirectory", layout.projectDirectory.dir("docs/img").asFile.absolutePath)
+            // -PuiScreenshots=a.png,b.png takes only those images, to iterate without taking them all.
+            systemProperty("i18n.ui.screenshots.only", providers.gradleProperty("uiScreenshots").getOrElse(""))
             systemProperty("i18n.ui.screenshots.output", layout.buildDirectory.dir("ui-screenshots/$mode").get().asFile.absolutePath)
             systemProperty("i18n.ui.screenshots.projectSource", layout.projectDirectory.dir("examples/react-multi-namespace").asFile.absolutePath)
             testLogging { events("passed", "skipped", "failed") }

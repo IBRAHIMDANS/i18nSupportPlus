@@ -2,14 +2,12 @@
 
 ## Setup
 
-1. Prototype automatisé : `generateUiScreenshots` et `verifyUiScreenshots` démarrent WebStorm 2025.3.4 avec
-   Starter + Driver, dans deux sessions fraîches. Sous Linux, lancer la tâche via
-   `xvfb-run -a --server-args="-screen 0 1920x1440x24"`; `LICENSE_KEY` doit déjà contenir l'encodage Base64
-   de la clé offline WebStorm attendue par Starter. La tâche fixe l'anglais et l'échelle UI à 100 % ; la génération
-   ne remplace `toolwindow-table.png` qu'après deux images identiques au pixel près.
-2. Le prototype ne couvre pour l'instant que `toolwindow-table.png`. Les autres captures gardent la recette
-   manuelle ci-dessous, avec `runWebStorm` (propriété `webStormPath` requise) : le sandbox `runIde` d'IntelliJ IDEA
-   Ultimate démarre sans licence et ne charge pas le support JavaScript.
+1. Automatisé : `generateUiScreenshots` et `verifyUiScreenshots` (recette dans `CONTRIBUTING.md`) prennent les
+   images du README dans WebStorm 2025.3.4 avec Starter + Driver, deux sessions fraîches, et ne remplacent une
+   image qu'après deux captures identiques au pixel près. Un scénario par image dans `src/uiTest/` ;
+   `-PuiScreenshots=a.png,b.png` n'en prend que certaines.
+2. Une image sans scénario garde la recette manuelle ci-dessous, avec `runWebStorm` (propriété `webStormPath`
+   requise) : le sandbox `runIde` d'IntelliJ IDEA Ultimate démarre sans licence et ne charge pas le support JavaScript.
 3. Ouvrir `examples/react-multi-namespace/` — c'est le projet de référence : cinq namespaces
    (`auth`, `common`, `dashboard`, `deposit-box`, `navigation`), deux locales (`en`, `fr`),
    des clés manquantes et vides prêtes à l'emploi
