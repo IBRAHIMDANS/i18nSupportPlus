@@ -23,7 +23,10 @@ import java.awt.image.BufferedImage
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.imageio.ImageIO
+import java.nio.file.LinkOption
+import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.absolute
+import kotlin.io.path.deleteRecursively
 import kotlin.time.Duration.Companion.minutes
 
 /**
@@ -174,9 +177,12 @@ object ScreenshotHarness {
         "LICENSE_KEY is required to run licensed WebStorm UI screenshots"
     }
 
+    @OptIn(ExperimentalPathApi::class)
     private fun copyReferenceProject(target: Path): Path {
         val normalized = target.absolute().normalize()
-        target.toFile().deleteRecursively()
+        // Path.deleteRecursively removes the node_modules link without following it; File's
+        // deleteRecursively walked into it and emptied the example's own node_modules.
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) target.deleteRecursively()
         Files.createDirectories(normalized)
         for (entry in REFERENCE_PROJECT_ENTRIES) {
             val source = projectSource.resolve(entry).toFile()

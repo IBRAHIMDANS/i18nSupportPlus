@@ -8,6 +8,8 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import javax.imageio.ImageIO
+import kotlin.io.path.ExperimentalPathApi
+import kotlin.io.path.deleteRecursively
 import kotlin.io.path.exists
 
 /**
@@ -16,10 +18,12 @@ import kotlin.io.path.exists
  */
 class ReadmeScreenshotsTest {
 
+    @OptIn(ExperimentalPathApi::class)
     @Test
     fun readmeScreenshotsAreRepeatable() {
         assertFalse(GraphicsEnvironment.isHeadless(), "UI screenshots require a display; use xvfb-run on Linux.")
-        outputDirectory.toFile().deleteRecursively()
+        // Not File.deleteRecursively: it follows the projects' node_modules links into the example.
+        if (Files.exists(outputDirectory)) outputDirectory.deleteRecursively()
         Files.createDirectories(outputDirectory)
 
         val selected = { screenshot: Screenshot -> only.isEmpty() || screenshot.fileName in only }
