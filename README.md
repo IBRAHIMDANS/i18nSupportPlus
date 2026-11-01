@@ -138,11 +138,12 @@ hints. Not done: extracting a text into a new id, renaming an id. A ready-to-ope
 | Laravel PHP arrays | `lang/<locale>/<file>.php`, the file name as namespace | ✓ | ✓ |
 | Flutter ARB | `.arb` (`lib/l10n/app_<locale>.arb`), the locale from `@@locale` or the file name | — | ✓ |
 | XLIFF 1.2 and 2.0 (Angular i18n) | `.xlf`, `.xliff`, the files `angular.json` lists (<sup>8</sup>) | ✓ | ✓ |
-| TS/JS catalogues (an object keyed by locale, as i18n-js writes) | `.ts`, `.js` | — | — |
-| i18next `resources` declared in a TS/JS configuration file | `.ts`, `.js` | — | — |
+| TS/JS catalogues (an object keyed by locale, as i18n-js writes) | `.ts`, `.js` | ✓ | ✓ |
+| i18next `resources` declared in a TS/JS configuration file | `.ts`, `.js` | ✓ | ✓ |
 
-**—** means no test covers it yet. Keys of the last two formats are read and annotated; whether Ctrl+click reaches
-their value and whether a missing key is written into them is not tested. XLIFF is read as a translation source in an
+**—** means no test covers it yet. In the last two formats, a missing key is written into its object literal, in the
+file's indentation, quotes and trailing commas; an object built in code (a spread, a computed key) is left as it is,
+with a warning naming the key to add by hand. XLIFF is read as a translation source in an
 Angular project only; elsewhere, like CSV, it is exported and imported from *Tools › i18n Support Plus*.
 
 Flutter ARB catalogues feed the tool window, the statistics, the missing-key checks and *Sync Keys*; their `@key`
