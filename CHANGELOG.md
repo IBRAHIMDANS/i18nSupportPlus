@@ -10,6 +10,7 @@
 ### Fixes
 
 - [Translation dialog] **The reference locale comes first**: *Create Translation* and *Edit Translations* list the locale you translate from at the top, then the others alphabetically, in the same order in every IDE.
+- [Editor] ***Show Translations Inline* folds the files already open**: turning it on, from the editor or in the settings, folds the keys of the open editors at once instead of only the files opened afterwards.
 
 ## 1.16.1 - 2026-10-26
 
