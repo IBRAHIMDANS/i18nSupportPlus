@@ -18,6 +18,7 @@ import com.intellij.openapi.ui.TestDialog
 import com.intellij.openapi.ui.TestDialogManager
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.TestActionEvent
+import kotlinx.coroutines.job
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -39,11 +40,26 @@ class PluginNotificationsTest : PlatformBaseTest() {
         val previous = TestDialogManager.setTestDialog(TestDialog { message -> throw AssertionError("Unexpected modal: $message") })
         try {
             run()
+            awaitPluginCoroutines()
             PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
         } finally {
             TestDialogManager.setTestDialog(previous)
         }
         return seen
+    }
+
+    /**
+     * Waits for the work the plugin launched in [PluginCoroutineScope] — Sync Keys, the cleanup —
+     * dispatching the EDT meanwhile, where that work comes back to notify.
+     */
+    private fun awaitPluginCoroutines() {
+        val job = PluginCoroutineScope.of(project).coroutineContext.job
+        val deadline = System.currentTimeMillis() + 30_000
+        while (job.children.any { it.isActive }) {
+            check(System.currentTimeMillis() < deadline) { "The plugin's coroutines are still running after 30 s" }
+            PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+            Thread.sleep(10)
+        }
     }
 
     @Test
