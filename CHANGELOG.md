@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Machine translation] **Form of address and project instructions** ([#701](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/701), [#703](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/703)): in *Settings › Tools › i18n Support Plus › Machine Translation*, *Form of address* sets formal or informal per locale (`de: informal; fr: formal`), followed by DeepL and the LLM engines; *Instructions* are sent to the LLM engines with every translation, before the one typed in the key's dialog, and are shared with the project settings.
+
 ### Fixes
 
 - [Translation dialog] **The reference locale comes first**: *Create Translation* and *Edit Translations* list the locale you translate from at the top, then the others alphabetically, in the same order in every IDE.

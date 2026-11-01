@@ -272,7 +272,7 @@ class HttpTranslationProviderTest {
 
     @Test
     fun `an engine whose body was rewritten keeps the project's labels`() {
-        val custom = preset("deepl").copy(body = preset("deepl").body.replace("\"context\": \"{context}\"", "\"formality\": \"less\""))
+        val custom = preset("deepl").copy(body = preset("deepl").body.replace("\"formality\": \"{formality}\"", "\"formality\": \"less\""))
         assertEquals("pt_BR" to "en", sentLanguages(custom, "pt_BR", "en", "source_lang", "target_lang"))
     }
 

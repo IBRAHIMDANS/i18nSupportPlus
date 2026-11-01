@@ -10,7 +10,7 @@
     "responsePath": "choices[0].message.content",
     "local": true,
     "glossary": "{glossary} is the project's glossary for the target locale, a sentence starting with a space: empty without one, so the request stays the same",
-    "instruction": "{instruction} is what the user asks of the translation in the key's dialog (a tone, a length), a sentence starting with a space: empty without one, so the request stays the same",
+    "instruction": "{instruction} is the project's form of address for the target locale and its instructions (Machine Translation settings), then what the user asks of the translation in the key's dialog (a tone, a length), sentences starting with a space: empty without any, so the request stays the same",
     "source": "https://platform.openai.com/docs/api-reference/chat/create ; https://github.com/ollama/ollama/blob/main/docs/openai.md (Ollama serves /v1 locally, no key needed)",
     "batch": {
       "body": "{\"model\": \"llama3.1\", \"temperature\": 0, \"messages\": [{\"role\": \"system\", \"content\": \"Translate each string of the JSON array the user sends from {source} to {target}. They are UI strings of an application; context: {context}. Keep every <x id=\\\"N\\\"/> tag exactly as written.{glossary}{instruction} Reply with a JSON array of the translations only: same order, same length, nothing else.\"}, {\"role\": \"user\", \"content\": \"{textsJson}\"}]}",
@@ -27,14 +27,15 @@
     "headers": {
       "Authorization": "DeepL-Auth-Key {apiKey}"
     },
-    "body": "{\"text\": [\"{text}\"], \"source_lang\": \"{source}\", \"target_lang\": \"{target}\", \"tag_handling\": \"xml\", \"context\": \"{context}\"}",
+    "body": "{\"text\": [\"{text}\"], \"source_lang\": \"{source}\", \"target_lang\": \"{target}\", \"tag_handling\": \"xml\", \"context\": \"{context}\", \"formality\": \"{formality}\"}",
     "responsePath": "translations[0].text",
     "languageCodes": "deepl",
     "nativeGlossary": "deepl",
+    "formality": "{formality} is the project's form of address for the target locale: prefer_more, prefer_less or default. The prefer_ values fall back to the default for a target language without formality, where more and less fail the request (https://developers.deepl.com/docs/api-reference/translate, formality)",
     "nativeGlossarySource": "https://developers.deepl.com/api-reference/multilingual-glossaries : the translated terms go to a v3 glossary (POST /v3/glossaries, PUT /v3/glossaries/{id}/dictionaries per language pair), its glossary_id added to the request of a pair that has a dictionary",
     "source": "https://developers.deepl.com/docs/api-reference/translate (Pro accounts: https://api.deepl.com/v2/translate) ; https://developers.deepl.com/docs/xml-and-html-handling/xml ; language codes: https://developers.deepl.com/docs/getting-started/supported-languages (variants such as EN-GB are target only; EN, PT and ZH are unspecified variants)",
     "batch": {
-      "body": "{\"text\": {texts}, \"source_lang\": \"{source}\", \"target_lang\": \"{target}\", \"tag_handling\": \"xml\", \"context\": \"{context}\"}",
+      "body": "{\"text\": {texts}, \"source_lang\": \"{source}\", \"target_lang\": \"{target}\", \"tag_handling\": \"xml\", \"context\": \"{context}\", \"formality\": \"{formality}\"}",
       "listPath": "translations",
       "itemField": "text",
       "maxSize": 50,
