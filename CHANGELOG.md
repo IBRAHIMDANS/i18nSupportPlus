@@ -12,6 +12,7 @@
 - [MCP] **AI agents can check translations and manage keys**: five new tools let Codex, Claude or any MCP client run the `i18n-check` checks, find where a key is used, and rename, create or delete keys. Each change is one step you undo with Ctrl+Z, and deleting a key still in use, or reusing a name already taken, is refused with the reason.
 - [Diagnostics] **Report a plugin error on GitHub too**: after you send an error report to the JetBrains Marketplace from the IDE, a notification offers a GitHub issue filled in with your IDE version, OS and stack trace. Nothing is sent to GitHub until you submit the issue yourself.
 - [Inspections] **Hard-coded text found in Angular templates, Svelte components and JavaScript strings**: three new inspections, off by default, report a text written as is in an Angular template or a Svelte component's markup, and a string passed to `toast()`, `alert()` or a `title` property, with a quick fix extracting it into the pipe, the store or the call your project uses. *Internationalize…* also reads Angular templates.
+- [i18next] **Keys read under a `context` option**: `t('friend', { context: gender })` is resolved against `friend_male` and `friend_female`, and `{ context: 'male' }` against `friend_male`, else `friend`; those variants no longer show up as keys with no reference in code.
 
 ### Fixes
 

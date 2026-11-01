@@ -231,7 +231,7 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
         val pluralSeparator = Settings.getInstance(project).config().pluralSeparator
         val resolved = sources
             .filter { it.localeLabel() == locale }
-            .flatMap { resolve(fullKey.compositeKey, it, pluralSeparator) }
+            .flatMap { resolve(fullKey, it, pluralSeparator) }
             .filter { it.unresolved.isEmpty() }
         if (resolved.isEmpty()) return null
 

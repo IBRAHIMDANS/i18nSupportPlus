@@ -1,5 +1,7 @@
 package com.ibrahimdans.i18n.plugin.parser
 
+import com.ibrahimdans.i18n.plugin.key.FullKey
+import com.ibrahimdans.i18n.plugin.tree.ContextOption
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 
 /**
@@ -14,6 +16,8 @@ import com.ibrahimdans.i18n.plugin.utils.KeyElement
  *
  * [sourceText] is true when the key is the message's own source text rather than an id chosen for
  * it: Lingui's `<Trans>Hello world!</Trans>`, catalogued under `Hello world!`.
+ *
+ * [context] is i18next's `context` option, `t('friend', { context: 'male' })`: see [FullKey.context].
  */
 data class RawKey(
     val keyElements: List<KeyElement>,
@@ -21,4 +25,5 @@ data class RawKey(
     val keyPrefix: List<KeyElement> = emptyList(),
     val unsplit: Boolean = false,
     val sourceText: Boolean = false,
+    val context: ContextOption? = null,
 )

@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.tree
 
 import com.ibrahimdans.i18n.TranslationSource
+import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 
 /**
@@ -23,6 +24,55 @@ interface CompositeKeyResolver<T> {
         resolveCompositeKeys(compositeKey, localizationSource).flatMap {
             tryToResolvePlural(it, pluralSeparator, localizationSource)
         }
+
+    /** [fullKey] as a call site reads it: its composite key, under its i18next `context` option. */
+    fun resolve(fullKey: FullKey, localizationSource: TranslationSource<T, *>, pluralSeparator: String): List<PropertyReference<T>> =
+        resolve(fullKey.compositeKey, localizationSource, pluralSeparator, fullKey.context)
+
+    /**
+     * [compositeKey] under i18next's `context` option ([ContextKey]), its plural forms included:
+     *  - [ContextOption.Fixed] `male` reads the variant `friend_male`, else `friend` as i18next falls
+     *    back to it; when neither exists, the unresolved variant is what is reported missing;
+     *  - [ContextOption.Dynamic] reads `friend` and every `friend_…` variant, any of which the
+     *    runtime value may pick; the key is unresolved only when the file holds none of them.
+     *
+     * A variant found is referenced under the key's own path, as a plural form is: every locale then
+     * agrees on the path whichever variants it holds, and the key reads as resolved, not partial.
+     */
+    fun resolve(
+        compositeKey: List<Literal>,
+        localizationSource: TranslationSource<T, *>,
+        pluralSeparator: String,
+        context: ContextOption?,
+    ): List<PropertyReference<T>> {
+        val plain = resolve(compositeKey, localizationSource, pluralSeparator)
+        val last = compositeKey.lastOrNull()
+        if (context == null || last == null || last.text == "*" || last.text.startsWith("\${")) return plain
+        val found = plain.filter { it.unresolved.isEmpty() }
+        return when (context) {
+            is ContextOption.Fixed -> {
+                val variantKey = compositeKey.dropLast(1) + Literal(ContextKey.variant(last.text, context.value))
+                val variant = resolve(variantKey, localizationSource, pluralSeparator)
+                val variantFound = variant.filter { it.unresolved.isEmpty() }
+                when {
+                    variantFound.isNotEmpty() -> variantFound.map { it.copy(path = it.path.dropLast(1) + last) }
+                    found.isNotEmpty() -> found
+                    else -> variant
+                }
+            }
+            ContextOption.Dynamic -> {
+                val variants = resolveCompositeKeys(compositeKey.dropLast(1), localizationSource)
+                    .filter { it.unresolved.isEmpty() && it.element?.isTree() == true }
+                    .flatMap { parent ->
+                        parent.element!!.findChildren(last.text + ContextKey.SEPARATOR).map {
+                            PropertyReference(parent.path + last, it, listOf(), localizationSource, isPlural = true)
+                        }
+                    }
+                // `friend_one` is both a plural form of the key and a child named `friend_…`.
+                (found + variants).distinctBy { it.element?.value() }.ifEmpty { plain }
+            }
+        }
+    }
 
     /**
      * Resolves a composite key, returning all matching PropertyReferences.

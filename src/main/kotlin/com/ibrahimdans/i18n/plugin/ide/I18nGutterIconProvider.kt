@@ -84,7 +84,7 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
         // when any of its namespaces holds the key — the same rule the annotator applies.
         val statuses = sources.groupBy { it.localeLabel() }.map { (label, localeSources) ->
             val isResolved = localeSources.any { source ->
-                resolve(fullKey.compositeKey, source, pluralSeparator)
+                resolve(fullKey, source, pluralSeparator)
                     .any { it.unresolved.isEmpty() && it.element != null }
             }
             LocaleRow(label, isResolved, !config.ignoresLocale(label))

@@ -48,7 +48,7 @@ A setup wizard auto-configures it on first launch, a module per application in a
 
 | Framework | Recognised syntaxes | Config-based |
 |-----------|--------------------|:------------:|
-| i18next / react-i18next | `t('ns:key')`, `` t(`key.${suffix}`) ``, `t('key', { ns: 'other' })`, `useTranslation('ns')`, `<Trans i18nKey="key">` | Yes |
+| i18next / react-i18next | `t('ns:key')`, `` t(`key.${suffix}`) ``, `t('key', { ns: 'other' })`, `t('key', { context: 'male' })`, `useTranslation('ns')`, `<Trans i18nKey="key">` | Yes |
 | vue-i18n (Nuxt: `@nuxtjs/i18n`) | `$t('key')`, `$tc('key')`, `$te('key')`, `<i18n-t keypath="key">`, `v-t="'key'"`, `const { t, te } = useI18n()` then `t('key')` | No |
 | next-intl | `const t = useTranslations('Home')` (or `await getTranslations('Home')`) then `t('title')`, read as the key `Home.title`; `t.rich('terms', { … })`, `t.markup`, `t.raw` (an object or an array is a value) and `t.has` (a usage, never reported missing) | No |
 | lingui (`@lingui/core`, `@lingui/react`, `@lingui/macro`) | `msg('key')`, `i18n._('key')`, source-based `<Trans>Hello world!</Trans>` | No |
@@ -61,7 +61,7 @@ A setup wizard auto-configures it on first launch, a module per application in a
 | typesafe-i18n | `LL.home.title()`, `$LL.home.title()` (Svelte), read as the key `home.title`, once the file imports typesafe-i18n's generated code <sup>7</sup> | Yes, `.typesafe-i18n.json` |
 | Meteor universe:i18n | the application's own hook, `useTranslator('Home')` or `useTranslation('Home')`, then `t('title')`, read as the key `Home.title` <sup>6</sup> | No |
 
-`useTranslation` supports both string form (`useTranslation('ns')`) and array form (`useTranslation(['ns1', 'ns2'])`). The namespace can also come from an options object (`t('key', { ns: 'auth' })`) or from the key itself (`t('auth:key')`).
+`useTranslation` supports both string form (`useTranslation('ns')`) and array form (`useTranslation(['ns1', 'ns2'])`). The namespace can also come from an options object (`t('key', { ns: 'auth' })`) or from the key itself (`t('auth:key')`). A `context` option reads the key's variant, as i18next does: `t('friend', { context: 'male' })` reads `friend_male`, else `friend`, and `t('friend', { context: gender })` any `friend_…` variant; those variants are then used, never reported as having no reference in code.
 
 <sup>1</sup> The `| translate` and `| transloco` pipes are recognised in JSX/TSX and in standalone Angular templates (`.html`). A template is parsed as Angular only inside an Angular project — a component referencing it through `templateUrl`, with `@angular/core` resolvable; outside one the file stays plain HTML and the pipe is inert text.
 

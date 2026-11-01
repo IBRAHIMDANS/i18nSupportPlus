@@ -35,7 +35,7 @@ class ParaglideGotoDeclarationHandler : GotoDeclarationHandler, CompositeKeyReso
         val fullKey = RawKeyParser(project).parse(extractor.extract(member), member) ?: return null
         val pluralSeparator = Settings.getInstance(project).config().pluralSeparator
         val descriptors = project.service<LocalizationSourceService>().findReadSources(fullKey, member)
-            .flatMap { source -> resolve(fullKey.compositeKey, source, pluralSeparator).map { ReferenceDescriptor(it, source.host) } }
+            .flatMap { source -> resolve(fullKey, source, pluralSeparator).map { ReferenceDescriptor(it, source.host) } }
             .filter { it.reference.path.isNotEmpty() }
         if (descriptors.isEmpty()) return null
         val reference = I18nReference(member, TextRange(0, member.textLength), descriptors)
