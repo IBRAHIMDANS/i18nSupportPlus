@@ -172,6 +172,9 @@
         <!-- i18n-check.json read again as soon as it changes. -->
         <listener class="com.ibrahimdans.i18n.plugin.ide.settings.ProjectConfigFileListener"
                   topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>
+        <!-- Review markers of the open translation files redrawn when a review file changes. -->
+        <listener class="com.ibrahimdans.i18n.plugin.review.ui.ReviewGutterRefresh"
+                  topic="com.ibrahimdans.i18n.plugin.review.ReviewStore$Listener"/>
     </projectListeners>
     <extensions defaultExtensionNs="com.intellij">
         <!-- Flutter's ARB catalogues are JSON: read as such, the type Flutter's own plugin gives them. -->
@@ -258,6 +261,8 @@
         <!-- Declared on JavaScript only: JSX, TypeScript and TSX are dialects of it and inherit the
              provider. One declaration per dialect made a .tsx collect the same marker several times. -->
         <codeInsight.lineMarkerProvider language="JavaScript" implementationClass="com.ibrahimdans.i18n.plugin.ide.I18nGutterIconProvider"/>
+        <!-- Review state of each value of a JSON translation file (JSON5 and ARB included), with its decisions on click. -->
+        <codeInsight.lineMarkerProvider language="JSON" implementationClass="com.ibrahimdans.i18n.plugin.review.ui.ReviewLineMarkerProvider"/>
         <postStartupActivity implementation="com.ibrahimdans.i18n.plugin.ide.settings.StartupAction"/>
         <postStartupActivity implementation="com.ibrahimdans.i18n.plugin.ide.settings.SetupWizardStartupActivity"/>
         <postStartupActivity implementation="com.ibrahimdans.i18n.plugin.ide.whatsnew.WhatsNewStartupActivity"/>

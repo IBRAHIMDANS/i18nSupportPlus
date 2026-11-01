@@ -11,6 +11,7 @@ import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewActions
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewCell
+import com.ibrahimdans.i18n.plugin.review.ui.ReviewPrompts
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewThreadDialog
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
@@ -18,7 +19,6 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
 import java.awt.event.MouseEvent
@@ -255,29 +255,13 @@ internal class TableContextMenu(
     }
 
     private fun requestChanges(root: VirtualFile, cells: List<ReviewCell>) {
-        val text = Messages.showMultilineInputDialog(
-            project,
-            PluginBundle.message("review.request.changes.prompt"),
-            PluginBundle.message("review.request.changes.title"),
-            "",
-            null,
-            object : InputValidator {
-                override fun checkInput(inputString: String?): Boolean = !inputString.isNullOrBlank()
-                override fun canClose(inputString: String?): Boolean = checkInput(inputString)
-            },
-        ) ?: return
+        val text = ReviewPrompts.askChangeRequest(project) ?: return
         reviewed(ReviewActions.requestChanges(project, root, cells, text, referenceLocale = host.reviews.referenceLocale), cells)
     }
 
     /** After a decision: an error when nothing could be written, the reviews read again otherwise. */
     private fun reviewed(written: Boolean, cells: List<ReviewCell>) {
-        if (!written) {
-            Messages.showErrorDialog(
-                project,
-                PluginBundle.message("review.write.failed", cells.map { it.locale }.distinct().joinToString(", ")),
-                PluginBundle.message("review.write.failed.title")
-            )
-        }
+        ReviewPrompts.reportIfUnwritten(project, written, cells)
         host.reloadReviews()
     }
 
