@@ -383,6 +383,24 @@
             enabledByDefault="false"
             level="WEAK WARNING"
             implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedJsxTextInspection"/>
+        <localInspection
+            language="JavaScript"
+            groupName="i18n Support Plus"
+            key="inspection.hardcoded.js.string.display.name"
+            shortName="I18nHardcodedJsString"
+            enabledByDefault="false"
+            level="WEAK WARNING"
+            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedJsStringInspection"/>
+        <!-- Svelte is no dependency of the plugin: its markup is a dialect of HTML, which the
+             inspection reads only in a .svelte file the Svelte plugin parses. -->
+        <localInspection
+            language="HTML"
+            groupName="i18n Support Plus"
+            key="inspection.hardcoded.svelte.text.display.name"
+            shortName="I18nHardcodedSvelteText"
+            enabledByDefault="false"
+            level="WEAK WARNING"
+            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedSvelteTextInspection"/>
     </extensions>
     <actions>
         <!-- One family per section: configuration, keys, machine translation, exchange, generation;

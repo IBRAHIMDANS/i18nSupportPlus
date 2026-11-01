@@ -28,9 +28,12 @@ internal class DefaultExtractor : TranslationExtractor {
 }
 
 /**
- * Intention action of i18n key extraction
+ * Intention action of i18n key extraction.
+ *
+ * [extractor], when given, is tried before the extractors of the source languages: a quick fix
+ * reporting a text no language extracts — the markup of an Angular template — passes its own.
  */
-class ExtractI18nIntentionAction : PsiElementBaseIntentionAction(), IntentionAction {
+class ExtractI18nIntentionAction(private val extractor: TranslationExtractor? = null) : PsiElementBaseIntentionAction(), IntentionAction {
 
     private val request = KeyRequest()
 
@@ -46,7 +49,7 @@ class ExtractI18nIntentionAction : PsiElementBaseIntentionAction(), IntentionAct
         }
 
     private fun getExtractor(element: PsiElement): TranslationExtractor =
-        Extensions.LANG
+        extractor?.takeIf { it.canExtract(element) && !it.isExtracted(element) } ?: Extensions.LANG
             .extensionList
             .map {it.translationExtractor()}
             .filter { it.canExtract(element) }
