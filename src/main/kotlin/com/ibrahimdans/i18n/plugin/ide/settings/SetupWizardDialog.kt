@@ -68,6 +68,8 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
     private val appManifests = mutableMapOf<String, String>()
     /** The project's i18next-cli configuration, when it has one at its root; see [readCliConfig]. */
     private var cliConfig: I18nextCliConfig? = null
+    /** The project's Nuxt or vue-i18n configuration; see [readVueConfig]. */
+    private var vueConfig: VueI18nConfig? = null
     private val fileListModel = DefaultListModel<String>()
     private val fileList = JBList(fileListModel)
 
@@ -93,6 +95,7 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         detectFrameworks()
         scanTranslationFiles()
         readCliConfig()
+        readVueConfig()
     }
 
     /** The wizard's own panel, with the step rail above it. */
@@ -198,7 +201,7 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         override fun getPreferredFocusedComponent(): JComponent = rootField
 
         override fun _init() {
-            val plan = WizardPlan.of(foundFiles, selectedFrameworks(), cliConfig)
+            val plan = WizardPlan.of(foundFiles, selectedFrameworks(), cliConfig, vueConfig)
             if (plan == shownPlan) return
             shownPlan = plan
             rebuild(plan)
@@ -370,6 +373,7 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
             WizardPlan.Field.GETTEXT -> PluginBundle.message("wizard.summary.field.gettext")
             WizardPlan.Field.FLAT_KEYS -> PluginBundle.message("wizard.summary.field.flatKeys")
             WizardPlan.Field.PREFERRED_LOCALIZATION -> PluginBundle.message("wizard.summary.field.preferredLocalization")
+            WizardPlan.Field.REFERENCE_LOCALE -> PluginBundle.message("wizard.summary.field.referenceLocale")
         }
 
         private fun isUntouched(field: WizardPlan.Field, settings: Settings, defaults: Config): Boolean = when (field) {
@@ -381,6 +385,7 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
                     settings.preferredLocalization,
                     Extensions.LOCALIZATION.extensionList.firstOrNull()?.config()?.id(),
                 )
+            WizardPlan.Field.REFERENCE_LOCALE -> settings.foldingPreferredLanguage == defaults.foldingPreferredLanguage
         }
 
         /** The root field and the module boxes follow the split: one or the other is stored. */
@@ -401,6 +406,7 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
                 gettext = true.takeIf { isTicked(WizardPlan.Field.GETTEXT) },
                 flatKeys = true.takeIf { isTicked(WizardPlan.Field.FLAT_KEYS) },
                 preferredLocalization = chosenValue(WizardPlan.Field.PREFERRED_LOCALIZATION),
+                referenceLocale = chosenValue(WizardPlan.Field.REFERENCE_LOCALE),
                 keySeparator = keySeparatorField.text,
                 nsSeparator = nsSeparatorField.text
             )
@@ -465,6 +471,25 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         val file = LocalFileSystem.getInstance().findFileByIoFile(File(base, name)) ?: return
         cliConfig = runReadAction {
             PsiManager.getInstance(project).findFile(file)?.let { I18nextCliConfigReader.read(it, name) }
+        }
+    }
+
+    /**
+     * Reads the project's Nuxt configuration (`i18n` options of `nuxt.config`) or, failing one, the
+     * `createI18n` call of a plain Vue project: see [VueI18nConfigReader].
+     */
+    private fun readVueConfig() {
+        val base = File(project.basePath ?: return)
+        // Every candidate is tried: `src/main.ts` exists in most Vue projects, `createI18n` or not.
+        val files = (VueI18nConfig.NUXT_FILE_NAMES + VueI18nConfig.VUE_I18N_FILE_NAMES)
+            .filter { File(base, it).isFile }
+            .mapNotNull { name -> LocalFileSystem.getInstance().findFileByIoFile(File(base, name))?.let { name to it } }
+        vueConfig = runReadAction {
+            files.firstNotNullOfOrNull { (name, file) ->
+                PsiManager.getInstance(project).findFile(file)?.let { psi ->
+                    VueI18nConfigReader.read(psi, name) { File(base, it).isDirectory }
+                }
+            }
         }
     }
 
