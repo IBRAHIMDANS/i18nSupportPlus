@@ -154,6 +154,92 @@ class LinkedMessageReferenceTest : PlatformBaseTest() {
         }
     }
 
+    // ── i18next nesting: `$t(key)` with the default prefix and suffix ──────────
+
+    @Test
+    fun `the nesting syntax is i18next's`() {
+        fun keys(text: String) = LinkedMessages.parse(text).map { it.key }
+        Assertions.assertEquals(listOf("common.save"), keys("\$t(common.save) and close"))
+        Assertions.assertEquals(listOf("item"), keys("\$t(item, { \"count\": 2 })"))
+        Assertions.assertEquals(listOf("a.b"), keys("\$t( a.b )"))
+        Assertions.assertEquals(listOf("common:save"), keys("\$t(common:save)"))
+        Assertions.assertEquals(listOf("a", "b", "c"), keys("@:a then \$t(b) and \$t(c)"))
+        Assertions.assertEquals(emptyList<String>(), keys("t(a) or \$t() or \$t(, x)"))
+        Assertions.assertEquals(listOf("b"), LinkedMessages.parse("@:a \$t(b)") { it == "i18next" }.map { it.key })
+        // Still being typed: read, but not closed.
+        val open = LinkedMessages.parse("Save \$t(common.sa").single()
+        Assertions.assertEquals("common.sa", open.key)
+        Assertions.assertFalse(open.closed)
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["\$t(common.save) and close", "\$t(common.save, { \\\"count\\\": 2 })", "\$t( common.save )"])
+    fun `a nested key resolves to its translation`(value: String) {
+        open(value)
+        read {
+            val reference = referenceAt("common.save")
+            Assertions.assertEquals("common.save", reference?.linkedKey, "$value carries no nested reference")
+            Assertions.assertEquals("Save", reference!!.resolve()?.text?.unQuote())
+            Assertions.assertEquals("common.save", reference.rangeInElement.substring(reference.element.text))
+            val file = myFixture.file as JsonFile
+            Assertions.assertTrue(TranslationKeyUsages.indirectCount(property(file, "common", "save").nameElement) > 0)
+        }
+    }
+
+    @Test
+    fun `ctrl+click on a nested key goes to its translation`() {
+        open("\$t(common.save) and close")
+        myFixture.editor.caretModel.moveToOffset(myFixture.file.text.indexOf("common.save") + 2)
+        read { Assertions.assertEquals("Save", myFixture.elementAtCaret.text.unQuote()) }
+    }
+
+    @Test
+    fun `an unknown nested key is reported, one still being typed is not`() {
+        open("\$t(common.save) or \$t(common.nope, { \\\"count\\\": 2 }) then \$t(common.typing")
+        val reported = myFixture.doHighlighting().filter { it.description == unresolved }
+        Assertions.assertEquals(listOf("common.nope"), reported.map { it.text })
+    }
+
+    @Test
+    fun `a nested key keeps its namespace`() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        addFileToProject("locales/en/common.json", """{ "save": "Save" }""")
+        val file = addFileToProject("locales/en/translation.json", """{ "button": "${'$'}t(common:save) and close", "other": "${'$'}t(common:nope)" }""")
+        myFixture.configureFromExistingVirtualFile(file.virtualFile)
+        read { Assertions.assertEquals("Save", referenceAt("common:save")?.resolve()?.text?.unQuote()) }
+        val reported = myFixture.doHighlighting().filter { it.description == unresolved }
+        Assertions.assertEquals(listOf("common:nope"), reported.map { it.text })
+    }
+
+    @Test
+    fun `a nested key completes level by level`() {
+        open("\$t(common.)")
+        myFixture.editor.caretModel.moveToOffset(myFixture.file.text.indexOf("common.)") + "common.".length)
+        myFixture.completeBasic()
+        Assertions.assertEquals(listOf("common.orphan", "common.save"), myFixture.lookupElementStrings?.sorted())
+    }
+
+    @Test
+    fun `an i18next module reads nesting, not links`() = myFixture.runWithConfig(
+        Config(modules = listOf(ModuleConfig(name = "web", rootDirectory = "apps/web", preset = "i18next")))
+    ) {
+        open("\$t(common.save) or @:common.nope", "apps/web/locales/en.json")
+        read { Assertions.assertEquals("Save", referenceAt("common.save")?.resolve()?.text?.unQuote()) }
+        Assertions.assertTrue(myFixture.doHighlighting().none { it.description == unresolved })
+    }
+
+    @Test
+    fun `a vue-i18n module reads no nesting`() = myFixture.runWithConfig(
+        Config(modules = listOf(ModuleConfig(name = "vue", rootDirectory = "apps/vue", preset = "vue-i18n")))
+    ) {
+        open("\$t(common.save) or \$t(common.nope)", "apps/vue/locales/en.json")
+        read {
+            Assertions.assertNull(referenceAt("common.save"))
+            val file = myFixture.file as JsonFile
+            Assertions.assertEquals(0, TranslationKeyUsages.indirectCount(property(file, "common", "save").nameElement))
+        }
+        Assertions.assertTrue(myFixture.doHighlighting().none { it.description == unresolved })
+    }
+
     // ── Presets ───────────────────────────────────────────────────────────────
 
     @Test

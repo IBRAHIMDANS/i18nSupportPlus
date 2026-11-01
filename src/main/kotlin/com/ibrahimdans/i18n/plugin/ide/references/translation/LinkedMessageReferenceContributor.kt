@@ -11,6 +11,7 @@ import com.ibrahimdans.i18n.plugin.utils.ModulePresets
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
+import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
@@ -32,9 +33,10 @@ import com.intellij.psi.ResolveResult
 import com.intellij.util.ProcessingContext
 
 /**
- * vue-i18n's linked messages in a translation value: `"Click @:common.save"` renders the message
- * of `common.save` in its place. The linked key gets a reference to its translation — Ctrl+click,
- * Find Usages — and [LinkedMessageAnnotator] reports a key no translation file declares.
+ * Keys named inside a translation value: vue-i18n's linked messages, `"Click @:common.save"`, and
+ * i18next's nesting, `"$t(common.save) and close"`, render the message of `common.save` in their
+ * place. The named key gets a reference to its translation — Ctrl+click, Find Usages, completion —
+ * and [LinkedMessageAnnotator] reports a key no translation file declares.
  *
  * Registered for JSON in `plugin.xml` and for YAML in `ymlConfig.xml`; nothing here names a YAML
  * class ([TranslationPsi] tells a YAML value by its language).
@@ -47,11 +49,10 @@ class LinkedMessageReferenceContributor : PsiReferenceContributor() {
                 override fun accepts(element: PsiElement, context: ProcessingContext?) = LinkedMessages.isTranslationValue(element)
             }),
             object : PsiReferenceProvider() {
+                // An unknown key keeps its reference, soft: completion reads its variants.
                 override fun getReferencesByElement(element: PsiElement, context: ProcessingContext): Array<PsiReference> =
-                    LinkedMessages.linksOf(element).mapNotNull { link ->
-                        LinkedMessages.targetsOf(element, link.key)
-                            .takeIf { it.isNotEmpty() }
-                            ?.let { LinkedMessageReference(element, link.range, link.key, it) }
+                    LinkedMessages.linksOf(element).map { link ->
+                        LinkedMessageReference(element, link.range, link.key, LinkedMessages.targetsOf(element, link.key))
                     }.toTypedArray()
             }
         )
@@ -60,7 +61,7 @@ class LinkedMessageReferenceContributor : PsiReferenceContributor() {
 
 /**
  * A linked key's reference, resolving to the translation it names in the locale of the file
- * holding the link — vue-i18n reads a linked message in the locale being rendered — or in every
+ * holding the link — vue-i18n and i18next read it in the locale being rendered — or in every
  * locale declaring it when that one does not.
  *
  * It also stands for the key-value holding its target, so that Find Usages on the key — which
@@ -74,6 +75,12 @@ class LinkedMessageReference(
 ) : PsiReferenceBase<PsiElement>(element, range), PsiPolyVariantReference {
 
     override fun resolve(): PsiElement? = targets.singleOrNull()
+
+    /** An unknown key is the annotator's to report, not the platform's. */
+    override fun isSoft(): Boolean = targets.isEmpty()
+
+    /** The keys the one being typed may complete to, one level at a time, as in code. */
+    override fun getVariants(): Array<Any> = LinkedMessages.completionsOf(element, linkedKey).toTypedArray()
 
     override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> =
         targets.map(::PsiElementResolveResult).toTypedArray()
@@ -92,7 +99,8 @@ class LinkedMessageAnnotator : Annotator {
 
     override fun annotate(element: PsiElement, holder: AnnotationHolder) {
         for (link in LinkedMessages.linksOf(element)) {
-            if (LinkedMessages.targetsOf(element, link.key).isNotEmpty()) continue
+            // `$t(key` with no `)` is text to i18next: it is completed while typed, not reported.
+            if (!link.closed || LinkedMessages.targetsOf(element, link.key).isNotEmpty()) continue
             holder.newAnnotation(HighlightSeverity.ERROR, PluginBundle.getMessage("annotator.unresolved.key"))
                 .range(link.range.shiftRight(element.textRange.startOffset))
                 .create()
@@ -100,17 +108,24 @@ class LinkedMessageAnnotator : Annotator {
     }
 }
 
-/** A linked message: the key it names, and where that key sits in its value element. */
-data class LinkedMessage(val key: String, val range: TextRange)
+/**
+ * A key named in a value: the key, where it sits in its value element, and whether it is
+ * [closed] — an i18next `$t(key` still being typed has no `)` yet.
+ */
+data class LinkedMessage(val key: String, val range: TextRange, val closed: Boolean = true)
 
 /**
- * Reading vue-i18n's linked messages, shared by the reference, the annotator and the usage count
+ * Reading the keys a translation value names — vue-i18n's linked messages and i18next's nesting —
+ * shared by the reference, the annotator and the usage count
  * ([com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages]).
  */
 object LinkedMessages : CompositeKeyResolver<PsiElement> {
 
-    /** The preset whose modules read linked messages; a module without preset reads them too. */
-    private const val FRAMEWORK = "vue-i18n"
+    /** The preset whose modules read `@:key`; a module without preset reads it too. */
+    private const val VUE_I18N = "vue-i18n"
+
+    /** The preset whose modules read `$t(key)`; a module without preset reads it too. */
+    private const val I18NEXT = "i18next"
 
     /**
      * The syntax of vue-i18n v9+'s message compiler (`packages/message-compiler/src/tokenizer.ts`):
@@ -123,12 +138,25 @@ object LinkedMessages : CompositeKeyResolver<PsiElement> {
      */
     private val LINK = Regex("""(?<!\\)@(?:\.[A-Za-z_][A-Za-z0-9_$]*)?:(?:\{'([^']+)'}|\(([^()\s]+)\)|([^\s{@|()]+))""")
 
-    /** The keys linked in [text], each with its range in [text]. */
-    fun parse(text: String): List<LinkedMessage> =
-        LINK.findAll(text).mapNotNull { match ->
+    /**
+     * i18next's nesting with its default `nestingPrefix` and `nestingSuffix`, `$t(` and `)`: the
+     * key, trimmed, up to the `,` that starts its options (`$t(key, { "count": 2 })`) or the `)`.
+     * A `$t(` left open at the end of the value is a key being typed.
+     */
+    private val NESTING = Regex("""\${'$'}t\(\s*([^,()\s][^,()]*?)\s*(?:,[^)]*)?(\)|$)""")
+
+    /** The keys [text] names, each with its range in [text]; [reads] tells the presets whose syntax applies. */
+    fun parse(text: String, reads: (String) -> Boolean = { true }): List<LinkedMessage> {
+        val links = if (!reads(VUE_I18N)) emptySequence() else LINK.findAll(text).mapNotNull { match ->
             val group = match.groups[1] ?: match.groups[2] ?: match.groups[3] ?: return@mapNotNull null
             LinkedMessage(group.value, TextRange(group.range.first, group.range.last + 1))
-        }.toList()
+        }
+        val nested = if (!reads(I18NEXT)) emptySequence() else NESTING.findAll(text).map { match ->
+            val group = match.groups[1]!!
+            LinkedMessage(group.value, TextRange(group.range.first, group.range.last + 1), closed = match.groupValues[2] == ")")
+        }
+        return (links + nested).sortedBy { it.range.startOffset }.toList()
+    }
 
     /** True when [element] is the string value of a key of a JSON or YAML file. */
     fun isTranslationValue(element: PsiElement): Boolean = when {
@@ -139,16 +167,21 @@ object LinkedMessages : CompositeKeyResolver<PsiElement> {
     }
 
     /**
-     * The links of [element], their ranges relative to it; none outside a translation file, or in a
-     * module whose preset names another framework — `@:` means nothing to i18next.
+     * The links of [element], their ranges relative to it; none outside a translation file. A
+     * module whose preset names a framework reads that framework's syntax only — `@:` means nothing
+     * to i18next, `$t(` nothing to vue-i18n.
      */
     fun linksOf(element: PsiElement): List<LinkedMessage> {
-        if (!isTranslationValue(element) || !element.text.contains('@')) return emptyList()
-        if (!ModulePresets.allows(ModulePresets.presetOf(element), FRAMEWORK)) return emptyList()
+        if (!isTranslationValue(element)) return emptyList()
+        val text = element.text
+        if (!text.contains('@') && !text.contains("\$t(")) return emptyList()
+        val preset = ModulePresets.presetOf(element)
+        if (!ModulePresets.allows(preset, VUE_I18N) && !ModulePresets.allows(preset, I18NEXT)) return emptyList()
         val file = element.containingFile ?: return emptyList()
         if (TranslationFileScope.sourceOf(file) == null) return emptyList()
         val content = ElementManipulators.getValueTextRange(element)
-        return parse(content.substring(element.text)).map { LinkedMessage(it.key, it.range.shiftRight(content.startOffset)) }
+        return parse(content.substring(text)) { ModulePresets.allows(preset, it) }
+            .map { it.copy(range = it.range.shiftRight(content.startOffset)) }
     }
 
     /**
@@ -169,5 +202,20 @@ object LinkedMessages : CompositeKeyResolver<PsiElement> {
             val tree = reference.element!!
             if (tree.isTree()) TranslationPsi.propertyOf(tree.value(), strict = false) ?: tree.value() else tree.value()
         }.distinct()
+    }
+
+    /**
+     * The keys [key], named from [element] and being typed, may complete to: the names under its
+     * last complete level, behind that level's path (`common.` + `save`), from every locale.
+     */
+    fun completionsOf(element: PsiElement, key: String): List<String> {
+        val fullKey = RawKeyParser(element.project).parse(RawKey(listOf(KeyElement.literal(key))), element) ?: return emptyList()
+        val last = fullKey.compositeKey.lastOrNull()
+        val parent = if (last == null) emptyList() else fullKey.compositeKey.dropLast(1)
+        val path = if (last == null) key else key.removeSuffix(last.text)
+        return element.project.service<LocalizationSourceService>().findSources(fullKey.lookupNamespaces(), element)
+            .flatMap { source -> resolveCompositeKeyProperty(parent, source)?.findChildren("").orEmpty() }
+            .map { path + it.value().text.unQuote() }
+            .distinct()
     }
 }

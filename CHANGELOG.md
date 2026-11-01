@@ -18,6 +18,7 @@
 - [CLI] **`i18n-check` reads gettext PO, Laravel PHP and Flutter ARB files**: a Lingui, Django or Laravel project and a Flutter app get the missing, orphan and empty keys of each locale in CI, `msgctxt` and plural forms included. A Laravel array built by code stops the check, naming the file and the line. See the [README](README.md#command-line-check)
 - [Setup wizard] **Nuxt and vue-i18n projects are set up from their own configuration**: the wizard reads the `i18n` options of `nuxt.config.ts` (`langDir`, `defaultLocale`, the locale files) or the `createI18n` call of a Vue project (its fallback locale and the catalogues it imports), and proposes the translations folder, the reference locale and the file format, each marked *Read from nuxt.config.ts*. Nothing is run: options built by code are left for you to fill in.
 - [Reviews] **Review a translation from its file**: in a module keeping reviews, the gutter of a JSON or YAML translation file shows each reviewed value's state — to review, approved, changes requested, stale — with the table's icon and tooltip. Click it to approve the value, request changes or open its thread.
+- [i18next] **Nested keys in a translation are read**: in `"$t(common.save) and close"` — options and `ns:key` included — the nested key opens on Ctrl+click, is completed as you type it, counts as a usage, and is reported when no translation file declares it. Keys named by vue-i18n's `@:key` are now completed too.
 
 ### Fixes
 
