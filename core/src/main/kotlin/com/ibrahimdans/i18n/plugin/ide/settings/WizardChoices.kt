@@ -22,6 +22,8 @@ data class WizardChoices(
     val gettext: Boolean? = null,
     val flatKeys: Boolean? = null,
     val preferredLocalization: String? = null,
+    /** The project's reference locale, stored as `foldingPreferredLanguage`: see `ReferenceLocale.wanted`. */
+    val referenceLocale: String? = null,
     val keySeparator: String? = null,
     val nsSeparator: String? = null
 ) {
@@ -47,6 +49,7 @@ data class WizardChoices(
                 gettext = gettext ?: config.gettext,
                 flatKeys = flatKeys ?: config.flatKeys,
                 preferredLocalization = preferredLocalization.nonBlank() ?: config.preferredLocalization,
+                foldingPreferredLanguage = referenceLocale.nonBlank() ?: config.foldingPreferredLanguage,
                 // Separators are the one pair the wizard never deduces: they are offered pre-filled with
                 // what is already stored, so a blank one means the field was emptied, not left alone.
                 keySeparator = keySeparator.nonBlank() ?: config.keySeparator,

@@ -21,8 +21,11 @@ import com.ibrahimdans.i18n.plugin.utils.LocaleNames
  */
 object WizardPlan {
 
-    /** A setting the wizard can infer. The two flags carry no value of their own. */
-    enum class Field { DEFAULT_NS, GETTEXT, FLAT_KEYS, PREFERRED_LOCALIZATION }
+    /**
+     * A setting the wizard can infer. The two flags carry no value of their own.
+     * [REFERENCE_LOCALE] is the project's reference locale (`Config.foldingPreferredLanguage`).
+     */
+    enum class Field { DEFAULT_NS, GETTEXT, FLAT_KEYS, PREFERRED_LOCALIZATION, REFERENCE_LOCALE }
 
     /**
      * One inferred setting, with what it was read from.
@@ -40,8 +43,8 @@ object WizardPlan {
      * [detected] is a compromise wider than any of them — a monorepo holding `apps/web/locales`
      * and `apps/api/locales` lands on `apps`, which contains far more than translations.
      *
-     * [origin] is the i18next-cli configuration file the root was read from, null when it was
-     * derived from the files.
+     * [origin] is the configuration file the root was read from (i18next-cli, Nuxt or vue-i18n),
+     * null when it was derived from the files.
      */
     data class RootPlan(val detected: String?, val candidates: List<String>, val origin: String? = null) {
 
@@ -60,20 +63,34 @@ object WizardPlan {
     /**
      * What the wizard would propose for [relativeFilePaths] and the ticked [frameworks].
      *
-     * An i18next-cli configuration [cliConfig] wins over the scan for what it states: it is what
-     * the project wrote down, where the scan only infers from the files' names.
+     * An i18next-cli configuration [cliConfig], or a Nuxt / vue-i18n one [vueConfig], wins over the
+     * scan for what it states: it is what the project wrote down, where the scan only infers from
+     * the files' names. The i18next one comes first for the root, the two never stating the same
+     * other setting.
      */
-    fun of(relativeFilePaths: List<String>, frameworks: Set<String>, cliConfig: I18nextCliConfig? = null): Plan {
-        val configRoot = cliConfig?.translationsRoot
-        val root = if (configRoot != null) RootPlan(configRoot, listOf(configRoot), cliConfig.file)
+    fun of(
+        relativeFilePaths: List<String>,
+        frameworks: Set<String>,
+        cliConfig: I18nextCliConfig? = null,
+        vueConfig: VueI18nConfig? = null,
+    ): Plan {
+        val configRoot = cliConfig?.translationsRoot?.let { it to cliConfig.file }
+            ?: vueConfig?.translationsRoot?.let { it to vueConfig.file }
+        val root = if (configRoot != null) RootPlan(configRoot.first, listOf(configRoot.first), configRoot.second)
             else RootPlan(
                 detected = TranslationRootDetector.detect(relativeFilePaths),
                 candidates = TranslationRootDetector.candidates(relativeFilePaths)
             )
-        val scanned = deductionsOf(relativeFilePaths, frameworks)
-        val configNs = cliConfig?.defaultNs?.let { Deduction(Field.DEFAULT_NS, it, cliConfig.file) }
-        val deductions = if (configNs == null) scanned
-            else listOf(configNs) + scanned.filterNot { it.field == Field.DEFAULT_NS }
+        val stated = listOfNotNull(
+            cliConfig?.defaultNs?.let { Deduction(Field.DEFAULT_NS, it, cliConfig.file) },
+            vueConfig?.referenceLocale?.let { Deduction(Field.REFERENCE_LOCALE, it, vueConfig.file) },
+            vueConfig?.let { config ->
+                WizardSettingsDeducer.deduce(config.localeFiles, emptySet()).preferredLocalization
+                    ?.let { Deduction(Field.PREFERRED_LOCALIZATION, it, config.file) }
+            },
+        )
+        val deductions = stated + deductionsOf(relativeFilePaths, frameworks)
+            .filterNot { scanned -> stated.any { it.field == scanned.field } }
         val separators = cliConfig
             ?.takeIf { it.keySeparator != null || it.nsSeparator != null }
             ?.let { Separators(it.keySeparator, it.nsSeparator, it.file) }
