@@ -171,7 +171,7 @@
     <extensions defaultExtensionNs="com.intellij">
         <!-- Flutter's ARB catalogues are JSON: read as such, the type Flutter's own plugin gives them. -->
         <fileType name="JSON" extensions="arb"/>
-        <errorHandler implementation="com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter"/>
+        <errorHandler implementation="com.ibrahimdans.i18n.plugin.ide.diagnostic.GitHubErrorReportSubmitter"/>
         <codeInsight.daemonBoundCodeVisionProvider implementation="com.ibrahimdans.i18n.plugin.ide.codevision.TranslationUsagesCodeVisionProvider"/>
         <notificationGroup id="i18n Support Plus" displayType="STICKY_BALLOON"/>
         <notificationGroup id="i18n Support Plus results" displayType="BALLOON"/>
