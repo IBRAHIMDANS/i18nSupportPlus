@@ -1,112 +1,31 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.LocalizationSource
-import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
-import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
-import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
-import com.ibrahimdans.i18n.plugin.ide.actions.FillMissingTranslationsAction
-import com.ibrahimdans.i18n.plugin.ide.actions.MachineFill
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
-import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
-import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
-import com.ibrahimdans.i18n.plugin.review.ui.ReviewActions
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewCell
-import com.ibrahimdans.i18n.plugin.review.ui.ReviewThreadDialog
-import com.intellij.ide.ActivityTracker
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ReadAction
-import com.intellij.openapi.fileEditor.OpenFileDescriptor
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.ui.SimpleTextAttributes
-import com.intellij.ui.components.JBTextField
 import com.intellij.ui.table.JBTable
 import com.intellij.util.messages.MessageBusConnection
-import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
-import java.awt.Component
-import java.awt.event.ActionEvent
-import java.awt.event.InputEvent
-import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.awt.event.MouseMotionAdapter
-import javax.swing.AbstractAction
-import javax.swing.DefaultCellEditor
-import javax.swing.DefaultComboBoxModel
-import javax.swing.DefaultListCellRenderer
-import javax.swing.JCheckBoxMenuItem
-import javax.swing.JComboBox
 import javax.swing.JComponent
-import javax.swing.JLabel
-import javax.swing.JList
 import javax.swing.JMenuItem
 import javax.swing.JPanel
-import javax.swing.JPopupMenu
 import javax.swing.JScrollPane
 import javax.swing.JTable
-import javax.swing.KeyStroke
 import javax.swing.RowSorter
 import javax.swing.SortOrder
-import javax.swing.table.DefaultTableCellRenderer
-import javax.swing.table.DefaultTableModel
 import javax.swing.table.TableRowSorter
-
-/** Input map keys for the shortcuts the table and its cell editor bind on themselves. */
-private const val ACTION_EDIT = "i18n.table.edit"
-private const val ACTION_OPEN_FILE = "i18n.table.openFile"
-private const val ACTION_NEXT_LOCALE = "i18n.table.nextLocale"
-private const val ACTION_PREVIOUS_LOCALE = "i18n.table.previousLocale"
-private const val ACTION_COMMIT_DOWN = "i18n.table.commitDown"
-private const val ACTION_CANCEL = "i18n.table.cancelEdit"
-
-/** Draws nothing: the Usage cells before any scan, whose raw value is a placeholder count. */
-private val BLANK_RENDERER = object : DefaultTableCellRenderer() {
-    override fun setValue(value: Any?) {
-        text = ""
-    }
-}
-
-/**
- * The cell [columnStep] editable columns or [rowStep] rows away from ([row], [column]), or null
- * when there is none. A column step skips the columns [editable] refuses — the key in front, the
- * usage behind — and wraps to the first editable column of the next row (the last of the
- * previous one going backwards), as Tab does in a spreadsheet. A row step keeps the column.
- */
-internal fun nextEditableCell(
-    row: Int,
-    column: Int,
-    rowStep: Int,
-    columnStep: Int,
-    rowCount: Int,
-    columnCount: Int,
-    editable: (column: Int) -> Boolean,
-): Pair<Int, Int>? {
-    if (rowStep != 0) return (row + rowStep).takeIf { it in 0 until rowCount }?.let { it to column }
-    if (columnStep == 0) return null
-    var current = row
-    var candidate = column + columnStep
-    while (current in 0 until rowCount) {
-        while (candidate in 0 until columnCount) {
-            if (editable(candidate)) return current to candidate
-            candidate += columnStep
-        }
-        current += columnStep
-        candidate = if (columnStep > 0) 0 else columnCount - 1
-    }
-    return null
-}
 
 /**
  * Panel displaying translations in a flat table format.
@@ -123,31 +42,17 @@ internal fun nextEditableCell(
  * shade was the sole carrier of "missing" and "empty", which a greyscale screen, a colour
  * vision deficiency or a theme flattening both turns into three states that read as one.
  *
- * Locale cells are editable in place: an edit writes straight to the matching
- * translation file (one undo step per cell) and creates the entry when the
- * locale doesn't have it yet. On failure the previous value is restored and
- * an error dialog is shown. The key column stays read-only (renaming is
- * RenameI18nKeyHandler's job); double-clicking it opens the edit dialog.
- *
- * Keyboard: Enter edits the selected row, F4 opens the translation file it comes from. A locale
- * cell is edited as in a spreadsheet: typing starts the edit, Enter commits and moves down, Tab
- * and Shift+Tab commit and move to the next or previous locale — the key and Usage columns are
- * skipped — and Escape cancels.
- * Right-clicking a row offers both, plus deleting the key when the scan found it unused.
- * Right-clicking the header picks which locale columns are shown, which is what keeps the
- * table readable past four locales in a docked panel. The hidden locales are kept in the
- * workspace, per module, by [ToolWindowViewState].
- *
- * Scanning for orphan keys is [com.ibrahimdans.i18n.plugin.ide.actions.ScanOrphanKeysAction],
- * reachable from the tool window toolbar: the panel used to carry its own button in a
- * home-made filter bar, a third grammar of action next to the toolbar above it.
+ * Locale cells are editable in place, see [TranslationTableModel]; double-clicking the read-only
+ * key column opens the edit dialog. The keyboard is a spreadsheet's, see [TableKeyboard].
+ * Right-clicking a row or the header opens the menus of [TableContextMenu]; the locales hidden
+ * from the header are kept in the workspace, per module, by [ToolWindowViewState]. Counting the
+ * usages is [TableUsageScan], started by [com.ibrahimdans.i18n.plugin.ide.actions.ScanOrphanKeysAction]
+ * from the tool window toolbar.
  *
  * Where the module has a `.i18n-reviews/` folder, each locale cell carries its review — icon and
- * tooltip, see [ReviewBadge] — the status combo adds *To review*, *Source changed* and *Changes
- * requested*, and the context menu decides on the selected cells, one command whatever their
- * number, each decision recording the source text the key holds now in the reference locale. A
- * review is read against that source too, taken from the row even when its column is hidden. The
- * reviews are read again on [ReviewStore.CHANGED]. Without the folder the table is the one it always was.
+ * tooltip, see [ReviewBadge] — read against the source text the key holds now in the reference
+ * locale, taken from the row even when its column is hidden. The reviews are read again on
+ * [ReviewStore.CHANGED]. Without the folder the table is the one it always was.
  *
  * When [moduleConfig] is non-null, only translations from that module are shown.
  */
@@ -157,39 +62,25 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
     /** Where the hidden locales outlive the panel; `moduleConfig == null` is the project scope. */
     private val viewState = ToolWindowViewState.getInstance(project)
-    private val tableModel = object : DefaultTableModel() {
-        // Editable: locale columns only — not "Namespace"/"Key" (leading) nor "Usage" (last).
-        override fun isCellEditable(row: Int, column: Int): Boolean =
-            column in leadingColumns until columnCount - 1
-
-        override fun setValueAt(aValue: Any?, row: Int, column: Int) {
-            if (!isCellEditable(row, column)) {
-                super.setValueAt(aValue, row, column)
-                return
+    private val tableModel = TranslationTableModel(
+        leadingColumns = { leadingColumns },
+        // moduleConfig is mandatory here: it scopes the write to the same module
+        // the rows were loaded from (see TableViewModel.saveValue).
+        save = { key, locale, value -> viewModel.saveValue(project, key, locale, value, moduleConfig) },
+        onSaved = { key, locale, value ->
+            // Keep the row cache in sync so filtering/rebuilds show the new value.
+            allRows = allRows.map {
+                if (it.key == key) it.copy(values = it.values + (locale to value)) else it
             }
-            val newValue = aValue?.toString() ?: ""
-            val oldValue = getValueAt(row, column)?.toString() ?: ""
-            if (newValue == oldValue) return
-            val key = getValueAt(row, keyColumn) as? String ?: return
-            val locale = getColumnName(column)
-
-            // moduleConfig is mandatory here: it scopes the write to the same module
-            // the rows were loaded from (see TableViewModel.saveValue).
-            if (viewModel.saveValue(project, key, locale, newValue, moduleConfig)) {
-                super.setValueAt(newValue, row, column)
-                // Keep the row cache in sync so filtering/rebuilds show the new value.
-                allRows = allRows.map {
-                    if (it.key == key) it.copy(values = it.values + (locale to newValue)) else it
-                }
-            } else {
-                Messages.showErrorDialog(
-                    project,
-                    PluginBundle.message("toolwindow.table.edit.failed", key, locale),
-                    PluginBundle.message("toolwindow.table.edit.failed.title")
-                )
-            }
-        }
-    }
+        },
+        onFailed = { key, locale ->
+            Messages.showErrorDialog(
+                project,
+                PluginBundle.message("toolwindow.table.edit.failed", key, locale),
+                PluginBundle.message("toolwindow.table.edit.failed.title")
+            )
+        },
+    )
     private val table = JBTable(tableModel)
 
     /** Every locale the module owns, whether shown or not. */
@@ -227,8 +118,6 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     /** The sources the rows were read from; whether the default group has a namespace to name depends on them. */
     private var sources: List<LocalizationSource> = emptyList()
     private var currentFilter: String = ""
-    private var currentNamespace: NamespaceFilter = NamespaceFilter.All
-    private var currentStatus: StatusFilter = StatusFilter.ALL
 
     /**
      * Where the module's reviews folder hangs, resolved at each load; replaced by tests, whose
@@ -252,63 +141,49 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      * table back through its usual path. Set by the tool window; a lone panel has no field.
      */
     var onClearSearch: () -> Unit = {}
-    @Volatile
-    private var scanning: Boolean = false
 
     /** Loads started by [refresh] and not finished yet; the table paints busy while any is. */
     private var loading: Int = 0
 
+    /** Counts the usages of [allRows]; [countUsages] is read when the count runs, so a test can replace it. */
+    private val usageScan = TableUsageScan(project, { allRows }, { countUsages(it) }) { scanned ->
+        // Merge scanned usage counts back into allRows, preserving original order
+        val usageByKey = scanned.associate { it.key to it.usageCount }
+        allRows = allRows.map { row ->
+            row.copy(usageCount = usageByKey[row.key] ?: row.usageCount)
+        }
+        applyFilters()
+    }
+
     /** True while a usage scan is running, so the action does not queue a second one. */
-    val isScanning: Boolean get() = scanning
+    val isScanning: Boolean get() = usageScan.isScanning
 
-    // The combo holds the filters themselves; the renderer is the only thing that turns one into
-    // text, so a label can be translated without touching what the filter compares.
-    private val namespaceCombo = JComboBox(arrayOf<NamespaceFilter>(NamespaceFilter.All)).apply {
-        renderer = object : DefaultListCellRenderer() {
-            override fun getListCellRendererComponent(
-                list: JList<*>?, value: Any?, index: Int, selected: Boolean, focused: Boolean
-            ): Component = super.getListCellRendererComponent(
-                list, (value as? NamespaceFilter)?.label(config, sources) ?: value, index, selected, focused
-            )
-        }
-    }
-
-    // Same split as the namespace combo: the entries are StatusFilter values, the renderer alone
-    // reads their label. A JComboBox cannot disable one entry, so *Unused* before a scan is drawn
-    // disabled with a tooltip saying what to run, and picking it is undone by the listener.
-    // The review filters join the entries only where reviews are on: see updateStatusCombo.
-    private val statusCombo = JComboBox(viewModel.statusFilters(TableReviews.OFF).toTypedArray()).apply {
-        renderer = object : DefaultListCellRenderer() {
-            override fun getListCellRendererComponent(
-                list: JList<*>?, value: Any?, index: Int, selected: Boolean, focused: Boolean
-            ): Component {
-                val filter = value as? StatusFilter
-                val component = super.getListCellRendererComponent(list, filter?.label ?: value, index, selected, focused)
-                val available = filter == null || viewModel.isStatusFilterAvailable(filter, allRows)
-                isEnabled = available
-                toolTipText = if (available) null else PluginBundle.message("toolwindow.table.status.orphan.unavailable")
-                return component
-            }
-        }
-    }
+    private val filters = TableFilters(viewModel, { config }, { sources }, { allRows }, ::applyFilters)
 
     /**
      * The Namespace and Status filters. Laid out above the table, unless the tool window lends it
      * a place in its own top bar — see [ShellContent.fitToWidth] — and gives it back with
-     * [dockFilterBar]. The namespace label and combo come first: they stay the bar's first JLabel
-     * and JComboBox.
+     * [dockFilterBar].
      */
-    internal val filterBar: JComponent = JPanel(BorderLayout()).apply {
-        add(JLabel(PluginBundle.message("toolwindow.table.namespace.label") + " "), BorderLayout.WEST)
-        add(namespaceCombo, BorderLayout.CENTER)
-        add(
-            JPanel(BorderLayout()).apply {
-                add(JLabel(" " + PluginBundle.message("toolwindow.table.status.label") + " "), BorderLayout.WEST)
-                add(statusCombo, BorderLayout.CENTER)
-            },
-            BorderLayout.EAST
-        )
-    }
+    internal val filterBar: JComponent = filters.bar
+
+    /** The row and header menus; they read the panel through [TableMenuHost], its state staying private. */
+    private val menus = TableContextMenu(project, moduleConfig, viewModel, object : TableMenuHost {
+        override val table: JTable get() = this@TableViewPanel.table
+        override val keyColumn: Int get() = this@TableViewPanel.keyColumn
+        override val usageColumn: Int get() = leadingColumns + shownLocales.size
+        override val locales: List<String> get() = this@TableViewPanel.locales
+        override val shownLocales: List<String> get() = this@TableViewPanel.shownLocales
+        override val hiddenLocales: Set<String> get() = this@TableViewPanel.hiddenLocales
+        override val rows: List<TranslationRow> get() = allRows
+        override val reviews: TableReviews get() = this@TableViewPanel.reviews
+        override val reviewRoot: VirtualFile? get() = this@TableViewPanel.reviewRoot
+        override fun localeAt(column: Int): String? = this@TableViewPanel.localeAt(column)
+        override fun sourceText(key: String): String? = this@TableViewPanel.sourceText(key)
+        override fun toggleLocale(locale: String) = this@TableViewPanel.toggleLocale(locale)
+        override fun refresh() = this@TableViewPanel.refresh()
+        override fun reloadReviews() = this@TableViewPanel.reloadReviews()
+    })
 
     init {
         // Not AUTO_RESIZE_ALL_COLUMNS: that split the viewport in equal shares, so the key
@@ -325,25 +200,25 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
                 // Only the read-only key column opens the edit dialog: on locale
                 // columns a double-click starts the in-place cell editor instead.
                 if (e.clickCount == 2 && e.button == MouseEvent.BUTTON1 && table.columnAtPoint(e.point) in 0 until leadingColumns) {
-                    editSelectedRow()
+                    menus.editSelectedRow()
                 }
             }
 
             override fun mouseReleased(e: MouseEvent) {
-                if (e.isPopupTrigger) showContextMenu(e)
+                if (e.isPopupTrigger) menus.showRowMenu(e)
             }
 
             override fun mousePressed(e: MouseEvent) {
-                if (e.isPopupTrigger) showContextMenu(e)
+                if (e.isPopupTrigger) menus.showRowMenu(e)
             }
         })
         table.tableHeader.addMouseListener(object : MouseAdapter() {
             override fun mouseReleased(e: MouseEvent) {
-                if (e.isPopupTrigger) showLocaleMenu(e)
+                if (e.isPopupTrigger) menus.showLocaleMenu(e)
             }
 
             override fun mousePressed(e: MouseEvent) {
-                if (e.isPopupTrigger) showLocaleMenu(e)
+                if (e.isPopupTrigger) menus.showLocaleMenu(e)
             }
         })
         // The Usage header, the one place that says the column waits for a scan, says how to run it.
@@ -354,23 +229,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
                 header.toolTipText = if (onUsage && !usageScanned) PluginBundle.message("toolwindow.table.usage.not.scanned") else null
             }
         })
-        registerShortcuts()
-        registerSpreadsheetKeys()
-
-        namespaceCombo.addActionListener {
-            currentNamespace = namespaceCombo.selectedItem as? NamespaceFilter ?: NamespaceFilter.All
-            applyFilters()
-        }
-        statusCombo.addActionListener {
-            val picked = statusCombo.selectedItem as? StatusFilter ?: StatusFilter.ALL
-            if (!viewModel.isStatusFilterAvailable(picked, allRows)) {
-                // Drawn disabled, but a JComboBox still lets it be selected: put the previous back.
-                statusCombo.selectedItem = currentStatus
-                return@addActionListener
-            }
-            currentStatus = picked
-            applyFilters()
-        }
+        TableKeyboard.install(table, { tableModel.isCellEditable(0, it) }, menus::editSelectedRow, menus::openSelectedRowFile)
 
         add(filterBar, BorderLayout.NORTH)
         add(JScrollPane(table), BorderLayout.CENTER)
@@ -386,12 +245,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         get() = allRows.any { viewModel.usageStatus(it.usageCount) != UsageStatus.NOT_SCANNED }
 
     /** The width the header of view column [index] needs to show its text whole, margin included. */
-    internal fun headerWidth(index: Int): Int {
-        val column = table.columnModel.getColumn(index)
-        val renderer = column.headerRenderer ?: table.tableHeader.defaultRenderer
-        val drawn = renderer.getTableCellRendererComponent(table, column.headerValue, false, false, -1, index)
-        return drawn.preferredSize.width + JBUI.scale(8)
-    }
+    internal fun headerWidth(index: Int): Int = headerWidth(table, index)
 
     /** The Usage column's width; for the tests. */
     internal fun usageColumnWidth(): Int =
@@ -407,79 +261,6 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         add(filterBar, BorderLayout.NORTH)
         revalidate()
         repaint()
-    }
-
-    /**
-     * Enter edits, F4 opens the file — the two gestures the panel only offered through the
-     * mouse. Bound on the table's own `WHEN_FOCUSED` map, so an active cell editor (which
-     * holds the focus itself) still commits on Enter rather than reopening a dialog.
-     */
-    private fun registerShortcuts() {
-        table.inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), ACTION_EDIT)
-        table.actionMap.put(ACTION_EDIT, object : AbstractAction() {
-            override fun actionPerformed(e: ActionEvent) = editSelectedRow()
-        })
-        table.inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_F4, 0), ACTION_OPEN_FILE)
-        table.actionMap.put(ACTION_OPEN_FILE, object : AbstractAction() {
-            override fun actionPerformed(e: ActionEvent) = openSelectedRowFile()
-        })
-    }
-
-    /**
-     * The keys of a spreadsheet: translating a whole locale used to take a double-click per cell.
-     *
-     * Typing on a selected locale cell starts its editor, which takes the focus. Inside the
-     * editor, Enter commits and moves down, Tab and Shift+Tab commit and move across the locale
-     * columns, Escape cancels. The editor's text field would otherwise keep Tab for focus
-     * traversal and consume Enter itself, so both are bound on it; on the table, Tab and
-     * Shift+Tab move across the locales without editing.
-     */
-    private fun registerSpreadsheetKeys() {
-        table.putClientProperty("JTable.autoStartsEdit", true)
-        table.surrendersFocusOnKeystroke = true
-
-        val field = JBTextField().apply { focusTraversalKeysEnabled = false }
-        table.setDefaultEditor(Any::class.java, DefaultCellEditor(field).apply { clickCountToStart = 2 })
-
-        val moves = mapOf(
-            ACTION_NEXT_LOCALE to { moveSelection(rowStep = 0, columnStep = 1) },
-            ACTION_PREVIOUS_LOCALE to { moveSelection(rowStep = 0, columnStep = -1) },
-            ACTION_COMMIT_DOWN to { moveSelection(rowStep = 1, columnStep = 0) },
-            ACTION_CANCEL to { table.cellEditor?.cancelCellEditing(); Unit },
-        )
-        val tab = KeyStroke.getKeyStroke(KeyEvent.VK_TAB, 0)
-        val shiftTab = KeyStroke.getKeyStroke(KeyEvent.VK_TAB, InputEvent.SHIFT_DOWN_MASK)
-        field.inputMap.put(tab, ACTION_NEXT_LOCALE)
-        field.inputMap.put(shiftTab, ACTION_PREVIOUS_LOCALE)
-        field.inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), ACTION_COMMIT_DOWN)
-        field.inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), ACTION_CANCEL)
-        table.getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(tab, ACTION_NEXT_LOCALE)
-        table.getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(shiftTab, ACTION_PREVIOUS_LOCALE)
-        for ((name, run) in moves) {
-            val action = object : AbstractAction() {
-                override fun actionPerformed(e: ActionEvent) {
-                    run()
-                }
-            }
-            field.actionMap.put(name, action)
-            table.actionMap.put(name, action)
-        }
-    }
-
-    /**
-     * Commits the edit in progress, if any, then selects the cell [nextEditableCell] gives. An
-     * edit the editor refuses to stop keeps the caret where it is.
-     */
-    private fun moveSelection(rowStep: Int, columnStep: Int) {
-        if (table.isEditing && table.cellEditor?.stopCellEditing() == false) return
-        val row = table.selectedRow
-        val column = table.selectedColumn
-        if (row < 0 || column < 0) return
-        val target = nextEditableCell(row, column, rowStep, columnStep, table.rowCount, table.columnCount) {
-            tableModel.isCellEditable(0, table.convertColumnIndexToModel(it))
-        } ?: return
-        table.changeSelection(target.first, target.second, false, false)
-        table.requestFocusInWindow()
     }
 
     /**
@@ -531,7 +312,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             sources = loadedSources
             reviewRoot = root
             reviews = loadedReviews
-            updateStatusCombo()
+            filters.updateStatusEntries(reviews)
             // Merged on the EDT, where the in-place edit and the scan also write allRows:
             // reading it from the pooled thread could merge against a stale list.
             allRows = viewModel.mergeUsages(rows, allRows)
@@ -540,10 +321,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             // lose its hidden state for good. Read from the saved set each time, so it is
             // hidden again the moment it comes back.
             hiddenLocales = viewModel.hiddenAmong(discovered, viewState.hiddenLocales(moduleConfig))
-            // Unused cannot outlive the counts it reads (the panel never drops them today,
-            // but nothing else guarantees it).
-            if (!viewModel.isStatusFilterAvailable(currentStatus, allRows)) statusCombo.selectedItem = StatusFilter.ALL
-            updateNamespaceCombo(namespaces)
+            filters.resetUnavailableStatus()
+            filters.updateNamespaces(namespaces)
             applyFilters()
         }
     }
@@ -559,8 +338,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
     private fun applyFilters() {
         val shown = viewModel.visibleLocales(locales, hiddenLocales)
-        val filtered = viewModel.visibleRows(allRows, currentFilter, currentNamespace, currentStatus, shown, reviews)
-        val withNamespace = viewModel.showsNamespaceColumn(currentNamespace, viewModel.namespaceFilters(allRows))
+        val filtered = viewModel.visibleRows(allRows, currentFilter, filters.namespace, filters.status, shown, reviews)
+        val withNamespace = viewModel.showsNamespaceColumn(filters.namespace, viewModel.namespaceFilters(allRows))
         rebuildTable(filtered, shown, withNamespace)
         updateEmptyText()
     }
@@ -570,30 +349,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      * nothing — naming them, with a link clearing them all — or that there is no key at all.
      * Swing's generic text told none of these apart.
      */
-    private fun updateEmptyText() {
-        val emptyText = table.emptyText
-        val query = currentFilter.trim()
-        val namespace = if (currentNamespace == NamespaceFilter.All) null else currentNamespace.label(config, sources)
-        when {
-            loading > 0 && allRows.isEmpty() -> emptyText.text = PluginBundle.message("toolwindow.table.empty.loading")
-            query.isEmpty() && namespace == null && currentStatus == StatusFilter.ALL ->
-                emptyText.text = PluginBundle.message("toolwindow.table.empty.none")
-            else -> {
-                val noMatch = when {
-                    namespace == null && query.isEmpty() -> PluginBundle.message("toolwindow.table.empty.filters")
-                    namespace == null -> PluginBundle.message("toolwindow.table.empty.query", query)
-                    query.isEmpty() -> PluginBundle.message("toolwindow.table.empty.namespace", namespace)
-                    else -> PluginBundle.message("toolwindow.table.empty.query.namespace", query, namespace)
-                }
-                emptyText.text = if (currentStatus == StatusFilter.ALL) noMatch
-                else PluginBundle.message("toolwindow.table.empty.status", noMatch, currentStatus.label)
-                emptyText.appendSecondaryText(
-                    PluginBundle.message("toolwindow.table.empty.clear"),
-                    SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES
-                ) { clearFilters() }
-            }
-        }
-    }
+    private fun updateEmptyText() =
+        filters.describeEmpty(table.emptyText, currentFilter, loading > 0, allRows.isNotEmpty(), ::clearFilters)
 
     /**
      * Back to every namespace, every status and no query; each combo's listener re-applies the
@@ -601,35 +358,12 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      * keeps the link's listener out of reach.
      */
     internal fun clearFilters() {
-        namespaceCombo.selectedItem = NamespaceFilter.All
-        statusCombo.selectedItem = StatusFilter.ALL
+        filters.clear()
         if (currentFilter.isNotEmpty()) onClearSearch()
     }
 
-    /**
-     * Offers the review filters exactly while reviews are on. A review filter picked before the
-     * folder went away falls back to every key; the combo's listener then re-applies the filters.
-     */
-    private fun updateStatusCombo() {
-        val items = viewModel.statusFilters(reviews)
-        val model = statusCombo.model
-        if ((0 until model.size).map { model.getElementAt(it) } == items) return
-        val selected = currentStatus
-        statusCombo.model = DefaultComboBoxModel(items.toTypedArray())
-        statusCombo.selectedItem = if (selected in items) selected else StatusFilter.ALL
-    }
-
     /** The status filters the combo offers right now; for the tests. */
-    internal fun statusFilterEntries(): List<StatusFilter> =
-        (0 until statusCombo.model.size).map { statusCombo.model.getElementAt(it) }
-
-    private fun updateNamespaceCombo(items: List<NamespaceFilter>) {
-        val selected = currentNamespace
-        namespaceCombo.model = DefaultComboBoxModel(items.toTypedArray())
-        // Restore selection if still valid, otherwise reset to "All"
-        if (items.contains(selected)) namespaceCombo.selectedItem = selected
-        else currentNamespace = NamespaceFilter.All
-    }
+    internal fun statusFilterEntries(): List<StatusFilter> = filters.statusEntries()
 
     private fun rebuildTable(rows: List<TranslationRow>, locales: List<String>, withNamespace: Boolean = false) {
         shownLocales = locales
@@ -639,23 +373,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
         tableModel.setDataVector(data, columnNames)
 
-        val translationRenderer = TranslationCellRenderer(leadingColumns, locales.size, viewModel, ::cellReview)
-        val scanned = usageScanned
-        // Before any scan every cell would say "Not scanned": the header says it once instead.
-        val usageRenderer = if (scanned) UsageCellRenderer(viewModel) else BLANK_RENDERER
-        val usageColIdx = leadingColumns + locales.size
-        val widths = viewModel.columnWidths(locales.size, withNamespace)
-
-        for (i in 0 until table.columnCount) {
-            val column = table.columnModel.getColumn(i)
-            column.cellRenderer = if (i == usageColIdx) usageRenderer else translationRenderer
-            widths.getOrNull(i)?.let { column.preferredWidth = it }
-            if (i == usageColIdx && !scanned) {
-                column.headerValue = PluginBundle.message("toolwindow.table.column.usage.not.scanned")
-                // The column's usual width cut the header to "Usage (not c…": it grows to the whole of it.
-                column.preferredWidth = maxOf(column.preferredWidth, headerWidth(i))
-            }
-        }
+        layOutColumns(table, leadingColumns, locales.size, withNamespace, usageScanned, viewModel, ::cellReview)
 
         val sorter = TableRowSorter(tableModel)
         table.rowSorter = sorter
@@ -666,51 +384,6 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             sorter.sortKeys = (0 until leadingColumns).map { RowSorter.SortKey(it, SortOrder.ASCENDING) }
         }
     }
-
-    // ── Row actions ───────────────────────────────────────────────────────────
-
-    /**
-     * Edits the selected row: the in-place editor on a locale column, the translation
-     * dialog anywhere else — the key column is read-only, so it has nothing else to offer.
-     */
-    private fun editSelectedRow() {
-        val row = table.selectedRow
-        if (row < 0) return
-        val column = table.selectedColumn
-        if (localeAt(column) != null) {
-            table.editCellAt(row, column)
-            table.editorComponent?.requestFocusInWindow()
-            return
-        }
-        val key = table.getValueAt(row, keyColumn) as? String ?: return
-        val dialog = TranslationDialog(project, buildFullKey(key), Mode.EDIT, tabModule = moduleConfig)
-        if (dialog.showAndGet()) {
-            refresh()
-        }
-    }
-
-    /**
-     * Opens the translation file the selected row comes from, at the key itself.
-     * The locale is the selected column when one is selected, otherwise the first shown —
-     * a row always has a file behind it, and the panel used to give no way to reach it.
-     */
-    private fun openSelectedRowFile() {
-        val row = table.selectedRow
-        if (row < 0) return
-        val key = table.getValueAt(row, keyColumn) as? String ?: return
-        val locale = localeAt(table.selectedColumn) ?: shownLocales.firstOrNull() ?: return
-
-        ApplicationManager.getApplication().executeOnPooledThread {
-            val target = ReadAction.compute<Pair<VirtualFile, Int>?, RuntimeException> {
-                viewModel.locate(project, key, locale, moduleConfig)
-            }
-                ?: return@executeOnPooledThread
-            ApplicationManager.getApplication().invokeLater {
-                OpenFileDescriptor(project, target.first, target.second).navigate(true)
-            }
-        }
-    }
-
 
     /** The locale [column] displays, or null when it is a leading or the usage column. */
     private fun localeAt(column: Int): String? = shownLocales.getOrNull(column - leadingColumns)
@@ -730,80 +403,11 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     /** The text [key] holds now in the reference locale, read from its row: its column may be hidden. */
     private fun sourceText(key: String): String? = reviews.sourceText(rowsByKey[key])
 
-    /**
-     * The locale cells of the selection holding a value, the cells a review decision applies to,
-     * each with the source its key holds now. The selection is a block of rows and columns (cell
-     * selection): every locale column of it counts, the key and usage columns do not.
-     */
-    internal fun selectedReviewCells(): List<ReviewCell> {
-        val columns = table.selectedColumns.filter { localeAt(it) != null }
-        return table.selectedRows.flatMap { row ->
-            val key = table.getValueAt(row, keyColumn) as? String ?: return@flatMap emptyList()
-            columns.mapNotNull { column ->
-                val value = table.getValueAt(row, column) as? String ?: ""
-                if (value.isEmpty()) null else ReviewCell(key, localeAt(column)!!, value, sourceText(key))
-            }
-        }
-    }
+    /** The locale cells of the selection a review decision applies to; see [TableContextMenu.selectedReviewCells]. */
+    internal fun selectedReviewCells(): List<ReviewCell> = menus.selectedReviewCells()
 
-    /**
-     * *Approve*, *Request Changes…*, *Mark for Review* and *Comments…* on the selected cells, or
-     * nothing at all where reviews are off: the menu of a module that never asked for reviews is
-     * the one it always had. Each decision is one command whatever the number of cells.
-     */
-    internal fun reviewMenuItems(): List<JMenuItem> {
-        val root = reviewRoot?.takeIf { reviews.enabled } ?: return emptyList()
-        val cells = selectedReviewCells()
-        val unavailable = PluginBundle.message("review.action.unavailable")
-        fun item(label: String, enabled: Boolean, tooltip: String = unavailable, run: () -> Unit) = JMenuItem(label).apply {
-            isEnabled = enabled
-            if (!enabled) toolTipText = tooltip
-            addActionListener { run() }
-        }
-        val approveLabel = if (cells.size > 1) PluginBundle.message("review.action.approve.many", cells.size)
-        else PluginBundle.message("review.action.approve")
-        val reference = reviews.referenceLocale
-        return listOf(
-            item(approveLabel, cells.isNotEmpty()) {
-                reviewed(ReviewActions.approve(project, root, cells, referenceLocale = reference), cells)
-            },
-            item(PluginBundle.message("review.action.request.changes"), cells.isNotEmpty()) { requestChanges(root, cells) },
-            item(PluginBundle.message("review.action.mark"), cells.isNotEmpty()) {
-                reviewed(ReviewActions.markToReview(project, root, cells, referenceLocale = reference), cells)
-            },
-            item(
-                PluginBundle.message("review.action.comments"), cells.size == 1,
-                PluginBundle.message("review.action.comments.unavailable")
-            ) { ReviewThreadDialog(project, root, cells.single(), referenceLocale = reference).show() },
-        )
-    }
-
-    private fun requestChanges(root: VirtualFile, cells: List<ReviewCell>) {
-        val text = Messages.showMultilineInputDialog(
-            project,
-            PluginBundle.message("review.request.changes.prompt"),
-            PluginBundle.message("review.request.changes.title"),
-            "",
-            null,
-            object : InputValidator {
-                override fun checkInput(inputString: String?): Boolean = !inputString.isNullOrBlank()
-                override fun canClose(inputString: String?): Boolean = checkInput(inputString)
-            },
-        ) ?: return
-        reviewed(ReviewActions.requestChanges(project, root, cells, text, referenceLocale = reviews.referenceLocale), cells)
-    }
-
-    /** After a decision: an error when nothing could be written, the reviews read again otherwise. */
-    private fun reviewed(written: Boolean, cells: List<ReviewCell>) {
-        if (!written) {
-            Messages.showErrorDialog(
-                project,
-                PluginBundle.message("review.write.failed", cells.map { it.locale }.distinct().joinToString(", ")),
-                PluginBundle.message("review.write.failed.title")
-            )
-        }
-        reloadReviews()
-    }
+    /** The review decisions on the selected cells; see [TableContextMenu.reviewMenuItems]. */
+    internal fun reviewMenuItems(): List<JMenuItem> = menus.reviewMenuItems()
 
     /**
      * Reads the reviews again — the store caches them — after a decision or a change of a review
@@ -813,8 +417,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     internal fun reloadReviews() {
         if (project.isDisposed) return
         reviews = viewModel.loadReviews(project, reviewRoot, locales, config, moduleConfig) { rowsByKey[it] }
-        updateStatusCombo()
-        if (currentStatus.readsReviews) applyFilters() else table.repaint()
+        filters.updateStatusEntries(reviews)
+        if (filters.status.readsReviews) applyFilters() else table.repaint()
     }
 
     override fun addNotify() {
@@ -834,205 +438,29 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         super.removeNotify()
     }
 
-    // ── Context menu ──────────────────────────────────────────────────────────
+    /** *Fill Missing Translations in <locale>…* on [column]; see [TableContextMenu.fillMenuItem]. */
+    internal fun fillMenuItem(column: Int): JMenuItem? = menus.fillMenuItem(column)
 
-    private fun showContextMenu(e: MouseEvent) {
-        val row = table.rowAtPoint(e.point)
-        if (row < 0) return
-        // A right-click inside the selection keeps it, so that several rows can be deleted at once.
-        if (!table.isRowSelected(row)) {
-            table.setRowSelectionInterval(row, row)
-            val column = table.columnAtPoint(e.point)
-            if (column >= 0) table.setColumnSelectionInterval(column, column)
-        }
+    /** *Retranslate Stale in <locale>…* on [column]; see [TableContextMenu.retranslateMenuItem]. */
+    internal fun retranslateMenuItem(column: Int): JMenuItem? = menus.retranslateMenuItem(column)
 
-        val selected = table.selectedRows.toList().mapNotNull { selectedRow ->
-            val key = table.getValueAt(selectedRow, keyColumn) as? String ?: return@mapNotNull null
-            key to (table.getValueAt(selectedRow, leadingColumns + shownLocales.size) as? Int ?: -1)
-        }
-        val orphanKeys = OrphanKeyDeleter.orphanKeys(selected, viewModel)
-
-        val menu = JPopupMenu()
-        menu.add(JMenuItem(PluginBundle.message("toolwindow.table.edit.key")).apply {
-            addActionListener { editSelectedRow() }
-        })
-        menu.add(JMenuItem(PluginBundle.message("toolwindow.table.open.file")).apply {
-            addActionListener { openSelectedRowFile() }
-        })
-        menu.addSeparator()
-        // Non-orphan rows of the selection are left out, and the label counts only what is deleted.
-        val deleteLabel = if (orphanKeys.size > 1) {
-            PluginBundle.message("toolwindow.table.delete.orphans", orphanKeys.size)
-        } else {
-            PluginBundle.message("toolwindow.table.delete.orphan")
-        }
-        menu.add(JMenuItem(deleteLabel).apply {
-            // Shown even when it does not apply, disabled: hiding it made the entry
-            // impossible to discover from a row that had never been scanned.
-            isEnabled = orphanKeys.isNotEmpty()
-            if (orphanKeys.isEmpty()) toolTipText = PluginBundle.message("toolwindow.table.no.action")
-            addActionListener { deleteOrphanKeys(orphanKeys) }
-        })
-        val reviewItems = reviewMenuItems()
-        if (reviewItems.isNotEmpty()) {
-            menu.addSeparator()
-            reviewItems.forEach(menu::add)
-        }
-        val column = table.columnAtPoint(e.point)
-        val machineItems = listOfNotNull(fillMenuItem(column), retranslateMenuItem(column))
-        if (machineItems.isNotEmpty()) {
-            menu.addSeparator()
-            machineItems.forEach(menu::add)
-        }
-        menu.show(e.component, e.x, e.y)
-    }
-
-    /**
-     * *Fill Missing Translations in <locale>…* on a locale column, once the project opted in to
-     * machine translation: the module and the locale are the table's and the column's, so neither
-     * is asked again. Null on another column, on the reference locale itself, or without opt-in.
-     */
-    internal fun fillMenuItem(column: Int): JMenuItem? {
-        val target = localeAt(column) ?: return null
-        val provider = FillMissingTranslationsAction.machineTranslator(project) ?: return null
-        val config = Settings.getInstance(project).config()
-        val source = ReferenceLocale.of(moduleConfig, config, locales) ?: return null
-        if (source == target) return null
-        return JMenuItem(PluginBundle.message("toolwindow.table.fill.missing", target)).apply {
-            name = "toolwindow.table.fill.missing"
-            addActionListener { MachineFill.run(project, moduleConfig, source, target, provider, onWritten = ::refresh) }
-        }
-    }
-
-    /**
-     * *Retranslate Stale in <locale>…* on a locale column where reviews are on and the project opted
-     * in to machine translation: the cells of the column shown as *Source changed*, translated again
-     * ([MachineFill.retranslate]). Disabled while the column has none; null on another column, on the
-     * reference locale, without reviews or without opt-in.
-     */
-    internal fun retranslateMenuItem(column: Int): JMenuItem? {
-        val target = localeAt(column) ?: return null
-        val source = reviews.referenceLocale?.takeIf { reviews.enabled && it != target } ?: return null
-        val provider = FillMissingTranslationsAction.machineTranslator(project) ?: return null
-        val stale = allRows.count { reviews.shownOf(it, target) == ShownReview.SOURCE_CHANGED }
-        return JMenuItem(PluginBundle.message("toolwindow.table.retranslate.stale", target)).apply {
-            name = "toolwindow.table.retranslate.stale"
-            isEnabled = stale > 0
-            if (stale == 0) toolTipText = PluginBundle.message("toolwindow.table.retranslate.none", target)
-            addActionListener { MachineFill.retranslate(project, moduleConfig, source, listOf(target), provider, onWritten = ::refresh) }
-        }
-    }
-
-
-    /**
-     * Header menu picking which locale columns are laid out. Six locales in a docked panel
-     * left no column readable; hiding the ones not being worked on is the way out that does
-     * not lose any data.
-     */
-    private fun showLocaleMenu(e: MouseEvent) {
-        if (locales.isEmpty()) return
-        val menu = JPopupMenu()
-        menu.add(JMenuItem(PluginBundle.message("toolwindow.table.columns.title")).apply { isEnabled = false })
-        menu.addSeparator()
-        for (locale in locales) {
-            menu.add(JCheckBoxMenuItem(locale, locale !in hiddenLocales).apply {
-                addActionListener {
-                    hiddenLocales = viewModel.toggleLocale(locales, hiddenLocales, locale)
-                    // Saved locales not loaded right now are kept: the user toggled this one only.
-                    val absent = viewState.hiddenLocales(moduleConfig).filterNot { it in locales }
-                    viewState.setHiddenLocales(moduleConfig, hiddenLocales + absent)
-                    applyFilters()
-                }
-            })
-        }
-        menu.show(e.component, e.x, e.y)
+    /** Shows [locale] when it is hidden, hides it otherwise, and saves the choice for the module. */
+    private fun toggleLocale(locale: String) {
+        hiddenLocales = viewModel.toggleLocale(locales, hiddenLocales, locale)
+        // Saved locales not loaded right now are kept: the user toggled this one only.
+        val absent = viewState.hiddenLocales(moduleConfig).filterNot { it in locales }
+        viewState.setHiddenLocales(moduleConfig, hiddenLocales + absent)
+        applyFilters()
     }
 
     // ── Scan Orphans ──────────────────────────────────────────────────────────
 
     /**
-     * Runs orphan detection in background. Updates allRows with usage counts,
-     * then rebuilds the table on the EDT.
+     * Counts the usages of every row in the background, then rebuilds the table on the EDT; see
+     * [TableUsageScan].
      *
      * Public because the trigger is [com.ibrahimdans.i18n.plugin.ide.actions.ScanOrphanKeysAction]
      * now, in the tool window toolbar, rather than a button of this panel's own.
      */
-    fun scanOrphans() = scanOrphans(retried = false)
-
-    /**
-     * [scanning] is reset when the count ends, however it ends: resetting it only once a
-     * successful count had been applied on the EDT left the action disabled for the session.
-     * The task cannot be cancelled by the user, so a cancellation is a write action that
-     * interrupted the reads: the scan runs again once.
-     */
-    private fun scanOrphans(retried: Boolean) {
-        if (scanning) return
-        scanning = true
-        val rowsToScan = allRows.toList()
-
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("toolwindow.table.scan.progress.title"), false) {
-            private var scanned: List<TranslationRow> = emptyList()
-            private var interrupted = false
-
-            override fun run(indicator: ProgressIndicator) {
-                indicator.text = PluginBundle.message("toolwindow.table.scan.progress.text")
-                // Reset here, off the EDT, not in an EDT callback that a modal dialog can hold back.
-                try {
-                    scanned = countUsages(rowsToScan)
-                } finally {
-                    scanning = false
-                }
-            }
-
-            override fun onSuccess() {
-                // Merge scanned usage counts back into allRows, preserving original order
-                val usageByKey = scanned.associate { it.key to it.usageCount }
-                allRows = allRows.map { row ->
-                    row.copy(usageCount = usageByKey[row.key] ?: row.usageCount)
-                }
-                applyFilters()
-            }
-
-            override fun onCancel() {
-                interrupted = true
-            }
-
-            override fun onFinished() {
-                // The toolbar only re-reads the action's state on the next UI event: ask now,
-                // or the button stays drawn disabled after the count.
-                ActivityTracker.getInstance().inc()
-                if (interrupted && !retried) scanOrphans(retried = true)
-            }
-        })
-    }
-
-    // ── Delete orphan key ─────────────────────────────────────────────────────
-
-    /**
-     * Deletes the keys from all matching localization sources using CompositeKeyResolver,
-     * in one undoable command, then refreshes the table once the deletion has run.
-     */
-    private fun deleteOrphanKeys(keyStrings: List<String>) {
-        if (keyStrings.size > 1 && Messages.showYesNoDialog(
-                project,
-                OrphanKeyDeleter.confirmationMessage(keyStrings),
-                PluginBundle.message("toolwindow.table.delete.orphans.command"),
-                Messages.getWarningIcon()
-            ) != Messages.YES
-        ) return
-        val fullKeys = keyStrings.map(::buildFullKey)
-        // Scoped to this panel's module: without it the key is also deleted from
-        // another module's file sharing the same namespace.
-        // The deletion completes asynchronously (the source lookup runs off the EDT):
-        // refreshing right after the call would reload the rows before the key is gone.
-        OrphanKeyDeleter(project, moduleConfig).delete(fullKeys, onFinished = ::refresh)
-    }
-
-    /**
-     * Builds a FullKey from a flat key string, handling optional namespace prefix.
-     * Delegates to the synchronizer's parser, which the in-place edit already goes
-     * through — the panel used to carry a second copy that kept empty segments.
-     */
-    private fun buildFullKey(keyString: String): FullKey =
-        KeysSynchronizer().buildFullKey(keyString, Settings.getInstance(project).config())
+    fun scanOrphans() = usageScan.start()
 }
