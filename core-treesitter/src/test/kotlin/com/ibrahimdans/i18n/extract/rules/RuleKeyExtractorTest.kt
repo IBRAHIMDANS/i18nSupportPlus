@@ -151,13 +151,14 @@ class RuleKeyExtractorTest {
     }
 
     @Test
-    fun `the presets publish the names the technologies publish`() {
+    fun `the presets publish the names the technologies publish, and the gates no framework reads past`() {
         assertEquals(listOf("t", "i18n.t", "i18next.t", "props.t", "this.props.t"), FrameworkPresets.I18NEXT.callNames)
-        assertEquals(listOf("formatMessage", "defineMessages", "defineMessage"), FrameworkPresets.REACT_INTL.callNames)
+        assertEquals(listOf("formatMessage"), FrameworkPresets.REACT_INTL.callNames)
         assertEquals(listOf("msg", "i18n._"), FrameworkPresets.LINGUI.callNames)
         assertEquals(
             mapOf(
-                "msg" to listOf("@lingui/"), "_" to listOf("svelte-i18n"), "\$t" to listOf("svelte-i18n"),
+                // `$t` is svelte-i18n's gated name and vue-i18n's plain one: not gated for everyone.
+                "msg" to listOf("@lingui/"), "_" to listOf("svelte-i18n"),
                 "translate" to listOf("@jsverse/transloco", "@ngneat/transloco"), "translateSignal" to listOf("@jsverse/transloco", "@ngneat/transloco"),
             ),
             FrameworkPresets.IMPORT_GATED_NAMES,

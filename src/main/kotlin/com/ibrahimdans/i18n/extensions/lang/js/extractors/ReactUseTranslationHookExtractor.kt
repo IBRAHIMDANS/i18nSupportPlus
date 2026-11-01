@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.extensions.lang.js.extractors
 import com.ibrahimdans.i18n.extensions.technology.universe.UniverseI18n
 import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.RawKey
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.lang.ecmascript6.psi.ES6ImportDeclaration
@@ -41,10 +42,9 @@ import com.intellij.psi.util.PsiTreeUtil
 class ReactUseTranslationHookExtractor: KeyExtractor {
 
     private companion object {
-        const val USE_TRANSLATION = "useTranslation"
-        const val USE_TRANSLATIONS = "useTranslations"
-        const val GET_TRANSLATIONS = "getTranslations"
-        val NEXT_INTL_HOOKS = setOf(USE_TRANSLATIONS, GET_TRANSLATIONS)
+        // From the presets: the one place the hooks are named, for the IDE and `i18n-check` alike.
+        val USE_TRANSLATION = FrameworkPresets.I18NEXT.hooks.single().name
+        val NEXT_INTL_HOOKS = FrameworkPresets.NEXT_INTL.hooks.mapTo(mutableSetOf()) { it.name }
         val HOOKS = NEXT_INTL_HOOKS + USE_TRANSLATION
         const val USE_TRANSLATOR = "useTranslator"
         val UNIVERSE_HOOKS = setOf(USE_TRANSLATOR)

@@ -98,7 +98,15 @@ object FrameworkPresets {
     /** The rules of the framework a preset names, null for an unknown preset. */
     fun byId(id: String?): FrameworkRules? = ALL.firstOrNull { it.id == id }
 
-    /** The bare names of every framework read only in a file importing it, with the packages that do. */
+    /**
+     * The bare names read only in a file importing a framework, with the packages that do: `msg` →
+     * `@lingui/`. A name another framework reads unconditionally is not one — svelte-i18n's `$t` is
+     * gated, vue-i18n's is not, so `$t` is read everywhere and the gate is svelte-i18n's own to apply.
+     */
     val IMPORT_GATED_NAMES: Map<String, List<String>>
-        get() = ALL.flatMap { it.importGatedNames.entries }.groupBy({ it.key }, { it.value }).mapValues { it.value.flatten().distinct() }
+        get() {
+            val ungated = ALL.flatMap { rules -> rules.calls.filter { it.importedFrom.isEmpty() }.map { it.callee } }.toSet()
+            return ALL.flatMap { it.importGatedNames.entries }.filter { it.key !in ungated }
+                .groupBy({ it.key }, { it.value }).mapValues { it.value.flatten().distinct() }
+        }
 }

@@ -1,7 +1,7 @@
 package com.ibrahimdans.i18n.extensions.lang.js
 
 import com.ibrahimdans.i18n.Extensions
-import com.ibrahimdans.i18n.extensions.lang.js.extractors.MessageDescriptors
+import com.ibrahimdans.i18n.extensions.lang.js.extractors.ReactIntlExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.SvelteI18nExtractor
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
@@ -176,7 +176,7 @@ class InterpolationArgumentsInspection : LocalInspectionTool(), CompositeKeyReso
     /** `formatMessage({ id: 'key' }, values)`: the descriptor's id, and the values' names. */
     private fun readFormatMessage(call: JSCallExpression, descriptor: JSObjectLiteralExpression): Pair<JSLiteralExpression, Set<String>>? {
         val id = descriptor.findProperty("id")?.value as? JSLiteralExpression ?: return null
-        if (!id.isQuotedLiteral || !MessageDescriptors.isFormatMessageDescriptor(id)) return null
+        if (!id.isQuotedLiteral || !ReactIntlExtractor.isFormatMessageDescriptor(id)) return null
         val values = call.arguments.getOrNull(1) ?: return id to emptySet()
         val supplied = (values as? JSObjectLiteralExpression)?.let { propertyNames(it, nested = null) } ?: return null
         return id to supplied

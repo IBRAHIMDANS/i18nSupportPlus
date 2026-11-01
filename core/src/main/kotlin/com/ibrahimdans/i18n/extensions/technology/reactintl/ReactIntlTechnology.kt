@@ -1,5 +1,7 @@
 package com.ibrahimdans.i18n.extensions.technology.reactintl
 
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
+
 import com.ibrahimdans.i18n.extensions.technology.SimpleTechnology
 
 /**
@@ -16,5 +18,5 @@ import com.ibrahimdans.i18n.extensions.technology.SimpleTechnology
 class ReactIntlTechnology : SimpleTechnology() {
     override fun frameworkId(): String = "react-intl"
 
-    override fun translationFunctionNames(): List<String> = listOf("formatMessage")
+    override fun translationFunctionNames(): List<String> = FrameworkPresets.REACT_INTL.callNames
 }

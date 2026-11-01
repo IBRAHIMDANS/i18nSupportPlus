@@ -24,8 +24,11 @@ data class FrameworkRules(
     val pipes: List<PipeRule> = emptyList(),
 ) {
 
-    /** The functions the framework translates with, as a technology publishes them: `t`, `i18n.t`, `formatMessage`. */
-    val callNames: List<String> get() = calls.map { it.callee }.distinct()
+    /**
+     * The functions the framework translates with, as its technology publishes them: `t`, `i18n.t`,
+     * `formatMessage`. A catalogue declaring descriptors, `defineMessages`, translates nothing.
+     */
+    val callNames: List<String> get() = calls.filter { it.key !is KeyLocation.Catalogue }.map { it.callee }.distinct()
 
     /** The bare names read only in a file importing the framework: `msg` → `@lingui/`, `_` → `svelte-i18n`. */
     val importGatedNames: Map<String, List<String>>

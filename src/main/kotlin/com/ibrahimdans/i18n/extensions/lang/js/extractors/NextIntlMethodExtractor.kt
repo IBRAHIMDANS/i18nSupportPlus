@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.extensions.lang.js.extractors
 
 import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.RawKey
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
 import com.intellij.lang.javascript.psi.JSArgumentList
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSLiteralExpression
@@ -31,7 +32,7 @@ class NextIntlMethodExtractor(private val methods: Set<String> = ALL) : KeyExtra
         /** `t.raw(key)` returns the message as written, an object or an array as well as a string. */
         const val RAW = "raw"
 
-        val ALL = MESSAGE_METHODS + HAS
+        val ALL: Set<String> = FrameworkPresets.NEXT_INTL.hooks.first().methods
 
         private val HOOK = ReactUseTranslationHookExtractor()
     }

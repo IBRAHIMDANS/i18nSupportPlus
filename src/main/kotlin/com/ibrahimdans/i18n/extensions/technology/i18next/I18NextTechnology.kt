@@ -1,5 +1,7 @@
 package com.ibrahimdans.i18n.extensions.technology.i18next
 
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
+
 import com.ibrahimdans.i18n.*
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
@@ -48,7 +50,7 @@ class I18NextTechnology : Technology {
     override fun frameworkId(): String = "i18next"
 
     override fun translationFunctionNames(): List<String> {
-        return listOf("t", "i18n.t", "i18next.t", "props.t", "this.props.t")
+        return FrameworkPresets.I18NEXT.callNames
     }
 
     override fun findSourcesByConfiguration(workspace: Workspace): List<LocalizationSource> {
