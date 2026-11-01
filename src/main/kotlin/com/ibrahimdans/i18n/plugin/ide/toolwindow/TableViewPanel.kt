@@ -31,7 +31,6 @@ import javax.swing.JScrollPane
 import javax.swing.JTable
 import javax.swing.RowSorter
 import javax.swing.SortOrder
-import javax.swing.table.DefaultTableModel
 import javax.swing.table.TableRowSorter
 
 /**
@@ -49,31 +48,17 @@ import javax.swing.table.TableRowSorter
  * shade was the sole carrier of "missing" and "empty", which a greyscale screen, a colour
  * vision deficiency or a theme flattening both turns into three states that read as one.
  *
- * Locale cells are editable in place: an edit writes straight to the matching
- * translation file (one undo step per cell) and creates the entry when the
- * locale doesn't have it yet. On failure the previous value is restored and
- * an error dialog is shown. The key column stays read-only (renaming is
- * RenameI18nKeyHandler's job); double-clicking it opens the edit dialog.
- *
- * Keyboard: Enter edits the selected row, F4 opens the translation file it comes from. A locale
- * cell is edited as in a spreadsheet: typing starts the edit, Enter commits and moves down, Tab
- * and Shift+Tab commit and move to the next or previous locale — the key and Usage columns are
- * skipped — and Escape cancels.
- * Right-clicking a row offers both, plus deleting the key when the scan found it unused.
- * Right-clicking the header picks which locale columns are shown, which is what keeps the
- * table readable past four locales in a docked panel. The hidden locales are kept in the
- * workspace, per module, by [ToolWindowViewState].
- *
- * Scanning for orphan keys is [com.ibrahimdans.i18n.plugin.ide.actions.ScanOrphanKeysAction],
- * reachable from the tool window toolbar: the panel used to carry its own button in a
- * home-made filter bar, a third grammar of action next to the toolbar above it.
+ * Locale cells are editable in place, see [TranslationTableModel]; double-clicking the read-only
+ * key column opens the edit dialog. The keyboard is a spreadsheet's, see [TableKeyboard].
+ * Right-clicking a row or the header opens the menus of [TableContextMenu]; the locales hidden
+ * from the header are kept in the workspace, per module, by [ToolWindowViewState]. Counting the
+ * usages is [TableUsageScan], started by [com.ibrahimdans.i18n.plugin.ide.actions.ScanOrphanKeysAction]
+ * from the tool window toolbar.
  *
  * Where the module has a `.i18n-reviews/` folder, each locale cell carries its review — icon and
- * tooltip, see [ReviewBadge] — the status combo adds *To review*, *Source changed* and *Changes
- * requested*, and the context menu decides on the selected cells, one command whatever their
- * number, each decision recording the source text the key holds now in the reference locale. A
- * review is read against that source too, taken from the row even when its column is hidden. The
- * reviews are read again on [ReviewStore.CHANGED]. Without the folder the table is the one it always was.
+ * tooltip, see [ReviewBadge] — read against the source text the key holds now in the reference
+ * locale, taken from the row even when its column is hidden. The reviews are read again on
+ * [ReviewStore.CHANGED]. Without the folder the table is the one it always was.
  *
  * When [moduleConfig] is non-null, only translations from that module are shown.
  */
@@ -83,39 +68,25 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
     /** Where the hidden locales outlive the panel; `moduleConfig == null` is the project scope. */
     private val viewState = ToolWindowViewState.getInstance(project)
-    private val tableModel = object : DefaultTableModel() {
-        // Editable: locale columns only — not "Namespace"/"Key" (leading) nor "Usage" (last).
-        override fun isCellEditable(row: Int, column: Int): Boolean =
-            column in leadingColumns until columnCount - 1
-
-        override fun setValueAt(aValue: Any?, row: Int, column: Int) {
-            if (!isCellEditable(row, column)) {
-                super.setValueAt(aValue, row, column)
-                return
+    private val tableModel = TranslationTableModel(
+        leadingColumns = { leadingColumns },
+        // moduleConfig is mandatory here: it scopes the write to the same module
+        // the rows were loaded from (see TableViewModel.saveValue).
+        save = { key, locale, value -> viewModel.saveValue(project, key, locale, value, moduleConfig) },
+        onSaved = { key, locale, value ->
+            // Keep the row cache in sync so filtering/rebuilds show the new value.
+            allRows = allRows.map {
+                if (it.key == key) it.copy(values = it.values + (locale to value)) else it
             }
-            val newValue = aValue?.toString() ?: ""
-            val oldValue = getValueAt(row, column)?.toString() ?: ""
-            if (newValue == oldValue) return
-            val key = getValueAt(row, keyColumn) as? String ?: return
-            val locale = getColumnName(column)
-
-            // moduleConfig is mandatory here: it scopes the write to the same module
-            // the rows were loaded from (see TableViewModel.saveValue).
-            if (viewModel.saveValue(project, key, locale, newValue, moduleConfig)) {
-                super.setValueAt(newValue, row, column)
-                // Keep the row cache in sync so filtering/rebuilds show the new value.
-                allRows = allRows.map {
-                    if (it.key == key) it.copy(values = it.values + (locale to newValue)) else it
-                }
-            } else {
-                Messages.showErrorDialog(
-                    project,
-                    PluginBundle.message("toolwindow.table.edit.failed", key, locale),
-                    PluginBundle.message("toolwindow.table.edit.failed.title")
-                )
-            }
-        }
-    }
+        },
+        onFailed = { key, locale ->
+            Messages.showErrorDialog(
+                project,
+                PluginBundle.message("toolwindow.table.edit.failed", key, locale),
+                PluginBundle.message("toolwindow.table.edit.failed.title")
+            )
+        },
+    )
     private val table = JBTable(tableModel)
 
     /** Every locale the module owns, whether shown or not. */
