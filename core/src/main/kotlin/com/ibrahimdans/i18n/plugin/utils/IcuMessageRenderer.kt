@@ -78,7 +78,7 @@ object IcuMessageRenderer {
      * Anywhere else an apostrophe is just an apostrophe — which is what keeps French translations
      * such as `L'article` untouched.
      */
-    private fun readQuoted(text: String, i: Int, to: Int, out: StringBuilder?): Int {
+    internal fun readQuoted(text: String, i: Int, to: Int, out: StringBuilder?): Int {
         if (i + 1 < to && text[i + 1] == '\'') {
             out?.append('\'')
             return i + 2
@@ -149,8 +149,8 @@ object IcuMessageRenderer {
         return firstBranch
     }
 
-    /** Index of the `}` closing the `{` at [open], or null when it is never closed. */
-    private fun matchingBrace(text: String, open: Int, to: Int): Int? {
+    /** Index of the `}` closing the `{` at [open], or null when it is never closed. Quoted braces do not count. */
+    internal fun matchingBrace(text: String, open: Int, to: Int): Int? {
         var depth = 0
         var i = open
         while (i < to) {

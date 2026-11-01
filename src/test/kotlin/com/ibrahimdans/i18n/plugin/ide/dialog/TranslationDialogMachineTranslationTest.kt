@@ -92,6 +92,29 @@ class TranslationDialogMachineTranslationTest : PlatformBaseTest() {
     }
 
     @Test
+    fun `an ICU plural goes to each locale with its own branches, the copied ones noted for review`() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", """{"files": "{count, plural, one {# file} other {# files}}"}""")
+        addFileToProject("locales/ru/common.json", """{"files": ""}""")
+        addFileToProject("locales/ja/common.json", """{"files": ""}""")
+        TranslationDialog.machineTranslator = { engine { Translation.Done("[${it.target}] ${it.texts.single()}") } }
+
+        val dialog = TranslationDialog(project, KeysSynchronizer().buildFullKey("common:files", config), Mode.EDIT)
+        try {
+            dialog.translateEmptyLocales()
+
+            Assertions.assertEquals("[ru] {count, plural, one {# file} few {# files} many {# files} other {# files}}", dialog.valueOf("ru"))
+            Assertions.assertEquals("[ja] {count, plural, other {# files}}", dialog.valueOf("ja"))
+            Assertions.assertTrue(
+                PluginBundle.message("dialog.translation.translate.icu.review", "ru", "few, many") in dialog.translateMessage,
+                dialog.translateMessage
+            )
+            Assertions.assertFalse("ja:" in dialog.translateMessage, "Japanese drops a branch, copies none: ${dialog.translateMessage}")
+        } finally {
+            Disposer.dispose(dialog.disposable)
+        }
+    }
+
+    @Test
     fun `the context names the neighbours the target locale already translates`() = myFixture.runWithConfig(config) {
         addFileToProject("locales/en/common.json", """{"form": {"save": "Save", "reset": "Reset"}, "menu": {"quit": "Quit"}}""")
         addFileToProject("locales/fr/common.json", """{"form": {"save": "", "reset": "Réinitialiser"}, "menu": {"quit": "Quitter"}}""")

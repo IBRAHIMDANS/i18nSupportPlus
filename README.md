@@ -302,6 +302,7 @@ Each engine's URL, headers, request body and the path of the translation in the 
 - *Internationalize…* can translate the new keys into the module's other locales.
 
 Variables, tags and the plural forms of the target language are kept; a proposal that lost a variable comes unchecked.
+An ICU plural (`{count, plural, one {# file} other {# files}}`) is sent with the branches of the target language — `few` and `many` added for Russian, `other` alone for Japanese —, `=0` and `offset:` kept; a branch the source lacks is translated from `other` and comes unchecked, to review. One nested in more than one other block, or without `other`, is not translated.
 
 ### Inspections
 
@@ -466,7 +467,7 @@ The agent calls `i18n_check`, then `i18n_delete_unused_keys` with the keys it li
 
 - Only a missing value is filled, and only a stale one replaced: staleness is checked again when writing, so a value you fixed or approved after the agent listed it is refused (`Already filled and not stale`), and one changed during the write is left as it is (`Changed since it was read`). To re-translate any other filled value, use *Translate* in the *Edit Translation* dialog.
 - Stale translations need reviews: a value is stale when it is still the one reviewed while the reference text recorded with that review changed since. In a module without `.i18n-reviews/`, `i18n_stale_translations` is refused with the reason; *Show Translation Changes* still shows the locales lagging behind the reference.
-- ICU plurals (`{count, plural, …}`) are listed but not written: edit them in the file.
+- ICU plurals (`{count, plural, …}`) are listed with the branches the locale needs, those the reference lacks copied from `other` (`pluralFromOther`); a value whose branches are not exactly those is refused with the reason. One nested in more than one other block, or without `other`, is listed but not written: edit it in the file.
 - Reviews: in a module with a `.i18n-reviews/` folder, the values written are marked *to review* as `machine:<agent>`; an agent never creates that folder.
 - Renaming, creating and deleting a key are each one command: one Ctrl+Z in the IDE undoes it. A rename only changes a key's last segment; moving a key to another namespace is done with *Move i18n Key to Namespace…*.
 - Nothing appears? Check that the plugin's tools are listed by your client (`/mcp` in Claude Code), that the MCP server is enabled, and that the IDE is 2025.2.6 or later.

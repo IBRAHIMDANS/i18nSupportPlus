@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.translate
 
 import com.ibrahimdans.i18n.plugin.tree.PluralCategories
+import com.ibrahimdans.i18n.plugin.utils.IcuPluralRewriter
 
 /**
  * Which plural forms to ask a translation engine for, and from which source text.
@@ -29,8 +30,9 @@ object PluralTranslationPlan {
         data class Forms(val forms: List<Form>) : Plan
 
         /**
-         * The source holds an ICU plural (`{count, plural, one {…} other {…}}`): its branches depend
-         * on the target language and must be rebuilt, which is not a text translation. Not proposed.
+         * A form of the group holds an ICU plural (`{count, plural, one {…} other {…}}`): an i18next
+         * plural group and an ICU plural in one key do not combine. Not proposed. A key holding an ICU
+         * plural on its own is translated through [icu].
          */
         data object IcuPlural : Plan
     }
@@ -71,6 +73,24 @@ object PluralTranslationPlan {
             val category = key.substringAfterLast(pluralSeparator, key)
             if (category in PluralCategories.ALL) category to text else null
         }.toMap()
+
+    /**
+     * An ICU plural message ready to send for a target language: [source], its plural blocks rebuilt
+     * with the target's categories, and the categories [copied] from `other` — to review once
+     * translated, the engine not knowing it must agree with "a few" or "many".
+     */
+    data class IcuMessage(val source: String, val copied: Set<String>) {
+        val needsReview: Boolean get() = copied.isNotEmpty()
+    }
+
+    /**
+     * [text], an ICU plural, as it is to be translated into [targetLocale] ([IcuPluralRewriter]); null
+     * when it cannot be rebuilt — nested more than a level deep, a plural without `other`, or braces
+     * that do not balance.
+     */
+    fun icu(text: String, targetLocale: String, largeNumberForms: Boolean = false): IcuMessage? =
+        (IcuPluralRewriter.forLocale(text, targetLocale, largeNumberForms) as? IcuPluralRewriter.Result.Rewritten)
+            ?.let { IcuMessage(it.text, it.copied) }
 
     /** Whether [text] is, or holds, an ICU plural or selectordinal block. */
     fun isIcuPlural(text: String): Boolean = ICU_PLURAL.containsMatchIn(text)

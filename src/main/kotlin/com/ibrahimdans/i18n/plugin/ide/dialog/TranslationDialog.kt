@@ -650,7 +650,8 @@ class TranslationDialog(
      * A plural form (`file_few`) follows [PluralTranslationPlan]: a locale whose language has no
      * such form (`file_one` in Japanese) is left alone, and when no locale holds the form yet its
      * text comes from the reference locale's `other`, the proposal then flagged for review. An ICU
-     * plural is not translated: its branches depend on the target language.
+     * plural is sent with its branches rebuilt for each target language ([PluralTranslationPlan.icu]),
+     * a branch copied from `other` flagged for review; one that cannot be rebuilt is not translated.
      */
     private fun translate(targetSources: Set<LocalizationSource>) {
         val provider = machineTranslator(project) ?: return
@@ -688,7 +689,16 @@ class TranslationDialog(
         val asSource = { text: String -> ReviewSource.of(source.first, text) }
         val notes = mutableListOf<String>()
         val requests = targets.mapNotNull { (locale, area) ->
-            if (plural == null) return@mapNotNull MachineRequest(locale, area, source.second, asSource(source.second))
+            if (plural == null) {
+                if (!PluralTranslationPlan.isIcuPlural(source.second)) return@mapNotNull MachineRequest(locale, area, source.second, asSource(source.second))
+                // Sent with the target's branches; the review still records the reference's text.
+                val icu = PluralTranslationPlan.icu(source.second, locale) ?: run {
+                    notes += PluginBundle.message("dialog.translation.translate.icu.plural", locale)
+                    return@mapNotNull null
+                }
+                if (icu.needsReview) notes += PluginBundle.message("dialog.translation.translate.icu.review", locale, icu.copied.joinToString(", "))
+                return@mapNotNull MachineRequest(locale, area, icu.source, asSource(source.second))
+            }
             val sourceForms = if (donor != null) mapOf(plural.first to source.second) else mapOf(PluralCategories.OTHER to source.second)
             when (val plan = PluralTranslationPlan.of(sourceForms, locale)) {
                 PluralTranslationPlan.Plan.IcuPlural -> {

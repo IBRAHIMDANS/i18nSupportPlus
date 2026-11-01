@@ -74,7 +74,7 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
         Assertions.assertEquals(
             listOf(
                 MachineFill.Item("common:cancel", "Cancel"),
-                MachineFill.Item("common:count", "{n, plural, one {# file} other {# files}}", skipped = icu),
+                MachineFill.Item("common:count", "{n, plural, one {# file} other {# files}}"),
                 MachineFill.Item("common:item_one", "{{count}} item"),
                 MachineFill.Item("common:item_other", "{{count}} items"),
                 MachineFill.Item("common:save", "Save {{what}}"),
@@ -189,8 +189,31 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `an ICU plural is never sent and says why`() {
-        val item = MachineFill.Item("common:count", "{n, plural, one {# file} other {# files}}", skipped = icu)
+    fun `an ICU plural goes with the target's branches, those copied from other to review`() {
+        val items = MachineFill.itemsOf(mapOf("common:count" to mapOf("en" to "{n, plural, one {# file} other {# files}}")), "en", "ru", ".")
+        val item = items.single()
+
+        Assertions.assertEquals("{n, plural, one {# file} few {# files} many {# files} other {# files}}", item.sent)
+        Assertions.assertEquals("{n, plural, one {# file} other {# files}}", item.source, "the text a review records")
+        Assertions.assertTrue(item.needsReview)
+        Assertions.assertEquals(PluginBundle.message("action.fill.icu.review", "few, many"), item.reviewNote)
+
+        val proposals = MachineFill.translate(items, engine { Translation.Done("[ru] $it") }, "en", "ru", EmptyProgressIndicator())!!
+
+        Assertions.assertEquals(listOf(item.sent), requests.single().texts, "sent with Russian's four branches")
+        Assertions.assertEquals(Translation.Done("[ru] ${item.sent}"), proposals.single().result)
+    }
+
+    @Test
+    fun `an ICU plural with the target's own branches goes as it is, nothing to review`() {
+        val item = MachineFill.itemOf("common:count", "{n, plural, one {# file} other {# files}}", "de")
+
+        Assertions.assertEquals(MachineFill.Item("common:count", "{n, plural, one {# file} other {# files}}"), item)
+    }
+
+    @Test
+    fun `an ICU plural that cannot be rebuilt is never sent and says why`() {
+        val item = MachineFill.itemOf("common:count", "{n, plural, one {# file}}", "fr")
         val proposals = MachineFill.translate(listOf(item), engine { Translation.Done("x") }, "en", "fr", EmptyProgressIndicator())!!
 
         Assertions.assertEquals(listOf(Translation.Failed(icu)), proposals.map { it.result })

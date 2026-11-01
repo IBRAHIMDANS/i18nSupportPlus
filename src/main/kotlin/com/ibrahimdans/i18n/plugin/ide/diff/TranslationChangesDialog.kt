@@ -332,7 +332,8 @@ internal object LaggingRetranslation {
      *
      * A plural form brings its whole group: every form the target language needs, from the source
      * form of its category or, for review, from `other` — [TranslationDiff.lagging] already left out
-     * a group the locale followed through any of its forms. An ICU plural is listed, not translated.
+     * a group the locale followed through any of its forms. An ICU plural is rebuilt with the target's
+     * branches ([MachineFill.itemOf]); one inside a plural group is listed, not translated.
      */
     fun itemsOf(
         lagging: List<LaggingLocale>,
@@ -354,8 +355,7 @@ internal object LaggingRetranslation {
             val form = TranslationDialog.pluralFormOf(key, config.keySeparator, CLDR_SUFFIX_SEPARATOR)
             if (form == null || form.second !in translations) {
                 val current = values[entry.locale]?.takeIf { it.isNotEmpty() }
-                items[key] = if (PluralTranslationPlan.isIcuPlural(expected)) MachineFill.Item(key, expected, skipped = icu, current = current)
-                else MachineFill.Item(key, expected, current = current)
+                items[key] = MachineFill.itemOf(key, expected, entry.locale, current)
                 continue
             }
             val otherKey = form.second
