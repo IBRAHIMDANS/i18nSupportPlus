@@ -40,7 +40,7 @@ You can reopen it at any time from **Tools > i18n Support Plus > Run Setup Wizar
 | Namespace separator | `:` | Separates namespace from key (e.g. `common:key`) |
 | Key separator | `.` | Separates nested keys (e.g. `parent.child`) |
 | Plural separator | `-` | Separates plural forms |
-| Default namespace | `translation` | Namespace(s) used for keys without a prefix, separated by `;`, `,` or whitespace |
+| Default namespace | `translation` | Namespace(s) used for keys without a prefix, separated by `;`, `,` or whitespace. Left empty, the `defaultNS` of the project's `i18next.init({…})` — or `extract.defaultNS` of `i18next.config.ts` — is used, and the settings page says which file it was read from. `i18n-check` does not read those files: set the default namespace in `i18n-check.json` for the CLI |
 | Fallback namespaces | _(empty)_ | i18next `fallbackNS`: where a key under `useTranslation(…)` is also looked up, in order, when its own namespace lacks it. Read from the i18next configuration file when the plugin finds one |
 | First component as namespace | `false` | Treat the first key component as the namespace (vue-i18n) |
 | Treat keys as flat | `false` | Look a key up as a single property, without splitting (react-intl / FormatJS) |
@@ -51,7 +51,7 @@ You can reopen it at any time from **Tools > i18n Support Plus > Run Setup Wizar
 |---------|---------|-------------|
 | Search in project files only | `true` | Skip libraries and external roots |
 | Translations root directory | *(empty)* | Path from the project root to the translations directory. With modules, the files a module's path template designates are read wherever they are: this directory only bounds the other files |
-| i18next configuration files | *(empty)* | Files declaring i18next `resources` inline, comma-separated (`src/i18n.ts`) |
+| i18next configuration files | *(empty)* | Files declaring i18next `resources` inline, comma-separated (`src/i18n.ts`). Left empty, the plugin finds them: the file that imports `i18next` and calls `.init({…})` or `createInstance({…})`, whatever its name, and `i18next.config.*` at the project root |
 | Excluded directories | *(empty)* | Directory names skipped when scanning for translation files |
 | Locale aliases | *(empty)* | Folder or file names that are no language code, mapped to their locale: `gb=en-GB, cn=zh-CN`. A `gb/` folder is then the `en-GB` locale, shown as `gb`, with its plural forms. Without an alias, a folder named with a country code (`gb`, `jp`, `ua`) is not read as a locale |
 | Excluded file extensions | *(empty)* | Extensions on which annotations are suppressed (`php,vue`) |

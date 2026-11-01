@@ -68,4 +68,29 @@ class ConfigTest {
         assertEquals("fr", config.aliasedLocale("fr"))
         assertEquals(emptyMap<String, String>(), Config().localeAliasMap())
     }
+
+    private val code = CodeDefaults("src/i18n.ts", defaultNs = listOf("common", "shared"), referenceLocale = "fr")
+
+    @Test
+    fun `blank settings take what the code says, filled ones keep their value`() {
+        val filled = Config(defaultNs = "", foldingPreferredLanguage = "").withCodeDefaults(code)
+        assertEquals(listOf("common", "shared"), filled.defaultNamespaces())
+        assertEquals("fr", filled.foldingPreferredLanguage)
+
+        val kept = Config(defaultNs = "app").withCodeDefaults(code)
+        assertEquals(listOf("app"), kept.defaultNamespaces())
+        assertEquals("en", kept.foldingPreferredLanguage)
+        assertFalse(Config().leavesBlankForCode())
+        assertTrue(Config(defaultNs = "").leavesBlankForCode())
+    }
+
+    @Test
+    fun `saving keeps a blank setting blank while it still holds the value read from the code`() {
+        val stored = Config(defaultNs = "")
+        val shown = stored.withCodeDefaults(code)
+
+        assertEquals("", shown.keepingCodeDefaultsOut(stored, code).defaultNs)
+        assertEquals("auth", shown.copy(defaultNs = "auth").keepingCodeDefaultsOut(stored, code).defaultNs)
+        assertEquals("common,shared", Config(defaultNs = "common,shared").keepingCodeDefaultsOut(Config(defaultNs = "common,shared"), code).defaultNs)
+    }
 }

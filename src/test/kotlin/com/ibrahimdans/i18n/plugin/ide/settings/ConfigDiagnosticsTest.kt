@@ -131,4 +131,53 @@ class ConfigDiagnosticsTest {
             diagnostics
         )
     }
+
+    private val cboxFiles = mapOf("en" to setOf("common", "auth"), "fr" to setOf("common", "auth"))
+    private val initCode = CodeDefaults("src/i18n.ts", defaultNs = listOf("common"))
+
+    @Test
+    fun `a default namespace with no file is reported with the namespace the code names`() {
+        val diagnostics = ConfigDiagnostics.inspect(
+            Config(translationsRoot = "public/locales"),
+            healthy,
+            NamespaceFacts(byLocale = cboxFiles, code = initCode)
+        )
+
+        assertEquals(
+            listOf(ConfigDiagnostic(ConfigIssue.DEFAULT_NS_NO_FILE, path = "translation", suggestion = "common", origin = "src/i18n.ts")),
+            diagnostics
+        )
+    }
+
+    @Test
+    fun `without the code the only namespace of every locale is suggested`() {
+        val files = mapOf("en" to setOf("app", "extra"), "fr" to setOf("app"))
+
+        val diagnostic = ConfigDiagnostics.defaultNamespaceWithoutFile(Config(), NamespaceFacts(byLocale = files))
+
+        assertEquals(ConfigDiagnostic(ConfigIssue.DEFAULT_NS_NO_FILE, path = "translation", suggestion = "app"), diagnostic)
+    }
+
+    @Test
+    fun `several namespaces in every locale and no code leave only the wizard`() {
+        val diagnostic = ConfigDiagnostics.defaultNamespaceWithoutFile(Config(), NamespaceFacts(byLocale = cboxFiles))
+
+        assertEquals(ConfigDiagnostic(ConfigIssue.DEFAULT_NS_NO_FILE, path = "translation"), diagnostic)
+    }
+
+    @Test
+    fun `a default namespace with a file, a locale-named file or unknown files report nothing`() {
+        assertEquals(null, ConfigDiagnostics.defaultNamespaceWithoutFile(Config(defaultNs = "common"), NamespaceFacts(byLocale = cboxFiles)))
+        assertEquals(null, ConfigDiagnostics.defaultNamespaceWithoutFile(Config(), NamespaceFacts(byLocale = cboxFiles, holdsDefaultByName = true)))
+        assertEquals(null, ConfigDiagnostics.defaultNamespaceWithoutFile(Config(), NamespaceFacts()))
+    }
+
+    @Test
+    fun `a blank default namespace read from the code says where it comes from instead of being empty`() {
+        val config = Config(translationsRoot = "locales", defaultNs = "").withCodeDefaults(initCode)
+
+        val diagnostics = ConfigDiagnostics.inspect(config, healthy, NamespaceFacts(byLocale = cboxFiles, code = initCode, readFromCode = true))
+
+        assertEquals(listOf(ConfigDiagnostic(ConfigIssue.DEFAULT_NS_FROM_CODE, path = "common", origin = "src/i18n.ts")), diagnostics)
+    }
 }

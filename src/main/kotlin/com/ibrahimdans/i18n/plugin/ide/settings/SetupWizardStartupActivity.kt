@@ -6,6 +6,7 @@ import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.smartReadAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.ProjectActivity
 import com.intellij.openapi.util.Key
@@ -36,7 +37,7 @@ class SetupWizardStartupActivity : ProjectActivity {
         if (ApplicationManager.getApplication().isUnitTestMode) return
         if (project.getUserData(SUGGESTED) == true) return
         val need = detectNeed(project)
-        if (need == SetupNeed.NONE) return
+        if (need == SetupNeed.NONE) return suggestDefaultNamespace(project)
         project.putUserData(SUGGESTED, true)
 
         NotificationGroupManager.getInstance()
@@ -55,6 +56,32 @@ class SetupWizardStartupActivity : ProjectActivity {
                 Settings.getInstance(project).setupWizardEnabled = false
             })
             .notify(project)
+    }
+
+    /**
+     * A configured project whose default namespace has no file ([ConfigIssue.DEFAULT_NS_NO_FILE]):
+     * every key without a namespace is red, which a translations root that resolves does not reveal.
+     * Told once, with the namespace to use when the code or the files say which, and the wizard.
+     */
+    private suspend fun suggestDefaultNamespace(project: Project) {
+        val diagnostic = smartReadAction(project) {
+            val config = Settings.getInstance(project).config()
+            ConfigDiagnostics.defaultNamespaceWithoutFile(config, namespaceFacts(project, config))
+        } ?: return
+        project.putUserData(SUGGESTED, true)
+        val notification = NotificationGroupManager.getInstance()
+            .getNotificationGroup("i18n Support Plus")
+            .createNotification(PluginBundle.message("wizard.notification.title"), diagnostic.text(), NotificationType.WARNING)
+        val suggestion = diagnostic.suggestion
+        val label = diagnostic.useSuggestionLabel()
+        if (suggestion != null && label != null) {
+            notification.addAction(NotificationAction.createSimpleExpiring(label) {
+                if (!project.isDisposed) useDefaultNamespace(project, suggestion)
+            })
+        }
+        notification.addAction(NotificationAction.createSimpleExpiring(PluginBundle.message("settings.diagnostics.action.runWizard")) {
+            if (!project.isDisposed) SetupWizardDialog(project).show()
+        }).notify(project)
     }
 
     private fun detectNeed(project: Project): SetupNeed =
