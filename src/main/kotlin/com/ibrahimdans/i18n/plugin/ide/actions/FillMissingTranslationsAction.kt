@@ -21,7 +21,9 @@ import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.translate.MachineTranslationSettings
 import com.ibrahimdans.i18n.plugin.translate.PluralTranslationPlan
 import com.ibrahimdans.i18n.plugin.translate.Translation
+import com.ibrahimdans.i18n.plugin.translate.TranslatedBy
 import com.ibrahimdans.i18n.plugin.translate.TranslationContext
+import com.ibrahimdans.i18n.plugin.translate.TranslationMemory
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
 import com.ibrahimdans.i18n.plugin.translate.asCancellation
@@ -53,7 +55,9 @@ import java.util.concurrent.Future
  * Nothing is written without the preview, a value already there is never replaced — checked again
  * right before writing — and a proposal the engine got wrong (a variable or tag lost) comes
  * unchecked with its reason. A plural key is translated by the forms the *target* language has
- * ([PluralTranslationPlan]): `few` and `many` for Russian, `other` alone for Japanese.
+ * ([PluralTranslationPlan]): `few` and `many` for Russian, `other` alone for Japanese. A text the
+ * module already translates under another key takes that translation ([TranslationMemory]) and never
+ * reaches the engine.
  */
 class FillMissingTranslationsAction : AnAction() {
 
@@ -198,8 +202,14 @@ internal object MachineFill {
         val current: String? = null,
     )
 
-    /** What the engine proposed for [item], in the [locale] it fills. */
-    data class Proposal(val item: Item, val result: Translation, val locale: String = "")
+    /**
+     * What the engine proposed for [item], in the [locale] it fills — or, with [memory], what another
+     * key of the module already holds for the same text, the engine never asked.
+     */
+    data class Proposal(val item: Item, val result: Translation, val locale: String = "", val memory: TranslationMemory.Match? = null)
+
+    /** The engine a translation taken from the module's own translations is said to come from, local as nothing is sent. */
+    val MEMORY_ENGINE = TranslatedBy("project-memory", local = true)
 
     /**
      * What to translate in [translations] (`key -> locale -> value`) from [source] to [target], sorted:
@@ -281,6 +291,11 @@ internal object MachineFill {
      * the keys of a call sent as its context with what [known] (`key -> locale -> value`, read once for
      * the whole pass) already holds about them — see [contextOf]. A skipped item is never sent. Null
      * when the user cancelled: nothing is then proposed, and nothing written.
+     *
+     * Before any call, an item whose text another key of [known] already translates into [target]
+     * takes that translation ([TranslationMemory]) and is not sent, nor named in a call's context. A
+     * plural form translated from `other` ([Item.needsReview]) is always sent: the `other` of another
+     * key is not the form it lacks.
      */
     fun translate(
         items: List<Item>, provider: TranslationProvider, source: String, target: String, indicator: ProgressIndicator?,
@@ -289,7 +304,11 @@ internal object MachineFill {
         // Every item of the pass is left out of the examples: a stale value being retranslated
         // must not be shown as the way the project says it.
         val examples = known - items.map { it.key }.toSet()
-        val sent = items.filter { it.skipped == null }
+        val memory = TranslationMemory.of(examples, source, target)
+        val remembered = items.filter { it.skipped == null && !it.needsReview }
+            .mapNotNull { item -> memory.lookup(item.source)?.let { item to it } }
+            .toMap()
+        val sent = items.filter { it.skipped == null && it !in remembered }
         val calls = sent.chunked(KEYS_PER_CALL)
         val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("i18n machine translation", PARALLEL_REQUESTS)
         try {
@@ -314,7 +333,14 @@ internal object MachineFill {
                 calls[index].zip(results).forEach { (item, result) -> translated[item] = result }
             }
             if (indicator?.isCanceled == true) return null
-            return items.map { item -> Proposal(item, item.skipped?.let { Translation.Failed(it) } ?: translated.getValue(item), target) }
+            return items.map { item ->
+                val match = remembered[item]
+                when {
+                    item.skipped != null -> Proposal(item, Translation.Failed(item.skipped), target)
+                    match != null -> Proposal(item, Translation.Done(match.value, MEMORY_ENGINE), target, match)
+                    else -> Proposal(item, translated.getValue(item), target)
+                }
+            }
         } finally {
             executor.shutdownNow()
         }

@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.dialog.MachineTranslationPreviewDialog
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.review.Review
 import com.ibrahimdans.i18n.plugin.review.ReviewHash
@@ -518,5 +519,100 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
             ShownReview.TO_REVIEW, shown(few.copy(source = null), "[ru] {{count}} files", currentSource("common:file_few")),
             "a review written before, without source, never turns stale"
         )
+    }
+
+    // ---- project memory ----
+
+    private val memoryKnown = mapOf(
+        "common:actions.save" to mapOf("en" to "Save", "fr" to "Enregistrer"),
+        "common:greeting" to mapOf("en" to "Hello {{name}}", "fr" to "Bonjour {{name}}"),
+    )
+
+    @Test
+    fun `a text the module already translates is filled from it, the engine never called`() {
+        val items = listOf(MachineFill.Item("cart:save", "Save"), MachineFill.Item("cart:hello", "Hello {{name}}"))
+        val known = memoryKnown + items.associate { it.key to mapOf("en" to it.source) }
+
+        val proposals = MachineFill.translate(items, engine { Translation.Done("x") }, "en", "fr", EmptyProgressIndicator(), known, config)!!
+
+        Assertions.assertTrue(requests.isEmpty(), "nothing goes to the engine: ${requests.map { it.texts }}")
+        Assertions.assertEquals(listOf(Translation.Done("Enregistrer"), Translation.Done("Bonjour {{name}}")), proposals.map { it.result })
+        Assertions.assertEquals(listOf(true, true), proposals.map { it.memory?.unanimous })
+        Assertions.assertEquals(MachineFill.MEMORY_ENGINE, (proposals.first().result as Translation.Done).engine)
+    }
+
+    @Test
+    fun `only the texts the memory lacks go to the engine, the remembered keys left out of the context`() {
+        val items = listOf(MachineFill.Item("cart:quit", "Quit"), MachineFill.Item("cart:save", "Save"))
+
+        val proposals = MachineFill.translate(items, engine { Translation.Done("FR $it") }, "en", "fr", EmptyProgressIndicator(), memoryKnown, config)!!
+
+        Assertions.assertEquals(listOf(Translation.Done("FR Quit"), Translation.Done("Enregistrer")), proposals.map { it.result })
+        val request = requests.single()
+        Assertions.assertEquals(listOf("Quit"), request.texts)
+        Assertions.assertFalse("cart:save" in request.context, request.context)
+    }
+
+    @Test
+    fun `a plural form translated from other, or a value with other placeholders, still goes to the engine`() {
+        val known = mapOf(
+            "common:files_other" to mapOf("en" to "{{count}} files", "ru" to "{{count}} файлов"),
+            "common:hello" to mapOf("en" to "Hello {{name}}", "ru" to "Привет"),
+        )
+        val items = listOf(
+            MachineFill.Item("cart:items_few", "{{count}} files", needsReview = true),
+            MachineFill.Item("cart:hello", "Hello {{name}}"),
+        )
+
+        MachineFill.translate(items, engine { Translation.Done("x") }, "en", "ru", EmptyProgressIndicator(), known, config)!!
+
+        Assertions.assertEquals(listOf("{{count}} files", "Hello {{name}}"), requests.single().texts)
+    }
+
+    @Test
+    fun `the preview names the project memory, a divergent value unchecked with its note`() = myFixture.runWithConfig(config) {
+        val known = mapOf(
+            "a:save" to mapOf("en" to "Save", "fr" to "Sauvegarder"),
+            "b:save" to mapOf("en" to "Save", "fr" to "Enregistrer"),
+            "c:save" to mapOf("en" to "Save", "fr" to "Enregistrer"),
+            "d:title" to mapOf("en" to "Title", "fr" to "Titre"),
+        )
+        val items = listOf(MachineFill.Item("cart:save", "Save"), MachineFill.Item("cart:title", "Title"))
+        val proposals = MachineFill.translate(items, engine { Translation.Done("x") }, "en", "fr", EmptyProgressIndicator(), known, config)!!
+        val dialog = MachineTranslationPreviewDialog(project, "fr", proposals)
+        try {
+            Assertions.assertEquals(listOf("Enregistrer", "Titre"), (0..1).map { dialog.model.getValueAt(it, 3) })
+            Assertions.assertEquals(false, dialog.model.getValueAt(0, 0), "translated two ways in the project: the user decides")
+            Assertions.assertEquals(PluginBundle.message("action.fill.memory.divergent"), dialog.model.getValueAt(0, 4))
+            Assertions.assertEquals(true, dialog.model.getValueAt(1, 0), "translated one way: checked")
+            Assertions.assertEquals(listOf(PluginBundle.message("action.fill.engine.memory")), (0..1).map { dialog.model.getValueAt(it, 5) }.distinct())
+            Assertions.assertTrue(dialog.model.isCellEditable(0, 0), "a divergent value can still be checked")
+            Assertions.assertEquals(mapOf("cart:title" to "Titre"), dialog.accepted())
+        } finally {
+            Disposer.dispose(dialog.disposable)
+        }
+    }
+
+    @Test
+    fun `a module never reads the memory of another module`() = myFixture.runWithConfig(config) {
+        addFileToProject("web/locales/en/common.json", """{"save": "Save"}""")
+        addFileToProject("web/locales/fr/common.json", "{}")
+        addFileToProject("admin/locales/en/common.json", """{"actions": {"save": "Save"}}""")
+        addFileToProject("admin/locales/fr/common.json", """{"actions": {"save": "Sauvegarder"}}""")
+        // In this light fixture the project files live under `src/` (see TableViewModelSaveValueTest).
+        val web = ModuleConfig(name = "web", rootDirectory = "src/web")
+
+        fun fill(module: ModuleConfig?): List<MachineFill.Proposal> {
+            val known = TranslationDataLoader.loadAllTranslations(project, module)
+            val items = MachineFill.itemsOf(known, "en", "fr", ".").filter { it.key == "common:save" }
+            return MachineFill.translate(items, engine { Translation.Done("FR $it") }, "en", "fr", EmptyProgressIndicator(), known, config)!!
+        }
+
+        Assertions.assertEquals(Translation.Done("Sauvegarder"), fill(null).single().result, "without modules, the admin value is the project's")
+        requests.clear()
+        val scoped = fill(web).single()
+        Assertions.assertEquals(Translation.Done("FR Save"), scoped.result, "the web module asks the engine")
+        Assertions.assertNull(scoped.memory)
+        Assertions.assertEquals(listOf("Save"), requests.single().texts)
     }
 }
