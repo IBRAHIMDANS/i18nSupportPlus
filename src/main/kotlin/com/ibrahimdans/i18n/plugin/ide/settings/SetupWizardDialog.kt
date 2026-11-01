@@ -6,6 +6,8 @@ import com.intellij.ide.wizard.AbstractWizard
 import com.intellij.ide.wizard.CommitStepException
 import com.intellij.ide.wizard.Step
 import com.intellij.ide.wizard.StepAdapter
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
@@ -186,6 +188,9 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         private val unusedKeysBox = JBCheckBox(PluginBundle.message("wizard.summary.check.unused"))
         private val hardcodedTextBox = JBCheckBox(PluginBundle.message("wizard.summary.check.hardcoded"))
 
+        // Unticked: writing a file into the project, for the team to commit, is asked for.
+        private val shareBox = JBCheckBox(PluginBundle.message("wizard.summary.share", ProjectConfigFile.PATH))
+
         /** The plan the form currently shows; a rebuild would discard what the user typed. */
         private var shownPlan: WizardPlan.Plan? = null
 
@@ -331,6 +336,9 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
                     .rowComment(PluginBundle.message("wizard.summary.checks.comment"))
             }
 
+            row(PluginBundle.message("wizard.summary.field.share")) { cell(shareBox) }
+                .rowComment(PluginBundle.message("settings.config.file.export.comment", ProjectConfigFile.PATH))
+
             if (foundFiles.any { it.endsWith(".po") || it.endsWith(".pot") }) {
                 row {
                     cell(
@@ -403,6 +411,9 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
             if (unusedKeysBox.isSelected) add(RecommendedInspections.UNUSED_KEY)
             if (hardcodedTextBox.isSelected) addAll(RecommendedInspections.HARDCODED_TEXT)
         }
+
+        /** True when the settings are to be written to `i18n-check.json` as well. */
+        fun share(): Boolean = shareBox.isSelected
 
         private fun isTicked(field: WizardPlan.Field): Boolean = applyBoxes[field]?.isSelected == true
 
@@ -489,7 +500,14 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
     override fun doOKAction() {
         summaryStep.choices().applyTo(Settings.getInstance(project))
         RecommendedInspections.enable(project, summaryStep.checks())
+        val share = summaryStep.share()
         super.doOKAction()
+        // Once the wizard is closed: export may ask before replacing a file, and its notification
+        // opens the file, both of which a modal wizard would hide.
+        if (share) ApplicationManager.getApplication().invokeLater(
+            { if (!project.isDisposed) ProjectConfigFileExport.exportSettings(project) },
+            ModalityState.nonModal()
+        )
     }
 
     private fun selectedFrameworks(): Set<String> =
