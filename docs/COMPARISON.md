@@ -126,7 +126,7 @@ a notification offers the setup wizard when the project opens.
 | CSV / XLIFF export and import | Yes, with preview | — | — | — |
 | Translation changes of a branch | Compare with a Git branch; the locales lagging behind the reference retranslated in one go | — | — | — |
 | Review: approve, request changes, comment | Per key and locale in the table, the key dialog and the gutter of a JSON or YAML translation file, stored in `.i18n-reviews/`; machine translations marked to review; reviews follow renamed, moved and deleted keys; a translation whose source changed since its review flagged in the table, the key dialog and an inspection, and retranslated in one go; a change request can carry a suggested value, applied in one click, and a thread takes replies and is resolved | — | — | Approve, request changes, comment, suggest a value, from the editor, side panel and Editor UI; stored in `.vscode/i18n-ally-reviews.yml` ([wiki](https://github.com/lokalise/i18n-ally/wiki/Review-&-Collaboration-System), [source](https://github.com/lokalise/i18n-ally/blob/main/src/core/types.ts)) |
-| Checks in CI | Inspections in Qodana or a headless IDE, ready-made configuration; `i18n-check` on the command line and as a GitHub Action: missing, orphan and empty keys per locale, and unused keys for i18next ([README](../README.md#command-line-check)) | — | — | — |
+| Checks in CI | Inspections in Qodana or a headless IDE, ready-made configuration; `i18n-check` on the command line and as a GitHub Action: missing, orphan and empty keys per locale, and unused keys for i18next ([documentation](checks.md#command-line-check)) | — | — | — |
 
 ### Machine translation
 
@@ -136,7 +136,7 @@ a notification offers the setup wizard when the project opens.
 | Opt-in | Yes: nothing is sent until enabled for the project | — | — | No: Google is the default engine |
 | Placeholders and tags kept | Masked before sending | — | — | — |
 | Plural forms of the target language | Yes | — | — | — |
-| AI agents (Codex, Claude, any MCP client) | Tools on the IDE's MCP server: the agent reads the missing keys and writes them through the plugin — never over an existing value but a stale one, placeholders and plural forms checked, one undo; it finds an existing key by name or text before creating one ([setup](../README.md#ai-agents-mcp)) | — | — | — ([#1328](https://github.com/lokalise/i18n-ally/issues/1328), open) |
+| AI agents (Codex, Claude, any MCP client) | Tools on the IDE's MCP server: the agent reads the missing keys and writes them through the plugin — never over an existing value but a stale one, placeholders and plural forms checked, one undo; it finds an existing key by name or text before creating one ([setup](translation.md#ai-agents-mcp)) | — | — | — ([#1328](https://github.com/lokalise/i18n-ally/issues/1328), open) |
 | Preview before writing | Yes, one undo, the engine that translated each proposal | — | — | Can save as review candidates |
 | Fill a whole locale | Yes, every locale at once | — | — | `fulfill-keys` |
 | Glossary | Terms kept as written for every engine; translated terms sent to the OpenAI-compatible prompt and as a DeepL glossary | — | — | — |
