@@ -342,7 +342,7 @@ The inspections also run without an editor, in [Qodana](https://www.jetbrains.co
 
 ```bash
 unzip i18n-check-1.16.0.zip
-i18n-check-1.16.0/bin/i18n-check [project] [--locales <dir> | --code] [--reference <locale>] [--format text|json] [--max-problems N]
+i18n-check-1.16.0/bin/i18n-check [project] [--locales <dir> | --code] [--reference <locale>] [--format text|json|github] [--max-problems N]
 ```
 
 `./gradlew :cli:installDist` builds it from this repository instead, in `cli/build/install/i18n-check/`.
@@ -414,6 +414,19 @@ jobs:
 ```
 
 `args` takes the command line's arguments, `version` another release than the tag's.
+
+Unless `args` sets its own `--format`, the action runs `--format github`: each problem becomes a workflow command, which GitHub shows as an annotation on the pull request's *Files changed* tab and on the run's page, followed by the text report for the log:
+
+```text
+::error file=src/components/Dashboard.tsx,line=27,title=Unknown key::dashboard:stats.user is called here, but the reference locale en has no such key
+::error file=public/locales/fr/common.json,line=1,title=Missing translation::fr lacks common:actions.edit, which the reference locale en holds
+::error file=public/locales/en/common.json,line=1,title=Unused key::No code uses common:status.loading
+```
+
+- An unknown key is annotated on the line calling it. A missing, orphan or empty key is annotated on line 1 of the locale's file holding its namespace, an unused key on the reference locale's file; a locale with no file for that namespace gets an annotation on the run only.
+- They are `::error` while the problems exceed `--max-problems`, `::warning` when the check passes. GitHub shows a limited number of annotations per step: the full list stays in the log.
+- The run's summary page gets a table of each locale's missing, orphan and empty keys (`$GITHUB_STEP_SUMMARY`).
+- Paths are given from the directory `i18n-check` runs in, the workspace in GitHub Actions.
 
 #### Other CI systems
 

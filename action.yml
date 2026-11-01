@@ -6,7 +6,7 @@ branding:
 
 inputs:
   args:
-    description: The arguments of i18n-check, such as `--code --max-problems 0`.
+    description: The arguments of i18n-check, such as `--code --max-problems 0`. Without a `--format`, `--format github` is added.
     required: false
     default: ''
   version:
@@ -40,4 +40,7 @@ runs:
       env:
         ARGS: ${{ inputs.args }}
       # Unquoted on purpose: the arguments are split on spaces, never evaluated.
-      run: i18n-check $ARGS
+      # Without a --format of their own, the problems are annotated on the pull request's files.
+      run: |
+        if [[ " $ARGS " != *" --format "* ]]; then ARGS="$ARGS --format github"; fi
+        i18n-check $ARGS
