@@ -15,6 +15,7 @@ import com.intellij.driver.sdk.waitFor
 import com.intellij.driver.sdk.waitForCodeAnalysis
 import java.awt.Point
 import java.awt.Rectangle
+import java.awt.Robot
 import java.nio.file.Files
 import kotlin.time.Duration.Companion.minutes
 
@@ -54,13 +55,6 @@ object EditorScreenshots {
                 val editor = openEditor(NAVIGATION, navigation("common:actions.saxve", misspelledProfile = true))
                 editor.caretAtEndOf("common:actions.saxve')} /")
                 lines(editor, 11, 28, width = 1300)
-            },
-            Screenshot("gutter-icons-tooltip.png", keepPointer = true) {
-                val editor = openEditor(NAVIGATION, navigation("common:actions.saxve", misspelledProfile = true))
-                editor.caretAtEndOf("common:actions.saxve')} /")
-                frame.gutter().hoverOverIcon(15)
-                waitForText("the gutter badge tooltip") { it.startsWith("i18n:") }
-                lines(editor, 11, 20, width = 1300)
             },
             Screenshot("hover-hint.png", cleanUp = { driver.ui.keyboard { escape() } }) {
                 val editor = openEditor(NAVIGATION, navigation("common:actions.saxve", misspelledProfile = true))
@@ -102,22 +96,30 @@ object EditorScreenshots {
                 val editor = openEditor(NAVIGATION, navigation("common:actions.archive"))
                 editor.caretAtEndOf("common:actions.arch")
                 editorAction(editor, "ShowIntentionActions")
-                waitForText("the quick fixes") { it == "Create i18n key" }
+                // This popup opens at (0, 0) under Xvfb, in a window whose texts the driver does not
+                // read: it is given time to open, and its speed search picks the fix by name.
+                Robot().delay(QUICK_FIX_POPUP_MS)
                 editor.keyboard {
                     typeText("Create i18n key")
                     enter()
                 }
-                // A Messages input dialog: its title is not a component attribute, its prompt is.
-                lateinit var dialog: UiComponent
-                waitFor("the Translation Value dialog", 1.minutes) {
-                    driver.ui.xx("//div[@class='MyDialog']").list()
-                        .firstOrNull { it.hasSubtext("Enter translation value for") }?.also { dialog = it } != null
-                }
+                // The fix opens Create Translation on the key, which it checks before saying it is free.
+                val dialog = driver.ui.dialog(title = "Create Translation").also { it.waitFound(1.minutes) }
+                dialog.waitOneText("Key is available", timeout = 1.minutes)
                 dialog.boundsOnScreen
             },
-            Screenshot("navigation.png") {
+            Screenshot(
+                "navigation.png",
+                cleanUp = {
+                    driver.showIntentionBulb(true)
+                    driver.differentiateProjects(true)
+                },
+            ) {
                 val editor = openEditor(NAVIGATION, navigation("common:actions.saxve", misspelledProfile = true))
                 editor.caretAtEndOf("'navigation:menu.ho")
+                // The JSON file's bulb shows once its analysis ends, in one session and not the next.
+                driver.showIntentionBulb(false)
+                driver.differentiateProjects(false)
                 editorAction(editor, "GotoDeclaration")
                 // en and fr both declare the key: the IDE asks which file to open.
                 if (runCatching { waitForText("the declaration chooser") { it.endsWith("navigation.json") } }.isSuccess) {
@@ -128,12 +130,23 @@ object EditorScreenshots {
                 val bottom = lines(json, 1, 11, width = 1).let { it.y + it.height }
                 Rectangle(tabs.boundsOnScreen.x, tabs.boundsOnScreen.y, 760, bottom - tabs.boundsOnScreen.y)
             },
-            Screenshot("extraction-intent.png", cleanUp = { driver.ui.keyboard { escape() } }) {
+            Screenshot(
+                "extraction-intent.png",
+                cleanUp = {
+                    driver.ui.keyboard { escape() }
+                    driver.showIntentionPreview(true)
+                },
+            ) {
                 val editor = openEditor(DASHBOARD, reference(DASHBOARD))
                 editor.caretAtEndOf("<h3>Actions (from")
+                // Before the popup: once it is open, the frame's gutter is no longer found.
+                val area = lines(editor, 47, 58, width = 1000)
+                driver.showIntentionPreview(false)
                 editorAction(editor, "ShowIntentionActions")
                 waitForText("the intentions") { it == "Extract i18n key" }
-                lines(editor, 47, 58, width = 1000)
+                // The plugin's intention selected, second after the IDE's "Convert default export to named".
+                driver.ui.keyboard { down() }
+                area
             },
             Screenshot("extraction.png") {
                 extractionDialog().boundsOnScreen
@@ -153,7 +166,7 @@ object EditorScreenshots {
         ),
     )
 
-    /** *Show Translations Inline* on from the start: open editors are not folded when it is switched on (TASK-INLINE-TOGGLE-OPEN-EDITORS). */
+    /** *Show Translations Inline* on from the start, as for a user who turned it on before opening the file. */
     val FOLDING_SESSION = ScreenshotSession(
         "folding",
         listOf(
@@ -222,6 +235,8 @@ object EditorScreenshots {
         val bottom = editor.boundsOnScreen.y + editor.interact { visualLineToY(last) }
         return Rectangle(gutter.boundsOnScreen.x, top, width, bottom - top)
     }
+
+    private const val QUICK_FIX_POPUP_MS = 3000
 
     /** The list (a popup's) that renders [row]. */
     private fun ScreenshotScope.listShowing(row: String): UiComponent =

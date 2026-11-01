@@ -48,10 +48,12 @@ class ScreenshotScope(val driver: Driver, val frame: IdeaFrameUI) {
     /**
      * Waits for a rendered text (list rows and table cells are not components) in the frame or in
      * a popup, which the IDE may open as a window of its own when it does not fit in the frame.
+     * Under Xvfb some popups open at (0, 0) in a window of another class: their lists are searched too.
      */
     fun waitForText(description: String, predicate: (String) -> Boolean) {
         waitFor(description, 1.minutes) {
-            (listOf<UiComponent>(frame) + driver.ui.xx("//div[@class='HeavyWeightWindow']").list())
+            val lists = driver.ui.xx { byType("javax.swing.JList") }.list().filter { it.component.isShowing() }
+            (listOf<UiComponent>(frame) + driver.ui.xx("//div[@class='HeavyWeightWindow']").list() + lists)
                 .any { window -> window.getAllTexts().any { predicate(it.text) } }
         }
     }
@@ -129,6 +131,7 @@ object ScreenshotHarness {
             // copied project has no node_modules, so "Install dependencies" is sure to show.
             closeAndDisableAllBalloonNotifications()
             stopCaretBlinking()
+            stopSmoothScrolling()
             ideFrame {
                 // Without a window manager under Xvfb the frame keeps its default size, which
                 // would make every capture depend on the IDE build rather than on the test.
@@ -136,6 +139,7 @@ object ScreenshotHarness {
                 waitFor("the IDE frame to take its fixed bounds", 1.minutes) { boundsOnScreen == FRAME_BOUNDS }
                 val scope = ScreenshotScope(this@useDriverAndCloseIde, this)
                 for (screenshot in screenshots) {
+                    var firstTry: Throwable? = null
                     try {
                         // WebStorm opens its evaluation prompt once a session, on a timer: a scenario
                         // it interrupts gets a second try once the prompt is closed.
@@ -147,6 +151,7 @@ object ScreenshotHarness {
                             capture(bounds, outputDirectory.resolve(runName).resolve(screenshot.fileName), screenshot.keepPointer)
                         }
                         runCatching(attempt).onFailure {
+                            firstTry = it
                             runCatching { screenshot.cleanUp(scope) }
                             attempt()
                         }
@@ -155,8 +160,9 @@ object ScreenshotHarness {
                         val failure = outputDirectory.resolve(runName).resolve("failed-${screenshot.fileName}")
                         Files.createDirectories(failure.parent)
                         ImageIO.write(Robot().createScreenCapture(Rectangle(0, 0, 1920, 1440)), "png", failure.toFile())
-                        val cause = generateSequence(e) { it.cause }.last()
-                        failures += "${screenshot.fileName} ($runName): ${cause.message?.lineSequence()?.firstOrNull()}, screen in $failure"
+                        // The second try often fails on what the first one left behind: both are reported.
+                        val first = firstTry?.let { "; first try: ${firstLine(it)}" }.orEmpty()
+                        failures += "${screenshot.fileName} ($runName): ${firstLine(e)}$first, screen in $failure"
                     } finally {
                         runCatching { screenshot.cleanUp(scope) }
                     }
@@ -165,6 +171,8 @@ object ScreenshotHarness {
         }
         return failures
     }
+
+    private fun firstLine(e: Throwable): String? = generateSequence(e) { it.cause }.last().message?.lineSequence()?.firstOrNull()
 
     /** WebStorm's own prompts, which open on a timer of their own and would sit over a capture. */
     private fun Driver.dismissIdePrompts() {
