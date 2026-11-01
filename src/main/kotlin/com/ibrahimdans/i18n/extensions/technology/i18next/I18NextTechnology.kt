@@ -69,7 +69,9 @@ class I18NextTechnology : Technology {
                             it.matches(LocalizationFileType(expr.containingFile.fileType), null, listOf())
                         }.map {
                             expr.containingFile.putUserData(SOURCE_ROOT, true)
-                            LocalizationSource(it.elementsTree(expr), name, expr.containingFile.name, expr.containingFile.containingDirectory.name, it)
+                            // One file holds every locale: the locale is the source's parent, and it
+                            // keeps the path unique, or `distinctBy { displayPath }` kept the first locale.
+                            LocalizationSource(it.elementsTree(expr), name, name, "${expr.containingFile.name}#$name", it, locale = name)
                         }
                 }
             }

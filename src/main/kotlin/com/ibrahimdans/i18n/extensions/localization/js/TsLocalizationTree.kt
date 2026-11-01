@@ -19,6 +19,16 @@ private class TsObjectLiteralTree (val objectLiteral: JSObjectLiteralExpression)
             .properties
             .filter {it.name?.startsWith(prefix) ?: false}
             .mapNotNull { property -> property.value?.let{TsLocalizationTree.create(it)} }
+
+    /**
+     * The properties by name: a value node names nothing (a literal, an object), so the tool
+     * window and *Sync Keys* read the keys of a catalogue from here, and found none before.
+     */
+    override fun entries(): List<Pair<String, Tree<PsiElement>>> =
+        objectLiteral.properties.mapNotNull { property ->
+            val name = property.name ?: return@mapNotNull null
+            property.value?.let { TsLocalizationTree.create(it) }?.let { name to it }
+        }
 }
 
 private class TsLiteralExpressionTree (val literalExpression: JSLiteralExpression): Tree<PsiElement> {
