@@ -4,28 +4,19 @@ import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.DeleteI18nKeyAction
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.ibrahimdans.i18n.plugin.ide.toolwindow.ReviewBadge
-import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
-import com.ibrahimdans.i18n.plugin.key.lexer.Literal
-import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewSources
-import com.ibrahimdans.i18n.plugin.review.ReviewStore
-import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.review.shown
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewActions
-import com.ibrahimdans.i18n.plugin.review.ui.ReviewCell
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewThreadDialog
 import com.ibrahimdans.i18n.plugin.translate.MachineTranslationSettings
 import com.ibrahimdans.i18n.plugin.translate.TranslationContext
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
-import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.CommandProcessor
 import com.intellij.openapi.command.UndoConfirmationPolicy
@@ -165,12 +156,15 @@ class TranslationDialog(
     private var namespaceCombo: JComboBox<String>? = null
     private var copyButton: JButton? = null
 
+    /** The review state under each locale, its thread, and the marks left on machine proposals. */
+    private val reviews = DialogReviews(project, fullKey, sources, viewModel, caller, tabModule)
+
     /** *Translate*, its *Context* and *Instruction* fields, and the proposals it made. */
     private val machine = DialogMachineTranslation(
         project, fullKey, tabModule, initialNamespace, viewModel,
         typedKey = { keyField.text },
         textAreas = { textAreas },
-        moduleOf = ::moduleOf,
+        moduleOf = reviews::moduleOf,
     )
 
     /** Keys already defined under the selected namespace; refreshed together with the sources. */
@@ -178,15 +172,6 @@ class TranslationDialog(
 
     /** Keys of the selected namespace that only other modules define, with their names; refreshed with the sources. */
     private var keysInOtherModules: Map<String, List<String>> = emptyMap()
-
-    /** The review state shown under each locale; only for the locales of a module that keeps reviews. */
-    private val reviewBadges = LinkedHashMap<LocalizationSource, JBLabel>()
-
-    /** Where each source's reviews live, null when its module keeps none; read once per dialog. */
-    private val reviewRoots = HashMap<LocalizationSource, VirtualFile?>()
-
-    /** The module each source belongs to, null when no module of the settings holds it; read once per dialog. */
-    private val owners = HashMap<LocalizationSource, ModuleConfig?>()
 
     init {
         title =
@@ -335,7 +320,7 @@ class TranslationDialog(
         variableWarnings.clear()
         variableWarningRows.clear()
         machine.proposals.clear()
-        reviewBadges.clear()
+        reviews.badges.clear()
         // Only CREATE mode asks whether a key is free; EDIT mode is looking at one that exists,
         // so it never pays for these reads. Without a caller or a tab's module the rows are the
         // project's: no other module's file is left out to point to.
@@ -388,95 +373,15 @@ class TranslationDialog(
             }.visible(false)
 
             // A key being created has no review yet: the badge and its link are for one that exists.
-            val root = if (mode == Mode.EDIT) reviewRootOf(source) else null
+            val root = if (mode == Mode.EDIT) reviews.rootOf(source) else null
             if (root != null) {
-                val badge = JBLabel()
-                reviewBadges[source] = badge
-                showReview(source, root, badge)
+                val badge = reviews.badgeOf(source, root)
                 row("") {
                     cell(badge)
-                    link(PluginBundle.message("dialog.translation.review.link")) { openReview(source, root) }
+                    link(PluginBundle.message("dialog.translation.review.link")) { reviews.open(source, root) }
                 }
             }
         }
-    }
-
-    /**
-     * The directory [source]'s reviews hang under — its module's, see [ReviewActions.enabledRoot] —
-     * or null when that module keeps no reviews. Never creates anything.
-     */
-    private fun reviewRootOf(source: LocalizationSource): VirtualFile? {
-        if (source in reviewRoots) return reviewRoots[source]
-        return reviewRoot(project, moduleOf(source)).also { reviewRoots[source] = it }
-    }
-
-    /** The module [source]'s file belongs to, or null when no module of the settings holds it. */
-    private fun moduleOf(source: LocalizationSource): ModuleConfig? {
-        if (source in owners) return owners[source]
-        val modules = Settings.getInstance(project).config().modules
-        val module = if (modules.isEmpty()) null else ModuleSources.owner(modules, TranslationDataLoader.projectPathOf(source))
-        return module.also { owners[source] = it }
-    }
-
-    /**
-     * What [source]'s stored value is compared against: the key it is translated from ([ReviewSources]:
-     * the same key, or a plural form's `other`), as stored, in the reference locale of [source]'s
-     * module — [ReferenceLocale.of] over that module's locales, as the table reads it — as its locale
-     * and its text. Null for the reference locale itself, and when the reference holds no value.
-     */
-    private fun currentSourceOf(source: LocalizationSource): Pair<String, String>? {
-        val module = moduleOf(source)
-        val inModule = sources.keys.filter { moduleOf(it) == module }
-        val config = Settings.getInstance(project).config()
-        val reference = ReferenceLocale.of(module, config, inModule.map { it.localeLabel() }.distinct()) ?: return null
-        if (source.localeLabel() == reference) return null
-        val last = fullKey.compositeKey.lastOrNull() ?: return null
-        val text = ReviewSources.sourceTextOf(last.text, config.pluralSeparator) { segment ->
-            val values = if (segment == last.text) sources
-            else viewModel.loadTranslations(fullKey.copy(compositeKey = fullKey.compositeKey.dropLast(1) + Literal(segment)), caller, tabModule)
-            values.entries.firstOrNull { it.key.localeLabel() == reference && moduleOf(it.key) == module }?.value
-        }
-        return text?.let { reference to it }
-    }
-
-    /**
-     * [key] in [source] as the tool window spells it — its namespace left out when it is a default
-     * one — so that the dialog and the table read and write the same review.
-     */
-    private fun reviewSpellingOf(source: LocalizationSource, key: FullKey): String {
-        val defaults = Settings.getInstance(project).config().defaultNamespaces()
-        val namespace = TranslationDataLoader.extractNamespace(source, defaults.first())
-        return ReviewKey(namespace, key.compositeKey.joinToString(".") { it.text }).spelling(defaults)
-    }
-
-    private fun reviewKeyOf(source: LocalizationSource, key: FullKey): ReviewKey =
-        ReviewKey.fromSpelling(reviewSpellingOf(source, key), Settings.getInstance(project).config().defaultNamespaces().first())
-
-    /** What the review of [source]'s stored value says, in [badge]. */
-    private fun showReview(source: LocalizationSource, root: VirtualFile, badge: JBLabel) {
-        val review = ReviewStore.getInstance(project).reviews(root, source.localeLabel())[reviewKeyOf(source, fullKey)]
-        val current = currentSourceOf(source)?.let { (locale, text) -> ReviewSource.of(locale, text) }
-        val state = shown(review, sources[source], current)
-        badge.icon = ReviewBadge.icon(state)
-        badge.text = if (state == ShownReview.NONE) PluginBundle.message("review.dialog.state.none") else ReviewBadge.label(state)
-    }
-
-    /**
-     * The review thread of [source]'s locale, on the value stored — not the one being typed — and on
-     * the source stored in its module's reference locale, which every decision taken there records.
-     */
-    private fun openReview(source: LocalizationSource, root: VirtualFile) {
-        val current = currentSourceOf(source)
-        val cell = ReviewCell(reviewSpellingOf(source, fullKey), source.localeLabel(), sources[source].orEmpty(), current?.second)
-        reviewThread(ReviewThreadDialog(project, root, cell, referenceLocale = current?.first))
-        reviewBadges[source]?.let { showReview(source, root, it) }
-    }
-
-    /** Clicks the *Review…* link of [locale]; false when it has none (reviews off, or CREATE mode). */
-    internal fun openReviewOf(locale: String): Boolean {
-        val source = reviewBadges.keys.firstOrNull { it.localeLabel() == locale } ?: return false
-        openReview(source, reviewRootOf(source) ?: return false)
-        return true
     }
 
     /**
@@ -655,31 +560,9 @@ class TranslationDialog(
                     written[source] = newValue
                 }
             }
-            markMachineValues(effectiveKey, written)
+            reviews.markMachineValues(effectiveKey, written, machine.proposals)
         }, PluginBundle.message("dialog.translation.command.update"), null, UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION)
         super.doOKAction()
-    }
-
-    /**
-     * Marks *to review* each locale of [written] holding *Translate*'s proposal unchanged, with the
-     * engine it came from and the source it was translated from — in the current command, for its
-     * undo. A module keeping no reviews gets nothing, not even a folder: only an explicit choice
-     * turns reviews on.
-     */
-    private fun markMachineValues(key: FullKey, written: Map<LocalizationSource, String>) {
-        val toMark = untouchedProposals(machine.proposals, written)
-            .mapNotNull { (source, proposal) -> reviewRootOf(source)?.let { Triple(source, it, proposal) } }
-        if (toMark.isEmpty()) return
-        val store = ReviewStore.getInstance(project)
-        ApplicationManager.getApplication().runWriteAction {
-            toMark.forEach { (source, root, proposal) ->
-                val reviewKey = reviewKeyOf(source, key)
-                val sources = proposal.source?.let { mapOf(reviewKey to it) }.orEmpty()
-                store.mark(root, source.localeLabel(), mapOf(reviewKey to proposal.text), proposal.origin, sources)
-            }
-        }
-        // No editor holds the review file: a global command is what Ctrl+Z reaches from anywhere.
-        CommandProcessor.getInstance().markCurrentCommandAsGlobal(project)
     }
 
     /** OK as its button does it, validation aside; for tests, where the dialog has no button. */
@@ -759,8 +642,10 @@ class TranslationDialog(
     }
 
     /** The review state shown under [locale], or null when it shows none — nor a *Review…* link. */
-    internal fun reviewStateOf(locale: String): String? =
-        reviewBadges.entries.firstOrNull { it.key.localeLabel() == locale }?.value?.text
+    internal fun reviewStateOf(locale: String): String? = reviews.stateOf(locale)
+
+    /** Clicks the *Review…* link of [locale]; false when it has none (reviews off, or CREATE mode). */
+    internal fun openReviewOf(locale: String): Boolean = reviews.openOf(locale)
 
     /**
      * A machine translation as *Translate* proposed it: its [text], its [origin] (`machine:<engine>`)
