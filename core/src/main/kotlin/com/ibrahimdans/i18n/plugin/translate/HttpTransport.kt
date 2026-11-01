@@ -12,9 +12,16 @@ import java.time.Duration
 
 /** One HTTP exchange, so tests never reach the network. */
 fun interface HttpTransport {
-    data class Response(val status: Int, val body: String)
+    /** [retryAfter] is the answer's `Retry-After` header as written, null when it has none. */
+    data class Response(val status: Int, val body: String, val retryAfter: String? = null)
 
     fun post(url: String, headers: Map<String, String>, body: String): Response
+
+    /**
+     * [post], waiting up to [readTimeout] for the answer: a batch of texts takes an LLM longer than one.
+     * A transport with a fixed timeout keeps its own.
+     */
+    fun post(url: String, headers: Map<String, String>, body: String, readTimeout: Duration): Response = post(url, headers, body)
 
     /**
      * Another verb — `GET`, `PUT` — for what an engine needs besides translating: a DeepL glossary.
@@ -51,7 +58,13 @@ class JdkHttpTransport(
     override fun post(url: String, headers: Map<String, String>, body: String): HttpTransport.Response =
         request("POST", url, headers, body)
 
-    override fun request(method: String, url: String, headers: Map<String, String>, body: String?): HttpTransport.Response {
+    override fun post(url: String, headers: Map<String, String>, body: String, readTimeout: Duration): HttpTransport.Response =
+        send("POST", url, headers, body, readTimeout)
+
+    override fun request(method: String, url: String, headers: Map<String, String>, body: String?): HttpTransport.Response =
+        send(method, url, headers, body, readTimeout)
+
+    private fun send(method: String, url: String, headers: Map<String, String>, body: String?, readTimeout: Duration): HttpTransport.Response {
         if (method !in METHODS) throw IOException("HTTP $method is not supported here")
         val request = try {
             HttpRequest.newBuilder(URI.create(url))
@@ -66,7 +79,7 @@ class JdkHttpTransport(
         }
         return try {
             val response = client.send(request, HttpResponse.BodyHandlers.ofString(Charsets.UTF_8))
-            HttpTransport.Response(response.statusCode(), response.body().orEmpty())
+            HttpTransport.Response(response.statusCode(), response.body().orEmpty(), response.headers().firstValue(RETRY_AFTER).orElse(null))
         } catch (e: HttpTimeoutException) {
             throw SocketTimeoutException(e.message).apply { initCause(e) }
         } catch (e: InterruptedException) {
@@ -77,6 +90,7 @@ class JdkHttpTransport(
 
     private companion object {
         const val JSON = "application/json"
+        const val RETRY_AFTER = "Retry-After"
         val METHODS = setOf("POST", "PUT", "GET")
     }
 }
