@@ -1,20 +1,14 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.LocalizationSource
-import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
-import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
-import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewCell
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ReadAction
-import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
@@ -179,15 +173,13 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         override val keyColumn: Int get() = this@TableViewPanel.keyColumn
         override val usageColumn: Int get() = leadingColumns + shownLocales.size
         override val locales: List<String> get() = this@TableViewPanel.locales
+        override val shownLocales: List<String> get() = this@TableViewPanel.shownLocales
         override val hiddenLocales: Set<String> get() = this@TableViewPanel.hiddenLocales
         override val rows: List<TranslationRow> get() = allRows
         override val reviews: TableReviews get() = this@TableViewPanel.reviews
         override val reviewRoot: VirtualFile? get() = this@TableViewPanel.reviewRoot
         override fun localeAt(column: Int): String? = this@TableViewPanel.localeAt(column)
-        override fun selectedReviewCells(): List<ReviewCell> = this@TableViewPanel.selectedReviewCells()
-        override fun editSelectedRow() = this@TableViewPanel.editSelectedRow()
-        override fun openSelectedRowFile() = this@TableViewPanel.openSelectedRowFile()
-        override fun deleteOrphanKeys(keys: List<String>) = this@TableViewPanel.deleteOrphanKeys(keys)
+        override fun sourceText(key: String): String? = this@TableViewPanel.sourceText(key)
         override fun toggleLocale(locale: String) = this@TableViewPanel.toggleLocale(locale)
         override fun refresh() = this@TableViewPanel.refresh()
         override fun reloadReviews() = this@TableViewPanel.reloadReviews()
@@ -208,7 +200,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
                 // Only the read-only key column opens the edit dialog: on locale
                 // columns a double-click starts the in-place cell editor instead.
                 if (e.clickCount == 2 && e.button == MouseEvent.BUTTON1 && table.columnAtPoint(e.point) in 0 until leadingColumns) {
-                    editSelectedRow()
+                    menus.editSelectedRow()
                 }
             }
 
@@ -237,7 +229,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
                 header.toolTipText = if (onUsage && !usageScanned) PluginBundle.message("toolwindow.table.usage.not.scanned") else null
             }
         })
-        TableKeyboard.install(table, { tableModel.isCellEditable(0, it) }, ::editSelectedRow, ::openSelectedRowFile)
+        TableKeyboard.install(table, { tableModel.isCellEditable(0, it) }, menus::editSelectedRow, menus::openSelectedRowFile)
 
         add(filterBar, BorderLayout.NORTH)
         add(JScrollPane(table), BorderLayout.CENTER)
@@ -393,51 +385,6 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         }
     }
 
-    // ── Row actions ───────────────────────────────────────────────────────────
-
-    /**
-     * Edits the selected row: the in-place editor on a locale column, the translation
-     * dialog anywhere else — the key column is read-only, so it has nothing else to offer.
-     */
-    private fun editSelectedRow() {
-        val row = table.selectedRow
-        if (row < 0) return
-        val column = table.selectedColumn
-        if (localeAt(column) != null) {
-            table.editCellAt(row, column)
-            table.editorComponent?.requestFocusInWindow()
-            return
-        }
-        val key = table.getValueAt(row, keyColumn) as? String ?: return
-        val dialog = TranslationDialog(project, buildFullKey(key), Mode.EDIT, tabModule = moduleConfig)
-        if (dialog.showAndGet()) {
-            refresh()
-        }
-    }
-
-    /**
-     * Opens the translation file the selected row comes from, at the key itself.
-     * The locale is the selected column when one is selected, otherwise the first shown —
-     * a row always has a file behind it, and the panel used to give no way to reach it.
-     */
-    private fun openSelectedRowFile() {
-        val row = table.selectedRow
-        if (row < 0) return
-        val key = table.getValueAt(row, keyColumn) as? String ?: return
-        val locale = localeAt(table.selectedColumn) ?: shownLocales.firstOrNull() ?: return
-
-        ApplicationManager.getApplication().executeOnPooledThread {
-            val target = ReadAction.compute<Pair<VirtualFile, Int>?, RuntimeException> {
-                viewModel.locate(project, key, locale, moduleConfig)
-            }
-                ?: return@executeOnPooledThread
-            ApplicationManager.getApplication().invokeLater {
-                OpenFileDescriptor(project, target.first, target.second).navigate(true)
-            }
-        }
-    }
-
-
     /** The locale [column] displays, or null when it is a leading or the usage column. */
     private fun localeAt(column: Int): String? = shownLocales.getOrNull(column - leadingColumns)
 
@@ -456,21 +403,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     /** The text [key] holds now in the reference locale, read from its row: its column may be hidden. */
     private fun sourceText(key: String): String? = reviews.sourceText(rowsByKey[key])
 
-    /**
-     * The locale cells of the selection holding a value, the cells a review decision applies to,
-     * each with the source its key holds now. The selection is a block of rows and columns (cell
-     * selection): every locale column of it counts, the key and usage columns do not.
-     */
-    internal fun selectedReviewCells(): List<ReviewCell> {
-        val columns = table.selectedColumns.filter { localeAt(it) != null }
-        return table.selectedRows.flatMap { row ->
-            val key = table.getValueAt(row, keyColumn) as? String ?: return@flatMap emptyList()
-            columns.mapNotNull { column ->
-                val value = table.getValueAt(row, column) as? String ?: ""
-                if (value.isEmpty()) null else ReviewCell(key, localeAt(column)!!, value, sourceText(key))
-            }
-        }
-    }
+    /** The locale cells of the selection a review decision applies to; see [TableContextMenu.selectedReviewCells]. */
+    internal fun selectedReviewCells(): List<ReviewCell> = menus.selectedReviewCells()
 
     /** The review decisions on the selected cells; see [TableContextMenu.reviewMenuItems]. */
     internal fun reviewMenuItems(): List<JMenuItem> = menus.reviewMenuItems()
@@ -529,34 +463,4 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      * now, in the tool window toolbar, rather than a button of this panel's own.
      */
     fun scanOrphans() = usageScan.start()
-
-    // ── Delete orphan key ─────────────────────────────────────────────────────
-
-    /**
-     * Deletes the keys from all matching localization sources using CompositeKeyResolver,
-     * in one undoable command, then refreshes the table once the deletion has run.
-     */
-    private fun deleteOrphanKeys(keyStrings: List<String>) {
-        if (keyStrings.size > 1 && Messages.showYesNoDialog(
-                project,
-                OrphanKeyDeleter.confirmationMessage(keyStrings),
-                PluginBundle.message("toolwindow.table.delete.orphans.command"),
-                Messages.getWarningIcon()
-            ) != Messages.YES
-        ) return
-        val fullKeys = keyStrings.map(::buildFullKey)
-        // Scoped to this panel's module: without it the key is also deleted from
-        // another module's file sharing the same namespace.
-        // The deletion completes asynchronously (the source lookup runs off the EDT):
-        // refreshing right after the call would reload the rows before the key is gone.
-        OrphanKeyDeleter(project, moduleConfig).delete(fullKeys, onFinished = ::refresh)
-    }
-
-    /**
-     * Builds a FullKey from a flat key string, handling optional namespace prefix.
-     * Delegates to the synchronizer's parser, which the in-place edit already goes
-     * through — the panel used to carry a second copy that kept empty segments.
-     */
-    private fun buildFullKey(keyString: String): FullKey =
-        KeysSynchronizer().buildFullKey(keyString, Settings.getInstance(project).config())
 }
