@@ -244,6 +244,22 @@ class I18nCheckTest {
     }
 
     @Test
+    fun `plural forms - the bare key stands in for the forms a group lacks, as i18next falls back on it`(@TempDir dir: Path) {
+        // Crowdin's export: `ago` beside `ago_other`, never `ago_one`.
+        Files.writeString(dir.resolve("en.json"), """{"ago": "{{count}} minute ago", "ago_other": "{{count}} minutes ago"}""")
+        Files.writeString(dir.resolve("ru.json"), """{"ago": "{{count}} минуту назад", "ago_other": "{{count}} минут назад"}""")
+        Files.writeString(dir.resolve("fr.json"), """{"ago_other": "il y a {{count}} minutes"}""")
+
+        val run = check("--locales", dir.toString(), "--format", "json")
+
+        val missing = JsonParser.parseString(run.out).asJsonObject["locales"].asJsonArray
+            .associate { it.asJsonObject["locale"].asString to it.asJsonObject["missing"].toString() }
+        assertEquals("[]", missing["en"], "the bare key covers `one`")
+        assertEquals("[]", missing["ru"], "and `few` and `many`")
+        assertEquals("[\"ago\",\"ago_one\"]", missing["fr"], "without the bare key, `one` is missing")
+    }
+
+    @Test
     fun `exit code - 0 while the problems stay within the threshold`() {
         assertEquals(I18nCheck.OK, check("--locales", example, "--max-problems", "3").exit)
         assertEquals(I18nCheck.PROBLEMS, check("--locales", example, "--max-problems", "2").exit)

@@ -44,6 +44,28 @@ class MissingPluralFormsInspectionTest : PlatformBaseTest() {
     }
 
     @Test
+    fun theBareKeyStandsInForOneAsI18nextFallsBackOnIt() {
+        // Crowdin's export: no `_one`, the bare key is the singular.
+        assertTrue(pluralWarnings("locales/en/crowdin.json", """{"ago": "a minute ago", "ago_other": "{{count}} minutes ago"}""").isEmpty())
+    }
+
+    @Test
+    fun otherAloneWithoutTheBareKeyStillLacksOne() {
+        val warnings = pluralWarnings("locales/en/common.json", """{"ago_other": "{{count}} minutes ago"}""")
+        Assertions.assertEquals(listOf("Plural 'ago' lacks the form(s) one that 'en' uses"), warnings)
+    }
+
+    @Test
+    fun theBareKeyBesideOneAndOtherIsComplete() {
+        assertTrue(pluralWarnings("locales/en/common.json", """{"ago": "a", "ago_one": "b", "ago_other": "c"}""").isEmpty())
+    }
+
+    @Test
+    fun theBareKeyCoversFewAndManyInRussian() {
+        assertTrue(pluralWarnings("locales/ru/crowdin.json", """{"ago": "минуту назад", "ago_other": "{{count}} минут назад"}""").isEmpty())
+    }
+
+    @Test
     fun aFormTooManyIsNeverReported() {
         // `few` means nothing in English: extra, not missing.
         assertTrue(pluralWarnings("locales/en/common.json", """{"item_one": "a", "item_few": "b", "item_other": "c"}""").isEmpty())

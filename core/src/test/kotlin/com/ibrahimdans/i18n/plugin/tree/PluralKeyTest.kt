@@ -44,6 +44,12 @@ class PluralKeyTest {
     }
 
     @Test
+    fun `the bare key covers the forms of its group, as i18next falls back on it`() {
+        assertEquals(true, PluralKey.bareKeyCoversForms("ago", listOf("ago", "ago_other")))
+        assertEquals(false, PluralKey.bareKeyCoversForms("ago", listOf("ago_other", "agony")))
+    }
+
+    @Test
     fun `a nested plural form stands for its other sibling`() {
         assertEquals("steps.other", PluralKey.nestedOtherForm("steps.few", "."))
         assertEquals("a:b/other", PluralKey.nestedOtherForm("a:b/one", "/"))

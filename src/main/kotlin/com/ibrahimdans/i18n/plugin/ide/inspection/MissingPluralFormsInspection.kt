@@ -38,6 +38,9 @@ import com.intellij.psi.PsiElementVisitor
  * file's, the reference file included: an English file lacking `item_one` is reported too. A
  * locale not checked for missing keys (`Config.ignoresLocale`) is not checked here either.
  *
+ * A group beside its bare key (`item` and `item_other`, as Crowdin exports) lacks nothing: i18next
+ * falls back on the bare key for any form missing ([PluralKey.bareKeyCoversForms]).
+ *
  * The large-number `many` of French, Spanish, Italian, Portuguese and Catalan is only asked for
  * when [largeNumberForms] is set: real, but almost never translated.
  *
@@ -88,6 +91,7 @@ class MissingPluralFormsInspection : LocalInspectionTool() {
         val (base, forms) = PluralKey.groupForms(siblings).entries
             .firstOrNull { (base, forms) -> forms.first() == name && forms != listOf(base) }
             ?.toPair() ?: return
+        if (PluralKey.bareKeyCoversForms(base, siblings)) return
         val present = forms.map { it.removePrefix(base + SUFFIX_SEPARATOR) }.toSet()
         val missing = PluralCategories.ALL.filter { it in needed && it !in present }
         if (missing.isEmpty()) return

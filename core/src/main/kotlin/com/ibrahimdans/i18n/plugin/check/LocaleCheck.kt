@@ -24,7 +24,8 @@ data class LocaleProblems(
  *
  * A plural group ([PluralKey.groupForms]) is compared as a group: a locale must hold the forms its
  * own language needs ([PluralCategories]), not the reference's — `ja` writes `item_other` only,
- * `ru` adds `item_few` and `item_many`. Each form it lacks is a missing key, the one to add.
+ * `ru` adds `item_few` and `item_many`. Each form it lacks is a missing key, the one to add —
+ * unless the locale holds the bare key `item`, i18next's fallback for any form missing.
  */
 object LocaleCheck {
 
@@ -57,7 +58,10 @@ object LocaleCheck {
                     orphans += forms.filter { has(it, locale) }
                     continue
                 }
-                missing += PluralCategories.of(pluralLocale(locale)).map { "${base}_$it" }.filterNot { has(it, locale) }
+                // The bare key stands in for every form missing ([PluralKey.bareKeyCoversForms]).
+                if (!has(base, locale)) {
+                    missing += PluralCategories.of(pluralLocale(locale)).map { "${base}_$it" }.filterNot { has(it, locale) }
+                }
                 empty += forms.filter { blank(it, locale) }
             }
             LocaleProblems(locale, missing.sorted(), orphans.sorted(), empty.sorted())
