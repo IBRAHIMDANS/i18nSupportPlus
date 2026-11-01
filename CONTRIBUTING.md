@@ -39,7 +39,7 @@ To try your build in your own IDE: `./gradlew buildPlugin`, then
 
 ## UI screenshots
 
-The README images are taken by `src/uiTest`, with JetBrains Starter + Driver: a clean, licensed
+The images of the README and of `docs/` are taken by `src/uiTest`, with JetBrains Starter + Driver: a clean, licensed
 **WebStorm 2025.3.4** opens a disposable copy of `examples/react-multi-namespace/`, each scenario
 drives the IDE to the state an image shows and captures the exact bounds of the panel, dialog,
 popup or editor lines it needs. One WebStorm session per group (tool window, settings, editor,
