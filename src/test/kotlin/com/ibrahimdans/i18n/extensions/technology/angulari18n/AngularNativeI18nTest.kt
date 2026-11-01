@@ -8,6 +8,7 @@ import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.openapi.application.ReadAction
@@ -213,6 +214,17 @@ class AngularNativeI18nTest : PlatformBaseTest() {
     }
 
     @Test
+    fun anI18nMarkerLeadsToItsUnitInEachFile() = myFixture.runWithConfig(Config()) {
+        addWorkspace()
+        openTemplate("""<h1 i18n="Title of the page@@home.ti<caret>tle">Welcome</h1>""")
+
+        val reference = myFixture.file.findReferenceAt(myFixture.caretOffset) as PsiPolyVariantReference
+        val targets = reference.multiResolve(false).mapNotNull { it.element }
+
+        assertEquals(setOf("Welcome", "Bienvenue", "Willkommen"), targets.map { TranslationPsi.readValue(it) }.toSet())
+    }
+
+    @Test
     fun theIdsOfTheReferenceAreCompletedInAMarker() = myFixture.runWithConfig(Config()) {
         addWorkspace()
         openTemplate("""<h1 i18n="@@cart.<caret>">Welcome</h1>""")
@@ -234,6 +246,20 @@ class AngularNativeI18nTest : PlatformBaseTest() {
 
         assertEquals(1, usages.size, "$usages")
         assertTrue(usages.single().containingFile.name == "home.ts", "${usages.single().containingFile.name}")
+    }
+
+    // ── Tool window ───────────────────────────────────────────────────────────
+
+    /** One row per id across the three locales, each value as its text: an edit must not escape it again. */
+    @Test
+    fun theTableShowsEachUnitWithItsDecodedText() {
+        addWorkspace()
+
+        val rows = TableViewModel().loadRows(project).associateBy { it.key }
+
+        assertEquals(setOf("home.title", "cart.terms", "cart.greeting"), rows.keys)
+        assertEquals(mapOf("en-US" to "Terms & conditions", "fr" to "Conditions & termes"), rows.getValue("cart.terms").values)
+        assertEquals(mapOf("en-US" to "Welcome", "fr" to "Bienvenue", "de" to "Willkommen"), rows.getValue("home.title").values)
     }
 
     // ── Missing translations and writing ──────────────────────────────────────
