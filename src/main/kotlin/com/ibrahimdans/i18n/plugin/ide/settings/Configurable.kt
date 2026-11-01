@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.plugin.ide.folding.FoldingBuilderBase
 import com.ibrahimdans.i18n.plugin.ide.preview.EditorRefresh
 import com.ibrahimdans.i18n.plugin.ide.whatsnew.WhatsNewPreferences
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.options.BaseConfigurable
 import com.intellij.openapi.options.SearchableConfigurable
 import com.intellij.openapi.project.Project
@@ -28,7 +29,12 @@ class Configurable(val project: Project) : BaseConfigurable(), SearchableConfigu
     override fun createComponent(): JComponent {
         snapshot = Settings.getInstance(project).config()
         announceUpdates = WhatsNewPreferences.announceUpdates
-        val page = SettingsPanel(Settings.getInstance(project), project)
+        val settings = Settings.getInstance(project)
+        val page = SettingsPanel(settings, project, ConfigFileView(
+            held = settings.configFileSettings(),
+            edit = settings.configFileOrNull()?.let { file -> { FileEditorManager.getInstance(project).openFile(file, true); Unit } },
+            export = { ProjectConfigFileExport.export(project, settings.config()) },
+        ))
         val root = page.getRootPanel()
         gui = root
         LocaleChoice.discover(project, alive = { gui === root }) { page.offerLocales(it) }
