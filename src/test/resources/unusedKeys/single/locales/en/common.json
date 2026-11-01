@@ -4,6 +4,7 @@
   "field": { "email": "Email" },
   "hook": { "title": "Title" },
   "profile": { "name": "Name" },
+  "card": { "title": "Card" },
   "wrapped": { "plain": "Plain", "member": "Member", "excluded": "Excluded" },
   "api": { "rateLimited": "Too many requests" },
   "shared": { "ok": "OK" },

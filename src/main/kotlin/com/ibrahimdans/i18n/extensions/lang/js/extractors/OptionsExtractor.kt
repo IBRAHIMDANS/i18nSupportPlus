@@ -13,19 +13,21 @@ import com.intellij.psi.util.PsiTreeUtil
  * Supports: { ns: 'namespace' }, { ns: ['ns1', 'ns2'] } and { context: … }
  */
 object OptionsExtractor {
-    fun extractNamespaces(element: PsiElement): List<String> {
-        val nsValue = optionsOf(element)?.findProperty("ns")?.value
-            ?: return emptyList()
-        return when {
-            nsValue is JSLiteralExpression && nsValue.isQuotedLiteral ->
-                listOfNotNull(nsValue.stringValue)
-            nsValue is JSArrayLiteralExpression ->
-                nsValue.expressions
-                    .filterIsInstance<JSLiteralExpression>()
-                    .filter { it.isQuotedLiteral }
-                    .mapNotNull { it.stringValue }
-            else -> emptyList()
-        }
+    fun extractNamespaces(element: PsiElement): List<String> =
+        stringsOf(optionsOf(element)?.findProperty("ns")?.value)
+
+    /**
+     * The namespaces an `ns` value names: `'auth'` or `['auth', 'common']`, quoted literals only.
+     * Empty for any other expression, known only at runtime.
+     */
+    fun stringsOf(value: PsiElement?): List<String> = when {
+        value is JSLiteralExpression && value.isQuotedLiteral -> listOfNotNull(value.stringValue)
+        value is JSArrayLiteralExpression ->
+            value.expressions
+                .filterIsInstance<JSLiteralExpression>()
+                .filter { it.isQuotedLiteral }
+                .mapNotNull { it.stringValue }
+        else -> emptyList()
     }
 
     /**
