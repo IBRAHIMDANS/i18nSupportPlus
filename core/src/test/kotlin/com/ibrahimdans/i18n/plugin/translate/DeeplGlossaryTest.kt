@@ -102,7 +102,7 @@ class DeeplGlossaryTest {
 
     /** DeepL as the settings call it: the project's locales rewritten to DeepL's codes first. */
     private fun translate(transport: HttpTransport, target: String = "fr", engine: EngineConfig = deepl(), texts: List<String> = listOf("Your cart")) =
-        HttpTranslationProvider(engine, "k", transport).apply { glossaryWarnings = { warnings += it } }
+        HttpTranslationProvider(engine, "k", transport).apply { glossaryWarnings = { warnings += it }; pause = Pause { _, _ -> } }
             .translate(TranslationRequest(texts, LanguageCodes.DEEPL.source("en"), LanguageCodes.DEEPL.target(target)))
 
     @Test
@@ -193,7 +193,7 @@ class DeeplGlossaryTest {
         val result = translate(transport)
 
         assertTrue(result.single() is Translation.Failed)
-        assertEquals(1, transport.translations().size, "no retry")
+        assertEquals(3, transport.translations().size, "tried three times as any 503, never resent without its glossary")
         assertEquals("GET https://api-free.deepl.com/v3/glossaries/g1", transport.glossaryCalls().last().let { "${it.method} ${it.url}" })
         assertEquals("g1", store.glossaryId)
         assertTrue(warnings.isEmpty())

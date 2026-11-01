@@ -8,11 +8,13 @@
 - [Translation] **Translations follow the wording your project already uses** ([#702](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/702)): *Translate*, *Fill Missing Translations* and *Retranslate Stale Translations* tell the engine how the neighbouring keys are already translated, and a few existing translations sharing the same words, so "Generate narration" comes back in the style of "Bilder generieren". Only the translation files are read, a thousand characters at most, never your code.
 - [Translation dialog] **See and edit what the engine is told** ([#702](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/702)): a *Context* field shows the key and where your code displays it ("caption of <SettingsOption>", "text of <h2>"), so the engine can tell a button from a heading; edit it before *Translate* to say more. The IDE reads those names around the key's usages and sends them, never the code itself.
 - [Translation] **A text your project already translates is reused, not sent**: *Fill Missing Translations* and *Retranslate Stale Translations* give a key the translation another key of the module already holds for the same text, shown as *Project memory* in the preview, so it costs nothing and reads the same everywhere. When the project translates the text in several ways, the most frequent is proposed unchecked.
+- [Diagnostics] **Follow an error of the plugin up on GitHub**: after an error is reported from the IDE, still to the JetBrains Marketplace, a notification opens a GitHub issue filled in with the IDE version, the OS and the stack trace, for you to review, complete and submit. Nothing is sent to GitHub until you do.
 
 ### Fixes
 
 - [Translation dialog] **The reference locale comes first**: *Create Translation* and *Edit Translations* list the locale you translate from at the top, then the others alphabetically, in the same order in every IDE.
 - [Editor] ***Show Translations Inline* folds the files already open**: turning it on, from the editor or in the settings, folds the keys of the open editors at once instead of only the files opened afterwards.
+- [Machine translation] **A busy or slow engine no longer costs you a whole batch**: a rate limit, a gateway down for a moment or a late answer is tried again, after the wait the engine asks for, and a batch the engine cannot handle is split so that only the text it chokes on fails. A large batch sent to a local model also gets more time to answer.
 
 ## 1.16.1 - 2026-10-26
 

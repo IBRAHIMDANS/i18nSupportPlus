@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin.translate
 import com.intellij.util.io.HttpRequests
 import java.io.IOException
 import java.net.HttpURLConnection
+import java.time.Duration
 
 /** The platform's HTTP client: the IDE's proxy settings apply. */
 object IdeHttpTransport : HttpTransport {
@@ -14,7 +15,13 @@ object IdeHttpTransport : HttpTransport {
     override fun post(url: String, headers: Map<String, String>, body: String): HttpTransport.Response =
         request("POST", url, headers, body)
 
+    override fun post(url: String, headers: Map<String, String>, body: String, readTimeout: Duration): HttpTransport.Response =
+        send("POST", url, headers, body, readTimeout.toMillis().coerceIn(1, Int.MAX_VALUE.toLong()).toInt())
+
     override fun request(method: String, url: String, headers: Map<String, String>, body: String?): HttpTransport.Response =
+        send(method, url, headers, body, READ_TIMEOUT_MS)
+
+    private fun send(method: String, url: String, headers: Map<String, String>, body: String?, readTimeoutMs: Int): HttpTransport.Response =
         when (method) {
             "POST" -> HttpRequests.post(url, JSON)
             "PUT" -> HttpRequests.put(url, JSON)
@@ -23,7 +30,7 @@ object IdeHttpTransport : HttpTransport {
         }
             .tuner { connection -> headers.forEach { (name, value) -> connection.setRequestProperty(name, value) } }
             .connectTimeout(CONNECT_TIMEOUT_MS)
-            .readTimeout(READ_TIMEOUT_MS)
+            .readTimeout(readTimeoutMs)
             .throwStatusCodeException(false)
             .connect { request ->
                 if (body != null) request.write(body)
@@ -31,6 +38,6 @@ object IdeHttpTransport : HttpTransport {
                 val status = connection.responseCode
                 val text = if (status in 200..299) request.readString()
                 else connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                HttpTransport.Response(status, text)
+                HttpTransport.Response(status, text, connection.getHeaderField("Retry-After"))
             }
 }

@@ -74,4 +74,19 @@ class TranslationDataLoaderLayoutTest : PlatformBaseTest() {
         assertEquals(setOf("menu.home"), translations.keys)
         assertEquals(mapOf("en" to "Home", "fr" to "Accueil"), translations["menu.home"])
     }
+
+    // ---- YAML ----
+
+    @Test
+    fun yamlFilesAreReadLikeJsonOnes() = myFixture.runWithConfig(Config()) {
+        addFileToProject("locales/en/common.yml", "menu:\n  home: Home\n  about: \"About us\"\ntitle: 'Welcome'\n")
+        addFileToProject("locales/fr/common.yml", "menu:\n  home: Accueil\n")
+
+        val translations = load()
+
+        assertEquals(setOf("common:menu.home", "common:menu.about", "common:title"), translations.keys)
+        assertEquals(mapOf("en" to "Home", "fr" to "Accueil"), translations["common:menu.home"])
+        assertEquals(mapOf("en" to "About us"), translations["common:menu.about"], "double quotes are not part of the value")
+        assertEquals(mapOf("en" to "Welcome"), translations["common:title"], "single quotes are not part of the value")
+    }
 }
