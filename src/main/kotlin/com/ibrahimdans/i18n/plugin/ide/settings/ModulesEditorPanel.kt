@@ -37,10 +37,16 @@ import javax.swing.event.HyperlinkEvent
  * path templates were all typed blind. Here the framework is picked from a list, the root
  * directory has a folder chooser, and the templates are shown resolving to the file they
  * actually produce — so a typo is visible where it is made rather than at runtime.
+ *
+ * When `i18n-check.json` lists the modules ([configFile]), the list shows the file's and only their
+ * *Active* box stays editable: the file is where the team changes them, while putting a module
+ * aside is each developer's choice, stored with their own settings.
  */
 internal class ModulesEditorPanel(
     private val settings: Settings,
     private val project: Project,
+    /** What `i18n-check.json` holds; its modules, when it lists them, are shown greyed out. */
+    private val configFile: ConfigFileView = ConfigFileView(),
     /** Asked before a preset overwrites templates typed by hand; a test answers it without a dialog. */
     private val confirmOverwrite: (Component, String) -> Boolean = { parent, label ->
         Messages.showYesNoDialog(
@@ -113,9 +119,19 @@ internal class ModulesEditorPanel(
 
     private val resolutionArea = createResolutionArea()
 
+    /** True when `i18n-check.json` lists the modules: the page then edits their *Active* box only. */
+    private val heldByFile = ProjectConfigFile.MODULES in configFile.held
+
+    /**
+     * The modules listed: the stored ones, edited in place, or — when the file lists them — the
+     * file's as they apply, whose *Active* box is written back through [Settings.setConfig].
+     */
+    private val modules: MutableList<ModuleConfig> =
+        if (heldByFile) settings.config().modules.toMutableList() else settings.modules
+
     init {
         editor = ListEditorPanel(
-            items = settings.modules,
+            items = modules,
             detailForm = detailForm(),
             newItem = ::newModule,
             labelOf = ::label,
@@ -127,6 +143,16 @@ internal class ModulesEditorPanel(
             onSelectionChanged = ::bind
         )
         add(editor, BorderLayout.CENTER)
+        if (heldByFile) {
+            add(heldBanner(), BorderLayout.NORTH)
+            // Adding or removing a module is a change to the file, not to this page.
+            listOf("modules.add", "modules.remove").forEach { name ->
+                findNamed(editor, name)?.apply {
+                    isEnabled = false
+                    toolTipText = PluginBundle.message("settings.config.file.held.tooltip", ProjectConfigFile.PATH)
+                }
+            }
+        }
 
         bind(null)
         editor.selectFirst()
@@ -275,21 +301,37 @@ internal class ModulesEditorPanel(
     fun offerLocales(locales: List<String>) = LocaleChoice.offer(referenceLocaleCombo, locales)
 
     private fun setFormEnabled(enabled: Boolean) {
-        nameField.isEnabled = enabled
-        rootField.isEnabled = enabled
-        pathField.isEnabled = enabled
-        fileField.isEnabled = enabled
-        keyField.isEnabled = enabled
-        referenceLocaleField.isEnabled = enabled
-        referenceLocaleCombo.isEnabled = enabled
-        callTemplateField.isEnabled = enabled
-        writeDefaultValueBox.isEnabled = enabled
+        // A module the file lists is changed in the file: only its *Active* box stays here.
+        val editable = enabled && !heldByFile
+        listOf(
+            nameField, rootField, pathField, fileField, keyField, referenceLocaleField, referenceLocaleCombo,
+            callTemplateField, writeDefaultValueBox, presetCombo, browseButton,
+        ).forEach { control ->
+            control.isEnabled = editable
+            if (heldByFile) control.toolTipText = PluginBundle.message("settings.config.file.held.tooltip", ProjectConfigFile.PATH)
+        }
         enabledBox.isEnabled = enabled
-        presetCombo.isEnabled = enabled
-        browseButton.isEnabled = enabled
+    }
+
+    /**
+     * The banner over a list the file holds: where the modules come from, and *Edit* to change
+     * them there.
+     */
+    private fun heldBanner(): JPanel = panel {
+        row {
+            comment(PluginBundle.message("settings.modules.config.file.held", ProjectConfigFile.PATH))
+        }
+        configFile.edit?.let { edit -> row { cell(configFileEditButton(edit)) } }
     }
 
     override fun onItemChanged() {
+        // The file's modules are a copy: their *Active* box reaches the settings through
+        // setConfig, which keeps it per developer. Only on a change: selecting a module calls this
+        // too, and must not copy the file's modules into the settings stored on this machine.
+        if (heldByFile) {
+            val current = settings.config()
+            if (current.modules != modules) settings.setConfig(current.copy(modules = modules.toList()))
+        }
         val template = editor.selected()?.keyTemplate.orEmpty()
         keyTemplateProblem.isVisible = template.isNotBlank() && KeyTemplate.parse(template) == null
         keyTemplateProblem.text = if (keyTemplateProblem.isVisible) PluginBundle.message("settings.modules.keyTemplate.invalid") else ""
@@ -412,6 +454,13 @@ internal class ModulesEditorPanel(
     private fun basePath(): String? = project.basePath
 
     private companion object {
+        /** The component named [name] under [root], as [ListEditorPanel] names its buttons. */
+        fun findNamed(root: Component, name: String): Component? {
+            if (root.name == name) return root
+            if (root !is java.awt.Container) return null
+            return root.components.firstNotNullOfOrNull { findNamed(it, name) }
+        }
+
         /** Width the editor asks for when the form inside it needs no more. */
         const val EDITOR_MIN_WIDTH = 700
 

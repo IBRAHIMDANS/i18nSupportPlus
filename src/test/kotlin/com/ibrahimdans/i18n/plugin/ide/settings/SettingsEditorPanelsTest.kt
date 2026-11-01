@@ -10,6 +10,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.awt.Component
@@ -179,6 +180,58 @@ class ModulesEditorPanelTest {
         assertEquals(1, settings.modules.size)
         assertTrue(settings.modules[0].name.isNotBlank(), "a new module must be named")
         assertTrue(settings.modules[0].pathTemplate.isNotBlank(), "a new module must show the expected template")
+    }
+
+    /** The page as it shows when `i18n-check.json` lists the modules. */
+    private fun panelHeldByFile(vararg modules: ModuleConfig, edit: (() -> Unit)? = null): Pair<Settings, ModulesEditorPanel> {
+        every { project.basePath } returns null
+        val settings = Settings()
+        // Set, so that config() does not look the default format up through a platform these tests do not start.
+        settings.preferredLocalization = "json"
+        settings.modules.addAll(modules)
+        val view = ConfigFileView(held = mapOf(ProjectConfigFile.MODULES to ""), edit = edit)
+        return settings to ModulesEditorPanel(settings, project, view)
+    }
+
+    @Test
+    fun testAModuleTheFileListsIsGreyedOutButForItsActiveBox() {
+        val (_, panel) = panelHeldByFile(ModuleConfig(name = "web", rootDirectory = "apps/web"))
+
+        listOf("settings.modules.name", "settings.modules.rootDirectory", "settings.modules.pathTemplate", "settings.modules.preset")
+            .forEach { key -> assertFalse(requireByName(panel, key).isEnabled, "$key is set by the file") }
+        assertTrue(requireByName(panel, "settings.modules.enabled").isEnabled, "putting a module aside stays each developer's choice")
+        assertFalse(findByName(panel, "modules.add")!!.isEnabled, "a module is added in the file")
+        assertFalse(findByName(panel, "modules.remove")!!.isEnabled, "a module is removed in the file")
+    }
+
+    @Test
+    fun testTheActiveBoxOfAModuleTheFileListsIsStoredHere() {
+        val (settings, panel) = panelHeldByFile(ModuleConfig(name = "web"), ModuleConfig(name = "admin"))
+
+        (requireByName(panel, "settings.modules.enabled") as JCheckBox).doClick()
+
+        assertEquals(listOf(false, true), settings.config().modules.map { it.enabled })
+    }
+
+    @Test
+    fun testTheModulesPageOpensTheFileThatListsThem() {
+        var edited = 0
+        val (_, panel) = panelHeldByFile(ModuleConfig(name = "web"), edit = { edited++ })
+
+        val edit = findByName(panel, PluginBundle.message("settings.config.file.edit", ProjectConfigFile.PATH))
+        assertNotNull(edit, "the page must offer to edit the file that lists the modules")
+        (edit as JButton).doClick()
+
+        assertEquals(1, edited)
+    }
+
+    @Test
+    fun testModulesTheFileDoesNotListStayEditable() {
+        val (_, panel) = panelWith(ModuleConfig(name = "web"))
+
+        assertTrue(requireByName(panel, "settings.modules.name").isEnabled)
+        assertTrue(findByName(panel, "modules.add")!!.isEnabled)
+        assertNull(findByName(panel, PluginBundle.message("settings.config.file.edit", ProjectConfigFile.PATH)))
     }
 }
 

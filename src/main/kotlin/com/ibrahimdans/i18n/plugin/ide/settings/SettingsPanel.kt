@@ -52,6 +52,17 @@ class ConfigFileView(
 )
 
 /**
+ * *Edit i18n-check.json*, on the main page and the *Modules* page. The file opens once the settings
+ * dialog is closed — opened while it shows, it would land behind it — which the tooltip says.
+ */
+internal fun configFileEditButton(action: () -> Unit): JButton =
+    JButton(PluginBundle.message("settings.config.file.edit", ProjectConfigFile.PATH)).apply {
+        name = PluginBundle.message("settings.config.file.edit", ProjectConfigFile.PATH)
+        toolTipText = PluginBundle.message("settings.config.file.edit.tooltip", ProjectConfigFile.PATH)
+        addActionListener { action() }
+    }
+
+/**
  * Settings configuration panel.
  *
  * Layout is built with the Kotlin UI DSL, but the components keep two contracts
@@ -98,7 +109,7 @@ class SettingsPanel(val settings: Settings, val project: Project, private val co
                 }
             }
             val fileButtons = listOfNotNull(
-                configFile.edit?.let { button(PluginBundle.message("settings.config.file.edit", ProjectConfigFile.PATH), it) },
+                configFile.edit?.let { configFileEditButton(it) },
                 configFile.export?.let { button(PluginBundle.message("settings.config.file.export"), it) },
             )
             if (fileButtons.isNotEmpty()) {

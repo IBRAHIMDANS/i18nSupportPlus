@@ -1,11 +1,15 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.guessProjectDir
 import com.intellij.openapi.vfs.VfsUtil
+import com.intellij.openapi.vfs.VfsUtilCore
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -102,6 +106,42 @@ class ProjectConfigFileSettingsTest : PlatformBaseTest() {
         ProjectConfigFileExport.write(project, dir, null, ProjectConfigFile.export(config))
 
         assertEquals(config, settings.config())
+    }
+
+    @Test
+    fun `the file opens once the queue runs it, not while a dialog would hide it`() {
+        addFileToProject(ProjectConfigFile.PATH, """{ "keySeparator": "/" }""")
+        val file = settings.configFileOrNull()!!
+        val editors = FileEditorManager.getInstance(project)
+        var queued: Runnable? = null
+
+        ProjectConfigFileExport.open(project, file) { queued = it }
+
+        assertFalse(editors.isFileOpen(file), "the file must wait for the settings dialog to close")
+        ApplicationManager.getApplication().invokeAndWait { queued!!.run() }
+        assertTrue(editors.isFileOpen(file))
+        ApplicationManager.getApplication().invokeAndWait { editors.closeFile(file) }
+    }
+
+    @Test
+    fun `the setup wizard and the settings page write the same file`() {
+        settings.setConfig(stored.copy(keySeparator = "/", ignoredLocales = "de"))
+
+        val file = ProjectConfigFileExport.exportSettings(project)
+
+        assertEquals(ProjectConfigFile.export(settings.config()), VfsUtilCore.loadText(file!!))
+        assertEquals("/", settings.config().keySeparator)
+    }
+
+    @Test
+    fun `the settings pages offer to edit the file only when the project has one`() {
+        assertEquals(null, ProjectConfigFileExport.viewFor(project).edit)
+
+        addFileToProject(ProjectConfigFile.PATH, """{ "keySeparator": "/" }""")
+
+        val view = ProjectConfigFileExport.viewFor(project)
+        assertTrue(view.edit != null)
+        assertEquals(mapOf("keySeparator" to "/"), view.held)
     }
 
     private fun deleteConfigFile() {

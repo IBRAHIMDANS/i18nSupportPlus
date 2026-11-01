@@ -31,7 +31,7 @@ class ModulesConfigurable(private val project: Project) : SearchableConfigurable
         val settings = Settings.getInstance(project)
         opened = settings.config().modules
         snapshot = opened
-        val modules = ModulesEditorPanel(settings, project).also { editor = it }
+        val modules = ModulesEditorPanel(settings, project, ProjectConfigFileExport.viewFor(project)).also { editor = it }
         LocaleChoice.discover(project, alive = { editor === modules }) { modules.offerLocales(it) }
         return panel {
             row { cell(modules).align(Align.FILL) }.resizableRow()
