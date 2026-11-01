@@ -29,22 +29,15 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.table.JBTable
 import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
-import java.awt.Component
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.awt.event.MouseMotionAdapter
-import javax.swing.DefaultComboBoxModel
-import javax.swing.DefaultListCellRenderer
 import javax.swing.JCheckBoxMenuItem
-import javax.swing.JComboBox
 import javax.swing.JComponent
-import javax.swing.JLabel
-import javax.swing.JList
 import javax.swing.JMenuItem
 import javax.swing.JPanel
 import javax.swing.JPopupMenu
@@ -182,8 +175,6 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     /** The sources the rows were read from; whether the default group has a namespace to name depends on them. */
     private var sources: List<LocalizationSource> = emptyList()
     private var currentFilter: String = ""
-    private var currentNamespace: NamespaceFilter = NamespaceFilter.All
-    private var currentStatus: StatusFilter = StatusFilter.ALL
 
     /**
      * Where the module's reviews folder hangs, resolved at each load; replaced by tests, whose
@@ -216,54 +207,14 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     /** True while a usage scan is running, so the action does not queue a second one. */
     val isScanning: Boolean get() = scanning
 
-    // The combo holds the filters themselves; the renderer is the only thing that turns one into
-    // text, so a label can be translated without touching what the filter compares.
-    private val namespaceCombo = JComboBox(arrayOf<NamespaceFilter>(NamespaceFilter.All)).apply {
-        renderer = object : DefaultListCellRenderer() {
-            override fun getListCellRendererComponent(
-                list: JList<*>?, value: Any?, index: Int, selected: Boolean, focused: Boolean
-            ): Component = super.getListCellRendererComponent(
-                list, (value as? NamespaceFilter)?.label(config, sources) ?: value, index, selected, focused
-            )
-        }
-    }
-
-    // Same split as the namespace combo: the entries are StatusFilter values, the renderer alone
-    // reads their label. A JComboBox cannot disable one entry, so *Unused* before a scan is drawn
-    // disabled with a tooltip saying what to run, and picking it is undone by the listener.
-    // The review filters join the entries only where reviews are on: see updateStatusCombo.
-    private val statusCombo = JComboBox(viewModel.statusFilters(TableReviews.OFF).toTypedArray()).apply {
-        renderer = object : DefaultListCellRenderer() {
-            override fun getListCellRendererComponent(
-                list: JList<*>?, value: Any?, index: Int, selected: Boolean, focused: Boolean
-            ): Component {
-                val filter = value as? StatusFilter
-                val component = super.getListCellRendererComponent(list, filter?.label ?: value, index, selected, focused)
-                val available = filter == null || viewModel.isStatusFilterAvailable(filter, allRows)
-                isEnabled = available
-                toolTipText = if (available) null else PluginBundle.message("toolwindow.table.status.orphan.unavailable")
-                return component
-            }
-        }
-    }
+    private val filters = TableFilters(viewModel, { config }, { sources }, { allRows }, ::applyFilters)
 
     /**
      * The Namespace and Status filters. Laid out above the table, unless the tool window lends it
      * a place in its own top bar — see [ShellContent.fitToWidth] — and gives it back with
-     * [dockFilterBar]. The namespace label and combo come first: they stay the bar's first JLabel
-     * and JComboBox.
+     * [dockFilterBar].
      */
-    internal val filterBar: JComponent = JPanel(BorderLayout()).apply {
-        add(JLabel(PluginBundle.message("toolwindow.table.namespace.label") + " "), BorderLayout.WEST)
-        add(namespaceCombo, BorderLayout.CENTER)
-        add(
-            JPanel(BorderLayout()).apply {
-                add(JLabel(" " + PluginBundle.message("toolwindow.table.status.label") + " "), BorderLayout.WEST)
-                add(statusCombo, BorderLayout.CENTER)
-            },
-            BorderLayout.EAST
-        )
-    }
+    internal val filterBar: JComponent = filters.bar
 
     init {
         // Not AUTO_RESIZE_ALL_COLUMNS: that split the viewport in equal shares, so the key
@@ -310,21 +261,6 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             }
         })
         TableKeyboard.install(table, { tableModel.isCellEditable(0, it) }, ::editSelectedRow, ::openSelectedRowFile)
-
-        namespaceCombo.addActionListener {
-            currentNamespace = namespaceCombo.selectedItem as? NamespaceFilter ?: NamespaceFilter.All
-            applyFilters()
-        }
-        statusCombo.addActionListener {
-            val picked = statusCombo.selectedItem as? StatusFilter ?: StatusFilter.ALL
-            if (!viewModel.isStatusFilterAvailable(picked, allRows)) {
-                // Drawn disabled, but a JComboBox still lets it be selected: put the previous back.
-                statusCombo.selectedItem = currentStatus
-                return@addActionListener
-            }
-            currentStatus = picked
-            applyFilters()
-        }
 
         add(filterBar, BorderLayout.NORTH)
         add(JScrollPane(table), BorderLayout.CENTER)
@@ -412,7 +348,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             sources = loadedSources
             reviewRoot = root
             reviews = loadedReviews
-            updateStatusCombo()
+            filters.updateStatusEntries(reviews)
             // Merged on the EDT, where the in-place edit and the scan also write allRows:
             // reading it from the pooled thread could merge against a stale list.
             allRows = viewModel.mergeUsages(rows, allRows)
@@ -421,10 +357,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             // lose its hidden state for good. Read from the saved set each time, so it is
             // hidden again the moment it comes back.
             hiddenLocales = viewModel.hiddenAmong(discovered, viewState.hiddenLocales(moduleConfig))
-            // Unused cannot outlive the counts it reads (the panel never drops them today,
-            // but nothing else guarantees it).
-            if (!viewModel.isStatusFilterAvailable(currentStatus, allRows)) statusCombo.selectedItem = StatusFilter.ALL
-            updateNamespaceCombo(namespaces)
+            filters.resetUnavailableStatus()
+            filters.updateNamespaces(namespaces)
             applyFilters()
         }
     }
@@ -440,8 +374,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
     private fun applyFilters() {
         val shown = viewModel.visibleLocales(locales, hiddenLocales)
-        val filtered = viewModel.visibleRows(allRows, currentFilter, currentNamespace, currentStatus, shown, reviews)
-        val withNamespace = viewModel.showsNamespaceColumn(currentNamespace, viewModel.namespaceFilters(allRows))
+        val filtered = viewModel.visibleRows(allRows, currentFilter, filters.namespace, filters.status, shown, reviews)
+        val withNamespace = viewModel.showsNamespaceColumn(filters.namespace, viewModel.namespaceFilters(allRows))
         rebuildTable(filtered, shown, withNamespace)
         updateEmptyText()
     }
@@ -451,30 +385,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      * nothing — naming them, with a link clearing them all — or that there is no key at all.
      * Swing's generic text told none of these apart.
      */
-    private fun updateEmptyText() {
-        val emptyText = table.emptyText
-        val query = currentFilter.trim()
-        val namespace = if (currentNamespace == NamespaceFilter.All) null else currentNamespace.label(config, sources)
-        when {
-            loading > 0 && allRows.isEmpty() -> emptyText.text = PluginBundle.message("toolwindow.table.empty.loading")
-            query.isEmpty() && namespace == null && currentStatus == StatusFilter.ALL ->
-                emptyText.text = PluginBundle.message("toolwindow.table.empty.none")
-            else -> {
-                val noMatch = when {
-                    namespace == null && query.isEmpty() -> PluginBundle.message("toolwindow.table.empty.filters")
-                    namespace == null -> PluginBundle.message("toolwindow.table.empty.query", query)
-                    query.isEmpty() -> PluginBundle.message("toolwindow.table.empty.namespace", namespace)
-                    else -> PluginBundle.message("toolwindow.table.empty.query.namespace", query, namespace)
-                }
-                emptyText.text = if (currentStatus == StatusFilter.ALL) noMatch
-                else PluginBundle.message("toolwindow.table.empty.status", noMatch, currentStatus.label)
-                emptyText.appendSecondaryText(
-                    PluginBundle.message("toolwindow.table.empty.clear"),
-                    SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES
-                ) { clearFilters() }
-            }
-        }
-    }
+    private fun updateEmptyText() =
+        filters.describeEmpty(table.emptyText, currentFilter, loading > 0, allRows.isNotEmpty(), ::clearFilters)
 
     /**
      * Back to every namespace, every status and no query; each combo's listener re-applies the
@@ -482,35 +394,12 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      * keeps the link's listener out of reach.
      */
     internal fun clearFilters() {
-        namespaceCombo.selectedItem = NamespaceFilter.All
-        statusCombo.selectedItem = StatusFilter.ALL
+        filters.clear()
         if (currentFilter.isNotEmpty()) onClearSearch()
     }
 
-    /**
-     * Offers the review filters exactly while reviews are on. A review filter picked before the
-     * folder went away falls back to every key; the combo's listener then re-applies the filters.
-     */
-    private fun updateStatusCombo() {
-        val items = viewModel.statusFilters(reviews)
-        val model = statusCombo.model
-        if ((0 until model.size).map { model.getElementAt(it) } == items) return
-        val selected = currentStatus
-        statusCombo.model = DefaultComboBoxModel(items.toTypedArray())
-        statusCombo.selectedItem = if (selected in items) selected else StatusFilter.ALL
-    }
-
     /** The status filters the combo offers right now; for the tests. */
-    internal fun statusFilterEntries(): List<StatusFilter> =
-        (0 until statusCombo.model.size).map { statusCombo.model.getElementAt(it) }
-
-    private fun updateNamespaceCombo(items: List<NamespaceFilter>) {
-        val selected = currentNamespace
-        namespaceCombo.model = DefaultComboBoxModel(items.toTypedArray())
-        // Restore selection if still valid, otherwise reset to "All"
-        if (items.contains(selected)) namespaceCombo.selectedItem = selected
-        else currentNamespace = NamespaceFilter.All
-    }
+    internal fun statusFilterEntries(): List<StatusFilter> = filters.statusEntries()
 
     private fun rebuildTable(rows: List<TranslationRow>, locales: List<String>, withNamespace: Boolean = false) {
         shownLocales = locales
@@ -694,8 +583,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     internal fun reloadReviews() {
         if (project.isDisposed) return
         reviews = viewModel.loadReviews(project, reviewRoot, locales, config, moduleConfig) { rowsByKey[it] }
-        updateStatusCombo()
-        if (currentStatus.readsReviews) applyFilters() else table.repaint()
+        filters.updateStatusEntries(reviews)
+        if (filters.status.readsReviews) applyFilters() else table.repaint()
     }
 
     override fun addNotify() {
