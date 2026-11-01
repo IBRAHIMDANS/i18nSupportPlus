@@ -20,6 +20,7 @@ import com.ibrahimdans.i18n.plugin.review.shown
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewActions
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewCell
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewThreadDialog
+import com.ibrahimdans.i18n.plugin.translate.KeyUiRoles
 import com.ibrahimdans.i18n.plugin.translate.MachineTranslationSettings
 import com.ibrahimdans.i18n.plugin.translate.PluralTranslationPlan
 import com.ibrahimdans.i18n.plugin.tree.PluralCategories
@@ -34,6 +35,7 @@ import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.CommandProcessor
 import com.intellij.openapi.command.UndoConfirmationPolicy
@@ -57,6 +59,7 @@ import com.intellij.ui.dsl.builder.AlignY
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.Row
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.NamedColorUtil
 import java.awt.BorderLayout
@@ -68,6 +71,7 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.event.DocumentEvent
 import javax.swing.text.DefaultHighlighter
+import org.jetbrains.concurrency.CancellablePromise
 
 /**
  * Dialog mode: create a new key or edit an existing one.
@@ -96,7 +100,10 @@ enum class Mode { CREATE, EDIT }
  *
  * With machine translation on, *Translate Empty Locales* fills the empty locales and each locale's
  * *Translate* link replaces its own value. An *Instruction* field, shown when an engine's prompt reads
- * one, says what to ask of the translations (a tone, a length).
+ * one, says what to ask of the translations (a tone, a length). A *Context* field shows what the engines
+ * are told of the key — its name, and where the code shows it (`caption of <SettingsOption>`, found
+ * off the EDT once the dialog is open) — and is sent as edited; the project's translations next to the
+ * key are added to it for each locale ([TranslationContext]).
  *
  * In a module that keeps reviews (its `.i18n-reviews/` folder exists), an EDIT dialog shows under
  * each locale what its review says of the stored value, with a *Review…* link to its thread. A locale
@@ -186,6 +193,29 @@ class TranslationDialog(
         isVisible = translateButton.isVisible && machineReadsInstruction(project)
     }
 
+    /**
+     * What the engines are told of the key besides its text, as they get it: shown and editable so that
+     * nothing leaves the IDE unseen, and a wrong guess can be put right. Follows the key until edited.
+     */
+    private val contextField = JBTextArea(CONTEXT_ROWS, TEXT_AREA_COLUMNS).apply {
+        name = "dialog.translation.context"
+        lineWrap = true
+        wrapStyleWord = true
+    }
+
+    /** Where the code shows the key's text, read once from its usages; empty until then, or without any. */
+    private var uiRoles: List<String> = emptyList()
+
+    /** Set once the user typed in [contextField]: the key, or roles found late, no longer rewrite it. */
+    private var contextEdited = false
+
+    /** True while the dialog itself writes [contextField], which is not the user editing it. */
+    private var writingContext = false
+
+    /** The search for [uiRoles], for a test to wait on; null when the engine is off. */
+    internal var uiRolesSearch: CancellablePromise<List<String>>? = null
+        private set
+
     /** Why the last machine translation left a locale empty, one line per locale. */
     private val translateStatus = JBLabel().apply { foreground = JBColor.RED }
 
@@ -218,8 +248,20 @@ class TranslationDialog(
     override fun createCenterPanel(): JComponent {
         keyField.isEditable = (mode == Mode.CREATE)
         keyField.document.addDocumentListener(object : DocumentAdapter() {
-            override fun textChanged(e: DocumentEvent) = refreshKeyStatus()
+            override fun textChanged(e: DocumentEvent) {
+                refreshKeyStatus()
+                refreshContext()
+            }
         })
+        if (translateButton.isVisible) {
+            refreshContext()
+            contextField.document.addDocumentListener(object : DocumentAdapter() {
+                override fun textChanged(e: DocumentEvent) {
+                    if (!writingContext) contextEdited = true
+                }
+            })
+            searchUiRoles()
+        }
         namespacePrefixLabel.foreground = NamedColorUtil.getInactiveTextColor()
 
         val content = panel {
@@ -244,6 +286,12 @@ class TranslationDialog(
             row {
                 cell(sourcesHost).align(Align.FILL)
             }.resizableRow()
+
+            if (translateButton.isVisible) {
+                row(PluginBundle.message("dialog.translation.context.label")) {
+                    cell(JBScrollPane(contextField)).align(AlignX.FILL).comment(PluginBundle.message("dialog.translation.context.comment"))
+                }
+            }
 
             // Left out rather than hidden: a hidden row still showed its comment, under no field.
             if (instructionField.isVisible) {
@@ -658,8 +706,8 @@ class TranslationDialog(
                 }
             }
         }
-        // Read by the engine, not by the user: English whatever the IDE language.
-        val header = TranslationContext.header(listOf(keyField.text))
+        // As shown in the dialog, edited or not; the generated one if it was emptied.
+        val header = contextField.text.trim().ifEmpty { generatedContext() }
         val path = pathOf(keyField.text, config)
         val shownSources = textAreas.keys.toList()
         val instruction = instructionField.text.trim().takeIf { instructionField.isVisible }.orEmpty()
@@ -691,6 +739,54 @@ class TranslationDialog(
             }
         } + notes
         translateStatus.text = failures.joinToString("<br>", "<html>", "</html>").takeIf { failures.isNotEmpty() }.orEmpty()
+    }
+
+    /**
+     * The context the dialog proposes: the key sentence, read by the engine rather than by the user
+     * (English whatever the IDE language), then where the code shows the key's text.
+     */
+    private fun generatedContext(): String =
+        TranslationContext.withRoles(TranslationContext.header(listOf(keyField.text)), uiRoles)
+
+    /** [contextField] set to [generatedContext], unless the user edited it. */
+    private fun refreshContext() {
+        if (contextEdited || !translateButton.isVisible) return
+        writingContext = true
+        try {
+            contextField.text = generatedContext()
+        } finally {
+            writingContext = false
+        }
+    }
+
+    /**
+     * Looks for where the code shows the key's text off the EDT, in smart mode, the dialog usable
+     * meanwhile. The key the dialog opened on, as the code writes it: a key renamed in a CREATE dialog
+     * is still the one its call site names.
+     */
+    private fun searchUiRoles() {
+        val key = usageKeyOf(fullKey) ?: return
+        val module = tabModule
+        uiRolesSearch = ReadAction.nonBlocking<List<String>> { KeyUiRoles.of(project, key, module) }
+            .inSmartMode(project)
+            .expireWith(disposable)
+            .finishOnUiThread(ModalityState.any()) { roles ->
+                uiRoles = roles
+                refreshContext()
+            }
+            .submit(AppExecutorUtil.getAppExecutorService())
+    }
+
+    /**
+     * [key] spelled as the usage searches take it, `ns:path` ([KeySpelling.NAMESPACE_SEPARATOR]):
+     * its own namespace, else the one this CREATE dialog opened on; null for a key with no level.
+     */
+    private fun usageKeyOf(key: FullKey): String? {
+        val config = Settings.getInstance(project).config()
+        val path = key.compositeKey.takeIf { it.isNotEmpty() }?.fold("") { path, segment -> KeySpelling.child(config, path, segment.text) }
+            ?: return null
+        val namespace = key.allNamespaces().firstOrNull() ?: initialNamespace
+        return namespace?.let { it + KeySpelling.NAMESPACE_SEPARATOR + path } ?: path
     }
 
     /**
@@ -886,6 +982,14 @@ class TranslationDialog(
         instructionField.text = text
     }
 
+    /** The context shown, for tests; empty when the engine is off. */
+    internal val contextText: String get() = contextField.text
+
+    /** Types [text] into the context field, for tests: as the user editing it. */
+    internal fun setContext(text: String) {
+        contextField.text = text
+    }
+
     /** The review state shown under [locale], or null when it shows none — nor a *Review…* link. */
     internal fun reviewStateOf(locale: String): String? =
         reviewBadges.entries.firstOrNull { it.key.localeLabel() == locale }?.value?.text
@@ -953,6 +1057,7 @@ class TranslationDialog(
         private val NAMESPACE_REGEX = Regex("[a-zA-Z0-9-]+")
 
         private const val TEXT_AREA_ROWS = 3
+        private const val CONTEXT_ROWS = 2
         private const val TEXT_AREA_COLUMNS = 40
         private const val PREFIX_GAP = 2
 

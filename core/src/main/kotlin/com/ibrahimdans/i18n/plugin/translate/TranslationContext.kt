@@ -15,6 +15,9 @@ import java.util.Locale
  * - other pairs of the project sharing words with the texts, a plain translation memory that keeps
  *   a term translated the same way beyond one group.
  *
+ * Before the examples, the key sentence may say where the code shows the text ([withRoles]): the
+ * names the IDE read around its usages, not the code.
+ *
  * Bounded by [BUDGET] characters past the key sentence, whatever the size of the files: the
  * context goes with every request, and an LLM pays for it. With nothing to add the context is the
  * key sentence alone, the request it always was.
@@ -29,6 +32,12 @@ object TranslationContext {
 
     /** At most this many pairs sharing words with the texts. */
     const val MAX_SIMILAR = 6
+
+    /** At most this many places the code shows a text in: the first ones say enough. */
+    const val MAX_ROLES = 2
+
+    /** A role written longer than this is not one the markup named. */
+    private const val MAX_ROLE = 100
 
     /** A pair written longer than this is left out: one paragraph would take the whole budget. */
     private const val MAX_PAIR = 200
@@ -50,6 +59,16 @@ object TranslationContext {
     fun header(keys: List<String>): String =
         if (keys.size == 1) "A UI string of an application, under the i18n key ${keys.single()}"
         else "UI strings of an application, under the i18n keys, in order: ${keys.joinToString(", ")}"
+
+    /**
+     * [header] followed by where the code shows the text, [roles] as the markup names them
+     * (`caption of <SettingsOption>`): what the key leaves open — a button, a heading, a placeholder.
+     * Worked out from the code by the IDE, never the code itself; at most [MAX_ROLES], none left as is.
+     */
+    fun withRoles(header: String, roles: List<String>): String {
+        val shown = roles.map(String::trim).filter { it.isNotEmpty() && it.length <= MAX_ROLE }.distinct().take(MAX_ROLES)
+        return if (shown.isEmpty()) header else "$header${SENTENCE_BREAK}Shown in the interface as: ${shown.joinToString(SEPARATOR)}"
+    }
 
     /**
      * [header] followed by the examples [known] (`key -> locale -> value`, spelled as [keys] are)

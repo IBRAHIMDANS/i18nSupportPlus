@@ -10,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.util.Disposer
+import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.util.ui.UIUtil
 import javax.swing.JEditorPane
 import org.junit.jupiter.api.AfterEach
@@ -106,6 +107,55 @@ class TranslationDialogMachineTranslationTest : PlatformBaseTest() {
         Assertions.assertTrue(context.startsWith("A UI string of an application, under the i18n key common:form.save"), context)
         Assertions.assertTrue("reset: \"Reset\" → \"Réinitialiser\"" in context, context)
         Assertions.assertFalse("Quitter" in context, "neither a neighbour nor sharing a word: $context")
+    }
+
+    @Test
+    fun `the context shown is the one sent, as edited, with the neighbours added`() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", """{"form": {"save": "Save", "reset": "Reset"}}""")
+        addFileToProject("locales/fr/common.json", """{"form": {"save": "", "reset": "Réinitialiser"}}""")
+        TranslationDialog.machineTranslator = { engine { Translation.Done("Enregistrer") } }
+
+        val dialog = TranslationDialog(project, KeysSynchronizer().buildFullKey("common:form.save", config), Mode.EDIT)
+        try {
+            Assertions.assertEquals("A UI string of an application, under the i18n key common:form.save", dialog.contextText)
+            dialog.setContext("The label of the button saving a form")
+            dialog.translateEmptyLocales()
+        } finally {
+            Disposer.dispose(dialog.disposable)
+        }
+        val context = requests.single().context
+        Assertions.assertTrue(context.startsWith("The label of the button saving a form. "), context)
+        Assertions.assertTrue("reset: \"Reset\" → \"Réinitialiser\"" in context, context)
+    }
+
+    @Test
+    fun `the context says where the code shows the key, until the user edits it`() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", """{"form": {"save": "Save"}}""")
+        addFileToProject("locales/fr/common.json", """{"form": {"save": ""}}""")
+        addFileToProject("src/Form.tsx", "export const Form = () => <SettingsOption caption={t('common:form.save')} />;")
+        TranslationDialog.machineTranslator = { engine { Translation.Done("x") } }
+
+        val dialog = TranslationDialog(project, KeysSynchronizer().buildFullKey("common:form.save", config), Mode.EDIT)
+        try {
+            PlatformTestUtil.waitForPromise(dialog.uiRolesSearch!!)
+            PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+            Assertions.assertEquals(
+                "A UI string of an application, under the i18n key common:form.save. Shown in the interface as: caption of <SettingsOption>",
+                dialog.contextText
+            )
+        } finally {
+            Disposer.dispose(dialog.disposable)
+        }
+    }
+
+    @Test
+    fun `no context is shown without machine translation`() = myFixture.runWithConfig(config) {
+        seed()
+        TranslationDialog.machineTranslator = { null }
+        withDialog {
+            Assertions.assertEquals("", it.contextText)
+            Assertions.assertNull(it.uiRolesSearch, "no search for an engine that is off")
+        }
     }
 
     @Test

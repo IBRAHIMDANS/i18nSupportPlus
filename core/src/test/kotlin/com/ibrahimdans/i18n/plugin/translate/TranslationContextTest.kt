@@ -90,4 +90,30 @@ class TranslationContextTest {
     fun `words are lower-cased, markup and short words left out`() {
         assertEquals(setOf("save", "changes"), TranslationContext.wordsOf("Save <b>{{n}}</b> changes to it"))
     }
+
+    @Test
+    fun `where the code shows the text follows the key sentence, before the examples`() {
+        val key = "wizard:review.generation.narration"
+        val header = TranslationContext.withRoles(TranslationContext.header(listOf(key)), listOf("caption of <SettingsOption>"))
+        val context = TranslationContext.of(header, listOf(key), listOf("Generate narration"), wizard, "en", "de", config)
+
+        assertTrue(
+            context.startsWith(
+                "A UI string of an application, under the i18n key $key. Shown in the interface as: caption of <SettingsOption>. " +
+                    "Already translated under the same parent key: "
+            ),
+            context
+        )
+    }
+
+    @Test
+    fun `no role leaves the key sentence alone, and the roles are given once, the first ones only`() {
+        val header = TranslationContext.header(listOf("wizard:settings.save"))
+        assertEquals(header, TranslationContext.withRoles(header, emptyList()))
+        assertEquals(header, TranslationContext.withRoles(header, listOf(" ", "")))
+        assertEquals(
+            "$header. Shown in the interface as: text of <h2>; label of <Button>",
+            TranslationContext.withRoles(header, listOf("text of <h2>", "text of <h2>", "label of <Button>", "title of <Card>"))
+        )
+    }
 }

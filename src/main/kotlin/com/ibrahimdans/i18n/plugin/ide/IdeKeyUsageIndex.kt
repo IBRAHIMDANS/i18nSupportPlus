@@ -39,11 +39,22 @@ class IdeKeyUsageIndex(private val project: Project, private val module: ModuleC
 
     override fun usages(keys: Collection<String>): Map<String, List<KeyUsage>> =
         search(keys) { unique, scope ->
-            val prefixed = scope.prefixedUsages(unique)
-            unique.associateWith { key ->
-                (scope.textUsages(key) + prefixed[key].orEmpty()).mapNotNull(::usageOf).distinct()
-            }
+            elementsOf(unique, scope).mapValues { (_, elements) -> elements.mapNotNull(::usageOf).distinct() }
         }
+
+    /**
+     * What [read] makes of each element behind [key]'s [usages], those it reads as nothing left out:
+     * for a caller looking at the code around a usage, which a [KeyUsage] no longer holds. [read]
+     * runs in the search's read action, while the elements are valid.
+     */
+    fun <T : Any> readUsages(key: String, read: (PsiElement) -> T?): List<T> =
+        search(listOf(key)) { unique, scope -> elementsOf(unique, scope)[key].orEmpty().mapNotNull(read) }
+
+    /** The elements naming each of [keys]: its text usages, then those under a hook's key prefix. */
+    private fun elementsOf(keys: List<String>, scope: TextSearch): Map<String, List<PsiElement>> {
+        val prefixed = scope.prefixedUsages(keys)
+        return keys.associateWith { key -> (scope.textUsages(key) + prefixed[key].orEmpty()).distinct() }
+    }
 
     override fun usageCounts(keys: Collection<String>): Map<String, Int> =
         search(keys) { unique, scope ->
