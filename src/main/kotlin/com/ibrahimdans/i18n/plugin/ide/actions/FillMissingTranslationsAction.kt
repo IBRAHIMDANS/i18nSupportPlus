@@ -55,9 +55,9 @@ import java.util.concurrent.Future
  * Nothing is written without the preview, a value already there is never replaced — checked again
  * right before writing — and a proposal the engine got wrong (a variable or tag lost) comes
  * unchecked with its reason. A plural key is translated by the forms the *target* language has
- * ([PluralTranslationPlan]): `few` and `many` for Russian, `other` alone for Japanese. A text the
- * module already translates under another key takes that translation ([TranslationMemory]) and never
- * reaches the engine.
+ * ([PluralTranslationPlan]): `few` and `many` for Russian, `other` alone for Japanese — an ICU plural
+ * too, its branches rebuilt for the target before it is sent. A text the module already translates
+ * under another key takes that translation ([TranslationMemory]) and never reaches the engine.
  */
 class FillMissingTranslationsAction : AnAction() {
 
@@ -196,11 +196,17 @@ internal object MachineFill {
      * A key to translate, with its [source] text. [needsReview]: a plural form translated from the
      * source's `other`, the source having no form of its category. [skipped]: why it is not sent at all.
      * [current]: the value the translation replaces, as read for the preview — null for a value to fill.
+     * [request]: the text sent instead of [source] when it differs — an ICU plural rebuilt with the
+     * target's branches —, [source] staying the text a review records. [reviewNote]: why it is to
+     * review, when it is not the plural form's usual reason.
      */
     data class Item(
         val key: String, val source: String, val needsReview: Boolean = false, val skipped: String? = null,
-        val current: String? = null,
-    )
+        val current: String? = null, val request: String? = null, val reviewNote: String? = null,
+    ) {
+        /** The text the engine is asked to translate. */
+        val sent: String get() = request ?: source
+    }
 
     /**
      * What the engine proposed for [item], in the [locale] it fills — or, with [memory], what another
@@ -217,7 +223,7 @@ internal object MachineFill {
      * - for a plural group (`file_one` / `file_other`, or `steps.one` / `steps.other` — a key is a
      *   plural form only when its group has an `other`), each form the target language needs and
      *   lacks, from the source form of the same category or, marked for review, from `other`;
-     * - an ICU plural (`{count, plural, …}`), as a line saying why it is not translated.
+     * - an ICU plural (`{count, plural, …}`), its branches rebuilt with the target's ([itemOf]).
      */
     fun itemsOf(translations: Map<String, Map<String, String>>, source: String, target: String, keySeparator: String): List<Item> {
         val items = mutableListOf<Item>()
@@ -231,8 +237,7 @@ internal object MachineFill {
             }
             val text = values[source]
             if (text.isNullOrBlank() || !values[target].isNullOrBlank()) continue
-            items += if (PluralTranslationPlan.isIcuPlural(text)) Item(key, text, skipped = PluginBundle.message("action.fill.icu"))
-            else Item(key, text)
+            items += itemOf(key, text, target)
         }
         for ((otherKey, forms) in groups) {
             val sourceForms = forms.mapNotNull { (category, key) -> translations[key]?.get(source)?.let { category to it } }.toMap()
@@ -255,8 +260,8 @@ internal object MachineFill {
      * key whose [target] value is the one its review was decided on while its source — the key it is
      * translated from in [reviews]' reference locale, see [ReviewSources] — changed since
      * ([ShownReview.SOURCE_CHANGED], as the table shows it). Each one is translated again from that
-     * source, the value it replaces kept as [Item.current]; an ICU plural is listed with why it is not
-     * translated, as *Fill* does. None where reviews are off, nor in the reference locale itself.
+     * source, the value it replaces kept as [Item.current]; an ICU plural is rebuilt for [target], as
+     * *Fill* does ([itemOf]). None where reviews are off, nor in the reference locale itself.
      *
      * A plural form the source lacks (`item_few` against an English `item_one` / `item_other`) is
      * translated again from the source's `other`, and [needs review][Item.needsReview] as *Fill* has it.
@@ -269,9 +274,24 @@ internal object MachineFill {
             val source = ReviewSources.sourceTextOf(key, reviews.pluralSeparator) { translations[it]?.get(reference) }
                 ?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
             if (reviews.shownOf(key, target, current, source) != ShownReview.SOURCE_CHANGED) return@mapNotNull null
-            if (PluralTranslationPlan.isIcuPlural(source)) Item(key, source, skipped = PluginBundle.message("action.fill.icu"), current = current)
-            else Item(key, source, needsReview = values[reference].isNullOrEmpty(), current = current)
+            itemOf(key, source, target, current, needsReview = values[reference].isNullOrEmpty())
         }.sortedBy { it.key }
+    }
+
+    /**
+     * [key], translated from [text] into [target]. An ICU plural is sent with its branches rebuilt
+     * for [target] ([PluralTranslationPlan.icu]) — to review when one was copied from `other` — or
+     * listed as not translated when it cannot be rebuilt: nested more than a level deep, or without
+     * `other`. [current] and [needsReview] as [Item] has them.
+     */
+    fun itemOf(key: String, text: String, target: String, current: String? = null, needsReview: Boolean = false): Item {
+        if (!PluralTranslationPlan.isIcuPlural(text)) return Item(key, text, needsReview, current = current)
+        val icu = PluralTranslationPlan.icu(text, target)
+            ?: return Item(key, text, skipped = PluginBundle.message("action.fill.icu"), current = current)
+        return Item(
+            key, text, needsReview || icu.needsReview, current = current, request = icu.source.takeIf { it != text },
+            reviewNote = PluginBundle.message("action.fill.icu.review", icu.copied.joinToString(", ")).takeIf { icu.needsReview },
+        )
     }
 
     /**
@@ -316,7 +336,7 @@ internal object MachineFill {
                 executor.submit<List<Translation>> {
                     if (indicator?.isCanceled == true) return@submit call.map { Translation.Failed("") }
                     provider.translate(
-                        TranslationRequest(call.map { it.source }, source, target, contextOf(call, examples, source, target, config)),
+                        TranslationRequest(call.map { it.sent }, source, target, contextOf(call, examples, source, target, config)),
                         indicator?.asCancellation()
                     )
                 }

@@ -79,12 +79,36 @@ class TranslationAgentToolsTest : PlatformBaseTest() {
             page.items.map { it.key }
         )
         Assertions.assertEquals("Save {{what}}", page.items.single { it.key == "common:save" }.source)
-        Assertions.assertNotNull(page.items.single { it.key == "common:count" }.skipped, "an ICU plural is listed, not to fill")
+        val count = page.items.single { it.key == "common:count" }
+        Assertions.assertNull(count.skipped, "an ICU plural is to fill")
+        Assertions.assertEquals("{n, plural, one {# file} other {# files}}", count.source, "German has English's branches")
         Assertions.assertNull(page.items.single { it.key == "common:item_one" }.skipped)
 
         val first = tools().missing(null, "de", 2)
         Assertions.assertEquals(2, first.items.size)
         Assertions.assertEquals(5, first.total, "the total counts what the limit leaves out")
+    }
+
+    @Test
+    fun `an ICU plural is listed with the locale's branches and written only with them`() = myFixture.runWithConfig(config) {
+        seed()
+        myFixture.addFileToProject("locales/ru/common.json", "{}")
+
+        val listed = tools().missing(null, "ru", 100).items.single { it.key == "common:count" }
+        Assertions.assertEquals("{n, plural, one {# file} few {# files} many {# files} other {# files}}", listed.source)
+        Assertions.assertTrue(listed.pluralFromOther, "few and many come from other")
+
+        val english = tools().write(null, "ru", mapOf("common:count" to "{n, plural, one {# файл} other {# файлов}}"), "codex")
+        Assertions.assertEquals(emptyList<String>(), english.written)
+        Assertions.assertTrue(
+            english.rejected.getValue("common:count").startsWith(TranslationAgentTools.ICU_BRANCHES),
+            english.rejected.getValue("common:count")
+        )
+
+        val russian = tools().write(
+            null, "ru", mapOf("common:count" to "{n, plural, one {# файл} few {# файла} many {# файлов} other {# файла}}"), "codex"
+        )
+        Assertions.assertEquals(listOf("common:count"), russian.written, russian.rejected.toString())
     }
 
     @Test
@@ -106,16 +130,16 @@ class TranslationAgentToolsTest : PlatformBaseTest() {
             "codex"
         )
 
-        Assertions.assertEquals(listOf("common:cancel", "common:save"), result.written)
+        Assertions.assertEquals(listOf("common:cancel", "common:count", "common:save"), result.written)
         Assertions.assertEquals(TranslationAgentTools.ALREADY_FILLED, result.rejected["common:title"])
         Assertions.assertEquals(TranslationAgentTools.EMPTY, result.rejected["common:item_one"])
         Assertions.assertTrue(result.rejected.getValue("common:item_other").startsWith(TranslationAgentTools.PLACEHOLDERS))
-        Assertions.assertEquals(TranslationAgentTools.ICU, result.rejected["common:count"])
         Assertions.assertEquals(TranslationAgentTools.NOT_MISSING, result.rejected["common:unknown"])
 
         val document = FileDocumentManager.getInstance().getDocument(de.virtualFile)!!
         Assertions.assertTrue("{{what}} speichern" in document.text, document.text)
         Assertions.assertTrue("Abbrechen" in document.text, document.text)
+        Assertions.assertTrue("# Dateien" in document.text, "an ICU plural with German's branches: ${document.text}")
         Assertions.assertTrue("Titel" in document.text && "Überschrift" !in document.text, "never replaced: ${document.text}")
 
         UndoManager.getInstance(project).undo(FileEditorManager.getInstance(project).selectedEditor!!)

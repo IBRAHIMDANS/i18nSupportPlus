@@ -8,6 +8,7 @@ import com.ibrahimdans.i18n.plugin.translate.Cancellation
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.util.Disposer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
@@ -95,7 +96,43 @@ class TranslationDialogPluralTranslationTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `an ICU plural is not translated`() = myFixture.runWithConfig(config) {
+    fun `an ICU plural is translated with the branches of the target language`() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", """{"files": "{count, plural, one {# file} other {# files}}"}""")
+        addFileToProject("locales/ru/common.json", """{}""")
+        withDialog("common:files") { dialog ->
+            dialog.translateEmptyLocales()
+
+            val russian = "{count, plural, one {# file} few {# files} many {# files} other {# files}}"
+            Assertions.assertEquals(russian, asked["ru"])
+            Assertions.assertEquals("[ru] $russian", dialog.valueOf("ru"))
+            Assertions.assertTrue(
+                PluginBundle.message("dialog.translation.translate.icu.review", "ru", "few, many") in dialog.translateMessage,
+                dialog.translateMessage
+            )
+        }
+    }
+
+    @Test
+    fun `an ICU plural nested two levels deep is not translated`() = myFixture.runWithConfig(config) {
+        addFileToProject(
+            "locales/en/common.json",
+            """{"files": "{a, select, x {{b, select, y {{count, plural, one {# file} other {# files}}} other {z}}} other {w}}"}"""
+        )
+        addFileToProject("locales/fr/common.json", """{}""")
+        withDialog("common:files") { dialog ->
+            dialog.translateEmptyLocales()
+
+            Assertions.assertEquals("", dialog.valueOf("fr"))
+            Assertions.assertTrue(asked.isEmpty())
+            Assertions.assertTrue(
+                PluginBundle.message("dialog.translation.translate.icu.plural", "fr") in dialog.translateMessage,
+                dialog.translateMessage
+            )
+        }
+    }
+
+    @Test
+    fun `an ICU plural in a plural group is not translated`() = myFixture.runWithConfig(config) {
         addFileToProject("locales/en/common.json", """{"files_other": "{count, plural, one {# file} other {# files}}"}""")
         addFileToProject("locales/fr/common.json", """{}""")
         withDialog("common:files_other") { dialog ->
@@ -103,7 +140,10 @@ class TranslationDialogPluralTranslationTest : PlatformBaseTest() {
 
             Assertions.assertEquals("", dialog.valueOf("fr"))
             Assertions.assertTrue(asked.isEmpty())
-            Assertions.assertTrue(dialog.translateMessage.contains("fr: an ICU plural is not translated"), dialog.translateMessage)
+            Assertions.assertTrue(
+                PluginBundle.message("dialog.translation.translate.icu.plural", "fr") in dialog.translateMessage,
+                dialog.translateMessage
+            )
         }
     }
 

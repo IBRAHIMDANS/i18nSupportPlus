@@ -9,6 +9,8 @@ import com.ibrahimdans.i18n.plugin.review.Review
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.translate.PlaceholderMask
+import com.ibrahimdans.i18n.plugin.translate.PluralTranslationPlan
+import com.ibrahimdans.i18n.plugin.utils.IcuPluralRewriter
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
@@ -20,8 +22,9 @@ import com.intellij.openapi.vfs.VirtualFile
  * Writing goes through *Fill Missing Translations*' and *Retranslate Stale Translations*' own steps,
  * so an agent gets the same guards as the engines: a value is written only where it is missing, or
  * replaces one that is stale when written — still the value reviewed while its source changed since —,
- * never any other one; a value must keep the placeholders of its source, an ICU plural is left alone,
- * and the whole call is one undoable command, marked to review when the module keeps reviews.
+ * never any other one; a value must keep the placeholders of its source, an ICU plural the branches
+ * its locale needs — its source is given with them, see [MachineFill.itemOf] —, and the whole call is
+ * one undoable command, marked to review when the module keeps reviews.
  *
  * The texts returned are read by the agent, not shown in the IDE: they stay in English.
  */
@@ -66,7 +69,7 @@ class TranslationAgentTools(private val project: Project) {
     fun missing(moduleName: String?, locale: String, limit: Int): MissingPage {
         val (name, module) = scope(moduleName)
         val (source, _, items) = snapshot(module, locale)
-        val page = items.take(limit.coerceAtLeast(1)).map { Missing(it.key, it.source, it.needsReview, it.skipped) }
+        val page = items.take(limit.coerceAtLeast(1)).map { Missing(it.key, it.sent, it.needsReview, it.skipped) }
         return MissingPage(name, source, locale, items.size, page)
     }
 
@@ -81,7 +84,7 @@ class TranslationAgentTools(private val project: Project) {
         val (source, translations, _) = snapshot(module, locale)
         val root = reviewsOn(module) ?: throw Refused(REVIEWS_OFF)
         val items = staleOf(root, module, source, locale, translations)
-        val page = items.take(limit.coerceAtLeast(1)).map { Stale(it.key, it.source, it.current.orEmpty(), it.skipped) }
+        val page = items.take(limit.coerceAtLeast(1)).map { Stale(it.key, it.sent, it.current.orEmpty(), it.skipped) }
         return StalePage(name, source, locale, items.size, page)
     }
 
@@ -108,8 +111,9 @@ class TranslationAgentTools(private val project: Project) {
                 item == null && !translations[key]?.get(locale).isNullOrBlank() -> ALREADY_FILLED
                 item == null -> NOT_MISSING
                 item.skipped != null -> ICU
-                !PlaceholderMask.samePlaceholders(item.source, text) -> "$PLACEHOLDERS ${item.source}"
-                else -> { accepted[key] = text; continue }
+                else -> icuMismatch(item, text, locale)
+                    ?: if (!PlaceholderMask.samePlaceholders(item.sent, text)) "$PLACEHOLDERS ${item.sent}"
+                    else { accepted[key] = text; continue }
             }
         }
         if (accepted.isEmpty()) return WriteResult(emptyList(), rejected)
@@ -132,6 +136,17 @@ class TranslationAgentTools(private val project: Project) {
             MachineFill.write(project, module, mapOf(locale to accepted), marks, mapOf(locale to replaced))
         }
         return WriteResult(accepted.keys.toList(), rejected)
+    }
+
+    /**
+     * Why [text], written for [item], is not an ICU plural of [locale]: a block whose branches are not
+     * the categories the language needs, or braces that do not balance. Null when it is one, or when
+     * [item] is no ICU plural.
+     */
+    private fun icuMismatch(item: MachineFill.Item, text: String, locale: String): String? {
+        if (!PluralTranslationPlan.isIcuPlural(item.source)) return null
+        val mismatches = IcuPluralRewriter.mismatches(text, locale) ?: return "$ICU_UNPARSED ${item.sent}"
+        return mismatches.takeIf { it.isNotEmpty() }?.let { "$ICU_BRANCHES ${it.joinToString("; ")}. Source: ${item.sent}" }
     }
 
     /** The stale translations of [locale] read from the reviews under [root], as *Retranslate Stale Translations* finds them. */
@@ -187,7 +202,10 @@ class TranslationAgentTools(private val project: Project) {
         const val REVIEWS_OFF = "Reviews are off in this module: a translation is stale against the source it was reviewed on, " +
             "and only a module with a .i18n-reviews folder keeps one. Turn reviews on in the IDE to find stale translations"
         const val NOT_MISSING = "Not a missing key of this locale"
-        const val ICU = "ICU plural: not filled by the plugin, edit it in the file"
+        const val ICU = "ICU plural nested more than one level deep, without an 'other' branch, or in a plural group: " +
+            "not filled by the plugin, edit it in the file"
+        const val ICU_BRANCHES = "ICU plural branches are not those of this locale:"
+        const val ICU_UNPARSED = "Not a valid ICU message, its braces do not balance. Source:"
         const val PLACEHOLDERS = "Placeholders differ from the source:"
     }
 }

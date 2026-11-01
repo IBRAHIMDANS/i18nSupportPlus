@@ -85,7 +85,7 @@ class RetranslateStaleActionTest : PlatformBaseTest() {
 
         Assertions.assertEquals(
             listOf(
-                MachineFill.Item("common:count", "{n, plural, one {# file} other {# files!}}", skipped = icu, current = "{n, plural, one {# fichier} other {# fichiers}}"),
+                MachineFill.Item("common:count", "{n, plural, one {# file} other {# files!}}", current = "{n, plural, one {# fichier} other {# fichiers}}"),
                 MachineFill.Item("common:item_one", "{{count}} item!", current = "{{count}} élément"),
                 MachineFill.Item("common:save", "Save all", current = "Enregistrer"),
             ),
@@ -123,8 +123,22 @@ class RetranslateStaleActionTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `an ICU plural is listed, never sent`() {
-        val items = listOf(MachineFill.Item("common:count", "{n, plural, one {# file} other {# files}}", skipped = icu, current = "{n, plural, other {# fichiers}}"))
+    fun `a stale ICU plural goes again with the target's branches, its review on the reference's text`() {
+        val item = MachineFill.itemOf("common:count", "{n, plural, one {# file} other {# files}}", "ru", current = "{n, plural, other {# файлов}}")
+
+        val proposals = MachineFill.translate(listOf(item), engine, "en", "ru", EmptyProgressIndicator())!!
+
+        Assertions.assertEquals(listOf("{n, plural, one {# file} few {# files} many {# files} other {# files}}"), requests.single().texts)
+        Assertions.assertTrue(proposals.single().item.needsReview, "few and many come from other")
+        Assertions.assertEquals(
+            mapOf("ru" to mapOf("common:count" to ReviewSource.of("en", "{n, plural, one {# file} other {# files}}"))),
+            MachineFill.reviewSourcesOf(proposals, "en")
+        )
+    }
+
+    @Test
+    fun `an ICU plural that cannot be rebuilt is listed, never sent`() {
+        val items = listOf(MachineFill.itemOf("common:count", "{n, plural, one {# file}}", "fr", current = "{n, plural, other {# fichiers}}"))
 
         val proposals = MachineFill.translate(items, engine, "en", "fr", EmptyProgressIndicator())!!
 

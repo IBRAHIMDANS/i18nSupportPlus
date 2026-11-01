@@ -70,10 +70,20 @@ class PluralTranslationPlanTest {
     }
 
     @Test
-    fun `an ICU plural is not a text to translate`() {
+    fun `an ICU plural in a plural group is not a text to translate`() {
         assertEquals(Plan.IcuPlural, PluralTranslationPlan.of(mapOf("other" to "{count, plural, one {# file} other {# files}}"), "ru"))
         assertTrue(PluralTranslationPlan.isIcuPlural("You have {n, selectordinal, one {#st} other {#th}} place"))
         assertFalse(PluralTranslationPlan.isIcuPlural("Hello {name}, {count} files"))
+    }
+
+    @Test
+    fun `an ICU plural on its own is sent with the target's branches, those copied from other to review`() {
+        val russian = PluralTranslationPlan.icu("{count, plural, one {# file} other {# files}}", "ru")!!
+        assertEquals("{count, plural, one {# file} few {# files} many {# files} other {# files}}", russian.source)
+        assertTrue(russian.needsReview)
+
+        assertFalse(PluralTranslationPlan.icu("{count, plural, one {# file} other {# files}}", "de")!!.needsReview)
+        assertEquals(null, PluralTranslationPlan.icu("{count, plural, one {# file}}", "ru"), "no other to copy from")
     }
 
     @Test

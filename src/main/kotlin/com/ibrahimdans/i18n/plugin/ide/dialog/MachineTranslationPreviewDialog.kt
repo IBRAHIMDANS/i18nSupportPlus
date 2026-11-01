@@ -88,7 +88,7 @@ internal class MachineTranslationPreviewDialog(
             val memory = proposal.memory
             val row = when (val result = proposal.result) {
                 is Translation.Done -> when {
-                    proposal.item.needsReview -> Triple(false, result.text, PluginBundle.message("action.fill.review"))
+                    proposal.item.needsReview -> Triple(false, result.text, proposal.item.reviewNote ?: PluginBundle.message("action.fill.review"))
                     memory != null && !memory.unanimous -> Triple(false, result.text, PluginBundle.message("action.fill.memory.divergent"))
                     else -> Triple(true, result.text, "")
                 }
