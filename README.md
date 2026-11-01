@@ -44,8 +44,6 @@
 <!-- Plugin description -->
 Turns i18n keys into first-class code symbols in **WebStorm, IntelliJ IDEA Ultimate and PhpStorm**: see each key's value and status, jump to it, rename it, translate it and keep every locale in sync.
 
-Maintained successor of **I18n Support**, which no longer installs on IDEs after 2023.1: a fork of it, installed separately rather than as an update, that reads its project settings back as they are — see [Coming from I18n Support?](https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/docs/COMPARISON.md#coming-from-i18n-support).
-
 Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-intl, ngx-translate, Transloco, Angular i18n (`$localize`), svelte-i18n, i18n-js, Paraglide JS, typesafe-i18n, Meteor universe:i18n and Laravel / Blade**, in JS, TS, JSX, TSX, Vue SFC, Svelte, Astro, Angular templates, PHP and Blade, with **JSON, JSON5, YAML, PO/POT, XLIFF, Laravel PHP arrays, Flutter ARB** and plain **TS/JS catalogues**. A setup wizard configures it on first launch, monorepo modules included.
 
 - **See** — gutter status per key (all / some / no locale), inline value hints, folding and hover in a preview locale, completion of real keys, namespaces included
@@ -54,7 +52,12 @@ Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-
 - **AI agents** — Codex, Claude or any MCP client translates through the plugin's tools on the IDE's MCP server, on your own AI plan: only missing values are written, placeholders and plural forms are checked, and one Ctrl+Z undoes it (2025.2.6+)
 - **Plurals done right** — i18next `_one` / `_other` keys and nested plural objects resolve, missing CLDR forms per language are reported, ICU messages are validated
 - **Stay healthy** — tool window with tree and table views, filters for missing, empty, duplicate and unreferenced keys, coverage per namespace and locale, a keep list for keys used outside the code, keys synchronizer, cleanup, CSV and XLIFF export / import, comparison with a Git branch
+- **In CI** — `i18n-check` runs the same checks from the command line or as a GitHub Action that annotates the pull request, and `i18n-check.json` shares the configuration with the team
 - **Your own calls** — rules turn `translate('key')` or `__('key')` into translation calls, and a module can write its own wrapper's call at extraction
+
+**Coming from I18n Support?** This plugin is the maintained successor of the original, which no longer installs on IDEs after 2023.1: install it next to the old one, it reads your project settings as they are — see [the migration notes](https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/docs/COMPARISON.md#coming-from-i18n-support).
+
+[Documentation](https://github.com/IBRAHIMDANS/i18nSupportPlus#readme) · [Compare with i18n Ally and Easy I18n](https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/docs/COMPARISON.md) · [Examples](https://github.com/IBRAHIMDANS/i18nSupportPlus/tree/main/examples) · [Changelog](https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/CHANGELOG.md)
 <!-- Plugin description end -->
 
 ## Contents
