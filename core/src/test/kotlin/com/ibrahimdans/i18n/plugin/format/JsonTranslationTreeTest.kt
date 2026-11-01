@@ -108,4 +108,23 @@ class JsonTranslationTreeTest {
             assertNull(JsonTranslationTree.parse(text), text)
         }
     }
+
+    @Test
+    fun `ARB - the root's @ metadata is no key but still found by name, a nested one is`() {
+        val text = """{"@@locale": "fr", "hello": "Salut {name}", "@hello": {"placeholders": {"name": {}}}, "o": {"@x": "X"}}"""
+        val tree = JsonTranslationTree.parse(text, arb = true)!!
+        assertEquals(listOf("hello", "o"), tree.names())
+        assertEquals("fr", ArbCatalogue.declaredLocale(tree))
+        assertEquals(listOf("@x"), tree.findChild("o")!!.names())
+        // Plain JSON keeps them.
+        assertEquals(listOf("@@locale", "hello", "@hello", "o"), parse(text).names())
+    }
+
+    @Test
+    fun `ARB - the locale is the declared one, else the end of the name`() {
+        assertEquals("de", ArbCatalogue.localeOf("app_en", "de"))
+        assertEquals("pt_BR", ArbCatalogue.localeOf("app_pt_BR", null))
+        assertEquals("fr", ArbCatalogue.localeOf("fr", null))
+        assertNull(ArbCatalogue.localeOf("strings", null))
+    }
 }
