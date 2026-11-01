@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.extensions.localization.json
 
 import com.ibrahimdans.i18n.*
+import com.ibrahimdans.i18n.extensions.localization.arb.ArbMetadata
 import com.ibrahimdans.i18n.plugin.ide.actions.JsonKeySorter
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
@@ -82,6 +83,8 @@ private class JsonContentGenerator: ContentGenerator {
             JsonInsertion(obj).insert(property) { props ->
                 if (settings.extractSorted) props.takeWhile { settings.keyOrder.comparator.compare(it.name, key) < 0 } else props
             }
+            // A Flutter ARB template describes each key in a `@key` block, which gen-l10n reads.
+            ArbMetadata.addAfterNewKey(obj, key, property.value)
         }
         // When the user keeps files alphabetically sorted, re-sort the whole file after each
         // insertion so the new key lands in order even if the file was not already sorted.

@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.ParaglideMessageExtractor
+import com.ibrahimdans.i18n.extensions.localization.arb.ArbMetadata
 import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideOutdir
 import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideTechnology
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileKeys
@@ -103,7 +104,7 @@ internal class KeyLevelRename(
     fun plan(newName: String): Plan {
         val conflict = sources.any { nodesAt(it, path.dropLast(1) + newName).isNotEmpty() }
         if (conflict || levelNodes.isEmpty()) return Plan(emptyList(), levelNodes.size, 0, emptyList(), conflict)
-        val fileEdits = levelNodes.mapNotNull { renamedProperty(it, newName) }
+        val fileEdits = levelNodes.mapNotNull { renamedProperty(it, newName) } + levelNodes.mapNotNull { renamedArbBlock(it, newName) }
         val found = codeEdits(newName)
         val reviews = levelNodes.mapNotNull { node -> ReviewMigration.moveOf(node) { it.dropLast(1) + renamed(it.last(), newName) } }.distinct()
         return Plan((fileEdits + found.edits).distinct(), fileEdits.map { it.document }.distinct().size, found.edits.size, found.dynamic, false, reviews)
@@ -126,6 +127,15 @@ internal class KeyLevelRename(
         val quote = raw.firstOrNull()?.takeIf { it in QUOTES && raw.length > 1 && raw.last() == it }
         val renamed = renamed(if (quote != null) raw.substring(1, raw.length - 1) else raw, newName)
         return Edit(document, nameElement.textRange, if (quote != null) "$quote$renamed$quote" else renamed)
+    }
+
+    /** The `@key` block of a Flutter ARB key renamed with it, or null when the key has none. */
+    private fun renamedArbBlock(node: PsiElement, newName: String): Edit? {
+        val key = TranslationPsi.propertyOf(node, strict = false) ?: return null
+        val block = ArbMetadata.blockOf(key) ?: return null
+        val document = documentOf(block.nameElement) ?: return null
+        val renamed = renamed(TranslationPsi.nameOf(key) ?: return null, newName)
+        return Edit(document, block.nameElement.textRange, "\"${ArbMetadata.renamedBlock(renamed)}\"")
     }
 
     private class Found(val edits: List<Edit>, val dynamic: List<String>)
