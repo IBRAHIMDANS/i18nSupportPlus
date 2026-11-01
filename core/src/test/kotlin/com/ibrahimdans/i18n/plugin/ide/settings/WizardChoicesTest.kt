@@ -126,4 +126,15 @@ class WizardChoicesTest {
 
         Assertions.assertEquals(before, store.config().keySeparator, "an empty separator leaves every composite key unresolved")
     }
+
+    @Test
+    fun `the reference locale is stored as the project's, which the comparisons read`() {
+        val store = InMemoryStore()
+
+        WizardChoices(referenceLocale = "fr").applyTo(store)
+        Assertions.assertEquals("fr", store.config().foldingPreferredLanguage)
+
+        WizardChoices().applyTo(store)
+        Assertions.assertEquals("fr", store.config().foldingPreferredLanguage, "null leaves it alone")
+    }
 }

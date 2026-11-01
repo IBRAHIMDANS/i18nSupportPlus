@@ -288,4 +288,45 @@ class WizardPlanTest {
         Assertions.assertEquals("common", plan.deductions.single { it.field == WizardPlan.Field.DEFAULT_NS }.value)
         Assertions.assertNull(plan.separators)
     }
+
+    // -- What a Nuxt or vue-i18n configuration states
+
+    private val nuxtConfig = VueI18nConfig(
+        file = "nuxt.config.ts",
+        translationsRoot = "i18n/locales",
+        referenceLocale = "fr",
+        localeFiles = listOf("en.yaml", "fr.yaml"),
+    )
+
+    @Test
+    fun `the Nuxt root, reference locale and format are proposed, read from nuxt config`() {
+        val plan = WizardPlan.of(listOf("i18n/locales/en.json", "i18n/locales/fr.json"), setOf("vue-i18n"), vueConfig = nuxtConfig)
+
+        Assertions.assertEquals(WizardPlan.RootPlan("i18n/locales", listOf("i18n/locales"), "nuxt.config.ts"), plan.root)
+        Assertions.assertEquals(
+            WizardPlan.Deduction(WizardPlan.Field.REFERENCE_LOCALE, "fr", "nuxt.config.ts"),
+            plan.deductions.single { it.field == WizardPlan.Field.REFERENCE_LOCALE },
+        )
+        Assertions.assertEquals(
+            WizardPlan.Deduction(WizardPlan.Field.PREFERRED_LOCALIZATION, "yaml", "nuxt.config.ts"),
+            plan.deductions.single { it.field == WizardPlan.Field.PREFERRED_LOCALIZATION },
+            "the declared files win over the scanned ones",
+        )
+    }
+
+    @Test
+    fun `a Nuxt configuration stating nothing leaves the scan in charge`() {
+        val plan = WizardPlan.of(nested, emptySet(), vueConfig = VueI18nConfig("nuxt.config.ts"))
+
+        Assertions.assertEquals("locales", plan.root.detected)
+        Assertions.assertNull(plan.root.origin)
+        Assertions.assertTrue(plan.deductions.none { it.field == WizardPlan.Field.REFERENCE_LOCALE })
+    }
+
+    @Test
+    fun `an i18next configuration's root comes before a vue-i18n one`() {
+        val plan = WizardPlan.of(nested, emptySet(), cliConfig, nuxtConfig)
+
+        Assertions.assertEquals("i18next.config.ts", plan.root.origin)
+    }
 }
