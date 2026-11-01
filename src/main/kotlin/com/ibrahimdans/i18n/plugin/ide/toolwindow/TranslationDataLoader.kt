@@ -181,25 +181,14 @@ object TranslationDataLoader {
 
     /**
      * Extracts the key name from a tree node's underlying PSI element.
+     *
+     * A key-value of any format is named by [TranslationPsi], which tells a YAML element by its
+     * language id: no YAML class is loaded without the optional YAML plugin. The key elements a YAML
+     * tree lists name nothing here, and [TranslationLeaves] then names them through `entries()`.
      */
-    private fun extractNodeName(node: Tree<PsiElement>): String? {
-        val psi = node.value()
-        return when (psi) {
-            is JsonProperty -> psi.name
-            is JsonStringLiteral -> psi.value
-            else -> {
-                // Try YAMLKeyValue via reflection to avoid hard dependency on YAML plugin
-                try {
-                    val klass = Class.forName("org.jetbrains.yaml.psi.YAMLKeyValue")
-                    if (klass.isInstance(psi)) {
-                        klass.getMethod("getKeyText").invoke(psi) as? String
-                    } else null
-                } catch (e: Exception) {
-                    LOG.debug("extractNodeName: YAML reflection failed: ${e.message}", e)
-                    null
-                }
-            }
-        }
+    private fun extractNodeName(node: Tree<PsiElement>): String? = when (val psi = node.value()) {
+        is JsonStringLiteral -> psi.value
+        else -> TranslationPsi.nameOf(psi)
     }
 
     /**
@@ -212,15 +201,9 @@ object TranslationDataLoader {
         }
         // A PHP string's escapes read back, so that an edit does not escape them a second time.
         if (TranslationPsi.isPhp(psi)) return TranslationPsi.readValue(psi) ?: ""
-        // Try YAMLKeyValue via reflection to avoid hard dependency on YAML plugin
-        try {
-            val klass = Class.forName("org.jetbrains.yaml.psi.YAMLKeyValue")
-            if (klass.isInstance(psi)) {
-                return klass.getMethod("getValueText").invoke(psi) as? String ?: ""
-            }
-        } catch (e: Exception) {
-            LOG.debug("extractLeafValue: YAML reflection failed: ${e.message}", e)
-        }
+        // A YAML key-value, should a tree hold one, reads its value; a YAML scalar keeps the raw
+        // text below, as it always has.
+        if (TranslationPsi.isYaml(psi) && TranslationPsi.nameOf(psi) != null) return TranslationPsi.readValue(psi) ?: ""
         return psi.text?.removeSurrounding("\"")?.removeSurrounding("'") ?: ""
     }
 }
