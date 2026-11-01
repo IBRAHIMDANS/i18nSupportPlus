@@ -27,6 +27,7 @@
 ### Fixes
 
 - [i18next] **`<Trans>` reads its `ns` and `t` props**: `<Trans i18nKey="title" ns="auth">` and `ns={['auth', 'common']}` look the key up in those namespaces, and `<Trans t={t}>` takes the namespace and `keyPrefix` of the `useTranslation` that gave `t`, so these keys are no longer reported missing or unused.
+- [i18next] **A blank default namespace is read from your i18next setup**: when *Default namespace* is empty, the plugin uses the `defaultNS` your `i18next.init({…})` (or `i18next.config.ts`) declares instead of `translation`, so `t('…')` calls without a namespace resolve again. When the default namespace has no file in any locale, the settings page and a notification at startup say so and offer the namespace to use.
 - [Flutter] **ARB keys keep their `@key` block**: a key created in the template catalogue (`app_en.arb`) gets its `"@key"` entry, with the placeholders its value names, so `flutter gen-l10n` builds it; renaming or deleting a key renames or deletes its `@key` entry too.
 - [Translation dialog] **The reference locale is listed first**: *Create Translation* and *Edit Translations* show the locale you translate from at the top, then the others in alphabetical order.
 - [Editor] ***Show Translations Inline* now folds the files already open**: despite the 1.16.0 fix, turning it on left the editors already open unfolded; their keys now fold at once.
