@@ -100,6 +100,25 @@ class I18nMcpToolset : McpToolset {
         tools.report(if (unused) withContext(Dispatchers.Default) { checks.map(tools::withUnused) } else checks)
     }
 
+    @McpTool(name = "i18n_find_keys")
+    @McpDescription(
+        description = "Finds existing keys, to reuse one instead of creating its twin. 'query' is read as a key pattern " +
+            "with * or ? ('common:actions.*'), else as a key prefix ('common:actions'); when no key matches, as a text " +
+            "searched in the values of 'locale' (the reference locale by default), case ignored: equal values first, then " +
+            "whole words, then the rest. 'match' tells which way it matched. Each key comes with its value in every " +
+            "locale and 'usages', how often the code uses it ('usageNote' when no search can count it; both absent " +
+            "while the IDE indexes). Call it before i18n_create_key."
+    )
+    suspend fun i18n_find_keys(
+        @McpDescription(description = "Key pattern, key prefix or text, e.g. 'common:actions.*' or 'Save'") query: String,
+        @McpDescription(description = "Module name from i18n_list_modules; omit when there is only one") module: String? = null,
+        @McpDescription(description = "Locale whose values are searched; omit for the reference locale") locale: String? = null,
+        @McpDescription(description = "At most this many keys; 'total' tells how many match") limit: Int = 20,
+    ): String = maintain { tools, _ ->
+        val found = readAction { tools.find(module, query, locale, limit) }
+        withContext(Dispatchers.Default) { tools.withUsages(found) }
+    }
+
     @McpTool(name = "i18n_key_usages")
     @McpDescription(
         description = "Lists where the code uses a key: file relative to the project, 1-based line and the line of code, " +
@@ -134,13 +153,16 @@ class I18nMcpToolset : McpToolset {
         description = "Creates a key with its values, in one command the user can undo. Refused when a translation already " +
             "holds the key, when it would sit under a key holding a value or replace a level holding keys, or without a " +
             "value in the module's reference locale. A value of another locale must keep the placeholders and tags of " +
-            "the reference value; refused values come back with the reason."
+            "the reference value; refused values come back with the reason. When other keys already hold the same " +
+            "reference value, nothing is created: 'existing' lists them and 'refused' says so; reuse one of them, or call " +
+            "again with allowDuplicate=true when the same text needs its own key."
     )
     suspend fun i18n_create_key(
         @McpDescription(description = "Key to create, e.g. 'common:actions.archive'") key: String,
         @McpDescription(description = "Locale to text, the reference locale's included, e.g. {\"en\": \"Archive\", \"fr\": \"Archiver\"}") values: Map<String, String>,
         @McpDescription(description = "Module name from i18n_list_modules; omit when there is only one") module: String? = null,
-    ): String = maintain { tools, _ -> withContext(Dispatchers.EDT) { tools.create(module, key, values) } }
+        @McpDescription(description = "Create the key even when another key holds the same reference value") allowDuplicate: Boolean = false,
+    ): String = maintain { tools, _ -> withContext(Dispatchers.EDT) { tools.create(module, key, values, allowDuplicate) } }
 
     @McpTool(name = "i18n_delete_unused_keys")
     @McpDescription(

@@ -136,7 +136,7 @@ a notification offers the setup wizard when the project opens.
 | Opt-in | Yes: nothing is sent until enabled for the project | — | — | No: Google is the default engine |
 | Placeholders and tags kept | Masked before sending | — | — | — |
 | Plural forms of the target language | Yes | — | — | — |
-| AI agents (Codex, Claude, any MCP client) | Tools on the IDE's MCP server: the agent reads the missing keys and writes them through the plugin — never over an existing value but a stale one, placeholders and plural forms checked, one undo ([setup](../README.md#ai-agents-mcp)) | — | — | — ([#1328](https://github.com/lokalise/i18n-ally/issues/1328), open) |
+| AI agents (Codex, Claude, any MCP client) | Tools on the IDE's MCP server: the agent reads the missing keys and writes them through the plugin — never over an existing value but a stale one, placeholders and plural forms checked, one undo; it finds an existing key by name or text before creating one ([setup](../README.md#ai-agents-mcp)) | — | — | — ([#1328](https://github.com/lokalise/i18n-ally/issues/1328), open) |
 | Preview before writing | Yes, one undo, the engine that translated each proposal | — | — | Can save as review candidates |
 | Fill a whole locale | Yes, every locale at once | — | — | `fulfill-keys` |
 | Glossary | Terms kept as written for every engine; translated terms sent to the OpenAI-compatible prompt and as a DeepL glossary | — | — | — |

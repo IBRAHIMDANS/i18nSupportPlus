@@ -21,6 +21,7 @@
 - [Reviews] **Review a translation from its file**: in a module keeping reviews, the gutter of a JSON or YAML translation file shows each reviewed value's state — to review, approved, changes requested, stale — with the table's icon and tooltip. Click it to approve the value, request changes or open its thread.
 - [i18next] **Nested keys in a translation are read**: in `"$t(common.save) and close"` — options and `ns:key` included — the nested key opens on Ctrl+click, is completed as you type it, counts as a usage, and is reported when no translation file declares it. Keys named by vue-i18n's `@:key` are now completed too.
 - [CLI] **`i18n-check` as a Docker image, for GitLab CI, Bitbucket, Jenkins or a machine without Java**: `docker run --rm -v "$PWD:/work" ghcr.io/ibrahimdans/i18n-check:latest --code` runs the check with Java 21 included, on Linux x86_64 and arm64. See [Other CI systems](README.md#other-ci-systems).
+- [MCP] **AI agents find an existing key before creating one**: the new `i18n_find_keys` tool finds keys by name, prefix or the text they hold, with their values and usages, and `i18n_create_key` no longer creates a key whose reference text another key already holds unless the agent asks for it, so an agent reuses `common:actions.save` instead of adding its twin.
 
 ### Fixes
 
