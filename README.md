@@ -59,13 +59,17 @@ Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-
 
 ## Contents
 
-- [Installation](#installation)
-- [Why this plugin?](#why-this-plugin)
-- [Supported Frameworks](docs/frameworks.md#supported-frameworks) · [Languages](docs/frameworks.md#supported-languages) · [Translation File Formats](docs/frameworks.md#translation-file-formats)
-- [Features](#features): [Setup Wizard](docs/configuration.md#setup-wizard), [Key Extraction](docs/editor.md#key-extraction), [Rename](docs/editor.md#rename-refactoring), [Machine Translation](docs/translation.md#machine-translation), [Inspections](docs/checks.md#inspections), [Command Line Check](docs/checks.md#command-line-check), [AI Agents (MCP)](docs/translation.md#ai-agents-mcp)
-- [Tool Window](docs/tool-window.md#tool-window): [Reviews](docs/tool-window.md#reviews), [Stats](docs/tool-window.md#stats), [Multi-Module Support](docs/tool-window.md#multi-module-support)
-- [Configuration](docs/configuration.md#configuration): [Share the configuration with your team](docs/configuration.md#share-the-configuration-with-your-team)
+- [Installation](#installation) · [Why this plugin?](#why-this-plugin) · [Features](#features) · [Supported Frameworks](#supported-frameworks)
 - [Requirements](#requirements) · [Build from Source](#build-from-source) · [Contributing](#contributing)
+
+The reference, one page per topic, in [`docs/`](docs):
+
+- [Frameworks, languages and file formats](docs/frameworks.md): every syntax read, per framework, and the file formats
+- [In the editor](docs/editor.md): key status, navigation, completion, extraction, hints, folding, renaming, quick fixes
+- [Tool window and bulk actions](docs/tool-window.md): tree and table, reviews, stats, keys synchronizer, export and import
+- [Machine translation and AI agents](docs/translation.md): engines, glossary, tone, MCP tools
+- [Checks: inspections, CI and the command line](docs/checks.md): inspections, Qodana, `i18n-check`, GitHub Action, Docker
+- [Setup and configuration](docs/configuration.md): setup wizard, modules, every setting, `i18n-check.json`
 
 ## Installation
 
@@ -101,12 +105,70 @@ A setup wizard auto-configures it on first launch, a module per application in a
 
 ## Features
 
-- [Frameworks, languages and file formats](docs/frameworks.md)
-- [In the editor](docs/editor.md)
-- [Tool window and bulk actions](docs/tool-window.md)
-- [Machine translation and AI agents](docs/translation.md)
-- [Checks: inspections, CI and the command line](docs/checks.md)
-- [Setup and configuration](docs/configuration.md)
+### See every key where you use it
+
+A gutter icon tells whether a key exists in all, some or no locale. Its value shows as an inline hint, in a Ctrl+hover table of every locale, or folded in place of the key. Ctrl+click opens the translation, and completion offers the keys that really exist, namespaces included.
+
+![Completing a key, with each key's value](docs/img/marketplace/key-completion.gif)
+
+Details: [In the editor](docs/editor.md).
+
+### Extract, rename and move keys safely
+
+`Alt+Enter` turns a hard-coded string into a key, written in every locale; *Internationalize…* does a whole file or folder after a preview. `Shift+F6` renames a key, or a whole level, in every locale and call site, and `Ctrl+Alt+Shift+M` moves a key to another namespace. One Ctrl+Z undoes the files and the code.
+
+![Creating an unknown key with its values](docs/img/marketplace/create-key-quickfix.gif)
+
+Details: [Key Extraction](docs/editor.md#key-extraction), [Rename Refactoring](docs/editor.md#rename-refactoring), [Bulk Actions](docs/tool-window.md#bulk-actions).
+
+### Every key of every locale in one table
+
+The tool window shows the keys as a tree or an editable table, filters the missing, empty, duplicate and unreferenced ones, and gives the coverage of each namespace and locale. It also holds the keys synchronizer, the reviews, CSV and XLIFF export and import, and the comparison with a Git branch.
+
+![The table view](docs/img/toolwindow-table.png)
+
+Details: [Tool window and bulk actions](docs/tool-window.md).
+
+### Translate the missing values, or let an AI agent do it
+
+Machine translation is opt-in, through a local Ollama, DeepL, LibreTranslate, Google or any OpenAI-compatible API. Placeholders, tags and the target language's plural forms are kept, and nothing is written before a preview. Codex, Claude or any MCP client can do the same through the plugin's tools on the IDE's MCP server.
+
+Details: [Machine translation and AI agents](docs/translation.md).
+
+### Catch the problems in the IDE and in CI
+
+Nineteen inspections check the translations and the code: missing, orphan, empty and duplicate keys, placeholders, markup, ICU messages, plural forms, stale translations and hard-coded text. `i18n-check` runs the same checks in CI, as a GitHub Action or a Docker image, and annotates the pull request.
+
+Details: [Checks: inspections, CI and the command line](docs/checks.md).
+
+### Set up in one step
+
+On first launch, the setup wizard detects the framework and the translation files, and creates a module per application in a monorepo. The settings can be shared with the team in `i18n-check.json`.
+
+![The setup wizard](docs/img/Setup-wizard-step-1.png)
+
+Details: [Setup and configuration](docs/configuration.md).
+
+## Supported Frameworks
+
+| Framework | For example |
+|-----------|-------------|
+| i18next / react-i18next | `t('ns:key')`, `useTranslation('ns')`, `<Trans i18nKey="key">` |
+| vue-i18n (Nuxt) | `$t('key')`, `<i18n-t keypath="key">`, `v-t="'key'"` |
+| next-intl | `const t = useTranslations('Home')`, then `t('title')` |
+| Lingui | `i18n._('key')`, `msg('key')`, `<Trans>Hello world!</Trans>` |
+| react-intl (FormatJS) | `formatMessage({ id: 'key' })`, `<FormattedMessage id="key" />` |
+| ngx-translate | `translate.instant('key')`, `{{ 'key' \| translate }}` |
+| Transloco | `translocoService.translate('key')`, `{{ 'key' \| transloco }}` |
+| Angular i18n | `<h1 i18n="@@home.title">`, `` $localize`:@@home.title:Welcome` `` |
+| svelte-i18n | `$_('key')` |
+| i18n-js | `i18n.t('key')` |
+| Paraglide JS | `m.hello()` |
+| typesafe-i18n | `LL.home.title()` |
+| Meteor universe:i18n | `const t = useTranslator('Home')`, then `t('title')` |
+| Laravel / Blade | `__('key')`, `trans_choice('key', 2)`, `@lang('key')` |
+
+The keys are read in JS, TS, JSX, TSX, Vue SFC, Svelte, Astro, Angular templates, PHP and Blade, and the translations in JSON, JSON5, YAML, PO/POT, XLIFF, Laravel PHP arrays, Flutter ARB and TS/JS catalogues. Every syntax, language and format: [Frameworks, languages and file formats](docs/frameworks.md).
 
 ## Requirements
 

@@ -1,9 +1,9 @@
-# Checklist des captures pour le README
+# Checklist des captures pour le README et `docs/`
 
 ## Setup
 
 1. Automatisé : `generateUiScreenshots` et `verifyUiScreenshots` (recette dans `CONTRIBUTING.md`) prennent les
-   images du README dans WebStorm 2025.3.4 avec Starter + Driver, deux sessions fraîches, et ne remplacent une
+   images du README et de `docs/` dans WebStorm 2025.3.4 avec Starter + Driver, deux sessions fraîches, et ne remplacent une
    image qu'après deux captures identiques au pixel près. Un scénario par image dans `src/uiTest/` ;
    `-PuiScreenshots=a.png,b.png` n'en prend que certaines.
 2. Une image sans scénario garde la recette manuelle ci-dessous, avec `runWebStorm` (propriété `webStormPath`
@@ -70,7 +70,7 @@ Recette (ffmpeg `x11grab` + xdotool sous Xvfb, sandbox sans indices ni erreurs T
 - `sync-missing-keys.png` (mars) : refaire si le dialogue a changé d'aspect
 - `folding-before.png`, `folding-after.png` (mars) : comparer avec l'IDE actuel
 
-### Captures supplémentaires disponibles (non référencées par le README)
+### Captures supplémentaires disponibles (référencées ni par le README ni par `docs/`)
 - `annotation-partial.png` — Code JSX avec icônes gutter orange (partial translation)
 - `annotation-quickfix.png` — Quick fix popup "Create i18n key" sur clé non résolue
 
