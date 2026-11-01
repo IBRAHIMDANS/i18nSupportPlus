@@ -12,13 +12,9 @@ import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewCell
-import com.intellij.ide.ActivityTracker
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
@@ -180,14 +176,22 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      * table back through its usual path. Set by the tool window; a lone panel has no field.
      */
     var onClearSearch: () -> Unit = {}
-    @Volatile
-    private var scanning: Boolean = false
 
     /** Loads started by [refresh] and not finished yet; the table paints busy while any is. */
     private var loading: Int = 0
 
+    /** Counts the usages of [allRows]; [countUsages] is read when the count runs, so a test can replace it. */
+    private val usageScan = TableUsageScan(project, { allRows }, { countUsages(it) }) { scanned ->
+        // Merge scanned usage counts back into allRows, preserving original order
+        val usageByKey = scanned.associate { it.key to it.usageCount }
+        allRows = allRows.map { row ->
+            row.copy(usageCount = usageByKey[row.key] ?: row.usageCount)
+        }
+        applyFilters()
+    }
+
     /** True while a usage scan is running, so the action does not queue a second one. */
-    val isScanning: Boolean get() = scanning
+    val isScanning: Boolean get() = usageScan.isScanning
 
     private val filters = TableFilters(viewModel, { config }, { sources }, { allRows }, ::applyFilters)
 
@@ -547,60 +551,13 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
     // ── Scan Orphans ──────────────────────────────────────────────────────────
 
     /**
-     * Runs orphan detection in background. Updates allRows with usage counts,
-     * then rebuilds the table on the EDT.
+     * Counts the usages of every row in the background, then rebuilds the table on the EDT; see
+     * [TableUsageScan].
      *
      * Public because the trigger is [com.ibrahimdans.i18n.plugin.ide.actions.ScanOrphanKeysAction]
      * now, in the tool window toolbar, rather than a button of this panel's own.
      */
-    fun scanOrphans() = scanOrphans(retried = false)
-
-    /**
-     * [scanning] is reset when the count ends, however it ends: resetting it only once a
-     * successful count had been applied on the EDT left the action disabled for the session.
-     * The task cannot be cancelled by the user, so a cancellation is a write action that
-     * interrupted the reads: the scan runs again once.
-     */
-    private fun scanOrphans(retried: Boolean) {
-        if (scanning) return
-        scanning = true
-        val rowsToScan = allRows.toList()
-
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("toolwindow.table.scan.progress.title"), false) {
-            private var scanned: List<TranslationRow> = emptyList()
-            private var interrupted = false
-
-            override fun run(indicator: ProgressIndicator) {
-                indicator.text = PluginBundle.message("toolwindow.table.scan.progress.text")
-                // Reset here, off the EDT, not in an EDT callback that a modal dialog can hold back.
-                try {
-                    scanned = countUsages(rowsToScan)
-                } finally {
-                    scanning = false
-                }
-            }
-
-            override fun onSuccess() {
-                // Merge scanned usage counts back into allRows, preserving original order
-                val usageByKey = scanned.associate { it.key to it.usageCount }
-                allRows = allRows.map { row ->
-                    row.copy(usageCount = usageByKey[row.key] ?: row.usageCount)
-                }
-                applyFilters()
-            }
-
-            override fun onCancel() {
-                interrupted = true
-            }
-
-            override fun onFinished() {
-                // The toolbar only re-reads the action's state on the next UI event: ask now,
-                // or the button stays drawn disabled after the count.
-                ActivityTracker.getInstance().inc()
-                if (interrupted && !retried) scanOrphans(retried = true)
-            }
-        })
-    }
+    fun scanOrphans() = usageScan.start()
 
     // ── Delete orphan key ─────────────────────────────────────────────────────
 
