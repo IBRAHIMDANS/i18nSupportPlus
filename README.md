@@ -391,7 +391,7 @@ jobs:
 
 ### AI Agents (MCP)
 
-On IntelliJ-based IDEs 2025.2.6 and later, the plugin adds four tools to the IDE's built-in MCP server, so an AI agent translates through the plugin rather than by rewriting the files — with your own Codex or Claude plan, no API key:
+On IntelliJ-based IDEs 2025.2.6 and later, the plugin adds nine tools to the IDE's built-in MCP server, so an AI agent translates, checks and maintains keys through the plugin rather than by rewriting the files — with your own Codex or Claude plan, no API key:
 
 | Tool | What it does |
 |------|--------------|
@@ -399,6 +399,11 @@ On IntelliJ-based IDEs 2025.2.6 and later, the plugin adds four tools to the IDE
 | `i18n_missing_translations` | The keys a locale lacks, with the reference text to translate and the plural forms the locale needs |
 | `i18n_stale_translations` | The stale translations of a locale — values still the ones reviewed while their key's reference text changed since — with that text as it reads now and the value to replace. Only in a module keeping reviews |
 | `i18n_write_translations` | Writes translations in one undoable command: fills a missing value, or replaces one that is stale when written — never any other existing value — and a value losing a placeholder or tag of its reference is refused with the reason. Marked *to review* (`machine:<agent>`) with the reference text it was translated from when the module keeps reviews |
+| `i18n_check` | The check of `i18n-check`, per module: the keys each locale lacks, holds in excess or leaves blank, and the keys of the reference locale no code uses — those of the keep list, and keys a dynamic key may build, left out |
+| `i18n_key_usages` | Where the code uses a key: file, line and the line of code, and whether a key built at runtime may also reach it |
+| `i18n_rename_key` | Renames a key's last segment in every locale and call site, as Shift+F6 does — a whole level or a plural group too — in one undoable command; refused when the new key exists, keys built at runtime listed rather than rewritten |
+| `i18n_create_key` | Creates a key with its values in one undoable command; refused when it exists, or without a value in the reference locale, and a value losing a placeholder of the reference one is refused with the reason |
+| `i18n_delete_unused_keys` | Deletes keys from every locale, their reviews included, in one undoable command; a key still used, kept, or possibly built at runtime is refused with the reason |
 
 #### Setting it up
 
@@ -431,7 +436,13 @@ Restart a client that was already running: it reads the list of tools when it co
 Use the i18n tools to translate the missing German keys.
 ```
 
-The agent calls `i18n_missing_translations`, translates, then `i18n_write_translations`, and sends again the values refused with their reason. With several projects open in the IDE, it has to say which one (`projectPath`): give it the project folder if it asks.
+The agent calls `i18n_missing_translations`, translates, then `i18n_write_translations`, and sends again the values refused with their reason. The same goes for keeping the keys tidy:
+
+```text
+Use the i18n tools to check the translations and delete the keys no code uses.
+```
+
+The agent calls `i18n_check`, then `i18n_delete_unused_keys` with the keys it lists as unused. With several projects open in the IDE, it has to say which one (`projectPath`): give it the project folder if it asks.
 
 #### Good to know
 
@@ -439,6 +450,7 @@ The agent calls `i18n_missing_translations`, translates, then `i18n_write_transl
 - Stale translations need reviews: a value is stale when it is still the one reviewed while the reference text recorded with that review changed since. In a module without `.i18n-reviews/`, `i18n_stale_translations` is refused with the reason; *Show Translation Changes* still shows the locales lagging behind the reference.
 - ICU plurals (`{count, plural, …}`) are listed but not written: edit them in the file.
 - Reviews: in a module with a `.i18n-reviews/` folder, the values written are marked *to review* as `machine:<agent>`; an agent never creates that folder.
+- Renaming, creating and deleting a key are each one command: one Ctrl+Z in the IDE undoes it. A rename only changes a key's last segment; moving a key to another namespace is done with *Move i18n Key to Namespace…*.
 - Nothing appears? Check that the plugin's tools are listed by your client (`/mcp` in Claude Code), that the MCP server is enabled, and that the IDE is 2025.2.6 or later.
 
 ### Wildcard Traversal
