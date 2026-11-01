@@ -103,10 +103,11 @@ class SourceDiscovery<N, F : TranslationFormat>(
 
     /**
      * Every file of a format that is a source by itself: one a module template designates, or one the
-     * root (or, without a root, the locale guess) takes in.
+     * root (or, without a root, the locale guess) takes in. A format not [TranslationFormat.scannedByName]
+     * has none: its sources are the ones its technology declares.
      */
     fun scannedSources(): List<TranslationSource<N, F>> =
-        registry.formats().flatMap { format ->
+        registry.formats().filter { it.scannedByName() }.flatMap { format ->
             workspace.files(format)
                 .filter { file -> !isExcluded(file) }
                 .mapNotNull { file ->
@@ -128,7 +129,7 @@ class SourceDiscovery<N, F : TranslationFormat>(
      * used to be a source of the `common` namespace, shown as a locale named after the file.
      */
     fun namedSources(fileNames: List<String>): List<TranslationSource<N, F>> =
-        registry.formats().flatMap { format ->
+        registry.formats().filter { it.scannedByName() }.flatMap { format ->
             workspace.files(format)
                 // Matched on the name first: it is the cheap test, and it discards nearly every file.
                 .filter { file -> workspace.isNamedAfter(format, file, fileNames) && !isExcluded(file) }

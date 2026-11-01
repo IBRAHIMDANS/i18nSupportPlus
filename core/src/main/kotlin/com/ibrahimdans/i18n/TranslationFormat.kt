@@ -8,6 +8,14 @@ import com.ibrahimdans.i18n.plugin.ConfigurationProperty
  */
 interface TranslationFormat {
     fun config(): LocalizationConfig
+
+    /**
+     * Whether [SourceDiscovery] finds this format's files by their name and place — a locale folder, a
+     * namespace file. False for a format whose files are sources only where a technology declares them:
+     * an XLIFF file is one of Angular's catalogues only when `angular.json` lists it, and the export the
+     * plugin itself writes, named `fr.xlf`, must not become one.
+     */
+    fun scannedByName(): Boolean = true
 }
 
 interface LocalizationConfig {

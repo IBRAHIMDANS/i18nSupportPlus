@@ -1,0 +1,4 @@
+node_modules
+dist
+# Build cache of the Angular CLI.
+.angular

@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.utils
 
 import com.ibrahimdans.i18n.extensions.localization.php.PhpTranslationPsi
+import com.ibrahimdans.i18n.extensions.localization.xliff.XliffTranslationPsi
 import com.ibrahimdans.i18n.extensions.localization.yaml.YamlTranslationPsi
 import com.intellij.json.psi.JsonElementGenerator
 import com.intellij.json.psi.JsonFile
@@ -143,7 +144,8 @@ object TranslationPsi {
         element is JsonStringLiteral -> element.value
         isYaml(element) -> YamlTranslationPsi.readValue(element) ?: element.text
         isPhp(element) -> PhpTranslationPsi.readValue(element) ?: element.text
-        else -> element.text
+        // An XLIFF unit's text, its entities decoded.
+        else -> XliffTranslationPsi.readValue(element) ?: element.text
     }
 
     /** Replaces the value [element] stands for with [newValue]; nothing for an unknown element. */
@@ -153,6 +155,7 @@ object TranslationPsi {
             isYaml(element) -> YamlTranslationPsi.replaceValue(element, newValue, project)
             // A Laravel translation file's value: edited from the tool window like any other.
             isPhp(element) -> PhpTranslationPsi.replaceValue(element, newValue, project)
+            else -> XliffTranslationPsi.replaceValue(element, newValue)
         }
     }
 }

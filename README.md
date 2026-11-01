@@ -7,7 +7,7 @@ Turns i18n keys into first-class code symbols in **WebStorm, IntelliJ IDEA Ultim
 
 Maintained successor of **I18n Support**, which no longer installs on IDEs after 2023.1: a fork of it, installed separately rather than as an update, that reads its project settings back as they are — see [Coming from I18n Support?](https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/docs/COMPARISON.md#coming-from-i18n-support).
 
-Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-intl, ngx-translate, Transloco, svelte-i18n, i18n-js, Paraglide JS, typesafe-i18n, Meteor universe:i18n and Laravel / Blade**, in JS, TS, JSX, TSX, Vue SFC, Svelte, Astro, Angular templates, PHP and Blade, with **JSON, JSON5, YAML, PO/POT, Laravel PHP arrays, Flutter ARB** and plain **TS/JS catalogues**. A setup wizard configures it on first launch, monorepo modules included.
+Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-intl, ngx-translate, Transloco, Angular i18n (`$localize`), svelte-i18n, i18n-js, Paraglide JS, typesafe-i18n, Meteor universe:i18n and Laravel / Blade**, in JS, TS, JSX, TSX, Vue SFC, Svelte, Astro, Angular templates, PHP and Blade, with **JSON, JSON5, YAML, PO/POT, XLIFF, Laravel PHP arrays, Flutter ARB** and plain **TS/JS catalogues**. A setup wizard configures it on first launch, monorepo modules included.
 
 - **See** — gutter status per key (all / some / no locale), inline value hints, folding and hover in a preview locale, completion of real keys, namespaces included
 - **Edit safely** — extract hard-coded strings (variables and plural forms included), rename a key or a whole level across every locale and call site (`Shift+F6`), move a key to another namespace; one Ctrl+Z undoes the files and the code
@@ -37,9 +37,10 @@ whether a key exists, in which namespace, and whether it's translated everywhere
   Count Key Usages (find keys no code refers to), CSV and XLIFF export/import, and inspections for missing,
   empty, duplicate or inconsistent values.
 
-Works with **i18next / react-i18next, vue-i18n, next-intl, lingui, react-intl, ngx-translate, Transloco, svelte-i18n,
-i18n-js, Paraglide JS, typesafe-i18n, Meteor universe:i18n and Laravel / Blade**, across JS/TS/JSX/TSX, Vue SFC, Svelte, Astro,
-Angular templates, PHP and Blade, with JSON, JSON5, YAML, PO/POT, Laravel PHP arrays, Flutter ARB and TS/JS catalogues.
+Works with **i18next / react-i18next, vue-i18n, next-intl, lingui, react-intl, ngx-translate, Transloco, Angular i18n,
+svelte-i18n, i18n-js, Paraglide JS, typesafe-i18n, Meteor universe:i18n and Laravel / Blade**, across JS/TS/JSX/TSX, Vue SFC,
+Svelte, Astro, Angular templates, PHP and Blade, with JSON, JSON5, YAML, PO/POT, XLIFF, Laravel PHP arrays, Flutter ARB and
+TS/JS catalogues.
 A setup wizard auto-configures it on first launch, a module per application in a monorepo.
 
 **Coming from i18n Ally or Easy I18n?** See the [feature-by-feature comparison](docs/COMPARISON.md) and how to carry your settings over.
@@ -60,6 +61,7 @@ A setup wizard auto-configures it on first launch, a module per application in a
 | Paraglide JS (inlang) | `m.hello()`, `m["user.profile.title"]()`, once the file imports `m` from `…/paraglide/messages.js` <sup>5</sup> | Yes, `project.inlang/settings.json` |
 | typesafe-i18n | `LL.home.title()`, `$LL.home.title()` (Svelte), read as the key `home.title`, once the file imports typesafe-i18n's generated code <sup>7</sup> | Yes, `.typesafe-i18n.json` |
 | Meteor universe:i18n | the application's own hook, `useTranslator('Home')` or `useTranslation('Home')`, then `t('title')`, read as the key `Home.title` <sup>6</sup> | No |
+| Angular i18n (`@angular/localize`) | `<h1 i18n="@@home.title">`, `i18n-alt="@@logo.alt"`, `` $localize`:@@home.title:Welcome` ``, read as the key `home.title` <sup>8</sup> | Yes, `angular.json` |
 
 `useTranslation` supports both string form (`useTranslation('ns')`) and array form (`useTranslation(['ns1', 'ns2'])`). The namespace can also come from an options object (`t('key', { ns: 'auth' })`) or from the key itself (`t('auth:key')`). A `context` option reads the key's variant, as i18next does: `t('friend', { context: 'male' })` reads `friend_male`, else `friend`, and `t('friend', { context: gender })` any `friend_…` variant; those variants are then used, never reported as having no reference in code.
 
@@ -86,6 +88,19 @@ message file, in the frontmatter and in template expressions. A ready-to-open pr
 <sup>6</sup> universe:i18n ships no React hook since its v2: its documentation has the application write one, and the plugin reads the argument of `useTranslator` — or of `useTranslation`, unless the file imports it from an i18next package — as a key prefix once `.meteor/packages` declares `universe:i18n`. `i18n.__()`, `getTranslation()` and `*.i18n.json` files are not read yet.
 
 <sup>7</sup> typesafe-i18n reads its messages as a member chain, so the key is the path of members after `LL` (or `$LL`, its Svelte store), not a string. It is read in a file importing typesafe-i18n's generated adapter or utilities (`…/i18n-react`, `…/i18n-svelte`, `…/i18n-util`, …). The messages are the object each `<locale>/index.ts` of the output folder default-exports — `outputPath` in `.typesafe-i18n.json`, `./src/i18n/` by default — each locale holding the default namespace. Annotation (unknown key, key missing in a locale) and completion after `LL.` and each level of it, with the messages not yet generated and their values, work on it. Not yet: Ctrl+click to the message (the IDE goes to the generated types), Shift+F6, folding and inlay hints, Node's `L.en.key()`. A ready-to-open project: [examples/typesafe-i18n](examples/typesafe-i18n/README.md).
+
+<sup>8</sup> Angular's native i18n names a message by its custom id, the part after `@@` of the marker's metadata
+(`meaning|description@@id`), which is one key, never split at its dots; a marker without a custom id names none, as
+`ng extract-i18n` then computes the id from the text. The messages are the XLIFF 1.2 or 2.0 files each project of
+`angular.json` lists under `i18n.locales`, each with its locale, and the file `ng extract-i18n` writes — the
+`outputPath` of its options, else `messages.xlf` next to the translations — holding the `sourceLocale`, the reference.
+A locale's file reads each unit's `<target>`, the reference its `<source>`: a unit without a target is missing in that
+locale, and *Fill Missing Translations…*, *Sync Keys* and the translation dialog write it after the unit's source, or
+create the unit with the reference's source. An XLIFF file `angular.json` does not list, such as an export, is no
+source. Tested: annotation of both markers, completion in a template's marker, Ctrl+click from either marker to its
+units and from a unit's `id` to the code, the tool window and the missing-key checks. Not tested: folding and inlay
+hints. Not done: extracting a text into a new id, renaming an id. A ready-to-open project:
+[examples/angular-native-i18n](examples/angular-native-i18n/README.md).
 
 ## Supported Languages
 
@@ -122,12 +137,13 @@ message file, in the frontmatter and in template expressions. A ready-to-open pr
 | PO/POT (gettext) | `.po`, `.pot` | ✓ | ✓ |
 | Laravel PHP arrays | `lang/<locale>/<file>.php`, the file name as namespace | ✓ | ✓ |
 | Flutter ARB | `.arb` (`lib/l10n/app_<locale>.arb`), the locale from `@@locale` or the file name | — | ✓ |
+| XLIFF 1.2 and 2.0 (Angular i18n) | `.xlf`, `.xliff`, the files `angular.json` lists (<sup>8</sup>) | ✓ | ✓ |
 | TS/JS catalogues (an object keyed by locale, as i18n-js writes) | `.ts`, `.js` | — | — |
 | i18next `resources` declared in a TS/JS configuration file | `.ts`, `.js` | — | — |
 
 **—** means no test covers it yet. Keys of the last two formats are read and annotated; whether Ctrl+click reaches
-their value and whether a missing key is written into them is not tested. XLIFF, like CSV, is exported and imported
-from *Tools › i18n Support Plus*, not read as a translation source.
+their value and whether a missing key is written into them is not tested. XLIFF is read as a translation source in an
+Angular project only; elsewhere, like CSV, it is exported and imported from *Tools › i18n Support Plus*.
 
 Flutter ARB catalogues feed the tool window, the statistics, the missing-key checks and *Sync Keys*; their `@key`
 and `@@locale` metadata is no key. Dart code is not read: `AppLocalizations.of(context)!.greeting` names its key as a

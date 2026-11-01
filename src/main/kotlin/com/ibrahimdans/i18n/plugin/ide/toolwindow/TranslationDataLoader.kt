@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.Localization
 import com.ibrahimdans.i18n.LocalizationSource
+import com.ibrahimdans.i18n.extensions.localization.xliff.XliffTranslationPsi
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
@@ -210,6 +211,8 @@ object TranslationDataLoader {
         // The table writes an edit back in the value's own quotes, so a spelling shown here would
         // be escaped once more by every edit.
         if (TranslationPsi.isYaml(psi)) return TranslationPsi.readValue(psi) ?: ""
+        // An XLIFF unit's text, its entities decoded (`Terms &amp; conditions`), for the same reason.
+        if (XliffTranslationPsi.isXliff(psi)) return TranslationPsi.readValue(psi) ?: ""
         return psi.text?.removeSurrounding("\"")?.removeSurrounding("'") ?: ""
     }
 }

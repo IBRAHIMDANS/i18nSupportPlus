@@ -52,6 +52,8 @@ open class JsLang : Lang {
          *  - typesafe-i18n's `LL.home.title()` neither: the key is the path of members after `LL`.
          *  - next-intl's `t.rich('key')`, `t.markup`, `t.raw` and `t.has` are qualified calls named
          *    after the method, not after `t`.
+         *  - Angular's `` $localize`:@@id:text` `` is a tagged template, no call: the key is the custom
+         *    id of its metadata block.
          */
         private val PARAGLIDE_MESSAGE = ParaglideMessageExtractor()
 
@@ -81,6 +83,7 @@ open class JsLang : Lang {
             PARAGLIDE_MESSAGE,
             TYPESAFE_I18N,
             NextIntlMethodExtractor(),
+            LocalizeTaggedTemplateExtractor(),
         )
     }
 
