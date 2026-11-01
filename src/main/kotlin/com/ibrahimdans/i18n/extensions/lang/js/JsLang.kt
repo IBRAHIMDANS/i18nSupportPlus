@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.RawKey
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
 import com.ibrahimdans.i18n.plugin.rules.RuleCalls
 import com.ibrahimdans.i18n.plugin.rules.RuleDecision
 import com.ibrahimdans.i18n.plugin.utils.ModulePresets
@@ -243,10 +244,7 @@ internal fun isDirectOrConfiguredCall(element: PsiElement, translationFunctionNa
  * framework publishing them. Every technology's names apply to every project, so lodash's
  * `_('…')` or a local `msg('…')` used to be annotated as unresolved keys.
  */
-private val IMPORT_GATED_NAMES: Map<String, List<String>> = mapOf(
-    "_" to listOf("svelte-i18n"),
-    "msg" to listOf("@lingui/"),
-)
+private val IMPORT_GATED_NAMES: Map<String, List<String>> = FrameworkPresets.IMPORT_GATED_NAMES
 
 /**
  * True unless [name] is import-gated and the file holding [element] — the host file, for a

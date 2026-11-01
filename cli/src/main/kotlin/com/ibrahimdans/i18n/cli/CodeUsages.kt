@@ -23,7 +23,7 @@ data class UnknownKey(val key: String, val file: String, val line: Int)
  * Keys are spelled as [ProjectSources] spells them.
  *
  * Each file is read with the extractors of its module's preset ([CodeExtractors]): i18next's, next-intl's,
- * vue-i18n's, Transloco's and ngx-translate's calls, all of them outside a module with a preset. A `.vue`
+ * vue-i18n's, Transloco's, ngx-translate's, react-intl's and Lingui's calls, all of them outside a module with a preset. A `.vue`
  * file is read through [VueSfc]: its scripts and its template's expressions. In an Angular project — a
  * `package.json` requiring `@angular/core` — the `.html` templates are read too, through [AngularTemplate]:
  * elsewhere a `.html` is no template of the plugin's.

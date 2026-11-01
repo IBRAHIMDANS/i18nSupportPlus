@@ -496,6 +496,39 @@ class I18nCheckTest {
         )
     }
 
+    /** What the plugin underlines in the react-intl example: descriptor ids, inline and catalogued, and `<FormattedMessage id>`; `defaultMessage` is no key. */
+    @Test
+    fun `code - react-intl example, descriptors and FormattedMessage read from the preset`() {
+        val project = "../examples/react-intl"
+        val run = check(project, "--code")
+        assertTrue(run.out.contains("missing  home.only_in_english"), run.out)
+        assertTrue(run.out.contains("Unused keys: none"), run.out)
+        assertTrue(
+            run.out.contains(
+                """
+                Unknown keys: 3
+                  src/App.tsx:${lineOf(project, "src/App.tsx", "\"home.does_not_exist\"")}  home.does_not_exist
+                  src/Cart.tsx:${lineOf(project, "src/Cart.tsx", "\"cart.does_not_exist\"")}  cart.does_not_exist
+                  src/Orders.tsx:${lineOf(project, "src/Orders.tsx", "\"orders.status.does_not_exist\"")}  orders.status.does_not_exist
+                """.trimIndent(),
+            ),
+            run.out,
+        )
+    }
+
+    /** What the plugin underlines in the Lingui example: `i18n._`, `msg` once Lingui is imported, and the source-text `<Trans>` under the msgid the macro builds. */
+    @Test
+    fun `code - lingui example, PO catalogues against msg, i18n _ and source-text Trans`() {
+        val project = "../examples/lingui"
+        val run = check(project, "--code")
+        assertTrue(run.out.contains("missing  messages:about.beta"), run.out)
+        assertTrue(run.out.contains("Unused keys: none"), run.out)
+        assertTrue(
+            run.out.contains("Unknown keys: 1\n  src/App.tsx:${lineOf(project, "src/App.tsx", "\"checkout.coupon\"")}  checkout.coupon"),
+            run.out,
+        )
+    }
+
     @Test
     fun `code - ngx-translate example, pipes, directives and service calls read`() {
         val run = check("../examples/angular-transloco/ngx-translate", "--code")

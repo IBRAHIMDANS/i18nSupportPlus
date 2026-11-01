@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.extensions.lang.js.extractors
 import com.ibrahimdans.i18n.extensions.lang.js.importsPackage
 import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.RawKey
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.intellij.lang.javascript.psi.JSArgumentList
 import com.intellij.lang.javascript.psi.JSCallExpression
@@ -26,12 +27,11 @@ class SvelteI18nExtractor(private val functions: Set<String> = ALL) : KeyExtract
         /** `$json(key)` returns the messages under the key: it names an object as well as a leaf. */
         const val JSON = "\$json"
 
-        val ALL = setOf("_", "\$_", "\$t", "\$format", JSON)
+        /** The stores, from the framework's preset — the one place they are named, for the IDE and `i18n-check` alike. */
+        val ALL: Set<String> = FrameworkPresets.SVELTE_I18N.callNames.toSet()
 
         /** Names other libraries call too: svelte-i18n's only once the file imports it. `_` is lodash's, `$t` vue-i18n's. */
-        private val IMPORT_GATED = setOf("_", "\$t")
-
-        private const val PACKAGE = "svelte-i18n"
+        private val IMPORT_GATED: Map<String, List<String>> = FrameworkPresets.SVELTE_I18N.importGatedNames
         private const val ID = "id"
     }
 
@@ -69,6 +69,7 @@ class SvelteI18nExtractor(private val functions: Set<String> = ALL) : KeyExtract
         val call = arguments.parent as? JSCallExpression ?: return null
         val name = call.methodExpression?.text ?: return null
         if (name !in functions) return null
-        return call.takeIf { name !in IMPORT_GATED || importsPackage(PACKAGE, argument) }
+        val packages = IMPORT_GATED[name] ?: return call
+        return call.takeIf { packages.any { importsPackage(it, argument) } }
     }
 }

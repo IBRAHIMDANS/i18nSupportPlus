@@ -78,6 +78,9 @@ dependencies {
     }
 
     implementation(project(":core"))
+    // The tree-sitter extractors `i18n-check` runs, for the tests comparing them with the PSI ones
+    // (ExtractorParityTest). Tests only: the plugin never ships them.
+    testImplementation(project(":core-treesitter"))
 
     // src/test/java/kotlinx/coroutines/debug/internal/DebugProbesImpl.java stubs
     // install$kotlinx_coroutines_core() missing from IU-253's bundled coroutines 1.8.0-intellij,

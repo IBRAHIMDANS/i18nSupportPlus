@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.extract.i18next
 import com.ibrahimdans.i18n.plugin.parser.CodeKeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.CodeNode
 import com.ibrahimdans.i18n.plugin.parser.RawKey
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 
 /**
@@ -46,5 +47,5 @@ class TranslationCallKeyExtractor(private val functionNames: Set<String> = I18NE
     }
 }
 
-/** The functions `I18NextTechnology` publishes: the translation functions of an i18next project. */
-val I18NEXT_FUNCTIONS: Set<String> = setOf("t", "i18n.t", "i18next.t", "props.t", "this.props.t")
+/** The functions `I18NextTechnology` publishes: the translation functions of an i18next project, from its preset. */
+val I18NEXT_FUNCTIONS: Set<String> = FrameworkPresets.I18NEXT.callNames.toSet()
