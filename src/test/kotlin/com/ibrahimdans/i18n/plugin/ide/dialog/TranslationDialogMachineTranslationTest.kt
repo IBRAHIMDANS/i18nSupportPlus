@@ -91,6 +91,24 @@ class TranslationDialogMachineTranslationTest : PlatformBaseTest() {
     }
 
     @Test
+    fun `the context names the neighbours the target locale already translates`() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", """{"form": {"save": "Save", "reset": "Reset"}, "menu": {"quit": "Quit"}}""")
+        addFileToProject("locales/fr/common.json", """{"form": {"save": "", "reset": "Réinitialiser"}, "menu": {"quit": "Quitter"}}""")
+        TranslationDialog.machineTranslator = { engine { Translation.Done("Enregistrer") } }
+
+        val dialog = TranslationDialog(project, KeysSynchronizer().buildFullKey("common:form.save", config), Mode.EDIT)
+        try {
+            dialog.translateEmptyLocales()
+        } finally {
+            Disposer.dispose(dialog.disposable)
+        }
+        val context = requests.single().context
+        Assertions.assertTrue(context.startsWith("A UI string of an application, under the i18n key common:form.save"), context)
+        Assertions.assertTrue("reset: \"Reset\" → \"Réinitialiser\"" in context, context)
+        Assertions.assertFalse("Quitter" in context, "neither a neighbour nor sharing a word: $context")
+    }
+
+    @Test
     fun `a failed locale stays empty and says why`() = myFixture.runWithConfig(config) {
         seed()
         TranslationDialog.machineTranslator = {

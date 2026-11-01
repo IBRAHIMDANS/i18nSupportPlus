@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.dialog.MachineTranslationPreviewDialog
 import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableReviews
@@ -20,6 +21,7 @@ import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.translate.MachineTranslationSettings
 import com.ibrahimdans.i18n.plugin.translate.PluralTranslationPlan
 import com.ibrahimdans.i18n.plugin.translate.Translation
+import com.ibrahimdans.i18n.plugin.translate.TranslationContext
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
 import com.ibrahimdans.i18n.plugin.translate.asCancellation
@@ -160,11 +162,12 @@ internal object MachineFill {
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, title, true) {
             override fun run(indicator: ProgressIndicator) {
                 val translations = TranslationDataLoader.loadAllTranslations(project, module)
+                val config = Settings.getInstance(project).config()
                 val proposals = mutableListOf<Proposal>()
                 for (target in targets) {
                     indicator.text = PluginBundle.message("action.fill.progress.locale", target)
                     val items = itemsFor(translations, target)
-                    if (items.isNotEmpty()) proposals += translate(items, provider, source, target, indicator) ?: return
+                    if (items.isNotEmpty()) proposals += translate(items, provider, source, target, indicator, translations, config) ?: return
                 }
                 if (proposals.isEmpty()) {
                     PluginNotifications.notify(project, PluginBundle.message(pass.nothing, label), title = title)
@@ -275,10 +278,17 @@ internal object MachineFill {
 
     /**
      * Each item translated, [KEYS_PER_CALL] per provider call and [PARALLEL_REQUESTS] calls at a time,
-     * the keys of a call sent as its context. A skipped item is never sent. Null when the user
-     * cancelled: nothing is then proposed, and nothing written.
+     * the keys of a call sent as its context with what [known] (`key -> locale -> value`, read once for
+     * the whole pass) already holds about them — see [contextOf]. A skipped item is never sent. Null
+     * when the user cancelled: nothing is then proposed, and nothing written.
      */
-    fun translate(items: List<Item>, provider: TranslationProvider, source: String, target: String, indicator: ProgressIndicator?): List<Proposal>? {
+    fun translate(
+        items: List<Item>, provider: TranslationProvider, source: String, target: String, indicator: ProgressIndicator?,
+        known: Map<String, Map<String, String>> = emptyMap(), config: Config = Config(),
+    ): List<Proposal>? {
+        // Every item of the pass is left out of the examples: a stale value being retranslated
+        // must not be shown as the way the project says it.
+        val examples = known - items.map { it.key }.toSet()
         val sent = items.filter { it.skipped == null }
         val calls = sent.chunked(KEYS_PER_CALL)
         val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("i18n machine translation", PARALLEL_REQUESTS)
@@ -286,7 +296,10 @@ internal object MachineFill {
             val futures: List<Future<List<Translation>>> = calls.map { call ->
                 executor.submit<List<Translation>> {
                     if (indicator?.isCanceled == true) return@submit call.map { Translation.Failed("") }
-                    provider.translate(TranslationRequest(call.map { it.source }, source, target, contextOf(call)), indicator?.asCancellation())
+                    provider.translate(
+                        TranslationRequest(call.map { it.source }, source, target, contextOf(call, examples, source, target, config)),
+                        indicator?.asCancellation()
+                    )
                 }
             }
             val translated = mutableMapOf<Item, Translation>()
@@ -307,10 +320,18 @@ internal object MachineFill {
         }
     }
 
-    /** What the engine is told about [call]: UI strings, and their keys in order — a hint to each one's meaning. */
-    internal fun contextOf(call: List<Item>): String =
-        if (call.size == 1) "A UI string of an application, under the i18n key ${call.single().key}"
-        else "UI strings of an application, under the i18n keys, in order: ${call.joinToString(", ") { it.key }}"
+    /**
+     * What the engine is told about [call]: UI strings, their keys in order — a hint to each one's
+     * meaning — then the translations [known] already holds next to them or with their words, once
+     * for the whole call ([TranslationContext]).
+     */
+    internal fun contextOf(
+        call: List<Item>, known: Map<String, Map<String, String>> = emptyMap(), source: String = "", target: String = "",
+        config: Config = Config(),
+    ): String {
+        val keys = call.map { it.key }
+        return TranslationContext.of(TranslationContext.header(keys), keys, call.map { it.source }, known, source, target, config)
+    }
 
     /** Where a translation by the machine comes from, as a review records it: `machine:<engine>`. */
     fun originOf(result: Translation.Done): String = Review.machineOrigin(result.engine?.name ?: UNKNOWN_ENGINE)
