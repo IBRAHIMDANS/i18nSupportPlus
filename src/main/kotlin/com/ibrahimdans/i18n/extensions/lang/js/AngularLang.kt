@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.extensions.lang.js
 
+import com.ibrahimdans.i18n.extensions.lang.js.extractors.AngularI18nAttributeExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.AngularTranslatePipeExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.NgxTranslateDirectiveExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.TranslocoDirectiveExtractor
@@ -43,7 +44,9 @@ open class AngularLang : JsLang() {
     }
 }
 
-private val DIRECTIVE_EXTRACTORS: List<KeyExtractor> = listOf(TranslocoDirectiveExtractor(), NgxTranslateDirectiveExtractor())
+/** Angular's own `i18n="@@id"` markers are read with the directives: no call holds them either. */
+private val DIRECTIVE_EXTRACTORS: List<KeyExtractor> =
+    listOf(TranslocoDirectiveExtractor(), NgxTranslateDirectiveExtractor(), AngularI18nAttributeExtractor())
 
 /**
  * The key an Angular attribute directive takes: `<span transloco="key">`, its bound form

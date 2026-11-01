@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.references.translation
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.extensions.lang.js.extractors.AngularI18nMetadata
 import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideOutdir
 import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
@@ -79,10 +80,12 @@ class ReferencesAccumulator(
         // Paraglide's generated code names every message: never a use (see ParaglideOutdir).
         val generated = entry.containingFile?.virtualFile?.let(ParaglideOutdir::contains) == true
         val languages = Extensions.LANG.extensionList
-        val text = entry.text.unQuote()
+        // An Angular marker names its key inside metadata (`:@@home.title:Welcome`): its id is compared.
+        val angularId = AngularI18nMetadata.keyOf(entry)
+        val text = angularId ?: entry.text.unQuote()
         if (!generated && namesKey(text) && underExpectedNamespace(entry, text, languages)) {
-            val entryRef = languages.stream().map {lang -> lang.resolveLiteral(entry)}.filter {it!=null}.findFirst()
-            entryRef.ifPresent { res.add(it) }
+            if (angularId != null) res.add(entry)
+            else languages.stream().map {lang -> lang.resolveLiteral(entry)}.filter {it!=null}.findFirst().ifPresent { res.add(it) }
         }
         true
     }

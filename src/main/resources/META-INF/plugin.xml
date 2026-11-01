@@ -176,6 +176,13 @@
     <extensions defaultExtensionNs="com.intellij">
         <!-- Flutter's ARB catalogues are JSON: read as such, the type Flutter's own plugin gives them. -->
         <fileType name="JSON" extensions="arb"/>
+        <!-- XLIFF files (Angular's messages.xlf) are XML; a type of their own keeps every other XML file
+             out of the translation sources. The IDE registers none for these extensions. -->
+        <fileType name="XLIFF" language="XML" extensions="xlf;xliff" fieldName="INSTANCE"
+                  implementationClass="com.ibrahimdans.i18n.extensions.localization.xliff.XliffFileType"/>
+        <psi.referenceContributor language="XML" implementation="com.ibrahimdans.i18n.extensions.localization.xliff.XliffReferenceContributor"/>
+        <!-- Angular's `$localize`:@@id:text``: a tagged template, matched by no call-based contributor. -->
+        <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.lang.js.extractors.LocalizeReferenceContributor"/>
         <errorHandler implementation="com.ibrahimdans.i18n.plugin.ide.diagnostic.GitHubErrorReportSubmitter"/>
         <codeInsight.daemonBoundCodeVisionProvider implementation="com.ibrahimdans.i18n.plugin.ide.codevision.TranslationUsagesCodeVisionProvider"/>
         <notificationGroup id="i18n Support Plus" displayType="STICKY_BALLOON"/>
@@ -532,5 +539,8 @@
         <technology implementation="com.ibrahimdans.i18n.extensions.localization.arb.ArbCatalogues"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.nextintl.NextIntlTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.typesafei18n.TypesafeI18nTechnology"/>
+        <!-- Angular's native i18n: the XLIFF files angular.json lists, read as sources. -->
+        <localization implementation="com.ibrahimdans.i18n.extensions.localization.xliff.XliffLocalization"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.technology.angulari18n.AngularI18nTechnology"/>
     </extensions>
 </idea-plugin>
