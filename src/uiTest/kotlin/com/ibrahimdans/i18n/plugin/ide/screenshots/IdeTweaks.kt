@@ -13,6 +13,42 @@ interface SwingDefaults {
 @Remote("com.intellij.openapi.editor.ex.EditorSettingsExternalizable")
 interface EditorSettings {
     fun setBlinkCaret(blink: Boolean)
+    fun setShowIntentionBulb(show: Boolean)
+    fun setShowIntentionPreview(show: Boolean)
+    fun setSmoothScrolling(smooth: Boolean)
+}
+
+@Remote("com.intellij.ide.ui.UISettings")
+interface IdeUiSettings {
+    fun setDifferentiateProjects(differentiate: Boolean)
+    fun fireUISettingsChanged()
+}
+
+/** The editor's intention bulb, which shows or not depending on when the file's analysis ends. */
+fun Driver.showIntentionBulb(show: Boolean) {
+    service(EditorSettings::class).setShowIntentionBulb(show)
+}
+
+/** The preview beside the intentions popup, which is still loading in one session and filled in the next. */
+fun Driver.showIntentionPreview(show: Boolean) {
+    service(EditorSettings::class).setShowIntentionPreview(show)
+}
+
+/**
+ * The main toolbar's project color: it is derived from the project's name, which differs between
+ * the two sessions, and shows through the rounded corners of the editor's panel.
+ */
+fun Driver.differentiateProjects(differentiate: Boolean) {
+    withContext(OnDispatcher.EDT) {
+        val settings = service(IdeUiSettings::class)
+        settings.setDifferentiateProjects(differentiate)
+        settings.fireUISettingsChanged()
+    }
+}
+
+/** An animated scroll moves the editor between two reads of its position: a capture's bounds then drift. */
+fun Driver.stopSmoothScrolling() {
+    service(EditorSettings::class).setSmoothScrolling(false)
 }
 
 private val TEXT_COMPONENT_PREFIXES = listOf("TextField", "TextArea", "PasswordField", "FormattedTextField", "EditorPane", "TextPane")

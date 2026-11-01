@@ -26,6 +26,11 @@
 `extraction.png`, `extraction-intent.png`, `extraction-add-namespace.png`, `gutter-icons.png`,
 `gutter-icons-tooltip.png`, `hover-hint.png`, `inlay-hints.png`, `navigation.png`.
 
+**Sans scénario : `gutter-icons-tooltip.png`** (recette manuelle). Sous Xvfb, aucun survol de l'icône de
+gouttière, ni `GutterUiComponent.hoverOverIcon` (ligne comptée à partir de 0), ni un mouvement `Robot` par
+petits pas, n'a ouvert l'infobulle (2026-11-01). Attendre « `i18n:` » ne prouve rien : la barre d'état
+affiche `i18n: en · 100 %`.
+
 ## Captures de la fenêtre d'outil et des réglages — refaites le 2026-10-26
 
 Vues *Tree / Table / Stats* dans la barre d'outils (#669), libellés et sous-pages de #666 / #667, WebStorm 2026.1.
@@ -59,11 +64,11 @@ Recette (ffmpeg `x11grab` + xdotool sous Xvfb, sandbox sans indices ni erreurs T
 | `key-completion.gif` | `t('auth:` puis `login.button.` : complétion des clés avec leur valeur |
 | `create-key-quickfix.gif` | clé inconnue `deposit-box:status.help`, *Create i18n key*, valeurs `en` / `fr`, clé résolue |
 
-À faire : *Show Translations Inline*, après TASK-INLINE-TOGGLE-OPEN-EDITORS (l'activation ne replie pas les éditeurs ouverts).
+À faire : *Show Translations Inline* (l'activation replie les éditeurs ouverts depuis #707).
 
 ## À vérifier
 - `sync-missing-keys.png` (mars) : refaire si le dialogue a changé d'aspect
-- `folding-before.png`, `folding-after.png`, `extraction-translation-value.png` (mars) : comparer avec l'IDE actuel
+- `folding-before.png`, `folding-after.png` (mars) : comparer avec l'IDE actuel
 
 ### Captures supplémentaires disponibles (non référencées par le README)
 - `annotation-partial.png` — Code JSX avec icônes gutter orange (partial translation)
