@@ -201,9 +201,10 @@ object TranslationDataLoader {
         }
         // A PHP string's escapes read back, so that an edit does not escape them a second time.
         if (TranslationPsi.isPhp(psi)) return TranslationPsi.readValue(psi) ?: ""
-        // A YAML key-value, should a tree hold one, reads its value; a YAML scalar keeps the raw
-        // text below, as it always has.
-        if (TranslationPsi.isYaml(psi) && TranslationPsi.nameOf(psi) != null) return TranslationPsi.readValue(psi) ?: ""
+        // A YAML scalar reads its text, not its spelling: `'It''s'` is "It's", a block its lines.
+        // The table writes an edit back in the value's own quotes, so a spelling shown here would
+        // be escaped once more by every edit.
+        if (TranslationPsi.isYaml(psi)) return TranslationPsi.readValue(psi) ?: ""
         return psi.text?.removeSurrounding("\"")?.removeSurrounding("'") ?: ""
     }
 }
