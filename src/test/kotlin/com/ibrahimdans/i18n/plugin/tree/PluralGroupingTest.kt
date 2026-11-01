@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.tree
 
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
+import com.ibrahimdans.i18n.plugin.ide.inspection.MissingTranslationKeyInspection
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationCoverage
 import io.mockk.every
 import io.mockk.mockk
@@ -45,19 +46,53 @@ class PluralGroupingTest {
         }
     }
 
+    private val source = { locale: String -> mockk<LocalizationSource>(relaxed = true).also {
+        every { it.name } returns "$locale.json"
+        every { it.parent } returns "locales"
+        // A relaxed mock answers "" for these, which reads as a locale a template stated.
+        every { it.locale } returns null
+        every { it.namespace } returns null
+    } }
+
     @Test
     fun syncProposesNothingForForeignCategoriesAndOnlyOtherForAMissingGroup() {
-        val source = { locale: String -> mockk<LocalizationSource>(relaxed = true).also {
-            every { it.name } returns "$locale.json"
-            every { it.parent } returns "locales"
-            // A relaxed mock answers "" for these, which reads as a locale a template stated.
-            every { it.locale } returns null
-            every { it.namespace } returns null
-        } }
         val sources = listOf("en", "ru", "ja", "de").map(source)
 
         val missing = KeysSynchronizer().findMissingEntries(translations, listOf("en", "ru", "ja", "de"), sources)
 
         assertEquals(listOf("de" to "cart.item_other", "de" to "title"), missing.map { it.locale to it.key })
+    }
+
+    /**
+     * Crowdin's export, `ago` beside `ago_other` and never `ago_one`: the group is complete where
+     * it stands, missing as a whole elsewhere, and `_one` is asked nowhere.
+     */
+    private val bareKeyAndOther = mapOf(
+        "ago" to mapOf("en" to "a minute ago", "fr" to "il y a une minute"),
+        "ago_other" to mapOf("en" to "{{count}} minutes ago", "fr" to "il y a {{count}} minutes"),
+        "title" to mapOf("en" to "Title", "fr" to "Titre", "de" to "Titel"),
+    )
+
+    @Test
+    fun aBareKeyBesideOtherIsCompleteInStatsAndMissingAsAWholeElsewhere() {
+        val stats = TranslationCoverage.analyze(bareKeyAndOther).associateBy { it.locale }
+        assertEquals(0, stats.getValue("en").missing, "${stats.getValue("en").missingKeys}")
+        assertEquals(0, stats.getValue("fr").missing, "${stats.getValue("fr").missingKeys}")
+        assertEquals(listOf("ago_other"), stats.getValue("de").missingKeys)
+    }
+
+    @Test
+    fun syncCreatesOtherForABareKeyGroupMissingAsAWhole() {
+        val missing = KeysSynchronizer().findMissingEntries(bareKeyAndOther, listOf("en", "fr", "de"), listOf("en", "fr", "de").map(source))
+
+        assertEquals(listOf("de" to "ago_other"), missing.map { it.locale to it.key })
+    }
+
+    @Test
+    fun missingKeyInspectionAsksNoOneForABareKeyGroup() {
+        val reference = listOf(listOf("ago"), listOf("ago_other"), listOf("title"))
+
+        assertEquals(emptyList<List<String>>(), MissingTranslationKeyInspection.missingPaths(reference, reference))
+        assertEquals(listOf(listOf("ago_other")), MissingTranslationKeyInspection.missingPaths(reference, listOf(listOf("title"))))
     }
 }

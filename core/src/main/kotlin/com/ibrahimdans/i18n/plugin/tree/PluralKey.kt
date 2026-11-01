@@ -76,6 +76,17 @@ object PluralKey {
         return key.dropLast(category.length) + PluralCategories.OTHER
     }
 
+    /**
+     * Whether the plural group of [base] lacks no form in a locale holding [keys], the bare key
+     * standing in for every category missing — `item` beside `item_other`, as Crowdin exports a
+     * plural.
+     *
+     * i18next resolves `t('item', { count: 1 })` by trying `item_one`, then `item`, in the same
+     * language (`Translator.resolve`): the bare key is the fallback of any form. Only its presence
+     * counts: an empty value is the empty-value check's business.
+     */
+    fun bareKeyCoversForms(base: String, keys: Collection<String>): Boolean = base in keys
+
     /** The form to create in a locale lacking a whole plural group: every language has `other`. */
     fun defaultForm(base: String): String = base + OTHER_SUFFIX
 
