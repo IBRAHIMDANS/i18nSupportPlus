@@ -8,6 +8,7 @@ import com.google.gson.JsonParser
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.security.MessageDigest
+import java.time.Duration
 
 /**
  * How to call one engine, as data: a POST to [url] with [headers] and the JSON [body], the
@@ -43,7 +44,12 @@ data class EngineConfig(
     /** Where the id of that glossary is kept between sessions: the engine's entry in the settings. */
     val remoteGlossary: RemoteGlossaryStore? = null,
     /** How the project wants its translations written: the form of address, its own instructions. */
-    val style: Style = Style.EMPTY
+    val style: Style = Style.EMPTY,
+    /**
+     * How long to wait for one answer; null waits [HttpTranslationProvider.readTimeoutFor] the request's
+     * number of texts, so a batch sent to a slow local model is not cut short.
+     */
+    val readTimeout: Duration? = null
 )
 
 /**
@@ -181,6 +187,35 @@ data class BatchConfig(
 )
 
 /**
+ * Waits [millis] between two attempts at a request. It asks [cancellation] while it waits, so a
+ * translation cancelled then stops at once; tests replace it, so that none of them sleeps.
+ */
+fun interface Pause {
+    fun pause(millis: Long, cancellation: Cancellation?)
+
+    companion object {
+        private const val SLICE_MS = 100L
+
+        /** Sleeps in slices of a tenth of a second, asking [Cancellation.check] before each. */
+        val SLEEP = Pause { millis, cancellation ->
+            var left = millis
+            while (left > 0) {
+                cancellation?.check()
+                val slice = minOf(left, SLICE_MS)
+                try {
+                    Thread.sleep(slice)
+                } catch (e: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    return@Pause
+                }
+                left -= slice
+            }
+            cancellation?.check()
+        }
+    }
+}
+
+/**
  * Any engine reachable by one JSON POST per text — DeepL, LibreTranslate, Google Cloud, every
  * OpenAI-compatible endpoint (Ollama, OpenAI, Mistral…) — configured by an [EngineConfig].
  *
@@ -203,6 +238,9 @@ class HttpTranslationProvider(
      */
     var glossaryWarnings: (String) -> Unit = {}
 
+    /** How the provider waits before trying a request again; replaced in tests, for the same reason. */
+    var pause: Pause = Pause.SLEEP
+
     private val deepl: DeeplGlossary? = engine.takeIf { it.nativeGlossary == DeeplGlossary.KIND }
         ?.let { DeeplGlossary.of(it, it.remoteGlossary ?: InMemoryGlossaryStore(), transport, ::headers) { message -> glossaryWarnings(message) } }
 
@@ -212,12 +250,12 @@ class HttpTranslationProvider(
         if (batch == null || request.texts.size < 2) {
             return request.texts.map { text ->
                 cancellation?.check()
-                translateOne(text, request, glossary)
+                translateOne(text, request, glossary, cancellation)
             }
         }
         return request.texts.chunked(batch.maxSize.coerceAtLeast(1)).flatMap { chunk ->
             cancellation?.check()
-            translateBatch(chunk, request, batch, glossary)
+            translateBatch(chunk, request, batch, glossary, cancellation)
         }
     }
 
@@ -255,14 +293,15 @@ class HttpTranslationProvider(
      * glossary never costs a translation. DeepL answers 404 for an unknown id, but 500 for a few minutes
      * after a glossary is deleted: a 5xx is checked against the glossary itself before being taken as an outage.
      */
-    private fun send(url: String, body: String, glossary: PairGlossary?): Posted {
-        var id = glossary?.id() ?: return post(url, body)
+    private fun send(url: String, body: String, glossary: PairGlossary?, texts: Int, cancellation: Cancellation?): Posted {
+        val timeout = engine.readTimeout ?: readTimeoutFor(texts)
+        var id = glossary?.id() ?: return post(url, body, timeout, cancellation)
         while (true) {
-            val posted = post(url, DeeplGlossary.withId(body, id))
+            val posted = post(url, DeeplGlossary.withId(body, id), timeout, cancellation)
             val status = (posted as? Posted.Failed)?.status ?: return posted
             val gone = status == 404 || (status >= 500 && !glossary.exists(id))
             if (!gone) return posted
-            id = glossary.replace(id) ?: return post(url, body)
+            id = glossary.replace(id) ?: return post(url, body, timeout, cancellation)
         }
     }
 
@@ -271,19 +310,28 @@ class HttpTranslationProvider(
     /**
      * [texts] in one request. An answer that cannot be read, or that does not hold exactly one
      * translation per text, is retried text by text: a shifted list would put each translation under
-     * the wrong key. An HTTP or network error is the same for every text, so it is not retried.
+     * the wrong key. A request the engine could not handle — refused as malformed or too large, a server
+     * error, no answer in time — is sent again in two halves, down to one text, so that a text it chokes
+     * on fails alone. A refused key or a rate limit is the same for every text: the batch fails at once.
      */
-    private fun translateBatch(texts: List<String>, request: TranslationRequest, batch: BatchConfig, glossary: PairGlossary?): List<Translation> {
+    private fun translateBatch(
+        texts: List<String>, request: TranslationRequest, batch: BatchConfig, glossary: PairGlossary?, cancellation: Cancellation?
+    ): List<Translation> {
         val sent = texts.withIndex().filter { it.value.isNotBlank() }
-        if (sent.size < 2) return texts.map { translateOne(it, request, glossary) }
+        if (sent.size < 2) return texts.map { translateOne(it, request, glossary, cancellation) }
         val masks = sent.map { engine.glossary.protect(PlaceholderMask.mask(it.value)) }
         val array = masks.joinToString(",", "[", "]") { "\"${escapeJson(it.text)}\"" }
         val body = fill(batch.body.replace("{texts}", array).replace("{textsJson}", escapeJson(array)), values(request, ""), ::escapeJson)
-        val answers = when (val response = send(fill(engine.url, values(request, ""), ::encodeUrl), body, glossary)) {
-            is Posted.Failed -> return texts.map { if (it.isBlank()) Translation.Done(it) else response.failure }
+        val answers = when (val response = send(fill(engine.url, values(request, ""), ::encodeUrl), body, glossary, sent.size, cancellation)) {
+            is Posted.Failed -> {
+                if (!response.splittable) return texts.map { if (it.isBlank()) Translation.Done(it) else response.failure }
+                val half = texts.size / 2
+                return translateBatch(texts.take(half), request, batch, glossary, cancellation) +
+                    translateBatch(texts.drop(half), request, batch, glossary, cancellation)
+            }
             is Posted.Answered -> readList(response.body, batch)
         }
-        if (answers == null || answers.size != sent.size) return texts.map { translateOne(it, request, glossary) }
+        if (answers == null || answers.size != sent.size) return texts.map { translateOne(it, request, glossary, cancellation) }
         val results = MutableList<Translation>(texts.size) { Translation.Done(texts[it]) }
         sent.forEachIndexed { i, (index, _) -> results[index] = restore(answers[i], masks[i]) }
         return results
@@ -304,25 +352,57 @@ class HttpTranslationProvider(
     /** What one POST gave: an answer to read, or the failure every text it carried gets. */
     private sealed interface Posted {
         data class Answered(val body: String) : Posted
-        /** [status] is the HTTP one, 0 for a network error. */
-        data class Failed(val failure: Translation.Failed, val status: Int = 0) : Posted
+
+        /**
+         * [status] is the HTTP one, 0 for a network error; [timedOut] says no answer came in time, and
+         * [retryAfterMillis] is how long the engine asked to wait before the next attempt.
+         */
+        data class Failed(
+            val failure: Translation.Failed,
+            val status: Int = 0,
+            val timedOut: Boolean = false,
+            val retryAfterMillis: Long? = null
+        ) : Posted {
+            /** A rate limit, a gateway or server momentarily down, or no answer in time: worth another try. */
+            val retryable: Boolean get() = timedOut || status in RETRYABLE
+
+            /** A failure a smaller request may avoid: refused as malformed or too large, a server error, a timeout. */
+            val splittable: Boolean get() = timedOut || status in SPLITTABLE || status >= 500
+        }
     }
 
-    private fun post(url: String, body: String): Posted {
+    /**
+     * [body] posted to [url], tried [ATTEMPTS] times in all when the engine is rate-limited, momentarily
+     * down or late, after [RETRY_DELAYS_MS] — or the delay its `Retry-After` asks for, capped at
+     * [MAX_RETRY_AFTER_S] seconds. Every other failure is final at once: another try would get it again.
+     */
+    private fun post(url: String, body: String, readTimeout: Duration, cancellation: Cancellation?): Posted {
+        var attempt = 1
+        while (true) {
+            val posted = postOnce(url, body, readTimeout)
+            if (posted !is Posted.Failed || !posted.retryable || attempt >= ATTEMPTS) return posted
+            pause.pause(posted.retryAfterMillis ?: RETRY_DELAYS_MS[attempt - 1], cancellation)
+            attempt++
+        }
+    }
+
+    private fun postOnce(url: String, body: String, readTimeout: Duration): Posted {
         val response = try {
-            transport.post(url, headers(), body)
+            transport.post(url, headers(), body, readTimeout)
         } catch (e: SocketTimeoutException) {
-            return Posted.Failed(failed(CoreMessages.message("translate.error.timeout", engine.name)))
+            return Posted.Failed(failed(CoreMessages.message("translate.error.timeout", engine.name)), timedOut = true)
         } catch (e: IOException) {
             return Posted.Failed(failed(CoreMessages.message("translate.error.network", engine.name, e.message.orEmpty())))
         }
+        val retryAfter = retryAfterMillis(response.retryAfter)
         return when (response.status) {
             in 200..299 -> Posted.Answered(response.body)
             401, 403 -> Posted.Failed(failed(CoreMessages.message("translate.error.key", engine.name)), response.status)
-            429 -> Posted.Failed(failed(CoreMessages.message("translate.error.rate", engine.name)), response.status)
+            429 -> Posted.Failed(failed(CoreMessages.message("translate.error.rate", engine.name)), response.status, retryAfterMillis = retryAfter)
             else -> Posted.Failed(
                 failed(CoreMessages.message("translate.error.status", engine.name, response.status, response.body.take(200))),
-                response.status
+                response.status,
+                retryAfterMillis = retryAfter
             )
         }
     }
@@ -349,11 +429,11 @@ class HttpTranslationProvider(
         }
     }
 
-    private fun translateOne(text: String, request: TranslationRequest, glossary: PairGlossary?): Translation {
+    private fun translateOne(text: String, request: TranslationRequest, glossary: PairGlossary?, cancellation: Cancellation?): Translation {
         if (text.isBlank()) return Translation.Done(text)
         val masked = engine.glossary.protect(PlaceholderMask.mask(text))
         val values = values(request, masked.text)
-        val body = when (val response = send(fill(engine.url, values, ::encodeUrl), fill(engine.body, values, ::escapeJson), glossary)) {
+        val body = when (val response = send(fill(engine.url, values, ::encodeUrl), fill(engine.body, values, ::escapeJson), glossary, 1, cancellation)) {
             is Posted.Failed -> return response.failure
             is Posted.Answered -> response.body
         }
@@ -368,6 +448,31 @@ class HttpTranslationProvider(
         private val PLACEHOLDER = Regex("""\{(text|source|target|context|glossary|instruction|formality|apiKey)}""")
         private val FENCE = Regex("""^\s*```\w*\s*|\s*```\s*$""")
         private val PATH_PART = Regex("""([^.\[\]]+)|\[(\d+)]""")
+
+        /** Attempts at one request, the first included. */
+        private const val ATTEMPTS = 3
+
+        /** The wait before the second attempt, then before the third. */
+        private val RETRY_DELAYS_MS = listOf(1_000L, 2_000L)
+        private const val MAX_RETRY_AFTER_S = 30L
+        private val RETRYABLE = setOf(429, 502, 503, 504)
+        private val SPLITTABLE = setOf(400, 413, 422)
+
+        private val BASE_READ_TIMEOUT: Duration = Duration.ofSeconds(60)
+        private val READ_TIMEOUT_PER_TEXT: Duration = Duration.ofSeconds(2)
+        private val MAX_READ_TIMEOUT: Duration = Duration.ofMinutes(5)
+
+        /** How long to wait for an answer to [texts] texts: a minute, two more seconds a text, five minutes at most. */
+        internal fun readTimeoutFor(texts: Int): Duration =
+            minOf(BASE_READ_TIMEOUT.plus(READ_TIMEOUT_PER_TEXT.multipliedBy(texts.coerceAtLeast(1).toLong())), MAX_READ_TIMEOUT)
+
+        /**
+         * The wait a `Retry-After` header asks for, in milliseconds, at most [MAX_RETRY_AFTER_S] seconds; null
+         * for a header absent or not a whole number of seconds — an HTTP date included —, which leaves the
+         * default delay.
+         */
+        internal fun retryAfterMillis(header: String?): Long? =
+            header?.trim()?.toLongOrNull()?.takeIf { it >= 0 }?.let { minOf(it, MAX_RETRY_AFTER_S) * 1_000 }
 
         /**
          * The user's part of `{instruction}`: [instructions] — the project's lines, then the key's — as a

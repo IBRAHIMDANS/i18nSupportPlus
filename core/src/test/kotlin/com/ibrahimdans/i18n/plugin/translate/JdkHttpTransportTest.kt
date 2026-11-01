@@ -113,4 +113,24 @@ class JdkHttpTransportTest {
             JdkHttpTransport(readTimeout = Duration.ofMillis(200)).post(url, emptyMap(), "{}")
         }
     }
+
+    @Test
+    fun `a request's own timeout replaces the transport's`() {
+        answer(200, "late", delay = Duration.ofMillis(1_500))
+
+        assertThrows(SocketTimeoutException::class.java) {
+            JdkHttpTransport(readTimeout = Duration.ofMinutes(1)).post(url, emptyMap(), "{}", Duration.ofMillis(200))
+        }
+    }
+
+    @Test
+    fun `the Retry-After header comes with the answer`() {
+        server.createContext("/translate") { exchange: HttpExchange ->
+            exchange.responseHeaders.add("Retry-After", "7")
+            exchange.sendResponseHeaders(429, -1)
+            exchange.close()
+        }
+
+        assertEquals(HttpTransport.Response(429, "", "7"), JdkHttpTransport().post(url, emptyMap(), "{}"))
+    }
 }

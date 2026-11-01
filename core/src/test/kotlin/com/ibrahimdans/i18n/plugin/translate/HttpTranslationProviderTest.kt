@@ -29,8 +29,12 @@ class HttpTranslationProviderTest {
 
     private fun preset(id: String) = TranslationEngines.preset(id)!!
 
+    /** A provider that tries a request again without waiting: a rate limit or a 503 costs no test any time. */
+    private fun provider(engine: EngineConfig, key: String, transport: HttpTransport) =
+        HttpTranslationProvider(engine, key, transport).apply { pause = Pause { _, _ -> } }
+
     private fun translate(engine: EngineConfig, transport: HttpTransport, key: String = "secret") =
-        HttpTranslationProvider(engine, key, transport).translate(request)
+        provider(engine, key, transport).translate(request)
 
     @Test
     fun `DeepL gets the masked text, the languages, the context and its key header`() {
@@ -76,7 +80,7 @@ class HttpTranslationProviderTest {
     @Test
     fun `quotes and newlines in the text keep the body valid JSON`() {
         val transport = FakeTransport { ok("""{"translations":[{"text":"x"}]}""") }
-        HttpTranslationProvider(preset("deepl"), "k", transport).translate(request.copy(texts = listOf("Say \"hi\"\\\nnow")))
+        provider(preset("deepl"), "k", transport).translate(request.copy(texts = listOf("Say \"hi\"\\\nnow")))
 
         assertEquals("Say \"hi\"\\\nnow", JsonParser.parseString(transport.calls.single().third).asJsonObject["text"].asJsonArray[0].asString)
     }
@@ -107,19 +111,19 @@ class HttpTranslationProviderTest {
     fun `a blank text is not sent`() {
         val transport = FakeTransport { error("no call expected") }
 
-        assertEquals(listOf(Translation.Done(" ")), HttpTranslationProvider(preset("deepl"), "k", transport).translate(request.copy(texts = listOf(" "))))
+        assertEquals(listOf(Translation.Done(" ")), provider(preset("deepl"), "k", transport).translate(request.copy(texts = listOf(" "))))
     }
 
     @Test
     fun `the fallback asks the next engine only for what failed`() {
         val first = FakeTransport { body -> if ("one" in body) ok("""{"translations":[{"text":"un"}]}""") else HttpTransport.Response(503, "") }
         val second = FakeTransport { ok("""{"translations":[{"text":"deux"}]}""") }
-        val provider = FallbackTranslationProvider(listOf(
-            HttpTranslationProvider(preset("deepl"), "k", first),
-            HttpTranslationProvider(preset("deepl"), "k", second)
+        val fallback = FallbackTranslationProvider(listOf(
+            provider(preset("deepl"), "k", first),
+            provider(preset("deepl"), "k", second)
         ))
 
-        assertEquals(listOf(Translation.Done("un"), Translation.Done("deux")), provider.translate(request.copy(texts = listOf("one", "two"))))
+        assertEquals(listOf(Translation.Done("un"), Translation.Done("deux")), fallback.translate(request.copy(texts = listOf("one", "two"))))
         assertEquals(1, second.calls.size, "only the failed text goes to the second engine")
     }
 
@@ -132,7 +136,7 @@ class HttpTranslationProviderTest {
         val cancelOnSecond = Cancellation { if (++checks == 2) throw Cancelled() }
 
         Assertions.assertThrows(Cancelled::class.java) {
-            HttpTranslationProvider(preset("deepl").copy(batch = null), "k", transport).translate(request.copy(texts = listOf("one", "two", "three")), cancelOnSecond)
+            provider(preset("deepl").copy(batch = null), "k", transport).translate(request.copy(texts = listOf("one", "two", "three")), cancelOnSecond)
         }
         assertEquals(1, transport.calls.size, "the second text is never sent")
     }
@@ -146,7 +150,7 @@ class HttpTranslationProviderTest {
     fun `several texts go to DeepL in one request, in order`() {
         val transport = FakeTransport(::deeplAnswer)
 
-        val result = HttpTranslationProvider(preset("deepl"), "k", transport)
+        val result = provider(preset("deepl"), "k", transport)
             .translate(request.copy(texts = listOf("one {{n}}", "two", "three")))
 
         Assertions.assertEquals(listOf(Translation.Done("FR one {{n}}"), Translation.Done("FR two"), Translation.Done("FR three")), result)
@@ -159,7 +163,7 @@ class HttpTranslationProviderTest {
         val engine = preset("deepl").let { it.copy(batch = it.batch!!.copy(maxSize = 2)) }
         val transport = FakeTransport(::deeplAnswer)
 
-        val result = HttpTranslationProvider(engine, "k", transport).translate(request.copy(texts = listOf("a", "b", "c", "d", "e")))
+        val result = provider(engine, "k", transport).translate(request.copy(texts = listOf("a", "b", "c", "d", "e")))
 
         Assertions.assertEquals(listOf("FR a", "FR b", "FR c", "FR d", "FR e"), result.map { (it as Translation.Done).text })
         Assertions.assertEquals(listOf(2, 2, 1), transport.calls.map { call ->
@@ -174,20 +178,20 @@ class HttpTranslationProviderTest {
             if (texts.size() > 1) ok("""{"translations":[{"text":"FR a"}]}""") else deeplAnswer(body)
         }
 
-        val result = HttpTranslationProvider(preset("deepl"), "k", transport).translate(request.copy(texts = listOf("a", "b")))
+        val result = provider(preset("deepl"), "k", transport).translate(request.copy(texts = listOf("a", "b")))
 
         Assertions.assertEquals(listOf(Translation.Done("FR a"), Translation.Done("FR b")), result)
         Assertions.assertEquals(3, transport.calls.size, "one batch, then one request per text")
     }
 
     @Test
-    fun `an HTTP error on a batch fails its texts without retrying`() {
+    fun `a rate limit on a batch fails its texts once the attempts are spent, without splitting it`() {
         val transport = FakeTransport { HttpTransport.Response(429, "") }
 
-        val result = HttpTranslationProvider(preset("deepl"), "k", transport).translate(request.copy(texts = listOf("a", "b")))
+        val result = provider(preset("deepl"), "k", transport).translate(request.copy(texts = listOf("a", "b")))
 
         Assertions.assertEquals(List(2) { Translation.Failed(CoreMessages.message("translate.error.rate", "DeepL")) }, result)
-        Assertions.assertEquals(1, transport.calls.size)
+        Assertions.assertEquals(3, transport.calls.size, "three attempts at the whole batch")
     }
 
     @Test
@@ -199,7 +203,7 @@ class HttpTranslationProviderTest {
             ok("""{"choices":[{"message":{"content":"```json\n[\"Salut <x id=\\\"0\\\"/>\", \"Au revoir\"]\n```"}}]}""")
         }
 
-        val result = HttpTranslationProvider(preset("openai-compatible"), "", transport).translate(request.copy(texts = listOf("Hi {{name}}", "Bye")))
+        val result = provider(preset("openai-compatible"), "", transport).translate(request.copy(texts = listOf("Hi {{name}}", "Bye")))
 
         Assertions.assertEquals(listOf(Translation.Done("Salut {{name}}"), Translation.Done("Au revoir")), result)
     }
@@ -208,7 +212,7 @@ class HttpTranslationProviderTest {
     fun `a blank text in a batch is kept and not sent`() {
         val transport = FakeTransport(::deeplAnswer)
 
-        val result = HttpTranslationProvider(preset("deepl"), "k", transport).translate(request.copy(texts = listOf("a", " ", "b")))
+        val result = provider(preset("deepl"), "k", transport).translate(request.copy(texts = listOf("a", " ", "b")))
 
         Assertions.assertEquals(listOf(Translation.Done("FR a"), Translation.Done(" "), Translation.Done("FR b")), result)
         Assertions.assertEquals(2, JsonParser.parseString(transport.calls.single().third).asJsonObject["text"].asJsonArray.size())
@@ -218,7 +222,7 @@ class HttpTranslationProviderTest {
     fun `an engine without a batch form sends one request per text`() {
         val transport = FakeTransport { ok("""{"translatedText":"x"}""") }
 
-        HttpTranslationProvider(preset("libretranslate"), "k", transport).translate(request.copy(texts = listOf("a", "b", "c")))
+        provider(preset("libretranslate"), "k", transport).translate(request.copy(texts = listOf("a", "b", "c")))
 
         Assertions.assertEquals(3, transport.calls.size)
     }
