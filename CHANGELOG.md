@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- [Translation dialog] **The reference locale comes first**: *Create Translation* and *Edit Translations* list the locale you translate from at the top, then the others alphabetically, in the same order in every IDE.
+
 ## 1.16.1 - 2026-10-26
 
 ### Fixes
