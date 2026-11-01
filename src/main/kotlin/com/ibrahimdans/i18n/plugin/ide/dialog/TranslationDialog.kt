@@ -16,7 +16,6 @@ import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
-import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.CommandProcessor
 import com.intellij.openapi.command.UndoConfirmationPolicy
@@ -27,15 +26,12 @@ import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiFile
 import com.intellij.ui.DocumentAdapter
-import com.intellij.ui.JBColor
-import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.AlignY
 import com.intellij.ui.dsl.builder.RightGap
-import com.intellij.ui.dsl.builder.Row
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
@@ -45,7 +41,6 @@ import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.event.DocumentEvent
-import javax.swing.text.DefaultHighlighter
 import org.jetbrains.concurrency.CancellablePromise
 
 /**
@@ -102,8 +97,9 @@ class TranslationDialog(
     private val sources: Map<LocalizationSource, String?> = viewModel.loadTranslations(fullKey, caller, tabModule)
 
     private val textAreas = LinkedHashMap<LocalizationSource, JBTextArea>()
-    private val variableWarnings = LinkedHashMap<LocalizationSource, JBLabel>()
-    private val variableWarningRows = LinkedHashMap<LocalizationSource, Row>()
+
+    /** The message variables highlighted in each value, and the warning under a locale dropping one. */
+    private val variables = DialogVariables()
 
     /** Holds the per-locale rows, which are rebuilt whenever the namespace changes. */
     private val sourcesHost = JPanel(BorderLayout())
@@ -208,8 +204,7 @@ class TranslationDialog(
      */
     private fun refreshSources(sourcesMap: Map<LocalizationSource, String?>, namespace: String?) {
         textAreas.clear()
-        variableWarnings.clear()
-        variableWarningRows.clear()
+        variables.clear()
         machine.proposals.clear()
         reviews.badges.clear()
         key.scopeTo(namespace, sourcesMap.keys, otherModules = caller != null || tabModule != null)
@@ -237,9 +232,7 @@ class TranslationDialog(
             })
             textAreas[source] = textArea
 
-            val warning = JBLabel()
-            warning.icon = AllIcons.General.Warning
-            variableWarnings[source] = warning
+            val warning = variables.warningOf(source)
 
             row(source.localeLabel()) {
                 cell(JBScrollPane(textArea))
@@ -252,9 +245,9 @@ class TranslationDialog(
                         .applyToComponent { toolTipText = PluginBundle.message("dialog.translation.translate.locale.tooltip") }
                 }
             }
-            variableWarningRows[source] = row("") {
+            variables.holdRow(source, row("") {
                 cell(warning).align(AlignX.FILL)
-            }.visible(false)
+            }.visible(false))
 
             // A key being created has no review yet: the badge and its link are for one that exists.
             val root = if (mode == Mode.EDIT) reviews.rootOf(source) else null
@@ -268,39 +261,14 @@ class TranslationDialog(
         }
     }
 
-    /**
-     * Highlights the message variables in every value and flags the locales that drop one.
-     * Runs on each keystroke: both are read-only passes over text already in memory.
-     */
+    /** The variables checked again, and the buttons enabled when they have something to do; on each keystroke. */
     private fun refreshVariables() {
-        textAreas.values.forEach(::highlightVariables)
-
-        val valuesByLocale = textAreas.entries.associate { (source, area) -> source.localeLabel() to area.text }
-        val missing = DialogViewModel.missingVariables(valuesByLocale)
-        textAreas.keys.forEach { source ->
-            val lost = missing[source.localeLabel()].orEmpty()
-            variableWarnings[source]?.text =
-                if (lost.isEmpty()) ""
-                else PluginBundle.message("dialog.translation.variables.missing", lost.sorted().joinToString(", "))
-            variableWarningRows[source]?.visible(lost.isNotEmpty())
-        }
+        variables.refresh(textAreas)
 
         // Nothing to copy from, or nowhere to copy to: the button would be a no-op.
         copyButton?.isEnabled =
             textAreas.values.any { it.text.isNotBlank() } && textAreas.values.any { it.text.isBlank() }
         machine.translateButton.isEnabled = copyButton?.isEnabled == true
-    }
-
-    private fun highlightVariables(textArea: JBTextArea) {
-        textArea.highlighter?.let { highlighter ->
-            highlighter.removeAllHighlights()
-            val painter = DefaultHighlighter.DefaultHighlightPainter(VARIABLE_HIGHLIGHT)
-            DialogViewModel.variableRanges(textArea.text).forEach { range ->
-                // The document is read a hair after the ranges were computed; a range that no
-                // longer fits is dropped rather than taking the dialog down with it.
-                runCatching { highlighter.addHighlight(range.first, range.last + 1, painter) }
-            }
-        }
     }
 
     /** *Translate Empty Locales*, as its button does it. */
@@ -488,9 +456,6 @@ class TranslationDialog(
         private const val PREFERRED_WIDTH = 620
         private const val PREFERRED_HEIGHT = 420
         private const val DIMENSION_KEY = "com.ibrahimdans.i18n.TranslationDialog"
-
-        /** Light enough to read black or white text through it, in either theme. */
-        private val VARIABLE_HIGHLIGHT = JBColor(0xFFF2C4, 0x4C4426)
 
         /** Whether [name] can name a namespace: see [DialogKeyField.isValidNamespace]. */
         internal fun isValidNamespace(name: String?): Boolean = DialogKeyField.isValidNamespace(name)
