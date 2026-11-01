@@ -6,18 +6,12 @@ import com.ibrahimdans.i18n.plugin.ide.dialog.Mode
 import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
-import com.ibrahimdans.i18n.plugin.ide.actions.FillMissingTranslationsAction
-import com.ibrahimdans.i18n.plugin.ide.actions.MachineFill
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
-import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
-import com.ibrahimdans.i18n.plugin.review.ui.ReviewActions
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewCell
-import com.ibrahimdans.i18n.plugin.review.ui.ReviewThreadDialog
 import com.intellij.ide.ActivityTracker
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
@@ -26,7 +20,6 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.table.JBTable
@@ -36,11 +29,9 @@ import java.awt.BorderLayout
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.awt.event.MouseMotionAdapter
-import javax.swing.JCheckBoxMenuItem
 import javax.swing.JComponent
 import javax.swing.JMenuItem
 import javax.swing.JPanel
-import javax.swing.JPopupMenu
 import javax.swing.JScrollPane
 import javax.swing.JTable
 import javax.swing.RowSorter
@@ -216,6 +207,26 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
      */
     internal val filterBar: JComponent = filters.bar
 
+    /** The row and header menus; they read the panel through [TableMenuHost], its state staying private. */
+    private val menus = TableContextMenu(project, moduleConfig, viewModel, object : TableMenuHost {
+        override val table: JTable get() = this@TableViewPanel.table
+        override val keyColumn: Int get() = this@TableViewPanel.keyColumn
+        override val usageColumn: Int get() = leadingColumns + shownLocales.size
+        override val locales: List<String> get() = this@TableViewPanel.locales
+        override val hiddenLocales: Set<String> get() = this@TableViewPanel.hiddenLocales
+        override val rows: List<TranslationRow> get() = allRows
+        override val reviews: TableReviews get() = this@TableViewPanel.reviews
+        override val reviewRoot: VirtualFile? get() = this@TableViewPanel.reviewRoot
+        override fun localeAt(column: Int): String? = this@TableViewPanel.localeAt(column)
+        override fun selectedReviewCells(): List<ReviewCell> = this@TableViewPanel.selectedReviewCells()
+        override fun editSelectedRow() = this@TableViewPanel.editSelectedRow()
+        override fun openSelectedRowFile() = this@TableViewPanel.openSelectedRowFile()
+        override fun deleteOrphanKeys(keys: List<String>) = this@TableViewPanel.deleteOrphanKeys(keys)
+        override fun toggleLocale(locale: String) = this@TableViewPanel.toggleLocale(locale)
+        override fun refresh() = this@TableViewPanel.refresh()
+        override fun reloadReviews() = this@TableViewPanel.reloadReviews()
+    })
+
     init {
         // Not AUTO_RESIZE_ALL_COLUMNS: that split the viewport in equal shares, so the key
         // column — the longest text of the table — got no more room than "Usage". Columns now
@@ -236,20 +247,20 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
             }
 
             override fun mouseReleased(e: MouseEvent) {
-                if (e.isPopupTrigger) showContextMenu(e)
+                if (e.isPopupTrigger) menus.showRowMenu(e)
             }
 
             override fun mousePressed(e: MouseEvent) {
-                if (e.isPopupTrigger) showContextMenu(e)
+                if (e.isPopupTrigger) menus.showRowMenu(e)
             }
         })
         table.tableHeader.addMouseListener(object : MouseAdapter() {
             override fun mouseReleased(e: MouseEvent) {
-                if (e.isPopupTrigger) showLocaleMenu(e)
+                if (e.isPopupTrigger) menus.showLocaleMenu(e)
             }
 
             override fun mousePressed(e: MouseEvent) {
-                if (e.isPopupTrigger) showLocaleMenu(e)
+                if (e.isPopupTrigger) menus.showLocaleMenu(e)
             }
         })
         // The Usage header, the one place that says the column waits for a scan, says how to run it.
@@ -516,64 +527,8 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         }
     }
 
-    /**
-     * *Approve*, *Request Changes…*, *Mark for Review* and *Comments…* on the selected cells, or
-     * nothing at all where reviews are off: the menu of a module that never asked for reviews is
-     * the one it always had. Each decision is one command whatever the number of cells.
-     */
-    internal fun reviewMenuItems(): List<JMenuItem> {
-        val root = reviewRoot?.takeIf { reviews.enabled } ?: return emptyList()
-        val cells = selectedReviewCells()
-        val unavailable = PluginBundle.message("review.action.unavailable")
-        fun item(label: String, enabled: Boolean, tooltip: String = unavailable, run: () -> Unit) = JMenuItem(label).apply {
-            isEnabled = enabled
-            if (!enabled) toolTipText = tooltip
-            addActionListener { run() }
-        }
-        val approveLabel = if (cells.size > 1) PluginBundle.message("review.action.approve.many", cells.size)
-        else PluginBundle.message("review.action.approve")
-        val reference = reviews.referenceLocale
-        return listOf(
-            item(approveLabel, cells.isNotEmpty()) {
-                reviewed(ReviewActions.approve(project, root, cells, referenceLocale = reference), cells)
-            },
-            item(PluginBundle.message("review.action.request.changes"), cells.isNotEmpty()) { requestChanges(root, cells) },
-            item(PluginBundle.message("review.action.mark"), cells.isNotEmpty()) {
-                reviewed(ReviewActions.markToReview(project, root, cells, referenceLocale = reference), cells)
-            },
-            item(
-                PluginBundle.message("review.action.comments"), cells.size == 1,
-                PluginBundle.message("review.action.comments.unavailable")
-            ) { ReviewThreadDialog(project, root, cells.single(), referenceLocale = reference).show() },
-        )
-    }
-
-    private fun requestChanges(root: VirtualFile, cells: List<ReviewCell>) {
-        val text = Messages.showMultilineInputDialog(
-            project,
-            PluginBundle.message("review.request.changes.prompt"),
-            PluginBundle.message("review.request.changes.title"),
-            "",
-            null,
-            object : InputValidator {
-                override fun checkInput(inputString: String?): Boolean = !inputString.isNullOrBlank()
-                override fun canClose(inputString: String?): Boolean = checkInput(inputString)
-            },
-        ) ?: return
-        reviewed(ReviewActions.requestChanges(project, root, cells, text, referenceLocale = reviews.referenceLocale), cells)
-    }
-
-    /** After a decision: an error when nothing could be written, the reviews read again otherwise. */
-    private fun reviewed(written: Boolean, cells: List<ReviewCell>) {
-        if (!written) {
-            Messages.showErrorDialog(
-                project,
-                PluginBundle.message("review.write.failed", cells.map { it.locale }.distinct().joinToString(", ")),
-                PluginBundle.message("review.write.failed.title")
-            )
-        }
-        reloadReviews()
-    }
+    /** The review decisions on the selected cells; see [TableContextMenu.reviewMenuItems]. */
+    internal fun reviewMenuItems(): List<JMenuItem> = menus.reviewMenuItems()
 
     /**
      * Reads the reviews again — the store caches them — after a decision or a change of a review
@@ -604,118 +559,19 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         super.removeNotify()
     }
 
-    // ── Context menu ──────────────────────────────────────────────────────────
+    /** *Fill Missing Translations in <locale>…* on [column]; see [TableContextMenu.fillMenuItem]. */
+    internal fun fillMenuItem(column: Int): JMenuItem? = menus.fillMenuItem(column)
 
-    private fun showContextMenu(e: MouseEvent) {
-        val row = table.rowAtPoint(e.point)
-        if (row < 0) return
-        // A right-click inside the selection keeps it, so that several rows can be deleted at once.
-        if (!table.isRowSelected(row)) {
-            table.setRowSelectionInterval(row, row)
-            val column = table.columnAtPoint(e.point)
-            if (column >= 0) table.setColumnSelectionInterval(column, column)
-        }
+    /** *Retranslate Stale in <locale>…* on [column]; see [TableContextMenu.retranslateMenuItem]. */
+    internal fun retranslateMenuItem(column: Int): JMenuItem? = menus.retranslateMenuItem(column)
 
-        val selected = table.selectedRows.toList().mapNotNull { selectedRow ->
-            val key = table.getValueAt(selectedRow, keyColumn) as? String ?: return@mapNotNull null
-            key to (table.getValueAt(selectedRow, leadingColumns + shownLocales.size) as? Int ?: -1)
-        }
-        val orphanKeys = OrphanKeyDeleter.orphanKeys(selected, viewModel)
-
-        val menu = JPopupMenu()
-        menu.add(JMenuItem(PluginBundle.message("toolwindow.table.edit.key")).apply {
-            addActionListener { editSelectedRow() }
-        })
-        menu.add(JMenuItem(PluginBundle.message("toolwindow.table.open.file")).apply {
-            addActionListener { openSelectedRowFile() }
-        })
-        menu.addSeparator()
-        // Non-orphan rows of the selection are left out, and the label counts only what is deleted.
-        val deleteLabel = if (orphanKeys.size > 1) {
-            PluginBundle.message("toolwindow.table.delete.orphans", orphanKeys.size)
-        } else {
-            PluginBundle.message("toolwindow.table.delete.orphan")
-        }
-        menu.add(JMenuItem(deleteLabel).apply {
-            // Shown even when it does not apply, disabled: hiding it made the entry
-            // impossible to discover from a row that had never been scanned.
-            isEnabled = orphanKeys.isNotEmpty()
-            if (orphanKeys.isEmpty()) toolTipText = PluginBundle.message("toolwindow.table.no.action")
-            addActionListener { deleteOrphanKeys(orphanKeys) }
-        })
-        val reviewItems = reviewMenuItems()
-        if (reviewItems.isNotEmpty()) {
-            menu.addSeparator()
-            reviewItems.forEach(menu::add)
-        }
-        val column = table.columnAtPoint(e.point)
-        val machineItems = listOfNotNull(fillMenuItem(column), retranslateMenuItem(column))
-        if (machineItems.isNotEmpty()) {
-            menu.addSeparator()
-            machineItems.forEach(menu::add)
-        }
-        menu.show(e.component, e.x, e.y)
-    }
-
-    /**
-     * *Fill Missing Translations in <locale>…* on a locale column, once the project opted in to
-     * machine translation: the module and the locale are the table's and the column's, so neither
-     * is asked again. Null on another column, on the reference locale itself, or without opt-in.
-     */
-    internal fun fillMenuItem(column: Int): JMenuItem? {
-        val target = localeAt(column) ?: return null
-        val provider = FillMissingTranslationsAction.machineTranslator(project) ?: return null
-        val config = Settings.getInstance(project).config()
-        val source = ReferenceLocale.of(moduleConfig, config, locales) ?: return null
-        if (source == target) return null
-        return JMenuItem(PluginBundle.message("toolwindow.table.fill.missing", target)).apply {
-            name = "toolwindow.table.fill.missing"
-            addActionListener { MachineFill.run(project, moduleConfig, source, target, provider, onWritten = ::refresh) }
-        }
-    }
-
-    /**
-     * *Retranslate Stale in <locale>…* on a locale column where reviews are on and the project opted
-     * in to machine translation: the cells of the column shown as *Source changed*, translated again
-     * ([MachineFill.retranslate]). Disabled while the column has none; null on another column, on the
-     * reference locale, without reviews or without opt-in.
-     */
-    internal fun retranslateMenuItem(column: Int): JMenuItem? {
-        val target = localeAt(column) ?: return null
-        val source = reviews.referenceLocale?.takeIf { reviews.enabled && it != target } ?: return null
-        val provider = FillMissingTranslationsAction.machineTranslator(project) ?: return null
-        val stale = allRows.count { reviews.shownOf(it, target) == ShownReview.SOURCE_CHANGED }
-        return JMenuItem(PluginBundle.message("toolwindow.table.retranslate.stale", target)).apply {
-            name = "toolwindow.table.retranslate.stale"
-            isEnabled = stale > 0
-            if (stale == 0) toolTipText = PluginBundle.message("toolwindow.table.retranslate.none", target)
-            addActionListener { MachineFill.retranslate(project, moduleConfig, source, listOf(target), provider, onWritten = ::refresh) }
-        }
-    }
-
-
-    /**
-     * Header menu picking which locale columns are laid out. Six locales in a docked panel
-     * left no column readable; hiding the ones not being worked on is the way out that does
-     * not lose any data.
-     */
-    private fun showLocaleMenu(e: MouseEvent) {
-        if (locales.isEmpty()) return
-        val menu = JPopupMenu()
-        menu.add(JMenuItem(PluginBundle.message("toolwindow.table.columns.title")).apply { isEnabled = false })
-        menu.addSeparator()
-        for (locale in locales) {
-            menu.add(JCheckBoxMenuItem(locale, locale !in hiddenLocales).apply {
-                addActionListener {
-                    hiddenLocales = viewModel.toggleLocale(locales, hiddenLocales, locale)
-                    // Saved locales not loaded right now are kept: the user toggled this one only.
-                    val absent = viewState.hiddenLocales(moduleConfig).filterNot { it in locales }
-                    viewState.setHiddenLocales(moduleConfig, hiddenLocales + absent)
-                    applyFilters()
-                }
-            })
-        }
-        menu.show(e.component, e.x, e.y)
+    /** Shows [locale] when it is hidden, hides it otherwise, and saves the choice for the module. */
+    private fun toggleLocale(locale: String) {
+        hiddenLocales = viewModel.toggleLocale(locales, hiddenLocales, locale)
+        // Saved locales not loaded right now are kept: the user toggled this one only.
+        val absent = viewState.hiddenLocales(moduleConfig).filterNot { it in locales }
+        viewState.setHiddenLocales(moduleConfig, hiddenLocales + absent)
+        applyFilters()
     }
 
     // ── Scan Orphans ──────────────────────────────────────────────────────────
