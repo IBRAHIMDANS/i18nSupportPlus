@@ -49,7 +49,7 @@ A setup wizard auto-configures it on first launch, a module per application in a
 
 | Framework | Recognised syntaxes | Config-based |
 |-----------|--------------------|:------------:|
-| i18next / react-i18next | `t('ns:key')`, `` t(`key.${suffix}`) ``, `t('key', { ns: 'other' })`, `t('key', { context: 'male' })`, `useTranslation('ns')`, `<Trans i18nKey="key">`; in a translation, nesting `$t(key)` and `$t(ns:key, { … })` | Yes |
+| i18next / react-i18next | `t('ns:key')`, `` t(`key.${suffix}`) ``, `t('key', { ns: 'other' })`, `t('key', { context: 'male' })`, `useTranslation('ns')`, `<Trans i18nKey="key" ns="other">`, `<Trans t={t}>`; in a translation, nesting `$t(key)` and `$t(ns:key, { … })` | Yes |
 | vue-i18n (Nuxt: `@nuxtjs/i18n`) | `$t('key')`, `$tc('key')`, `$te('key')`, `<i18n-t keypath="key">`, `v-t="'key'"`, `const { t, te } = useI18n()` then `t('key')` | No |
 | next-intl | `const t = useTranslations('Home')` (or `await getTranslations('Home')`) then `t('title')`, read as the key `Home.title`; `t.rich('terms', { … })`, `t.markup`, `t.raw` (an object or an array is a value) and `t.has` (a usage, never reported missing) | No |
 | lingui (`@lingui/core`, `@lingui/react`, `@lingui/macro`) | `msg('key')`, `i18n._('key')`, source-based `<Trans>Hello world!</Trans>` | No |

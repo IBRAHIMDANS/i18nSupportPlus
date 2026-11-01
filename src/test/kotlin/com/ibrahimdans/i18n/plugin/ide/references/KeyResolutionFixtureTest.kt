@@ -159,6 +159,37 @@ class KeyResolutionFixtureTest : PlatformBaseTest() {
         assertResolves("src/Trans.tsx", "\"common:title\"", "Title")
     }
 
+    @Test
+    fun `the ns attribute of a Trans component`() = withSingle {
+        assertResolves("src/TransNsString.tsx", "\"label\"", "Other label")
+    }
+
+    @Test
+    fun `the ns expression of a Trans component`() = withSingle {
+        assertResolves("src/TransNsExpression.tsx", "\"label\"", "Other label")
+    }
+
+    @Test
+    fun `the ns array of a Trans component`() = withSingle {
+        assertResolves("src/TransNsArray.tsx", "\"dashboard.title\"", "Dashboard")
+    }
+
+    @Test
+    fun `the namespace of the t a Trans component is given`() = withSingle {
+        assertResolves("src/TransT.tsx", "\"dashboard.title\"", "Dashboard")
+    }
+
+    @Test
+    fun `the key prefix of the t a Trans component is given`() = withSingle {
+        assertResolves("src/TransTPrefix.tsx", "\"name\"", "Profile name")
+    }
+
+    /** react-i18next's `<Trans>` takes a hook's namespace only through `t={t}`: without it, the default one. */
+    @Test
+    fun `a Trans component without ns nor t uses the default namespace`() = withSingle {
+        assertResolves("src/TransWithoutT.tsx", "\"defaultOnly\"", "Default only")
+    }
+
     // ── Keys that must be reported ────────────────────────────────────────────
 
     @Test

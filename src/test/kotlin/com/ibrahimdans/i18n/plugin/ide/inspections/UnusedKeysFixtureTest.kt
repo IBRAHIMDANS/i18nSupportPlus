@@ -60,6 +60,8 @@ class UnusedKeysFixtureTest : PlatformBaseTest() {
         val NEVER_DELETED_INDIRECT = setOf(
             "common:profile.name",      // useTranslation('common', { keyPrefix: 'profile' }) + t('name')
             "other:label",              // t('label', { ns: 'other' })
+            "other:transLabel",         // <Trans i18nKey="transLabel" ns="other" />
+            "common:card.title",        // useTranslation('common', { keyPrefix: 'card' }) + <Trans t={t} i18nKey="title" />
         )
 
         /** Nothing uses them. `field.email` sits behind t(`${name}`): no static part, nothing to see. */
