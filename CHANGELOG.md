@@ -18,6 +18,7 @@
 
 ### Fixes
 
+- [Flutter] **ARB keys keep their `@key` block**: a key created in the template catalogue (`app_en.arb`) gets its `"@key"` entry, with the placeholders its value names, so `flutter gen-l10n` builds it; renaming or deleting a key renames or deletes its `@key` entry too.
 - [Translation dialog] **The reference locale is listed first**: *Create Translation* and *Edit Translations* show the locale you translate from at the top, then the others in alphabetical order.
 - [Editor] ***Show Translations Inline* now folds the files already open**: despite the 1.16.0 fix, turning it on left the editors already open unfolded; their keys now fold at once.
 - [Machine translation] **A busy or slow engine no longer fails a whole batch**: a rate limit, a short outage or a timeout is retried after the delay the engine asks for, and a batch the engine rejects is split so that only the faulty text fails. Large batches sent to a local model also get more time.

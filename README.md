@@ -146,7 +146,8 @@ their value and whether a missing key is written into them is not tested. XLIFF 
 Angular project only; elsewhere, like CSV, it is exported and imported from *Tools › i18n Support Plus*.
 
 Flutter ARB catalogues feed the tool window, the statistics, the missing-key checks and *Sync Keys*; their `@key`
-and `@@locale` metadata is no key. Dart code is not read: `AppLocalizations.of(context)!.greeting` names its key as a
+and `@@locale` metadata is no key. A key created in a catalogue that describes its keys, the template, gets its
+`@key` block, with the `{placeholders}` of its value, and a key renamed or deleted takes its block along. Dart code is not read: `AppLocalizations.of(context)!.greeting` names its key as a
 getter of the generated class, which the Dart analyzer already checks, so an ARB key is never reported unused.
 
 Keys are resolved as nested properties by default (`app.header.title` walks three levels).

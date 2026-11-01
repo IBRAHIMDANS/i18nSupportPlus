@@ -4,15 +4,20 @@ import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.extensions.localization.json.JsonElementTree
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.actions.CleanupUnusedKeysAction
+import com.ibrahimdans.i18n.plugin.ide.actions.KeyLevelRename
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileKeys
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.intellij.json.psi.JsonFile
+import com.intellij.json.psi.JsonObject
+import com.intellij.json.psi.JsonProperty
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiManager
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -142,5 +147,85 @@ class ArbCataloguesTest : PlatformBaseTest() {
 
         assertTrue(counted.all { it.usageCount == -1 }, "unscanned: $counted")
         assertEquals(emptyList<Any>(), CleanupUnusedKeysAction().orphans(project, viewModel))
+    }
+
+    // ── `@key` blocks ─────────────────────────────────────────────────────────
+
+    private fun text(path: String): String =
+        FileDocumentManager.getInstance().getDocument(myFixture.findFileInTempDir(path))!!.text
+
+    private fun compact(path: String): String = text(path).replace(Regex("\\s"), "")
+
+    private fun englishProperty(name: String): JsonProperty = ReadAction.compute<JsonProperty, RuntimeException> {
+        val file = PsiManager.getInstance(project).findFile(myFixture.findFileInTempDir("lib/l10n/app_en.arb")) as JsonFile
+        (file.topLevelValue as JsonObject).findProperty(name)!!
+    }
+
+    private fun createInEnglish(key: String, value: String) {
+        val english = arbSources().single { it.locale == "en" }
+        DialogViewModel(project).saveTranslation(english, KeysSynchronizer().buildFullKey(key), value)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+    }
+
+    @Test
+    fun theTemplateGetsAnEmptyBlockWithAKeyWithoutPlaceholder() {
+        addCatalogues()
+
+        createInEnglish("title", "Home")
+
+        assertTrue(compact("lib/l10n/app_en.arb").contains("\"title\":\"Home\",\"@title\":{}"), text("lib/l10n/app_en.arb"))
+    }
+
+    @Test
+    fun theTemplateGetsThePlaceholdersOfTheValue() {
+        addCatalogues()
+
+        createInEnglish("unread", "{user} has {count, plural, =1{one message} other{{count} messages}}")
+
+        val english = compact("lib/l10n/app_en.arb")
+        assertTrue(english.contains("\"@unread\":{\"placeholders\":{\"user\":{},\"count\":{}}}"), text("lib/l10n/app_en.arb"))
+        assertTrue(english.indexOf("\"unread\":") < english.indexOf("\"@unread\":"), "the block follows its key: $english")
+    }
+
+    @Test
+    fun placeholdersAreTheNamesInBracesNotTheIcuBranches() {
+        assertEquals(listOf("name"), ArbMetadata.placeholdersOf("Hello {name}, {name}!"))
+        assertEquals(listOf("count"), ArbMetadata.placeholdersOf("{count, plural, one{one item} other{{count} items}}"))
+        assertEquals(emptyList<String>(), ArbMetadata.placeholdersOf("No placeholder"))
+    }
+
+    @Test
+    fun deletingAKeyDeletesItsBlock() {
+        addCatalogues()
+
+        CleanupUnusedKeysAction().deleteKeys(project, listOf("greeting"))
+
+        assertEquals("{\"@@locale\":\"en\",\"farewell\":\"Goodbye\"}", compact("lib/l10n/app_en.arb"))
+        assertFalse(compact("lib/l10n/app_fr.arb").contains("greeting"), text("lib/l10n/app_fr.arb"))
+    }
+
+    @Test
+    fun renamingAKeyInTheCatalogueRenamesItsBlock() {
+        addCatalogues()
+
+        myFixture.renameElement(englishProperty("greeting"), "welcome")
+
+        val english = compact("lib/l10n/app_en.arb")
+        assertTrue(english.contains("\"welcome\":\"Hello{name}\",\"@welcome\":{"), text("lib/l10n/app_en.arb"))
+        assertFalse(english.contains("greeting"), english)
+    }
+
+    /** The rename of AI agents and of the naming inspection's fix goes through [KeyLevelRename]. */
+    @Test
+    fun aKeyRenamedEverywhereTakesItsBlock() {
+        addCatalogues()
+
+        val plan = ReadAction.compute<KeyLevelRename.Plan, RuntimeException> {
+            KeyLevelRename.inTranslationFile(englishProperty("greeting"))!!.plan("welcome")
+        }
+
+        val texts = plan.edits.map { it.text }
+        assertTrue("\"@welcome\"" in texts, "$texts")
+        assertEquals(3, texts.size, "greeting in both catalogues, @greeting in the template: $texts")
     }
 }

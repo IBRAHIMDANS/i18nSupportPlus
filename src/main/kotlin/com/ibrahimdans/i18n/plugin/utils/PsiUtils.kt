@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.utils
 
+import com.ibrahimdans.i18n.extensions.localization.arb.ArbMetadata
 import com.intellij.json.psi.JsonProperty
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.vfs.VirtualFile
@@ -35,9 +36,15 @@ fun PsiElement.hostVirtualFile(): VirtualFile? = hostFile()?.originalFile?.virtu
  * Deletes a translation property together with its separating comma —
  * plain JsonProperty.delete() leaves `{,"b":…}` / `{…,}` behind, corrupting
  * the file. YAML entries have no separator and are deleted as-is.
+ * A key of a Flutter ARB catalogue takes its `@key` block with it.
  * Must be called inside a write action.
  */
 fun deletePropertyAndSeparator(property: PsiElement) {
+    ArbMetadata.blockOf(property)?.let(::deleteWithSeparator)
+    deleteWithSeparator(property)
+}
+
+private fun deleteWithSeparator(property: PsiElement) {
     if (property is JsonProperty) {
         val prev = generateSequence(property.prevSibling) { it.prevSibling }.firstOrNull { it.text.isNotBlank() }
         val next = generateSequence(property.nextSibling) { it.nextSibling }.firstOrNull { it.text.isNotBlank() }
