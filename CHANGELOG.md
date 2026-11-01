@@ -5,6 +5,7 @@
 ### Features
 
 - [Machine translation] **Form of address and project instructions** ([#701](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/701), [#703](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/703)): in *Settings › Tools › i18n Support Plus › Machine Translation*, *Form of address* sets formal or informal per locale (`de: informal; fr: formal`), followed by DeepL and the LLM engines; *Instructions* are sent to the LLM engines with every translation, before the one typed in the key's dialog, and are shared with the project settings.
+- [Translation] **Translations follow the wording your project already uses** ([#702](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/702)): *Translate*, *Fill Missing Translations* and *Retranslate Stale Translations* tell the engine how the neighbouring keys are already translated, and a few existing translations sharing the same words, so "Generate narration" comes back in the style of "Bilder generieren". Only the translation files are read, a thousand characters at most, never your code.
 
 ### Fixes
 

@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.ide.actions.MachineFill
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.ReviewBadge
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
@@ -23,6 +24,7 @@ import com.ibrahimdans.i18n.plugin.translate.MachineTranslationSettings
 import com.ibrahimdans.i18n.plugin.translate.PluralTranslationPlan
 import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.translate.Translation
+import com.ibrahimdans.i18n.plugin.translate.TranslationContext
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
 import com.ibrahimdans.i18n.plugin.translate.asCancellation
@@ -657,14 +659,19 @@ class TranslationDialog(
             }
         }
         // Read by the engine, not by the user: English whatever the IDE language.
-        val context = "A UI string of an application, under the i18n key ${keyField.text}"
+        val header = TranslationContext.header(listOf(keyField.text))
+        val path = pathOf(keyField.text, config)
+        val shownSources = textAreas.keys.toList()
         val instruction = instructionField.text.trim().takeIf { instructionField.isVisible }.orEmpty()
         val results = ProgressManager.getInstance().runProcessWithProgressSynchronously<List<Translation>, RuntimeException>(
             {
                 val indicator = ProgressManager.getInstance().progressIndicator
+                // The files shown, read once in the background: the examples the context picks for each locale.
+                val known = TranslationDataLoader.translationsOf(project, shownSources).mapKeys { KeySpelling.pathOf(it.key) }
                 requests.map { (locale, _, text) ->
                     indicator?.checkCanceled()
                     indicator?.text = PluginBundle.message("dialog.translation.translate.progress", locale)
+                    val context = TranslationContext.of(header, listOf(path), listOf(text), known, source.first, locale, config)
                     provider.translate(TranslationRequest(listOf(text), source.first, locale, context, instruction), indicator?.asCancellation()).single()
                 }
             },
@@ -685,6 +692,16 @@ class TranslationDialog(
         } + notes
         translateStatus.text = failures.joinToString("<br>", "<html>", "</html>").takeIf { failures.isNotEmpty() }.orEmpty()
     }
+
+    /**
+     * [keyText]'s path as [TranslationDataLoader] spells it once its namespace is cut off: the files
+     * shown all belong to the key's namespace, so its neighbours are found by path alone, whatever
+     * the namespace separator. The text as typed when it does not parse.
+     */
+    private fun pathOf(keyText: String, config: Config): String =
+        viewModel.parseKey(keyText)?.compositeKey?.takeIf { it.isNotEmpty() }
+            ?.fold("") { path, segment -> KeySpelling.child(config, path, segment.text) }
+            ?: KeySpelling.pathOf(keyText)
 
     /**
      * The `other` form of the plural being edited, [otherKey], as [module]'s reference locale holds

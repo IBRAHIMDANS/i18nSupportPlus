@@ -140,6 +140,25 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
     }
 
     @Test
+    fun `the context carries what the module already translates, never a value being replaced`() {
+        val known = mapOf(
+            "common:form.save" to mapOf("en" to "Save {{what}}"),
+            "common:form.reset" to mapOf("en" to "Reset", "fr" to "Réinitialiser"),
+            "common:form.clear" to mapOf("en" to "Clear", "fr" to "Effacer à l'ancienne"),
+            "common:menu.saveAll" to mapOf("en" to "Save all", "fr" to "Tout enregistrer"),
+            "common:menu.quit" to mapOf("en" to "Quit", "fr" to "Quitter"),
+        )
+        val items = listOf(MachineFill.Item("common:form.save", "Save {{what}}"), MachineFill.Item("common:form.clear", "Clear", current = "Effacer à l'ancienne"))
+        MachineFill.translate(items, engine { Translation.Done("x") }, "en", "fr", EmptyProgressIndicator(), known, config)!!
+
+        val context = requests.single().context
+        Assertions.assertTrue("reset: \"Reset\" → \"Réinitialiser\"" in context, context)
+        Assertions.assertTrue("\"Save all\" → \"Tout enregistrer\"" in context, "shares the word save: $context")
+        Assertions.assertFalse("Quitter" in context, context)
+        Assertions.assertFalse("ancienne" in context, "a value being retranslated is no example: $context")
+    }
+
+    @Test
     fun `a module is cut into calls of at most fifty keys`() {
         val items = (1..120).map { MachineFill.Item("common:k%03d".format(it), "text $it") }
         val proposals = MachineFill.translate(items, engine { Translation.Done("FR $it") }, "en", "fr", EmptyProgressIndicator())!!
