@@ -12,6 +12,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationRow
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginCoroutineScope
 import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
 import com.ibrahimdans.i18n.plugin.utils.sourcesOf
 import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
@@ -20,18 +21,22 @@ import com.intellij.json.psi.JsonProperty
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.UndoConfirmationPolicy
 import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
+import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.progress.coroutineToIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.platform.ide.progress.withBackgroundProgress
 import com.intellij.psi.PsiElement
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.table.JBTable
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.awt.BorderLayout
 import java.awt.Dimension
 import javax.swing.JComponent
@@ -71,38 +76,46 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val viewModel = TableViewModel()
+        cleanUp(project)
+    }
 
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.cleanup.progress.title"), false) {
-            override fun run(indicator: ProgressIndicator) {
+    /**
+     * Counts the usages of every key in the background, shows the preview on the EDT, and deletes
+     * the keys kept checked. Returns the job running it, launched in the project's [PluginCoroutineScope].
+     */
+    internal fun cleanUp(project: Project): Job = PluginCoroutineScope.of(project).launch {
+        LOG.info("Clean Up Keys with No Reference: started")
+        val viewModel = TableViewModel()
+        val orphans = withBackgroundProgress(project, PluginBundle.message("action.cleanup.progress.title"), cancellable = false) {
+            coroutineToIndicator { indicator ->
                 indicator.text = PluginBundle.message("action.cleanup.progress.loading")
-                val orphans = orphans(project, viewModel) { rows ->
+                orphans(project, viewModel) { rows ->
                     indicator.text = PluginBundle.message("action.cleanup.progress.counting", rows)
                 }
-                // A key orphaned in several modules is one row per module, told apart by its module.
-                val labels = orphans.associateBy { (module, row) -> if (module == null) row.key else "${row.key} — ${module.name}" }
-
-                ApplicationManager.getApplication().invokeLater {
-                    if (orphans.isEmpty()) {
-                        PluginNotifications.notify(project, PluginBundle.message("action.cleanup.none"), title = PluginBundle.message("action.cleanup.title"))
-                        return@invokeLater
-                    }
-                    val dialog = CleanupPreviewDialog(project, labels.map { (label, orphan) -> label to orphan.second.values.size })
-                    if (dialog.showAndGet()) {
-                        val selected = dialog.selectedKeys().mapNotNull(labels::get)
-                        if (selected.isNotEmpty()) {
-                            val deletedEntries = selected.groupBy({ it.first }, { it.second.key })
-                                .entries.sumOf { (module, keys) -> deleteKeys(project, keys, module) }
-                            PluginNotifications.notify(
-                                project,
-                                PluginBundle.message("action.cleanup.done", selected.size, deletedEntries),
-                                title = PluginBundle.message("action.cleanup.title")
-                            )
-                        }
-                    }
-                }
             }
-        })
+        }
+        LOG.info("Clean Up Keys with No Reference: ${orphans.size} keys with no reference found")
+        // A key orphaned in several modules is one row per module, told apart by its module.
+        val labels = orphans.associateBy { (module, row) -> if (module == null) row.key else "${row.key} — ${module.name}" }
+
+        withContext(Dispatchers.EDT) {
+            if (orphans.isEmpty()) {
+                PluginNotifications.notify(project, PluginBundle.message("action.cleanup.none"), title = PluginBundle.message("action.cleanup.title"))
+                return@withContext
+            }
+            val dialog = CleanupPreviewDialog(project, labels.map { (label, orphan) -> label to orphan.second.values.size })
+            if (!dialog.showAndGet()) return@withContext
+            val selected = dialog.selectedKeys().mapNotNull(labels::get)
+            if (selected.isEmpty()) return@withContext
+            val deletedEntries = selected.groupBy({ it.first }, { it.second.key })
+                .entries.sumOf { (module, keys) -> deleteKeys(project, keys, module) }
+            LOG.info("Clean Up Keys with No Reference: ${selected.size} keys deleted, $deletedEntries locale entries")
+            PluginNotifications.notify(
+                project,
+                PluginBundle.message("action.cleanup.done", selected.size, deletedEntries),
+                title = PluginBundle.message("action.cleanup.title")
+            )
+        }
     }
 
     // ── Detection (read actions) ──────────────────────────────────────────────
@@ -153,6 +166,8 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
      * WriteCommandAction — a single undo restores the whole cleanup, the
      * reviews of the deleted keys included ([ReviewMigration]).
      * Pure of any UI (testable); returns the number of deleted locale entries.
+     *
+     * Runs on the EDT, where its callers are: the preview's confirmation, the AI agents' tool, tests.
      */
     internal fun deleteKeys(project: Project, keys: List<String>, module: ModuleConfig? = null): Int {
         val (properties, reviews) = ReadAction.compute<Pair<List<PsiElement>, List<ReviewSpot>>, RuntimeException> {
@@ -162,17 +177,19 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
             val found = keys.flatMap { leafProperties(sources, it, config) }
             found to ReviewMigration.spotsOf(found)
         }
-        ApplicationManager.getApplication().invokeAndWait {
-            WriteCommandAction.writeCommandAction(project)
-                .withName(PluginBundle.message("action.cleanup.command"))
-                .withGlobalUndo()
-                .withUndoConfirmationPolicy(UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION)
-                .run<RuntimeException> {
-                    properties.forEach { if (it.isValid) deletePropertyAndSeparator(it) }
-                    ReviewMigration.remove(project, reviews)
-                }
-        }
+        WriteCommandAction.writeCommandAction(project)
+            .withName(PluginBundle.message("action.cleanup.command"))
+            .withGlobalUndo()
+            .withUndoConfirmationPolicy(UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION)
+            .run<RuntimeException> {
+                properties.forEach { if (it.isValid) deletePropertyAndSeparator(it) }
+                ReviewMigration.remove(project, reviews)
+            }
         return properties.size
+    }
+
+    private companion object {
+        val LOG = Logger.getInstance(CleanupUnusedKeysAction::class.java)
     }
 }
 

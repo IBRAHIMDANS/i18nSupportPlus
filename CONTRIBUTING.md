@@ -120,6 +120,10 @@ plugin tests extend `PlatformBaseTest`; `TestsCommon.kt` holds the shared helper
   bumped at release time only
 - Pull requests target `main`, which is protected (no direct push), and reference the issue
   they close: `Fixes #123`
+- New code runs long work in coroutines; `Task.Backgroundable` and `invokeAndWait` are not used.
+  Launch in the project's `PluginCoroutineScope`, report with `withBackgroundProgress`, read with
+  `readAction` (or `coroutineToIndicator` for code that expects a `ProgressIndicator`), and come
+  back to the EDT with `withContext(Dispatchers.EDT)` for dialogs and write commands
 - To report a problem, use the [issue templates](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/new/choose)
 
 ## Optional plugin dependencies and test sandbox notes

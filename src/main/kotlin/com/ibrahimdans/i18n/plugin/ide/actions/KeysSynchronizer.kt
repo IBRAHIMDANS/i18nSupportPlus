@@ -11,17 +11,22 @@ import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginCoroutineScope
 import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
 import com.ibrahimdans.i18n.plugin.utils.sourcesOf
-import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
+import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.progress.coroutineToIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.platform.ide.progress.withBackgroundProgress
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.awt.BorderLayout
 import java.awt.Dimension
 import javax.swing.*
@@ -39,36 +44,37 @@ class KeysSynchronizer {
     data class MissingEntry(val key: String, val locale: String, val source: LocalizationSource)
 
     /**
-     * Entry point. Collects missing keys, shows the preview dialog, and applies on confirm.
+     * Entry point. Collects missing keys in the background, shows the preview dialog on the EDT, and
+     * applies on confirm. Returns the job running it, launched in the project's [PluginCoroutineScope].
      */
-    fun sync(project: Project) {
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.sync.progress.analyzing"), false) {
-            override fun run(indicator: ProgressIndicator) {
+    fun sync(project: Project): Job = PluginCoroutineScope.of(project).launch {
+        LOG.info("Sync Keys: started")
+        // Null when the project holds no translation file at all.
+        val missing = withBackgroundProgress(project, PluginBundle.message("action.sync.progress.analyzing"), cancellable = false) {
+            coroutineToIndicator { indicator ->
                 indicator.text = PluginBundle.message("action.sync.progress.loading")
                 val config = Settings.getInstance(project).config()
                 val allLocales = ModuleSources.scopes(config.modules).flatMap { TranslationDataLoader.discoverLocales(project, it) }.distinct()
-
-                if (allLocales.isEmpty()) {
-                    // Nothing to decide: a notification, not a modal.
-                    PluginNotifications.notify(project, PluginBundle.message("action.sync.none.sources"), title = PluginBundle.message("action.sync.title"))
-                    return
-                }
-
+                if (allLocales.isEmpty()) return@coroutineToIndicator null
                 indicator.text = PluginBundle.message("action.sync.progress.computing")
-                val missing = missingEntries(project, config)
-
-                ApplicationManager.getApplication().invokeLater {
-                    if (missing.isEmpty()) {
-                        PluginNotifications.notify(project, PluginBundle.message("action.sync.none.missing"), title = PluginBundle.message("action.sync.title"))
-                        return@invokeLater
-                    }
-                    val dialog = SyncPreviewDialog(project, missing)
-                    if (dialog.showAndGet()) {
-                        applyMissingKeys(project, missing)
-                    }
-                }
+                missingEntries(project, config)
             }
-        })
+        }
+        LOG.info("Sync Keys: ${missing?.size ?: 0} missing entries found")
+
+        val confirmed = withContext(Dispatchers.EDT) {
+            when {
+                // Nothing to decide: a notification, not a modal.
+                missing == null -> PluginNotifications.notify(project, PluginBundle.message("action.sync.none.sources"), title = PluginBundle.message("action.sync.title"))
+                missing.isEmpty() -> PluginNotifications.notify(project, PluginBundle.message("action.sync.none.missing"), title = PluginBundle.message("action.sync.title"))
+                else -> return@withContext SyncPreviewDialog(project, missing).showAndGet()
+            }
+            false
+        }
+        if (confirmed && missing != null) {
+            applyMissingKeys(project, missing)
+            LOG.info("Sync Keys: ${missing.size} missing entries written")
+        }
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────────
@@ -157,33 +163,33 @@ class KeysSynchronizer {
      * All PSI writes are batched into a single WriteCommandAction to avoid
      * N EDT round-trips (one per key) and prevent perceptible UI freezes.
      */
-    private fun applyMissingKeys(project: Project, missing: List<MissingEntry>) {
-        val viewModel = DialogViewModel(project)
+    private suspend fun applyMissingKeys(project: Project, missing: List<MissingEntry>) {
         val config = Settings.getInstance(project).config()
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.sync.progress.title"), false) {
-            override fun run(indicator: ProgressIndicator) {
-                // Phase 1 (background): build all (source, fullKey) pairs — no EDT touch
+        withBackgroundProgress(project, PluginBundle.message("action.sync.progress.title"), cancellable = false) {
+            // Phase 1 (background): build all (source, fullKey) pairs — no EDT touch
+            val operations = coroutineToIndicator { indicator ->
                 indicator.text = PluginBundle.message("action.sync.progress.preparing")
-                val operations = missing.mapIndexed { index, entry ->
+                val built = missing.mapIndexed { index, entry ->
                     indicator.fraction = index.toDouble() / missing.size * 0.5
                     Triple(entry.source, buildFullKey(entry.key, config), entry)
                 }
-
-                // Phase 2 (EDT): apply all writes in a single WriteCommandAction
                 indicator.text = PluginBundle.message("action.sync.progress.writing", missing.size)
                 indicator.fraction = 0.5
-                ApplicationManager.getApplication().invokeAndWait {
-                    WriteCommandAction.runWriteCommandAction(
-                        project, PluginBundle.message("action.sync.command"), null,
-                    {
-                        for ((source, fullKey, _) in operations) {
-                            viewModel.saveTranslation(source, fullKey, "")
-                        }
-                    })
-                }
-                indicator.fraction = 1.0
+                built
             }
-        })
+
+            // Phase 2 (EDT): apply all writes in a single WriteCommandAction
+            withContext(Dispatchers.EDT) {
+                val viewModel = DialogViewModel(project)
+                WriteCommandAction.runWriteCommandAction(
+                    project, PluginBundle.message("action.sync.command"), null,
+                {
+                    for ((source, fullKey, _) in operations) {
+                        viewModel.saveTranslation(source, fullKey, "")
+                    }
+                })
+            }
+        }
     }
 
     /**
@@ -201,6 +207,10 @@ class KeysSynchronizer {
         if (path.isBlank()) return FullKey(source = key, ns = namespace?.let(::Literal), compositeKey = emptyList())
         val compositeKey = KeySpelling.segmentsOf(key, config).filter { it.isNotEmpty() }.map { Literal(it) }
         return FullKey(source = key, ns = namespace?.let(::Literal), compositeKey = compositeKey)
+    }
+
+    private companion object {
+        val LOG = Logger.getInstance(KeysSynchronizer::class.java)
     }
 }
 

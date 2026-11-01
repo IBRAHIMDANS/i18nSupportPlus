@@ -9,24 +9,28 @@ import com.ibrahimdans.i18n.plugin.utils.CsvTranslationCodec
 import com.ibrahimdans.i18n.plugin.utils.CsvTranslationCodec.ImportPlan
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginCoroutineScope
 import com.ibrahimdans.i18n.plugin.utils.XliffTranslationCodec
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.EDT
+import com.intellij.openapi.application.readAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
+import com.intellij.openapi.progress.coroutineToIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
+import com.intellij.platform.ide.progress.withBackgroundProgress
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.table.JBTable
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.nio.charset.StandardCharsets
@@ -64,78 +68,79 @@ class ImportTranslationsAction : AnAction() {
         val text = String(file.contentsToByteArray(), StandardCharsets.UTF_8)
         val isXliff = file.extension?.lowercase() in XliffTranslationCodec.EXTENSIONS
 
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.import.progress.analyzing"), false) {
-            override fun run(indicator: ProgressIndicator) {
-                val plan = try {
-                    val records = if (isXliff) XliffTranslationCodec.parse(text) else CsvTranslationCodec.parse(text)
-                    val existing = TranslationDataLoader.loadAllTranslations(project, scope.config)
-                    val knownLocales = existing.values.flatMap { it.keys }.distinct()
-                    CsvTranslationCodec.computeImportPlan(existing, knownLocales, records)
-                } catch (ex: IllegalArgumentException) {
-                    ApplicationManager.getApplication().invokeLater {
-                        Messages.showErrorDialog(
-                            project,
-                            ex.message ?: PluginBundle.message("action.import.error.malformed"),
-                            PluginBundle.message("action.import.title")
-                        )
-                    }
-                    return
-                }
-
-                ApplicationManager.getApplication().invokeLater {
-                    if (plan.entries.isEmpty()) {
-                        Messages.showInfoMessage(
-                            project,
-                            summaryOf(plan, applied = false),
-                            PluginBundle.message("action.import.title")
-                        )
-                        return@invokeLater
-                    }
-                    val dialog = ImportPreviewDialog(project, plan)
-                    if (dialog.showAndGet()) {
-                        applyPlan(project, plan, scope)
+        PluginCoroutineScope.of(project).launch {
+            LOG.info("Import Translations: started (${file.name})")
+            var malformed: String? = null
+            val plan = withBackgroundProgress(project, PluginBundle.message("action.import.progress.analyzing"), cancellable = false) {
+                coroutineToIndicator {
+                    try {
+                        val records = if (isXliff) XliffTranslationCodec.parse(text) else CsvTranslationCodec.parse(text)
+                        val existing = TranslationDataLoader.loadAllTranslations(project, scope.config)
+                        val knownLocales = existing.values.flatMap { it.keys }.distinct()
+                        CsvTranslationCodec.computeImportPlan(existing, knownLocales, records)
+                    } catch (ex: IllegalArgumentException) {
+                        malformed = ex.message ?: PluginBundle.message("action.import.error.malformed")
+                        null
                     }
                 }
             }
-        })
+            LOG.info("Import Translations: ${plan?.entries?.size ?: 0} entries planned${if (malformed != null) ", file not read" else ""}")
+
+            val confirmed = withContext(Dispatchers.EDT) {
+                when {
+                    plan == null -> Messages.showErrorDialog(
+                        project,
+                        malformed ?: PluginBundle.message("action.import.error.malformed"),
+                        PluginBundle.message("action.import.title")
+                    )
+                    plan.entries.isEmpty() -> Messages.showInfoMessage(project, summaryOf(plan, applied = false), PluginBundle.message("action.import.title"))
+                    else -> return@withContext ImportPreviewDialog(project, plan).showAndGet()
+                }
+                false
+            }
+            if (confirmed && plan != null) applyPlan(project, plan, scope)
+        }
     }
 
     /** Applies all planned entries in one WriteCommandAction (single undo step). */
-    private fun applyPlan(project: Project, plan: ImportPlan, scope: ModuleScope) {
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.import.progress.title"), false) {
-            override fun run(indicator: ProgressIndicator) {
+    private suspend fun applyPlan(project: Project, plan: ImportPlan, scope: ModuleScope) {
+        val written = withBackgroundProgress(project, PluginBundle.message("action.import.progress.title"), cancellable = false) {
+            val config = Settings.getInstance(project).config()
+            // Scoped to the chosen module: writing against the project-wide source
+            // list would route a value into another module's file sharing the same
+            // namespace and locale.
+            val sources = readAction { TranslationDataLoader.findSources(project, scope.config) }
+            val operations = coroutineToIndicator { indicator ->
                 indicator.text = PluginBundle.message("action.import.progress.resolving")
-                val viewModel = DialogViewModel(project)
                 val synchronizer = KeysSynchronizer()
-                val config = Settings.getInstance(project).config()
-                // Scoped to the chosen module: writing against the project-wide source
-                // list would route a value into another module's file sharing the same
-                // namespace and locale.
-                val sources = ReadAction.compute<List<LocalizationSource>, RuntimeException> {
-                    TranslationDataLoader.findSources(project, scope.config)
-                }
-                val operations = plan.entries.mapNotNull { entry ->
+                val built = plan.entries.mapNotNull { entry ->
                     val source = translationFileFor(entry.key, entry.locale, sources) ?: return@mapNotNull null
                     Triple(source, synchronizer.buildFullKey(entry.key, config), entry.value)
                 }
-
-                indicator.text = PluginBundle.message("action.import.progress.writing", operations.size)
-                ApplicationManager.getApplication().invokeAndWait {
-                    WriteCommandAction.runWriteCommandAction(
-                        project, PluginBundle.message("action.import.command"), null,
-                    {
-                        for ((source, fullKey, value) in operations) {
-                            viewModel.saveTranslation(source, fullKey, value)
-                        }
-                    })
-                    Messages.showInfoMessage(
-                        project,
-                        summaryOf(plan, applied = true),
-                        PluginBundle.message("action.import.title")
-                    )
-                }
+                indicator.text = PluginBundle.message("action.import.progress.writing", built.size)
+                built
             }
-        })
+
+            withContext(Dispatchers.EDT) {
+                val viewModel = DialogViewModel(project)
+                WriteCommandAction.runWriteCommandAction(
+                    project, PluginBundle.message("action.import.command"), null,
+                {
+                    for ((source, fullKey, value) in operations) {
+                        viewModel.saveTranslation(source, fullKey, value)
+                    }
+                })
+            }
+            operations.size
+        }
+        LOG.info("Import Translations: $written values written")
+        withContext(Dispatchers.EDT) {
+            Messages.showInfoMessage(
+                project,
+                summaryOf(plan, applied = true),
+                PluginBundle.message("action.import.title")
+            )
+        }
     }
 
     private fun summaryOf(plan: ImportPlan, applied: Boolean): String = buildString {
@@ -161,6 +166,8 @@ class ImportTranslationsAction : AnAction() {
     }
 
     private companion object {
+        val LOG = Logger.getInstance(ImportTranslationsAction::class.java)
+
         /** How many of the ignored keys the summary names before trailing off. */
         const val SAMPLE_SIZE = 5
 
