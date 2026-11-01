@@ -142,4 +142,55 @@ class HardcodedAngularTextInspectionTest : ExtractionTestBase() {
         extract("<button>Sa<caret>ve</button>", "test:ref.save", "\"@jsverse/transloco\": \"7.0.0\"")
         myFixture.checkResult("<button>{{ 'test:ref.save' | transloco }}</button>")
     }
+
+    /** A component whose inline template, a fragment of Angular's dialect injected into the literal, is [literal]. */
+    private fun openInlineTemplate(literal: String) {
+        angularProject()
+        myFixture.enableInspections(HardcodedAngularTextInspection::class.java)
+        myFixture.configureByText(
+            "inline.component.ts",
+            "import { Component } from '@angular/core';\n" +
+                "@Component({ selector: 'app-inline', template: $literal })\nexport class InlineComponent {}"
+        )
+    }
+
+    @Test
+    fun anInlineTemplateIsReadLikeATemplateFile() {
+        var reported = emptyList<String>()
+        myFixture.runWithConfig(config("json")) {
+            openInlineTemplate("`<button>Save</button><p translate>menu.home</p><input placeholder=\"Name\">`")
+            reported = myFixture.doHighlighting()
+                .filter { it.severity == HighlightSeverity.WEAK_WARNING && it.description == message }
+                .map { it.text }
+        }
+        Assertions.assertEquals(listOf("Save", "Name"), reported)
+    }
+
+    private fun extractInline(literal: String, key: String) = myFixture.runWithConfig(config("json")) {
+        openInlineTemplate(literal)
+        myFixture.addFileToProject("assets/test.json", """{"ref": {}}""")
+        val fix = myFixture.getAllQuickFixes().single { it.text == hint }
+        setTestInputDialog(predefinedTextInputDialog(key))
+        myFixture.launchActionAndWait(fix)
+    }
+
+    @Test
+    fun theQuickFixWritesThePipeIntoAnInlineTemplate() {
+        extractInline("`<button>Sa<caret>ve</button>`", "test:ref.save")
+        myFixture.checkResult(
+            "import { Component } from '@angular/core';\n" +
+                "@Component({ selector: 'app-inline', template: `<button>{{ 'test:ref.save' | translate }}</button>` })\n" +
+                "export class InlineComponent {}"
+        )
+    }
+
+    @Test
+    fun theQuickFixEscapesTheQuotesOfAnInlineTemplatesLiteral() {
+        extractInline("'<input placeholder=\"Your na<caret>me\">'", "test:ref.name")
+        myFixture.checkResult(
+            "import { Component } from '@angular/core';\n" +
+                "@Component({ selector: 'app-inline', template: '<input [placeholder]=\"\\'test:ref.name\\' | translate\">' })\n" +
+                "export class InlineComponent {}"
+        )
+    }
 }

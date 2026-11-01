@@ -1,7 +1,6 @@
 package com.ibrahimdans.i18n.extensions.lang.js
 
 import com.ibrahimdans.i18n.plugin.factory.MessageVariable
-import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.lang.javascript.psi.JSExpression
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.text.StringUtil
@@ -80,8 +79,8 @@ internal object MarkupTexts {
 
     /** The text [element] — an [XmlText] or an [XmlAttributeValue] — stands for, when [dialect] reports it; else null. */
     fun of(element: PsiElement, dialect: MarkupDialect): MarkupText? {
+        // An Angular component's inline template is an injected fragment of the dialect: read like a file.
         if (!dialect.applies(element)) return null
-        if (InjectedLanguageManager.getInstance(element.project).isInjectedFragment(element.containingFile)) return null
         return when (element) {
             is XmlText -> content(element, dialect)
             is XmlAttributeValue -> attribute(element, dialect)
