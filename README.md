@@ -344,7 +344,7 @@ It runs the plugin's own checks in CI, with the plugin's settings, whatever the 
   }
   ```
 
-  Settings: `translationsRoot`, `excludedDirectories`, `defaultNs`, `fallbackNs`, `ignoredLocales`, `previewLocale`, `foldingPreferredLanguage`, `nsSeparator`, `keySeparator`, `flatKeys`, `gettext`, `localeAliases`; per module: `name`, `rootDirectory`, `pathTemplate`, `fileTemplate`, `preset`, `referenceLocale`, `enabled` (`false` puts the module aside: neither checked nor reported).
+  Settings: those of [Share the configuration with your team](#share-the-configuration-with-your-team), which the IDE reads from the same file, and `previewLocale`; per module the same fields, `enabled` (`false` puts the module aside: neither checked nor reported) included.
 - `--locales <dir>` checks only that directory: a file per locale (`en.json`, `fr.yml`) or a folder per locale with a file per namespace (`en/common.json`); other files are left alone.
 - For each locale, it reports the keys **missing** compared to the reference, the **orphan** keys the reference does not hold, and the **empty** values. Plural keys (`item_one`, `item_other`) are checked against the forms each language needs: `ja` only `item_other`, `ru` also `item_few` and `item_many`.
 - `--code` also reads the JavaScript, TypeScript and Vue files — and the `.html` templates of an Angular project, one whose `package.json` requires `@angular/core` — and reports the **unused** keys of the reference locale — a key a template literal may build, such as `` t(`status.${kind}`) `` for `status.*`, is not one — and the **unknown** keys, called by the code but absent from the reference locale, with their file and line. It reads:
@@ -525,6 +525,15 @@ A monorepo is described as **modules** on the *Modules* settings page, *Settings
 **Settings | Tools | i18n Support Plus**, with four pages below it: **Modules** (the applications of a monorepo), **Key Assistance Rules**, **Machine Translation** (see [Machine Translation](#machine-translation)) and **Reviews** (the name your reviews are signed with). The locale fields list the project's locales and still accept one typed by hand.
 
 ![Settings](docs/img/settings.png)
+
+### Share the configuration with your team
+
+`.idea/i18nSettings.xml` is often kept out of version control, so each developer used to run the setup wizard again. Click **Export to i18n-check.json…** at the top of the settings page: the project's settings are written to `i18n-check.json` at its root, for the team to commit. Once the file is there, the IDE reads the settings it names from it, and so does [`i18n-check`](#command-line-check) in CI.
+
+- It takes the names of the settings below: `translationsRoot`, `excludedDirectories`, `jsConfiguration`, `defaultNs`, `fallbackNs`, `nsSeparator`, `keySeparator`, `pluralSeparator`, `firstComponentNs`, `flatKeys`, `gettext`, `gettextAliases`, `foldingPreferredLanguage` (the project reference locale), `ignoredLocales`, `localeAliases`, `keptKeys`, and `modules` (`name`, `rootDirectory`, `pathTemplate`, `fileTemplate`, `keyTemplate`, `preset`, `referenceLocale`, `callTemplate`, `writeDefaultValue`, `enabled`).
+- A setting the file names wins over the IDE's, and is greyed out on the settings page: change it in the file, which **Edit i18n-check.json** opens. The others — folding, the gutter, the preview locale, inspections — stay on each machine.
+- A module's *Active* box stays on each machine too: *Focus on This Module* sets an application aside for you only. A module the file sets aside (`"enabled": false`) stays aside for everyone.
+- The file is read again as soon as it is saved. A name it does not know, or a file that does not parse, is reported in a notification, and the IDE keeps its own settings until it is fixed.
 
 ### Namespaces and separators
 

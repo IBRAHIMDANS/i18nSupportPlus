@@ -168,6 +168,11 @@
         <extensionPoint interface="com.ibrahimdans.i18n.TranslationTechnology" name="technology" dynamic="true"/>
         <extensionPoint interface="com.ibrahimdans.i18n.ComponentSourceProvider" name="componentSources" dynamic="true"/>
     </extensionPoints>
+    <projectListeners>
+        <!-- i18n-check.json read again as soon as it changes. -->
+        <listener class="com.ibrahimdans.i18n.plugin.ide.settings.ProjectConfigFileListener"
+                  topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>
+    </projectListeners>
     <extensions defaultExtensionNs="com.intellij">
         <!-- Flutter's ARB catalogues are JSON: read as such, the type Flutter's own plugin gives them. -->
         <fileType name="JSON" extensions="arb"/>

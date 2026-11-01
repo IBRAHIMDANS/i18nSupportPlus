@@ -9,8 +9,10 @@ import java.awt.Component
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import javax.swing.DefaultListCellRenderer
+import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JComboBox
+import javax.swing.JComponent
 import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.JTextField
@@ -19,6 +21,7 @@ import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.text.JTextComponent
 import kotlin.reflect.KMutableProperty0
+import kotlin.reflect.KProperty
 
 private fun addLimitationsAndHandlers(component: JTextComponent, maxLength: Int, onChange: (newText: String) -> Unit = {}, isValid: (e: Char) -> Boolean = { true }) {
     component.addKeyListener(object: KeyAdapter() {
@@ -38,6 +41,17 @@ private fun addLimitationsAndHandlers(component: JTextComponent, maxLength: Int,
 }
 
 /**
+ * What the settings page shows of `i18n-check.json` ([ProjectConfigFile]): the settings it [held],
+ * as it sets them, and the buttons to [edit] the file and to [export] the settings to it — none when
+ * null, as in the UI test that builds the page with no application behind it.
+ */
+class ConfigFileView(
+    val held: Map<String, String> = emptyMap(),
+    val edit: (() -> Unit)? = null,
+    val export: (() -> Unit)? = null,
+)
+
+/**
  * Settings configuration panel.
  *
  * Layout is built with the Kotlin UI DSL, but the components keep two contracts
@@ -50,13 +64,13 @@ private fun addLimitationsAndHandlers(component: JTextComponent, maxLength: Int,
  * panel in a bare JFrame, with no running Application behind it — which is also why the locales
  * listed by the locale fields are handed in by [offerLocales] rather than looked up here.
  */
-class SettingsPanel(val settings: Settings, val project: Project) {
+class SettingsPanel(val settings: Settings, val project: Project, private val configFile: ConfigFileView = ConfigFileView()) {
 
     private val diagnosticsPanel = ConfigDiagnosticsPanel(project)
 
     private val referenceLocale = LocaleChoice.combo(
         textField(PluginBundle.message("settings.folding.preferredLanguage"), settings::foldingPreferredLanguage, columns = 6)
-    )
+    ).heldBy(settings::foldingPreferredLanguage)
 
     private val previewLocale = LocaleChoice.combo(
         textField(PluginBundle.message("settings.preview.locale"), settings::previewLocale, columns = 6)
@@ -77,6 +91,19 @@ class SettingsPanel(val settings: Settings, val project: Project) {
         diagnosticsPanel.refresh(settings.config())
         return panel {
             row { cell(diagnosticsPanel).align(AlignX.FILL) }
+
+            if (configFile.held.isNotEmpty()) {
+                row {
+                    comment(PluginBundle.message("settings.config.file.held.comment", ProjectConfigFile.PATH, configFile.held.keys.joinToString(", ")))
+                }
+            }
+            val fileButtons = listOfNotNull(
+                configFile.edit?.let { button(PluginBundle.message("settings.config.file.edit", ProjectConfigFile.PATH), it) },
+                configFile.export?.let { button(PluginBundle.message("settings.config.file.export"), it) },
+            )
+            if (fileButtons.isNotEmpty()) {
+                row { fileButtons.forEach { cell(it) } }.rowComment(PluginBundle.message("settings.config.file.export.comment", ProjectConfigFile.PATH))
+            }
 
             row { comment(PluginBundle.message("settings.modules.moved.comment")) }
 
@@ -222,11 +249,32 @@ class SettingsPanel(val settings: Settings, val project: Project) {
         LocaleChoice.offer(previewLocale, locales)
     }
 
+    /**
+     * Greys out a control [property] is shown in when `i18n-check.json` sets it: the file is where it
+     * changes, and the value the control shows is the file's ([initial]).
+     */
+    private fun <T : JComponent> T.heldBy(property: KProperty<*>): T {
+        if (property.name in configFile.held) {
+            isEnabled = false
+            toolTipText = PluginBundle.message("settings.config.file.held.tooltip", ProjectConfigFile.PATH)
+        }
+        return this
+    }
+
+    /** What a control shows of [property] first: the value `i18n-check.json` sets, else the stored one. */
+    private fun initial(property: KMutableProperty0<String>): String = configFile.held[property.name] ?: property.get()
+
+    private fun button(label: String, action: () -> Unit): JButton =
+        JButton(label).apply {
+            name = label
+            addActionListener { action() }
+        }
+
     private fun checkbox(label: String, property: KMutableProperty0<Boolean>): JCheckBox {
-        val checkbox = JCheckBox(label, property.get())
+        val checkbox = JCheckBox(label, configFile.held[property.name]?.toBoolean() ?: property.get())
         checkbox.name = label
         checkbox.addItemListener { _ -> property.set(checkbox.isSelected) }
-        return checkbox
+        return checkbox.heldBy(property)
     }
 
     private fun keyOrderField(label: String, property: KMutableProperty0<KeyOrder>): JComboBox<KeyOrder> {
@@ -249,17 +297,17 @@ class SettingsPanel(val settings: Settings, val project: Project) {
     }
 
     private fun separatorField(label: String, property: KMutableProperty0<String>): JTextField {
-        val control = JTextField(property.get(), 2)
+        val control = JTextField(initial(property), 2)
         control.name = label
         addLimitationsAndHandlers(control, 1, property::set, {!" {}$`".contains(it)})
-        return control
+        return control.heldBy(property)
     }
 
     private fun textField(label: String, property: KMutableProperty0<String>, maxLength: Int = 100, columns: Int = 10): JTextField {
-        val control = JTextField(property.get(), columns)
+        val control = JTextField(initial(property), columns)
         control.name = label
         addLimitationsAndHandlers(control, maxLength, property::set)
-        return control
+        return control.heldBy(property)
     }
 
     private fun numberField(label: String, property: KMutableProperty0<Int>): JTextField {
