@@ -129,13 +129,20 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
          * collapsed; on turning off, they are expanded first, so that the update drops them. Only
          * the keys: the user's own folding is left as it was, and the key under the caret is not
          * collapsed, as the platform leaves it open on an editor's first pass too.
+         *
+         * Runs on the EDT. The editor's last folding update is dropped first: the platform keeps it
+         * on the editor until the file or its folding changes, and a settings change moves neither,
+         * so an editor the daemon had already gone over got back the update computed before the
+         * switch — no key region to fold. The fixture's highlighting re-creates the regions and hid it.
          */
         fun refreshOpenEditors(project: Project, fold: Boolean) {
+            val folding = CodeFoldingManager.getInstance(project)
             EditorFactory.getInstance().allEditors
                 .filter { it.project == project }
                 .forEach { editor ->
+                    folding.scheduleAsyncFoldingUpdate(editor)
                     ReadAction.nonBlocking<Pair<Runnable?, Set<TextRange>>> {
-                        val update = CodeFoldingManager.getInstance(project).updateFoldRegionsAsync(editor, false)
+                        val update = folding.updateFoldRegionsAsync(editor, false)
                         update to keyRanges(project, editor.document)
                     }
                         .withDocumentsCommitted(project)
