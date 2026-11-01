@@ -19,37 +19,26 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
-import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.JBColor
-import com.intellij.ui.ListSpeedSearch
 import com.intellij.ui.awt.RelativePoint
-import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.JBList
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
 import java.awt.Cursor
-import java.awt.Dimension
 import java.awt.Font
 import java.awt.Graphics
 import java.awt.Point
-import java.awt.event.KeyAdapter
-import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.text.DecimalFormat
-import javax.swing.DefaultListModel
-import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JTable
-import javax.swing.ListSelectionModel
 import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.DefaultTableModel
 
@@ -67,16 +56,6 @@ private const val PERCENT_AREA_WIDTH = 60
 
 /** Unscaled inset of a locale cell's contents; the bar and the count start there. */
 private const val CELL_INSET = 4
-
-/** Bounds of the popup listing untranslated keys, unscaled pixels; rows beyond the max scroll. */
-private const val POPUP_MAX_ROWS = 12
-private const val POPUP_MIN_WIDTH = 320
-private const val POPUP_MAX_WIDTH = 720
-private const val POPUP_PADDING = 24
-/** Room the popup's title bar keeps around its text: insets and the resize/move gestures. */
-private const val POPUP_TITLE_PADDING = 48
-/** Title bar plus hint line of the popup, added to the list's own height. */
-private const val POPUP_CHROME_HEIGHT = 56
 
 /** Unscaled preferred widths of the Namespace and Keys columns; the locales share the rest. */
 private const val NAMESPACE_COLUMN_WIDTH = 180
@@ -103,14 +82,6 @@ internal fun parseTranslationKey(fullKey: String, config: Config = Config()): Pa
  * hold it, otherwise the most translated one — a better guess than the project-wide settings for a
  * table of coverage.
  */
-/**
- * Width of the untranslated-keys popup: wide enough for its widest line and for its title,
- * within [min] and [max]. Sized on the lines alone, a short list cut a long title such as
- * `common (default) — 'fr': 2 missing, 0 empty — reference: en` in the middle of a word.
- */
-internal fun missingKeysPopupWidth(contentWidth: Int, titleWidth: Int, padding: Int, titlePadding: Int, min: Int, max: Int): Int =
-    maxOf(contentWidth + padding, titleWidth + titlePadding).coerceIn(min, max)
-
 internal fun selectReferenceLocale(
     stats: List<LocaleStats>,
     module: ModuleConfig? = null,
@@ -345,106 +316,15 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
     private fun rowLabel(row: NamespaceStats): String =
         row.group?.label(config, sources) ?: PluginBundle.message("toolwindow.stats.row.total")
 
-    /** One line of the popup: a key the locale lacks ([LocaleState.MISSING]) or leaves blank ([LocaleState.EMPTY]). */
-    private data class UntranslatedKey(val key: String, val state: LocaleState)
-
     /**
-     * Shows, under the clicked cell, the untranslated keys of [cell] — one namespace in one
-     * locale, or the whole locale from the total row — the missing ones first, then the empty
-     * ones, each wearing the tree's mark for its state and what the key says in the reference
-     * locale (the one with the highest coverage), which is what the translator needs to read.
-     *
-     * Enter or a click opens the translation dialog on the key, the one way to *fix* what
-     * the popup lists; F4 opens the reference file at the key instead. The popup used to open
-     * far from the cell, at a fixed 480×320 for two lines, and its only gesture led to the
-     * reference file — reading the gap rather than closing it.
+     * Shows, under the clicked cell, the untranslated keys of [cell] — see [MissingKeysPopup] — read
+     * against the reference locale, the one with the highest coverage when the module declares none.
      */
     private fun showMissingKeysPopup(rowLabel: String, cell: LocaleStats, at: RelativePoint) {
         val referenceLocale = selectReferenceLocale(report?.total?.byLocale.orEmpty(), moduleConfig, config.modules) ?: return
-        val translations = report?.translations.orEmpty()
-
-        val listModel = DefaultListModel<UntranslatedKey>()
-        cell.missingKeys.forEach { listModel.addElement(UntranslatedKey(it, LocaleState.MISSING)) }
-        cell.emptyKeys.forEach { listModel.addElement(UntranslatedKey(it, LocaleState.EMPTY)) }
-        val list = JBList(listModel)
-        list.selectionMode = ListSelectionModel.SINGLE_SELECTION
-        list.visibleRowCount = listModel.size.coerceIn(1, POPUP_MAX_ROWS)
-        list.cellRenderer = object : ColoredListCellRenderer<UntranslatedKey>() {
-            override fun customizeCellRenderer(list: JList<out UntranslatedKey>, value: UntranslatedKey, index: Int, selected: Boolean, hasFocus: Boolean) {
-                icon = if (value.state == LocaleState.EMPTY) ICON_EMPTY else ICON_MISSING
-                append(value.key)
-                val reference = translations[value.key]?.get(referenceLocale)
-                if (!reference.isNullOrBlank()) {
-                    append("  ")
-                    append(displayValue(reference), SimpleTextAttributes.GRAYED_ATTRIBUTES)
-                }
-                append("  ")
-                append(
-                    PluginBundle.message(if (value.state == LocaleState.EMPTY) "toolwindow.tree.status.empty" else "toolwindow.tree.status.missing"),
-                    SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES
-                )
-            }
-        }
-        ListSpeedSearch.installOn(list) { it.key }
-
-        val title = PluginBundle.message(
-            "toolwindow.stats.missing.popup.title",
-            rowLabel, cell.locale, cell.missing, cell.empty, referenceLocale
-        )
-        val popup = JBPopupFactory.getInstance()
-            .createComponentPopupBuilder(JScrollPane(list), list)
-            .setTitle(title)
-            .setAdText(PluginBundle.message("toolwindow.stats.missing.popup.hint", referenceLocale))
-            .setResizable(true)
-            .setMovable(true)
-            .setRequestFocus(true)
-            .createPopup()
-
-        val translate = {
-            list.selectedValue?.let { chosen ->
-                popup.cancel()
-                editTranslation(chosen.key)
-            }
-        }
-        val reference = {
-            list.selectedValue?.let { chosen ->
-                popup.cancel()
-                navigateToKeyInReferenceFile(chosen.key, referenceLocale)
-            }
-        }
-        list.addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                if (e.button == MouseEvent.BUTTON1 && list.locationToIndex(e.point) >= 0) translate()
-            }
-        })
-        list.addKeyListener(object : KeyAdapter() {
-            override fun keyPressed(e: KeyEvent) {
-                when (e.keyCode) {
-                    KeyEvent.VK_ENTER -> translate()
-                    KeyEvent.VK_F4 -> reference()
-                }
-            }
-        })
-        list.selectedIndex = 0
-
-        // Under the cell, sized to its lines: the popup is an annotation of the cell, not a window.
-        // The title is measured in the bold label font the popup header uses, so it is not cut.
-        val preferred = list.preferredScrollableViewportSize
-        val titleWidth = list.getFontMetrics(JBUI.Fonts.label().asBold()).stringWidth(title)
-        popup.size = Dimension(
-            missingKeysPopupWidth(
-                preferred.width, titleWidth,
-                JBUI.scale(POPUP_PADDING), JBUI.scale(POPUP_TITLE_PADDING),
-                JBUI.scale(POPUP_MIN_WIDTH), JBUI.scale(POPUP_MAX_WIDTH)
-            ),
-            preferred.height + JBUI.scale(POPUP_CHROME_HEIGHT)
-        )
-        popup.show(at)
+        MissingKeysPopup(report?.translations.orEmpty(), ::editTranslation, ::navigateToKeyInReferenceFile)
+            .show(rowLabel, cell, referenceLocale, at)
     }
-
-    /** One line of [value], so a multi-line reference does not stretch the popup. */
-    private fun displayValue(value: String): String =
-        value.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" ")
 
     /** Opens the translation dialog on [key] and reloads the tab once a value is written. */
     private fun editTranslation(key: String) {
