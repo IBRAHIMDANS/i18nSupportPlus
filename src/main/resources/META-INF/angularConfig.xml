@@ -24,5 +24,14 @@
         <completion.contributor language="Angular2Html" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.AngularCompletionContributor"/>
         <lang.foldingBuilder language="Angular2" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder"/>
         <lang.documentationProvider language="Angular2" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
+        <localInspection
+            language="Angular2Html"
+            groupName="i18n Support Plus"
+            bundle="messages.I18nBundle"
+            key="inspection.hardcoded.angular.text.display.name"
+            shortName="I18nHardcodedAngularText"
+            enabledByDefault="false"
+            level="WEAK WARNING"
+            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedAngularTextInspection"/>
     </extensions>
 </idea-plugin>

@@ -2,15 +2,10 @@ package com.ibrahimdans.i18n.extensions.lang.js
 
 import com.ibrahimdans.i18n.plugin.ide.actions.ExtractI18nIntentionAction
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
-import com.intellij.codeInsight.intention.preview.IntentionPreviewInfo
 import com.intellij.codeInspection.LocalInspectionTool
-import com.intellij.codeInspection.LocalQuickFixAndIntentionActionOnPsiElement
 import com.intellij.codeInspection.ProblemsHolder
-import com.intellij.openapi.editor.Editor
-import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
-import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.xml.XmlAttribute
 import com.intellij.psi.xml.XmlAttributeValue
@@ -48,23 +43,10 @@ class HardcodedJsxTextInspection : LocalInspectionTool() {
                 val found = hardcodedText(element) ?: return
                 val range = EXTRACTOR.textRange(found.leaf).shiftLeft(found.tag.textRange.startOffset)
                 holder.registerProblem(
-                    found.tag, range, PluginBundle.message("inspection.hardcoded.jsx.text.message"), ExtractFix(found.leaf)
+                    found.tag, range, PluginBundle.message("inspection.hardcoded.jsx.text.message"), ExtractTextQuickFix(found.leaf)
                 )
             }
         }
-
-    /** Delegates to [ExtractI18nIntentionAction], which asks for the key and writes it. */
-    private class ExtractFix(leaf: PsiElement) : LocalQuickFixAndIntentionActionOnPsiElement(leaf) {
-        override fun getText(): String = PluginBundle.message("action.intention.extract.key")
-        override fun getFamilyName(): String = text
-        override fun startInWriteAction(): Boolean = false
-        override fun generatePreview(project: Project, editor: Editor, file: PsiFile): IntentionPreviewInfo =
-            IntentionPreviewInfo.EMPTY
-
-        override fun invoke(project: Project, psiFile: PsiFile, editor: Editor?, startElement: PsiElement, endElement: PsiElement) {
-            ExtractI18nIntentionAction().invoke(project, editor ?: return, startElement)
-        }
-    }
 
     /** A text to translate: the [leaf] the extraction is run on, in its [tag]. */
     internal data class HardcodedText(val leaf: PsiElement, val tag: XmlTag)
