@@ -2,11 +2,8 @@ package com.ibrahimdans.i18n.plugin.ide.dialog
 
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.DeleteI18nKeyAction
-import com.ibrahimdans.i18n.plugin.ide.actions.MachineFill
-import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.ReviewBadge
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
@@ -20,22 +17,15 @@ import com.ibrahimdans.i18n.plugin.review.shown
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewActions
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewCell
 import com.ibrahimdans.i18n.plugin.review.ui.ReviewThreadDialog
-import com.ibrahimdans.i18n.plugin.translate.KeyUiRoles
 import com.ibrahimdans.i18n.plugin.translate.MachineTranslationSettings
-import com.ibrahimdans.i18n.plugin.translate.PluralTranslationPlan
-import com.ibrahimdans.i18n.plugin.tree.PluralCategories
-import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationContext
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
-import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
-import com.ibrahimdans.i18n.plugin.translate.asCancellation
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.CommandProcessor
 import com.intellij.openapi.command.UndoConfirmationPolicy
@@ -59,7 +49,6 @@ import com.intellij.ui.dsl.builder.AlignY
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.Row
 import com.intellij.ui.dsl.builder.panel
-import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.NamedColorUtil
 import java.awt.BorderLayout
@@ -176,57 +165,19 @@ class TranslationDialog(
     private var namespaceCombo: JComboBox<String>? = null
     private var copyButton: JButton? = null
 
-    /** Shown once the project opted in to machine translation and configured an engine. */
-    private val translateButton = JButton(PluginBundle.message("dialog.translation.translate.button")).apply {
-        name = "dialog.translation.translate"
-        isVisible = machineTranslator(project) != null
-        addActionListener { translateEmptyLocales() }
-    }
-
-    /**
-     * What the user asks of the translations (a tone, a length); shown only when an engine of the
-     * project reads it, so that a DeepL-only project is not offered a field that changes nothing.
-     */
-    private val instructionField = JBTextField().apply {
-        name = "dialog.translation.instruction"
-        emptyText.text = PluginBundle.message("dialog.translation.instruction.empty")
-        isVisible = translateButton.isVisible && machineReadsInstruction(project)
-    }
-
-    /**
-     * What the engines are told of the key besides its text, as they get it: shown and editable so that
-     * nothing leaves the IDE unseen, and a wrong guess can be put right. Follows the key until edited.
-     */
-    private val contextField = JBTextArea(CONTEXT_ROWS, TEXT_AREA_COLUMNS).apply {
-        name = "dialog.translation.context"
-        lineWrap = true
-        wrapStyleWord = true
-    }
-
-    /** Where the code shows the key's text, read once from its usages; empty until then, or without any. */
-    private var uiRoles: List<String> = emptyList()
-
-    /** Set once the user typed in [contextField]: the key, or roles found late, no longer rewrite it. */
-    private var contextEdited = false
-
-    /** True while the dialog itself writes [contextField], which is not the user editing it. */
-    private var writingContext = false
-
-    /** The search for [uiRoles], for a test to wait on; null when the engine is off. */
-    internal var uiRolesSearch: CancellablePromise<List<String>>? = null
-        private set
-
-    /** Why the last machine translation left a locale empty, one line per locale. */
-    private val translateStatus = JBLabel().apply { foreground = JBColor.RED }
+    /** *Translate*, its *Context* and *Instruction* fields, and the proposals it made. */
+    private val machine = DialogMachineTranslation(
+        project, fullKey, tabModule, initialNamespace, viewModel,
+        typedKey = { keyField.text },
+        textAreas = { textAreas },
+        moduleOf = ::moduleOf,
+    )
 
     /** Keys already defined under the selected namespace; refreshed together with the sources. */
     private var keysInNamespace: Set<String> = emptySet()
 
     /** Keys of the selected namespace that only other modules define, with their names; refreshed with the sources. */
     private var keysInOtherModules: Map<String, List<String>> = emptyMap()
-
-    /** What *Translate* filled each locale with, and the engine it came from; dropped with the rows. */
-    private val machineProposals = LinkedHashMap<LocalizationSource, MachineProposal>()
 
     /** The review state shown under each locale; only for the locales of a module that keeps reviews. */
     private val reviewBadges = LinkedHashMap<LocalizationSource, JBLabel>()
@@ -250,18 +201,10 @@ class TranslationDialog(
         keyField.document.addDocumentListener(object : DocumentAdapter() {
             override fun textChanged(e: DocumentEvent) {
                 refreshKeyStatus()
-                refreshContext()
+                machine.refreshContext()
             }
         })
-        if (translateButton.isVisible) {
-            refreshContext()
-            contextField.document.addDocumentListener(object : DocumentAdapter() {
-                override fun textChanged(e: DocumentEvent) {
-                    if (!writingContext) contextEdited = true
-                }
-            })
-            searchUiRoles()
-        }
+        machine.start(disposable)
         namespacePrefixLabel.foreground = NamedColorUtil.getInactiveTextColor()
 
         val content = panel {
@@ -287,16 +230,16 @@ class TranslationDialog(
                 cell(sourcesHost).align(Align.FILL)
             }.resizableRow()
 
-            if (translateButton.isVisible) {
+            if (machine.enabled) {
                 row(PluginBundle.message("dialog.translation.context.label")) {
-                    cell(JBScrollPane(contextField)).align(AlignX.FILL).comment(PluginBundle.message("dialog.translation.context.comment"))
+                    cell(JBScrollPane(machine.contextField)).align(AlignX.FILL).comment(PluginBundle.message("dialog.translation.context.comment"))
                 }
             }
 
             // Left out rather than hidden: a hidden row still showed its comment, under no field.
-            if (instructionField.isVisible) {
+            if (machine.instructionField.isVisible) {
                 row(PluginBundle.message("dialog.translation.instruction.label")) {
-                    cell(instructionField).align(AlignX.FILL).comment(PluginBundle.message("dialog.translation.instruction.comment"))
+                    cell(machine.instructionField).align(AlignX.FILL).comment(PluginBundle.message("dialog.translation.instruction.comment"))
                 }
             }
 
@@ -306,9 +249,9 @@ class TranslationDialog(
                 }
                     .comment(PluginBundle.message("dialog.translation.copy.comment"))
                     .component
-                cell(translateButton)
+                cell(machine.translateButton)
             }
-            row("") { cell(translateStatus).align(AlignX.FILL) }
+            row("") { cell(machine.translateStatus).align(AlignX.FILL) }
         }
 
         if (mode == Mode.CREATE) {
@@ -391,7 +334,7 @@ class TranslationDialog(
         textAreas.clear()
         variableWarnings.clear()
         variableWarningRows.clear()
-        machineProposals.clear()
+        machine.proposals.clear()
         reviewBadges.clear()
         // Only CREATE mode asks whether a key is free; EDIT mode is looking at one that exists,
         // so it never pays for these reads. Without a caller or a tab's module the rows are the
@@ -434,7 +377,7 @@ class TranslationDialog(
                     .align(AlignX.FILL)
                     .comment(source.displayPath)
                 // Beside the button, which only fills the empty locales: this one replaces a value too.
-                if (translateButton.isVisible) {
+                if (machine.enabled) {
                     link(PluginBundle.message("dialog.translation.translate.locale")) { translateLocale(source.localeLabel()) }
                         .align(AlignY.TOP)
                         .applyToComponent { toolTipText = PluginBundle.message("dialog.translation.translate.locale.tooltip") }
@@ -612,7 +555,7 @@ class TranslationDialog(
         // Nothing to copy from, or nowhere to copy to: the button would be a no-op.
         copyButton?.isEnabled =
             textAreas.values.any { it.text.isNotBlank() } && textAreas.values.any { it.text.isBlank() }
-        translateButton.isEnabled = copyButton?.isEnabled == true
+        machine.translateButton.isEnabled = copyButton?.isEnabled == true
     }
 
     private fun highlightVariables(textArea: JBTextArea) {
@@ -627,199 +570,11 @@ class TranslationDialog(
         }
     }
 
-    /**
-     * Fills every locale left empty with the machine translation of the reference locale's value. A
-     * value already there is never replaced — [translateLocale] is for that.
-     */
-    internal fun translateEmptyLocales() = translate(textAreas.filterValues { it.text.isBlank() }.keys)
+    /** *Translate Empty Locales*, as its button does it. */
+    internal fun translateEmptyLocales() = machine.translateEmptyLocales()
 
-    /**
-     * Replaces the value shown for [locale], empty or not, with the machine translation of another
-     * locale's: the reference, or another one when [locale] is the reference itself.
-     */
-    internal fun translateLocale(locale: String) = translate(textAreas.keys.filter { it.localeLabel() == locale }.toSet())
-
-    /**
-     * Fills [targetSources] with the machine translation of the reference locale's value, taken among the
-     * other locales. Nothing is written to the files before *OK*: the proposals stay editable in their
-     * fields, and *Cancel* gives the stored values back.
-     *
-     * One request per target locale, under a cancellable progress. A locale the engines could not
-     * translate keeps its value, and the reason shows under the buttons.
-     *
-     * A plural form (`file_few`) follows [PluralTranslationPlan]: a locale whose language has no
-     * such form (`file_one` in Japanese) is left alone, and when no locale holds the form yet its
-     * text comes from the reference locale's `other`, the proposal then flagged for review. An ICU
-     * plural is sent with its branches rebuilt for each target language ([PluralTranslationPlan.icu]),
-     * a branch copied from `other` flagged for review; one that cannot be rebuilt is not translated.
-     */
-    private fun translate(targetSources: Set<LocalizationSource>) {
-        val provider = machineTranslator(project) ?: return
-        if (targetSources.isEmpty()) return
-        val filled = textAreas.entries.filter { it.key !in targetSources && it.value.text.isNotBlank() }
-        // The language translated *from* matters more than for a copy: the reference of the key's
-        // module, as the rest of the plugin picks it (its declared one, then the project's: preview
-        // locale, else `en`), the fullest locale last. Another module's declared reference is not
-        // asked: the source a review mark records has to be the one the table compares.
-        val config = Settings.getInstance(project).config()
-        val module = moduleOf(targetSources.first())
-        // A plural form only when its `other` exists somewhere: `steps.one` is otherwise just a key.
-        val plural = pluralFormOf(keyField.text, config.keySeparator, CLDR_SUFFIX_SEPARATOR)
-            ?.takeIf { it.first == PluralCategories.OTHER || otherFormSource(it.second, module, config) != null }
-        val labels = filled.map { it.key.localeLabel() }.toSet()
-        val sourceLocale = ReferenceLocale.of(module, config, labels) ?: viewModel.localeToCopyFrom(textAreas.keys)
-        // Among the files of that locale, the one of the key's module: a neighbour's may say otherwise.
-        val donor = filled.sortedWith(
-            compareByDescending<Map.Entry<LocalizationSource, JBTextArea>> { it.key.localeLabel() == sourceLocale }
-                .thenByDescending { moduleOf(it.key) == module }
-        ).firstOrNull()
-        val source = donor?.let { it.key.localeLabel() to it.value.text }
-            ?: plural?.let { otherFormSource(it.second, module, config) }
-        // A locale is never translated into itself: the one whose `other` form is the source is left out.
-        val targets = textAreas.entries.filter { it.key in targetSources && it.key.localeLabel() != source?.first }
-            .map { it.key.localeLabel() to it.value }
-        if (source == null || targets.isEmpty()) {
-            translateStatus.text = PluginBundle.message("dialog.translation.translate.no.source")
-            return
-        }
-
-        // What each target locale is asked for: the source text, or a note saying why not. The text
-        // is the proposal's source, an `other` form standing in for a missing one included: the one
-        // the table and this dialog compare the form with since ([ReviewSources]).
-        val asSource = { text: String -> ReviewSource.of(source.first, text) }
-        val notes = mutableListOf<String>()
-        val requests = targets.mapNotNull { (locale, area) ->
-            if (plural == null) {
-                if (!PluralTranslationPlan.isIcuPlural(source.second)) return@mapNotNull MachineRequest(locale, area, source.second, asSource(source.second))
-                // Sent with the target's branches; the review still records the reference's text.
-                val icu = PluralTranslationPlan.icu(source.second, locale) ?: run {
-                    notes += PluginBundle.message("dialog.translation.translate.icu.plural", locale)
-                    return@mapNotNull null
-                }
-                if (icu.needsReview) notes += PluginBundle.message("dialog.translation.translate.icu.review", locale, icu.copied.joinToString(", "))
-                return@mapNotNull MachineRequest(locale, area, icu.source, asSource(source.second))
-            }
-            val sourceForms = if (donor != null) mapOf(plural.first to source.second) else mapOf(PluralCategories.OTHER to source.second)
-            when (val plan = PluralTranslationPlan.of(sourceForms, locale)) {
-                PluralTranslationPlan.Plan.IcuPlural -> {
-                    notes += PluginBundle.message("dialog.translation.translate.icu.plural", locale); null
-                }
-                is PluralTranslationPlan.Plan.Forms -> {
-                    val form = plan.forms.firstOrNull { it.category == plural.first }
-                    when {
-                        form == null -> { notes += PluginBundle.message("dialog.translation.translate.no.such.form", locale, plural.first); null }
-                        else -> {
-                            if (form.needsReview) notes += PluginBundle.message("dialog.translation.translate.review", locale, plural.first)
-                            MachineRequest(locale, area, form.source, asSource(form.source))
-                        }
-                    }
-                }
-            }
-        }
-        // As shown in the dialog, edited or not; the generated one if it was emptied.
-        val header = contextField.text.trim().ifEmpty { generatedContext() }
-        val path = pathOf(keyField.text, config)
-        val shownSources = textAreas.keys.toList()
-        val instruction = instructionField.text.trim().takeIf { instructionField.isVisible }.orEmpty()
-        val results = ProgressManager.getInstance().runProcessWithProgressSynchronously<List<Translation>, RuntimeException>(
-            {
-                val indicator = ProgressManager.getInstance().progressIndicator
-                // The files shown, read once in the background: the examples the context picks for each locale.
-                val known = TranslationDataLoader.translationsOf(project, shownSources).mapKeys { KeySpelling.pathOf(it.key) }
-                requests.map { (locale, _, text) ->
-                    indicator?.checkCanceled()
-                    indicator?.text = PluginBundle.message("dialog.translation.translate.progress", locale)
-                    val context = TranslationContext.of(header, listOf(path), listOf(text), known, source.first, locale, config)
-                    provider.translate(TranslationRequest(listOf(text), source.first, locale, context, instruction), indicator?.asCancellation()).single()
-                }
-            },
-            PluginBundle.message("dialog.translation.translate.button"),
-            true,
-            project
-        )
-        val failures = requests.zip(results).mapNotNull { (request, result) ->
-            when (result) {
-                is Translation.Done -> {
-                    request.area.text = result.text
-                    textAreas.entries.firstOrNull { it.value === request.area }?.key
-                        ?.let { machineProposals[it] = MachineProposal(result.text, MachineFill.originOf(result), request.source) }
-                    null
-                }
-                is Translation.Failed -> "${request.locale}: ${result.reason}"
-            }
-        } + notes
-        translateStatus.text = failures.joinToString("<br>", "<html>", "</html>").takeIf { failures.isNotEmpty() }.orEmpty()
-    }
-
-    /**
-     * The context the dialog proposes: the key sentence, read by the engine rather than by the user
-     * (English whatever the IDE language), then where the code shows the key's text.
-     */
-    private fun generatedContext(): String =
-        TranslationContext.withRoles(TranslationContext.header(listOf(keyField.text)), uiRoles)
-
-    /** [contextField] set to [generatedContext], unless the user edited it. */
-    private fun refreshContext() {
-        if (contextEdited || !translateButton.isVisible) return
-        writingContext = true
-        try {
-            contextField.text = generatedContext()
-        } finally {
-            writingContext = false
-        }
-    }
-
-    /**
-     * Looks for where the code shows the key's text off the EDT, in smart mode, the dialog usable
-     * meanwhile. The key the dialog opened on, as the code writes it: a key renamed in a CREATE dialog
-     * is still the one its call site names.
-     */
-    private fun searchUiRoles() {
-        val key = usageKeyOf(fullKey) ?: return
-        val module = tabModule
-        uiRolesSearch = ReadAction.nonBlocking<List<String>> { KeyUiRoles.of(project, key, module) }
-            .inSmartMode(project)
-            .expireWith(disposable)
-            .finishOnUiThread(ModalityState.any()) { roles ->
-                uiRoles = roles
-                refreshContext()
-            }
-            .submit(AppExecutorUtil.getAppExecutorService())
-    }
-
-    /**
-     * [key] spelled as the usage searches take it, `ns:path` ([KeySpelling.NAMESPACE_SEPARATOR]):
-     * its own namespace, else the one this CREATE dialog opened on; null for a key with no level.
-     */
-    private fun usageKeyOf(key: FullKey): String? {
-        val config = Settings.getInstance(project).config()
-        val path = key.compositeKey.takeIf { it.isNotEmpty() }?.fold("") { path, segment -> KeySpelling.child(config, path, segment.text) }
-            ?: return null
-        val namespace = key.allNamespaces().firstOrNull() ?: initialNamespace
-        return namespace?.let { it + KeySpelling.NAMESPACE_SEPARATOR + path } ?: path
-    }
-
-    /**
-     * [keyText]'s path as [TranslationDataLoader] spells it once its namespace is cut off: the files
-     * shown all belong to the key's namespace, so its neighbours are found by path alone, whatever
-     * the namespace separator. The text as typed when it does not parse.
-     */
-    private fun pathOf(keyText: String, config: Config): String =
-        viewModel.parseKey(keyText)?.compositeKey?.takeIf { it.isNotEmpty() }
-            ?.fold("") { path, segment -> KeySpelling.child(config, path, segment.text) }
-            ?: KeySpelling.pathOf(keyText)
-
-    /**
-     * The `other` form of the plural being edited, [otherKey], as [module]'s reference locale holds
-     * it — any locale holding it when the reference does not — or null when none does.
-     */
-    private fun otherFormSource(otherKey: String, module: ModuleConfig?, config: Config): Pair<String, String>? {
-        val values = viewModel.parseKey(otherKey)?.let(viewModel::loadTranslations).orEmpty()
-            .mapNotNull { (source, value) -> value?.takeIf { it.isNotBlank() }?.let { source.localeLabel() to it } }
-            .toMap()
-        val reference = ReferenceLocale.of(module, config, values.keys)
-        return (values.entries.firstOrNull { it.key == reference } ?: values.entries.firstOrNull())?.toPair()
-    }
+    /** The *Translate* link of [locale]. */
+    internal fun translateLocale(locale: String) = machine.translateLocale(locale)
 
     /**
      * Fills every locale left empty with the value of the donor locale: the one the module
@@ -912,7 +667,7 @@ class TranslationDialog(
      * turns reviews on.
      */
     private fun markMachineValues(key: FullKey, written: Map<LocalizationSource, String>) {
-        val toMark = untouchedProposals(machineProposals, written)
+        val toMark = untouchedProposals(machine.proposals, written)
             .mapNotNull { (source, proposal) -> reviewRootOf(source)?.let { Triple(source, it, proposal) } }
         if (toMark.isEmpty()) return
         val store = ReviewStore.getInstance(project)
@@ -978,26 +733,29 @@ class TranslationDialog(
         textAreas.entries.first { it.key.localeLabel() == locale }.value.text = value
     }
 
-    internal val translateVisible: Boolean get() = translateButton.isVisible
+    internal val translateVisible: Boolean get() = machine.enabled
 
-    internal val translateMessage: String get() = translateStatus.text
+    internal val translateMessage: String get() = machine.translateStatus.text
 
-    internal val instructionVisible: Boolean get() = instructionField.isVisible
+    internal val instructionVisible: Boolean get() = machine.instructionField.isVisible
+
+    /** The search for where the code shows the key, for a test to wait on; null when the engine is off. */
+    internal val uiRolesSearch: CancellablePromise<List<String>>? get() = machine.uiRolesSearch
 
     /** The rows as built: a headless dialog has no content pane to walk. */
     internal var centerPanel: JComponent? = null
         private set
 
     internal fun setInstruction(text: String) {
-        instructionField.text = text
+        machine.instructionField.text = text
     }
 
     /** The context shown, for tests; empty when the engine is off. */
-    internal val contextText: String get() = contextField.text
+    internal val contextText: String get() = machine.contextField.text
 
     /** Types [text] into the context field, for tests: as the user editing it. */
     internal fun setContext(text: String) {
-        contextField.text = text
+        machine.contextField.text = text
     }
 
     /** The review state shown under [locale], or null when it shows none — nor a *Review…* link. */
@@ -1010,9 +768,6 @@ class TranslationDialog(
      * `other` when it stood in for a missing form ([ReviewSources]).
      */
     internal data class MachineProposal(val text: String, val origin: String, val source: ReviewSource? = null)
-
-    /** What *Translate* asks for [locale], shown in [area]: [text], kept as the proposal's [source]. */
-    private data class MachineRequest(val locale: String, val area: JBTextArea, val text: String, val source: ReviewSource?)
 
     companion object {
         /**
@@ -1038,36 +793,19 @@ class TranslationDialog(
          * proposed text. One retouched, or not written at all, is left out.
          */
         internal fun <K> untouchedProposals(proposals: Map<K, MachineProposal>, written: Map<K, String>): Map<K, MachineProposal> =
-            proposals.filter { (key, proposal) -> written[key] == proposal.text }
+            DialogMachineTranslation.untouchedProposals(proposals, written)
 
         /**
          * The plural category [key] names and the key of its `other` form, or null for a key that is
          * not a plural form: `common:file_few` gives `few` and `common:file_other`, a nested
          * `common:file.few` gives `few` and `common:file.other`.
          */
-        internal fun pluralFormOf(key: String, keySeparator: String, pluralSeparator: String): Pair<String, String>? {
-            val lastSegment = key.substringAfterLast(keySeparator)
-            val suffix = lastSegment.substringAfterLast(pluralSeparator, "")
-            return when {
-                lastSegment.contains(pluralSeparator) && suffix in PluralCategories.ALL ->
-                    suffix to key.removeSuffix(pluralSeparator + suffix) + pluralSeparator + PluralCategories.OTHER
-                lastSegment in PluralCategories.ALL && key.contains(keySeparator) ->
-                    lastSegment to key.removeSuffix(keySeparator + lastSegment) + keySeparator + PluralCategories.OTHER
-                else -> null
-            }
-        }
-
-        /**
-         * Between a base and its CLDR category in i18next's flat convention (`item_one`), as in
-         * `MissingPluralFormsInspection`. Not [Config.pluralSeparator], which is the older numeric
-         * plurals' (`item-0`, `item-1`).
-         */
-        private const val CLDR_SUFFIX_SEPARATOR = "_"
+        internal fun pluralFormOf(key: String, keySeparator: String, pluralSeparator: String): Pair<String, String>? =
+            DialogMachineTranslation.pluralFormOf(key, keySeparator, pluralSeparator)
 
         private val NAMESPACE_REGEX = Regex("[a-zA-Z0-9-]+")
 
         private const val TEXT_AREA_ROWS = 3
-        private const val CONTEXT_ROWS = 2
         private const val TEXT_AREA_COLUMNS = 40
         private const val PREFIX_GAP = 2
 
