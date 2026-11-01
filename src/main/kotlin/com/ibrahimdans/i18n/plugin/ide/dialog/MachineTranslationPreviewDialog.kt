@@ -27,6 +27,10 @@ import javax.swing.table.DefaultTableModel
  * there — *Retranslate Stale Translations* — adds a *Current value* column before the proposal: the
  * value each one replaces.
  *
+ * A value taken from the module's own translations ([MachineFill.Proposal.memory]) reads *Project
+ * memory* as its engine. It comes checked when every key translating the text agrees, unchecked with a
+ * note when they do not: the most frequent translation is proposed, the choice left to the user.
+ *
  * Under the table, *Mark written values for review* when the values land under [reviewRoots] — the
  * roots of the modules they belong to: checked when reviews are already on in all of them (their
  * `.i18n-reviews` folder exists), unchecked otherwise. Checking it turns them on there when writing.
@@ -81,13 +85,17 @@ internal class MachineTranslationPreviewDialog(
 
     init {
         proposals.forEach { proposal ->
+            val memory = proposal.memory
             val row = when (val result = proposal.result) {
-                is Translation.Done ->
-                    if (proposal.item.needsReview) Triple(false, result.text, PluginBundle.message("action.fill.review"))
-                    else Triple(true, result.text, "")
+                is Translation.Done -> when {
+                    proposal.item.needsReview -> Triple(false, result.text, PluginBundle.message("action.fill.review"))
+                    memory != null && !memory.unanimous -> Triple(false, result.text, PluginBundle.message("action.fill.memory.divergent"))
+                    else -> Triple(true, result.text, "")
+                }
                 is Translation.Failed -> Triple(false, "", PluginBundle.message("action.fill.rejected", result.reason))
             }
-            val engine = (proposal.result as? Translation.Done)?.engine?.let { engineLabel(it) }.orEmpty()
+            val engine = if (memory != null) PluginBundle.message("action.fill.engine.memory")
+            else (proposal.result as? Translation.Done)?.engine?.let { engineLabel(it) }.orEmpty()
             model.addRow(listOfNotNull<Any>(
                 row.first, proposal.item.key, proposal.locale.takeIf { severalLocales }, proposal.item.source,
                 proposal.item.current.orEmpty().takeIf { replacing }, row.second, row.third, engine
@@ -128,11 +136,13 @@ internal class MachineTranslationPreviewDialog(
         table.columnModel.getColumn(0).maxWidth = 32
         val rejected = proposals.count { it.result is Translation.Failed }
         val review = proposals.count { it.item.needsReview && it.result is Translation.Done }
+        val remembered = proposals.count { it.memory != null }
         return JPanel(BorderLayout(0, 6)).apply {
             add(JScrollPane(table).apply { preferredSize = Dimension(820, 360) }, BorderLayout.CENTER)
             val notes = listOfNotNull(
                 PluginBundle.message("action.fill.preview.rejected", rejected).takeIf { rejected > 0 },
-                PluginBundle.message("action.fill.preview.review", review).takeIf { review > 0 }
+                PluginBundle.message("action.fill.preview.review", review).takeIf { review > 0 },
+                PluginBundle.message("action.fill.preview.memory", remembered).takeIf { remembered > 0 }
             )
             val south = JPanel().apply { layout = BoxLayout(this, BoxLayout.Y_AXIS) }
             if (notes.isNotEmpty()) south.add(JBLabel(notes.joinToString("<br>", "<html>", "</html>")))
