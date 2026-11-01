@@ -98,6 +98,75 @@ class KeyMaintenanceToolsTest : PlatformBaseTest() {
         Assertions.assertEquals(0, tools().usages(null, "common:unused", 10).total)
     }
 
+    private fun find(query: String, locale: String? = null, limit: Int = 20) =
+        ReadAction.compute<KeyMaintenanceTools.FoundKeys, RuntimeException> { tools().find(null, query, locale, limit) }
+
+    @Test
+    fun `a key prefix finds the keys under it, with their value in every locale`() = myFixture.runWithConfig(config) {
+        seed()
+
+        val found = find("common:button")
+
+        Assertions.assertEquals(KeyMaintenanceTools.BY_KEY, found.match)
+        Assertions.assertEquals(listOf("common:button.ok"), found.keys.map { it.key })
+        Assertions.assertEquals(mapOf("en" to "OK", "fr" to "D'accord"), found.keys.single().values)
+    }
+
+    @Test
+    fun `a key pattern finds the keys it matches, at most the limit asked`() = myFixture.runWithConfig(config) {
+        seed()
+
+        val found = find("common:item_*", limit = 1)
+
+        Assertions.assertEquals(KeyMaintenanceTools.BY_KEY, found.match)
+        Assertions.assertEquals(2, found.total)
+        Assertions.assertEquals(listOf("common:item_one"), found.keys.map { it.key })
+    }
+
+    @Test
+    fun `a text no key name matches is searched in the values, equal values first, then whole words`() = myFixture.runWithConfig(config) {
+        myFixture.addFileToProject("locales/en/common.json", """{"a": "Save changes", "b": "save", "c": "Unsaved", "d": "Cancel"}""")
+        myFixture.addFileToProject("locales/fr/common.json", """{"a": "Enregistrer les modifications", "b": "Enregistrer"}""")
+
+        val found = find("Save")
+
+        Assertions.assertEquals(KeyMaintenanceTools.BY_VALUE, found.match)
+        Assertions.assertEquals("en", found.locale)
+        Assertions.assertEquals(listOf("common:b", "common:a", "common:c"), found.keys.map { it.key })
+        Assertions.assertEquals(listOf("common:b"), find("enregistrer", locale = "fr").keys.map { it.key }.take(1))
+        Assertions.assertThrows(TranslationAgentTools.Refused::class.java) { find("Save", locale = "ja") }
+        Assertions.assertThrows(TranslationAgentTools.Refused::class.java) { find("  ") }
+    }
+
+    @Test
+    fun `a key found comes with how often the code uses it`() = myFixture.runWithConfig(config) {
+        seed()
+
+        val found = tools().withUsages(find("common:t"))
+
+        Assertions.assertEquals(listOf("common:title" to 1), found.keys.map { it.key to it.usages })
+        Assertions.assertEquals(0, tools().withUsages(find("common:unused")).keys.single().usages)
+    }
+
+    @Test
+    fun `a key whose reference text another key holds is created only when the agent insists`() = myFixture.runWithConfig(config) {
+        val (en, _) = seed()
+
+        val refused = tools().create(null, "common:heading", mapOf("en" to "Title"))
+
+        Assertions.assertEquals(emptyList<String>(), refused.written)
+        Assertions.assertEquals(listOf("common:title"), refused.existing)
+        Assertions.assertTrue(refused.refused!!.startsWith(KeyMaintenanceTools.DUPLICATE), refused.refused)
+        Assertions.assertTrue("heading" !in text(en), text(en))
+
+        val created = tools().create(null, "common:heading", mapOf("en" to "Title"), allowDuplicate = true)
+
+        Assertions.assertEquals(listOf("en"), created.written)
+        Assertions.assertEquals(listOf("common:title"), created.existing)
+        Assertions.assertNull(created.refused)
+        Assertions.assertTrue("\"heading\": \"Title\"" in text(en), text(en))
+    }
+
     @Test
     fun `a rename moves the key in every locale and call site, in one undoable command`() = myFixture.runWithConfig(config) {
         val (en, fr) = seed()

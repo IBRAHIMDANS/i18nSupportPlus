@@ -34,14 +34,18 @@ import java.io.File
 
 /**
  * What an AI agent may do to a project's keys, apart from translating them ([TranslationAgentTools]):
- * check every locale, find where a key is used, and rename, create or delete keys — each through the
- * plugin's own steps, so an agent gets the guards a user gets in the IDE instead of rewriting files:
+ * check every locale, find keys by name or text, find where a key is used, and rename, create or delete
+ * keys — each through the plugin's own steps, so an agent gets the guards a user gets in the IDE instead
+ * of rewriting files:
  *
  *  - the check is `i18n-check`'s ([LocaleCheck]), with the keys the code no longer uses counted as the
  *    table's *Count Key Usages* counts them;
+ *  - a key is found by its name or by the text it holds, so that an agent reuses `common:actions.save`
+ *    instead of creating its twin;
  *  - a rename is Shift+F6's ([KeyLevelRename]): every locale and call site, refused when the new key
  *    exists, keys built at runtime listed rather than rewritten;
- *  - a key is created only where nothing holds it yet, with the placeholders of its reference value;
+ *  - a key is created only where nothing holds it yet, with the placeholders of its reference value,
+ *    and not while another key already holds its reference text unless the agent insists;
  *  - a key is deleted only while no code refers to it, the keep list and keys built at runtime included.
  *
  * Every write is one command the user undoes with one Ctrl+Z. Modules are named as
@@ -69,7 +73,26 @@ class KeyMaintenanceTools(private val project: Project) {
     /** [dynamicUsages]: the keys built at runtime that may still spell the old key, not rewritten. */
     data class RenameResult(val key: String, val newKey: String, val files: Int, val callSites: Int, val dynamicUsages: List<String>)
 
-    data class CreateResult(val key: String, val written: List<String>, val rejected: Map<String, String>)
+    /**
+     * [usages] is null when the code was not searched (the IDE indexing) or cannot be; [usageNote] then
+     * says why a key no search finds is still not unused.
+     */
+    data class FoundKey(val key: String, val values: Map<String, String>, val usages: Int? = null, val usageNote: String? = null)
+
+    /** [match] is [BY_KEY] or [BY_VALUE]; [total] counts every match, [keys] the first ones. */
+    data class FoundKeys(val module: String, val query: String, val match: String, val locale: String, val total: Int, val keys: List<FoundKey>)
+
+    /**
+     * [existing]: the keys of the module already holding the reference value. [refused] says why
+     * nothing was created — another key holds the same text — and is absent when the key was created.
+     */
+    data class CreateResult(
+        val key: String,
+        val written: List<String>,
+        val rejected: Map<String, String>,
+        val existing: List<String> = emptyList(),
+        val refused: String? = null,
+    )
 
     data class DeleteResult(val deleted: List<String>, val entries: Int, val rejected: Map<String, String>)
 
@@ -112,6 +135,72 @@ class KeyMaintenanceTools(private val project: Project) {
     }
 
     fun report(checks: List<ModuleCheck>): CheckReport = CheckReport(checks.sumOf { it.problems }, checks)
+
+    // ── Find ────────────────────────────────────────────────────────────────
+
+    /**
+     * The keys of [moduleName] that [query] names, at most [limit] of them, sorted by key: a key
+     * pattern when it holds `*` or `?` (`common:actions.*`), else a key prefix (`common:actions`).
+     * When no key matches either way, the keys whose value in [locale] — the reference one by
+     * default — holds [query], case ignored: the values equal to it first, then those holding it as
+     * a whole word, then the rest. Each key comes with its value in every locale; [withUsages] adds
+     * how often the code uses it. Needs a read action.
+     */
+    fun find(moduleName: String?, query: String, locale: String?, limit: Int): FoundKeys {
+        val text = query.trim().ifEmpty { throw Refused("An empty query finds nothing: give a key, a key prefix or a text") }
+        val (name, module) = scope(moduleName)
+        val locales = TranslationDataLoader.discoverLocales(project, module)
+        val searched = locale?.takeIf { it.isNotBlank() } ?: referenceOf(module, locales) ?: throw Refused("No translations found")
+        if (searched !in locales) throw Refused("Unknown locale '$searched'. Locales: ${locales.joinToString()}")
+        val translations = TranslationDataLoader.loadAllTranslations(project, module)
+
+        val byKey = keysNamed(text, translations.keys)
+        val (match, keys) = if (byKey.isNotEmpty()) BY_KEY to byKey else BY_VALUE to keysHolding(text, searched, translations)
+        val page = keys.take(limit.coerceAtLeast(1)).map { FoundKey(it, translations.getValue(it).toSortedMap()) }
+        return FoundKeys(name, text, match, searched, keys.size, page)
+    }
+
+    /**
+     * [found] with how often the code of its module uses each key, the keys built at runtime and
+     * those of the keep list told apart. Left as it is while the IDE indexes. Searches the code: call
+     * it off the EDT and outside a read action, which each search takes for itself.
+     */
+    fun withUsages(found: FoundKeys): FoundKeys {
+        if (found.keys.isEmpty() || DumbService.isDumb(project)) return found
+        val (_, module) = scope(found.module)
+        val counted = TableViewModel().countUsages(project, found.keys.map { TranslationRow(it.key, it.values) }, module)
+            .associate { it.key to it.usageCount }
+        return found.copy(keys = found.keys.map { key ->
+            val count = counted[key.key] ?: return@map key
+            if (count >= 0) key.copy(usages = count) else key.copy(usageNote = usageNoteOf(count))
+        })
+    }
+
+    /** The keys [query] names as a pattern (`*`, `?`) or a prefix, sorted. */
+    private fun keysNamed(query: String, keys: Collection<String>): List<String> {
+        val matches: (String) -> Boolean = if (query.any { it == '*' || it == '?' }) {
+            val pattern = Regex(query.split('*').joinToString(".*") { part -> part.split('?').joinToString(".") { Regex.escape(it) } })
+            pattern::matches
+        } else {
+            { it.startsWith(query) }
+        }
+        return keys.filter(matches).sorted()
+    }
+
+    /** The keys whose value in [locale] holds [text], case ignored: equal first, then as a whole word, then anywhere. */
+    private fun keysHolding(text: String, locale: String, translations: Map<String, Map<String, String>>): List<String> {
+        val word = Regex("(?<![\\p{L}\\p{N}_])${Regex.escape(text)}(?![\\p{L}\\p{N}_])", RegexOption.IGNORE_CASE)
+        return translations.mapNotNull { (key, values) ->
+            val value = values[locale]?.trim() ?: return@mapNotNull null
+            val rank = when {
+                value.equals(text, ignoreCase = true) -> 0
+                word.containsMatchIn(value) -> 1
+                value.contains(text, ignoreCase = true) -> 2
+                else -> return@mapNotNull null
+            }
+            rank to key
+        }.sortedWith(compareBy({ it.first }, { it.second })).map { it.second }
+    }
 
     // ── Usages ──────────────────────────────────────────────────────────────
 
@@ -203,9 +292,11 @@ class KeyMaintenanceTools(private val project: Project) {
      * when a translation holds the key, when it is a level holding other keys or under a key holding
      * a value, or without a value in the reference locale; a value of another locale is refused when
      * its placeholders differ from the reference one's, or when that locale has no file for the key's
-     * namespace. Runs on the EDT.
+     * namespace. While another key already holds the same reference value — compared trimmed and
+     * case-sensitive, as the extraction's *Use existing key* compares it — nothing is created and the
+     * result lists those keys, unless [allowDuplicate]. Runs on the EDT.
      */
-    fun create(moduleName: String?, key: String, values: Map<String, String>): CreateResult {
+    fun create(moduleName: String?, key: String, values: Map<String, String>, allowDuplicate: Boolean = false): CreateResult {
         val (_, module) = scope(moduleName)
         val config = config
         val path = KeySpelling.segmentsOf(key, config)
@@ -217,6 +308,10 @@ class KeyMaintenanceTools(private val project: Project) {
             ?: throw Refused("A value in the reference locale '$reference' is required: the other locales are compared with it")
         val translations = TranslationDataLoader.loadAllTranslations(project, module)
         conflictOf(key, path, translations)?.let { throw Refused(it) }
+        val existing = translations.filterValues { it[reference]?.trim() == referenceValue.trim() }.keys.sorted()
+        if (existing.isNotEmpty() && !allowDuplicate) {
+            return CreateResult(key, emptyList(), emptyMap(), existing, "$DUPLICATE ${existing.joinToString()}")
+        }
 
         val sources = namespaceSources(ReadAction.compute<List<LocalizationSource>, RuntimeException> { TranslationDataLoader.findSources(project, module) }, key)
         val rejected = sortedMapOf<String, String>()
@@ -233,7 +328,7 @@ class KeyMaintenanceTools(private val project: Project) {
         MachineFill.write(project, module, accepted.mapValues { (_, text) -> mapOf(key to text) }, command = PluginBundle.message("quickfix.create.key"))
         val now = TranslationDataLoader.loadAllTranslations(project, module)[key].orEmpty()
         accepted.keys.filter { now[it] != accepted[it] }.forEach { rejected[it] = NOT_WRITTEN }
-        return CreateResult(key, accepted.keys.filter { now[it] == accepted[it] }, rejected)
+        return CreateResult(key, accepted.keys.filter { now[it] == accepted[it] }, rejected, existing)
     }
 
     /** Why [key], whose levels are [path], cannot be created next to [translations]; null when it can. */
@@ -262,15 +357,18 @@ class KeyMaintenanceTools(private val project: Project) {
         val rows = keys.distinct().filter { it in translations }.map { TranslationRow(it, translations.getValue(it)) }
         val counted = TableViewModel().countUsages(project, rows, module)
         for (row in counted) {
-            when (val count = row.usageCount) {
-                0 -> continue
-                TableViewModel.KEPT_USAGE -> rejected[row.key] = KEPT
-                TableViewModel.DYNAMIC_USAGE -> rejected[row.key] = DYNAMIC
-                TableViewModel.NOT_SCANNED -> rejected[row.key] = NOT_SEARCHABLE
-                else -> rejected[row.key] = "Still used: $count usage(s), see i18n_key_usages"
-            }
+            val count = row.usageCount
+            if (count != 0) rejected[row.key] = usageNoteOf(count) ?: "Still used: $count usage(s), see i18n_key_usages"
         }
         return counted.filter { it.usageCount == 0 }.map { it.key } to rejected
+    }
+
+    /** Why a key no search counts may still be used, from the table's usage sentinels; null for a count. */
+    private fun usageNoteOf(count: Int): String? = when (count) {
+        TableViewModel.KEPT_USAGE -> KEPT
+        TableViewModel.DYNAMIC_USAGE -> DYNAMIC
+        TableViewModel.NOT_SCANNED -> NOT_SEARCHABLE
+        else -> null
     }
 
     /** Deletes [keys] from every locale of [moduleName], their reviews included, in one undoable command. Runs on the EDT. */
@@ -338,5 +436,8 @@ class KeyMaintenanceTools(private val project: Project) {
         const val KEPT = "Kept by the project's keep list (Keys used outside the code)"
         const val DYNAMIC = "May be built at runtime by a dynamic key, such as t(`status.\${kind}`)"
         const val NOT_SEARCHABLE = "Its usages cannot be searched (Flutter ARB key read from Dart): never deleted"
+        const val DUPLICATE = "Not created: the reference value is already held by another key; use it, or call again with allowDuplicate=true:"
+        const val BY_KEY = "key"
+        const val BY_VALUE = "value"
     }
 }

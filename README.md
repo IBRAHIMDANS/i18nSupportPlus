@@ -438,7 +438,7 @@ Pin a version tag rather than `latest` for a build that does not change on its o
 
 ### AI Agents (MCP)
 
-On IntelliJ-based IDEs 2025.2.6 and later, the plugin adds nine tools to the IDE's built-in MCP server, so an AI agent translates, checks and maintains keys through the plugin rather than by rewriting the files — with your own Codex or Claude plan, no API key:
+On IntelliJ-based IDEs 2025.2.6 and later, the plugin adds ten tools to the IDE's built-in MCP server, so an AI agent translates, checks and maintains keys through the plugin rather than by rewriting the files — with your own Codex or Claude plan, no API key:
 
 | Tool | What it does |
 |------|--------------|
@@ -447,9 +447,10 @@ On IntelliJ-based IDEs 2025.2.6 and later, the plugin adds nine tools to the IDE
 | `i18n_stale_translations` | The stale translations of a locale — values still the ones reviewed while their key's reference text changed since — with that text as it reads now and the value to replace. Only in a module keeping reviews |
 | `i18n_write_translations` | Writes translations in one undoable command: fills a missing value, or replaces one that is stale when written — never any other existing value — and a value losing a placeholder or tag of its reference is refused with the reason. Marked *to review* (`machine:<agent>`) with the reference text it was translated from when the module keeps reviews |
 | `i18n_check` | The check of `i18n-check`, per module: the keys each locale lacks, holds in excess or leaves blank, and the keys of the reference locale no code uses — those of the keep list, and keys a dynamic key may build, left out |
+| `i18n_find_keys` | Finds existing keys by key pattern (`common:actions.*`), key prefix or the text they hold — equal values first, then whole words — with their value in every locale and how often the code uses them, so an agent reuses a key instead of creating its twin |
 | `i18n_key_usages` | Where the code uses a key: file, line and the line of code, and whether a key built at runtime may also reach it |
 | `i18n_rename_key` | Renames a key's last segment in every locale and call site, as Shift+F6 does — a whole level or a plural group too — in one undoable command; refused when the new key exists, keys built at runtime listed rather than rewritten |
-| `i18n_create_key` | Creates a key with its values in one undoable command; refused when it exists, or without a value in the reference locale, and a value losing a placeholder of the reference one is refused with the reason |
+| `i18n_create_key` | Creates a key with its values in one undoable command; refused when it exists, or without a value in the reference locale, and a value losing a placeholder of the reference one is refused with the reason. Not created while another key holds the same reference text: the answer lists it (`existing`), and `allowDuplicate` creates the key anyway |
 | `i18n_delete_unused_keys` | Deletes keys from every locale, their reviews included, in one undoable command; a key still used, kept, or possibly built at runtime is refused with the reason |
 
 #### Setting it up
