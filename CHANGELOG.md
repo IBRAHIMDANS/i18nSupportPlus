@@ -19,7 +19,7 @@
 - [Translation dialog] **The reference locale is listed first**: *Create Translation* and *Edit Translations* show the locale you translate from at the top, then the others in alphabetical order.
 - [Editor] ***Show Translations Inline* now folds the files already open**: despite the 1.16.0 fix, turning it on left the editors already open unfolded; their keys now fold at once.
 - [Machine translation] **A busy or slow engine no longer fails a whole batch**: a rate limit, a short outage or a timeout is retried after the delay the engine asks for, and a batch the engine rejects is split so that only the faulty text fails. Large batches sent to a local model also get more time.
-- [Tool window] **Quoted and multi-line YAML values show and save correctly**: the table and the tree show `'It''s'` as "It's", `\n` as a line break and `|` or `>` blocks as their lines. Editing such a value in the table no longer adds quotes (`'''It''''s'''`).
+- [Tool window] **Quoted, escaped and multi-line YAML and JSON values show and save correctly**: the table and the tree show YAML's `'It''s'` as "It's", JSON's `"Say \"hi\""` as `Say "hi"`, `\n` as a line break, `é` as "é" and `|` or `>` blocks as their lines. Editing such a value in the table no longer escapes it again (`'''It''''s'''`, `"Say \\\"hi\\\""`).
 
 ## 1.16.1 - 2026-10-26
 
