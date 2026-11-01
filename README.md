@@ -1,6 +1,45 @@
-# I18n Support Plus
+<p align="center">
+  <a href="https://plugins.jetbrains.com/plugin/30971-i18n-support-plus">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="src/main/resources/META-INF/pluginIcon_dark.svg">
+      <img src="src/main/resources/META-INF/pluginIcon.svg" alt="I18n Support Plus logo" width="96" height="96">
+    </picture>
+  </a>
+</p>
 
-Plugin ID: `com.ibrahimdans.i18n`
+<h1 align="center">I18n Support Plus</h1>
+
+<p align="center">
+  <b>Your i18n keys, as first-class code symbols.</b><br>
+  WebStorm, IntelliJ IDEA Ultimate and PhpStorm 2025.2 and later.
+</p>
+
+<p align="center">
+  <a href="https://plugins.jetbrains.com/plugin/30971-i18n-support-plus"><img src="https://img.shields.io/jetbrains/plugin/v/30971?label=Marketplace" alt="JetBrains Marketplace version"></a>
+  <a href="https://plugins.jetbrains.com/plugin/30971-i18n-support-plus"><img src="https://img.shields.io/jetbrains/plugin/d/30971" alt="Downloads"></a>
+  <a href="https://github.com/IBRAHIMDANS/i18nSupportPlus/actions/workflows/ci.yml"><img src="https://github.com/IBRAHIMDANS/i18nSupportPlus/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+</p>
+
+<p align="center">
+  <img src="docs/img/marketplace/extract-i18n-key.gif" alt="Extracting a JSX text into a key, its value written in every locale" width="720">
+</p>
+
+<p align="center">
+  <a href="https://plugins.jetbrains.com/plugin/30971-i18n-support-plus"><img src="https://img.shields.io/badge/Install%20from-JetBrains%20Marketplace-000000?style=for-the-badge&logo=jetbrains&logoColor=white" alt="Install from JetBrains Marketplace"></a>
+</p>
+
+<p align="center">
+  <a href="docs/COMPARISON.md">Compare with i18n Ally and Easy I18n</a>
+  ·
+  <a href="examples">Examples</a>
+  ·
+  <a href="CHANGELOG.md">Changelog</a>
+  ·
+  <a href="https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/new?template=bug_report.md">Report a bug</a>
+  ·
+  <a href="https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/new?template=feature_request.md">Request a feature</a>
+</p>
 
 <!-- Plugin description -->
 Turns i18n keys into first-class code symbols in **WebStorm, IntelliJ IDEA Ultimate and PhpStorm**: see each key's value and status, jump to it, rename it, translate it and keep every locale in sync.
@@ -17,6 +56,21 @@ Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-
 - **Stay healthy** — tool window with tree and table views, filters for missing, empty, duplicate and unreferenced keys, coverage per namespace and locale, a keep list for keys used outside the code, keys synchronizer, cleanup, CSV and XLIFF export / import, comparison with a Git branch
 - **Your own calls** — rules turn `translate('key')` or `__('key')` into translation calls, and a module can write its own wrapper's call at extraction
 <!-- Plugin description end -->
+
+## Contents
+
+- [Installation](#installation)
+- [Why this plugin?](#why-this-plugin)
+- [Supported Frameworks](#supported-frameworks) · [Languages](#supported-languages) · [Translation File Formats](#translation-file-formats)
+- [Features](#features): [Setup Wizard](#setup-wizard), [Key Extraction](#key-extraction), [Rename](#rename-refactoring), [Machine Translation](#machine-translation), [Inspections](#inspections), [Command Line Check](#command-line-check), [AI Agents (MCP)](#ai-agents-mcp)
+- [Tool Window](#tool-window): [Reviews](#reviews), [Stats](#stats), [Multi-Module Support](#multi-module-support)
+- [Configuration](#configuration): [Share the configuration with your team](#share-the-configuration-with-your-team)
+- [Requirements](#requirements) · [Build from Source](#build-from-source) · [Contributing](#contributing)
+
+## Installation
+
+In the IDE, **Settings › Plugins › Marketplace**, search for **I18n Support Plus** (plugin ID `com.ibrahimdans.i18n`) and install it, or click *Install* on its [Marketplace page](https://plugins.jetbrains.com/plugin/30971-i18n-support-plus). It needs WebStorm, IntelliJ IDEA Ultimate or PhpStorm 2025.2 or later ([Requirements](#requirements)).
+On first launch, the setup wizard detects the framework and the translation files and configures the rest.
 
 ## Why this plugin?
 
@@ -692,13 +746,7 @@ Per-format settings; the first one is the **indentation of the keys generated in
 | Git | No | *Compare with Branch* (translation changes of a branch) |
 | MCP Server | No | The tools AI agents call (2025.2.6+) |
 
-## Installation
-
-### From JetBrains Marketplace
-
-Search for **"I18n Support Plus"** in **Settings > Plugins > Marketplace**.
-
-### From Source
+## Build from Source
 
 ```bash
 git clone https://github.com/IBRAHIMDANS/i18nSupportPlus.git
