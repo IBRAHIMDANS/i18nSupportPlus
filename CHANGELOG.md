@@ -10,6 +10,7 @@
 - [Translation] **A text your project already translates is reused, not sent**: *Fill Missing Translations* and *Retranslate Stale Translations* give a key the translation another key of the module already holds for the same text, shown as *Project memory* in the preview, so it costs nothing and reads the same everywhere. When the project translates the text in several ways, the most frequent is proposed unchecked.
 - [Diagnostics] **Follow an error of the plugin up on GitHub**: after an error is reported from the IDE, still to the JetBrains Marketplace, a notification opens a GitHub issue filled in with the IDE version, the OS and the stack trace, for you to review, complete and submit. Nothing is sent to GitHub until you do.
 - [Settings] **Share the plugin's settings with your team in `i18n-check.json`**: *Export to i18n-check.json…*, on the settings page, writes the project's settings to a file at its root, for the team to commit. The IDE then reads the separators, namespaces, translation folders, checked locales and modules from it, like `i18n-check` in CI, while folding, the gutter and the preview locale stay on each machine. See the [README](README.md#share-the-configuration-with-your-team).
+- [MCP] **AI agents can check your translations and tidy your keys**: five new tools let Codex, Claude or any MCP client run the same check as `i18n-check`, find where a key is used, and rename, create or delete keys as the IDE does, each in one command you undo with Ctrl+Z; a key still used or already taken is refused with the reason.
 
 ### Fixes
 

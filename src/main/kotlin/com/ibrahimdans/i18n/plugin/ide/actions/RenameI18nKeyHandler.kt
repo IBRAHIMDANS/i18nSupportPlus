@@ -61,7 +61,7 @@ import java.util.Collections
 class RenameI18nKeyHandler : RenameHandler {
 
     /** One text replacement, gathered under a read action and applied in the write action. */
-    private data class Edit(val document: Document, val range: TextRange, val text: String)
+    internal data class Edit(val document: Document, val range: TextRange, val text: String)
 
     /** What a rename writes: the text [edits], and the [reviews] following the renamed keys. */
     private data class Collected(val edits: List<Edit>, val reviews: List<ReviewMove>)
@@ -205,7 +205,7 @@ class RenameI18nKeyHandler : RenameHandler {
      * The files are made writable first — a file a VCS such as Perforce keeps read-only is checked
      * out, or the rename is dropped when the user refuses — rather than failing halfway through.
      */
-    private fun apply(project: Project, edits: List<Edit>, command: String, reviews: List<ReviewMove>) {
+    internal fun apply(project: Project, edits: List<Edit>, command: String, reviews: List<ReviewMove>) {
         val files = edits.mapNotNull { FileDocumentManager.getInstance().getFile(it.document) }.distinct()
         if (ReadonlyStatusHandler.getInstance(project).ensureFilesWritable(files).hasReadonlyFiles()) return
         WriteCommandAction.writeCommandAction(project)
