@@ -67,7 +67,8 @@ class I18NextTechnology : Technology {
         val project = workspace.project
         val config = Settings.getInstance(project).config()
         val localizations = Extensions.LOCALIZATION.extensionList
-        return configFiles(project, config)
+        // Asked from a pooled thread too (the tool window): the configuration files are PSI to read.
+        return ReadAction.compute<List<LocalizationSource>, RuntimeException> { configFiles(project, config)
             .flatMap {
                 val init = PsiManager.getInstance(project).findFile(it)?.let { findInitObject(it) }
                 val translations = getTranslations(
@@ -86,7 +87,7 @@ class I18NextTechnology : Technology {
                             LocalizationSource(it.elementsTree(expr), name, name, "${expr.containingFile.name}#$name", it, locale = name)
                         }
                 }
-            }
+            } }
     }
 
     override fun initialize(workspace: Workspace) {
@@ -131,13 +132,15 @@ class I18NextTechnology : Technology {
      * an array of strings, in order. Asked for every key parsed, so the answer is kept until a
      * JavaScript or TypeScript file changes.
      */
-    override fun fallbackNamespaces(workspace: Workspace): List<String> =
-        fallbackCaches.computeIfAbsent(workspace.project) { project ->
+    override fun fallbackNamespaces(workspace: Workspace): List<String> {
+        val cache = fallbackCaches.computeIfAbsent(workspace.project) { project ->
             CachedValuesManager.getManager(project).createCachedValue {
                 val tracker = PsiModificationTracker.getInstance(project).forLanguages { it.isKindOf(JavascriptLanguage) }
                 CachedValueProvider.Result.create(readFallbackNamespaces(project), tracker)
             }
-        }.value
+        }
+        return ReadAction.compute<List<String>, RuntimeException> { cache.value }
+    }
 
     /** One cache per project, held by this instance: the configuration files it reads are its own. */
     private val fallbackCaches = ContainerUtil.createConcurrentWeakMap<Project, CachedValue<List<String>>>()
@@ -193,8 +196,11 @@ class I18NextTechnology : Technology {
      * reading every file importing `react-i18next` would parse hundreds. Kept until a JavaScript or
      * TypeScript file changes, and empty while the indexes are built.
      */
-    internal fun discoveredFiles(project: Project): List<VirtualFile> =
-        discoveryCaches.computeIfAbsent(project) {
+    internal fun discoveredFiles(project: Project): List<VirtualFile> {
+        // Asked from any thread — the tool window loads from a pooled one, holding no read action —
+        // so the search opens its own, and gives up while the indexes are built.
+        if (project.isDisposed || DumbService.isDumb(project)) return emptyList()
+        val cache = discoveryCaches.computeIfAbsent(project) {
             CachedValuesManager.getManager(project).createCachedValue {
                 CachedValueProvider.Result.create(
                     discover(project),
@@ -203,7 +209,13 @@ class I18NextTechnology : Technology {
                     DumbService.getInstance(project).modificationTracker,
                 )
             }
-        }.value
+        }
+        return try {
+            ReadAction.compute<List<VirtualFile>, RuntimeException> { cache.value }
+        } catch (_: IndexNotReadyException) {
+            emptyList()
+        }
+    }
 
     private val discoveryCaches = ContainerUtil.createConcurrentWeakMap<Project, CachedValue<List<VirtualFile>>>()
 
