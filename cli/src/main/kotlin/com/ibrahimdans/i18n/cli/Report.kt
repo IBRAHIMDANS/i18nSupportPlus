@@ -3,14 +3,17 @@ package com.ibrahimdans.i18n.cli
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
+import java.nio.file.Path
 
-/** How a [ProjectResult] is printed: [TEXT] for a reader, [JSON] for a tool. */
+/** How a [ProjectResult] is printed: [TEXT] for a reader, [JSON] for a tool, [GITHUB] for GitHub Actions' annotations. */
 enum class Format {
-    TEXT, JSON;
+    TEXT, JSON, GITHUB;
 
-    fun render(result: ProjectResult, maxProblems: Int): String = when (this) {
+    /** [project] is where the unknown keys' paths start from, for [GITHUB]. */
+    fun render(result: ProjectResult, maxProblems: Int, project: Path): String = when (this) {
         TEXT -> Report.text(result, maxProblems)
         JSON -> Report.json(result)
+        GITHUB -> GithubReport.render(result, maxProblems, project)
     }
 }
 

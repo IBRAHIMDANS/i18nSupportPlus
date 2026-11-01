@@ -7,13 +7,15 @@ typealias LocaleProblems = com.ibrahimdans.i18n.plugin.check.LocaleProblems
 
 /**
  * The problems of every locale, sorted by locale, compared to [reference], in [module] — null for
- * the whole project — and, when the code was checked, the [unused] keys of the reference.
+ * the whole project — and, when the code was checked, the [unused] keys of the reference; the
+ * [files] the locales were read from, for the reports that point at them.
  */
 data class CheckResult(
     val reference: String,
     val locales: List<LocaleProblems>,
     val module: String? = null,
     val unused: List<String>? = null,
+    val files: List<LocaleFile> = emptyList(),
 ) {
     val problems: Int get() = locales.sumOf { it.count } + unused.orEmpty().size
 }

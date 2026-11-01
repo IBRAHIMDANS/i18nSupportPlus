@@ -17,11 +17,15 @@ import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import java.nio.file.Path
 
 /**
- * The translations [module] holds, key -> locale -> value, what [TranslationCheck] compares.
- * [module] is null for the whole project, or for the files outside every module of a project
- * declaring several.
+ * The translations [module] holds, key -> locale -> value, what [TranslationCheck] compares, and the
+ * [files] they were read from. [module] is null for the whole project, or for the files outside every
+ * module of a project declaring several.
  */
-data class Scope(val module: ModuleConfig?, val translations: Map<String, Map<String, String>>)
+data class Scope(
+    val module: ModuleConfig?,
+    val translations: Map<String, Map<String, String>>,
+    val files: List<LocaleFile> = emptyList(),
+)
 
 /**
  * The translations of a whole project, found by [SourceDiscovery] as the plugin finds them: the
@@ -51,19 +55,23 @@ object ProjectSources {
         // A module put aside has no file left to read (SourceDiscovery), and no section.
         val modules = ModuleSources.active(config.modules).filter { it.rootDirectory.isNotBlank() }
         val scopes = if (ProjectPackages.requiresAny(project, ProjectPackages.TRANSLOCO)) translocoScopes(sources) else emptyMap()
-        if (modules.size < 2) return if (sources.isEmpty()) emptyList() else listOf(Scope(null, translationsOf(sources, config, scopes)))
+        if (modules.size < 2) return if (sources.isEmpty()) emptyList() else listOf(scopeOf(null, sources, project, config, scopes))
         val owned = sources.groupBy { ModuleSources.owner(modules, ModuleSources.FilePath(it.displayPath.trim('/'), anchored = true)) }
-        return (modules + null).mapNotNull { module -> owned[module]?.let { Scope(module, translationsOf(it, config, scopes)) } }
+        return (modules + null).mapNotNull { module -> owned[module]?.let { scopeOf(module, it, project, config, scopes) } }
     }
 
     /** The plugin's `TranslationDataLoader.loadAllTranslations`, over parsed trees; [scopes] by display path. */
-    private fun translationsOf(
+    private fun scopeOf(
+        module: ModuleConfig?,
         sources: List<TranslationSource<ParsedNode, ParsedFormat>>,
+        project: Path,
         config: Config,
         scopes: Map<String, String>,
-    ): Map<String, Map<String, String>> {
+    ): Scope {
         val defaultNamespaces = config.defaultNamespaces()
         val result = mutableMapOf<String, MutableMap<String, String>>()
+        val files = mutableListOf<LocaleFile>()
+        val root = project.toAbsolutePath().normalize()
         for (source in sources) {
             val namespace = source.namespace
                 ?: if (source.isLocaleNamedFile()) defaultNamespaces.first() else source.name.substringBeforeLast('.')
@@ -72,8 +80,9 @@ object ProjectSources {
                 else -> scopes[source.displayPath]?.let { it + config.keySeparator }.orEmpty()
             }
             TranslationLeaves.collect(config, source.tree!!, nsPrefix, source.localeLabel(), ParsedLeaves, result)
+            files += LocaleFile(source.localeLabel(), nsPrefix, root.resolve(source.displayPath.trim('/')))
         }
-        return result
+        return Scope(module, result, files)
     }
 
     /**
