@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="en-US" datatype="plaintext" original="ng2.template">
+    <body>
+      <trans-unit id="home.title" datatype="html">
+        <source>Welcome</source>
+      </trans-unit>
+      <trans-unit id="home.intro" datatype="html">
+        <source>Everything you need, delivered tomorrow.</source>
+        <note priority="1" from="description">Introduction of the shop</note>
+        <note priority="1" from="meaning">Shown under the title</note>
+      </trans-unit>
+      <trans-unit id="home.logo.alt" datatype="html">
+        <source>The shop&apos;s logo</source>
+      </trans-unit>
+      <trans-unit id="cart.terms" datatype="html">
+        <source>Terms &amp; conditions apply.</source>
+      </trans-unit>
+      <trans-unit id="cart.saved" datatype="html">
+        <source>Your cart was saved</source>
+      </trans-unit>
+      <trans-unit id="home.greeting" datatype="html">
+        <source>Hello <x id="name" equiv-text="this.name"/>!</source>
+        <note priority="1" from="description">Greeting shown in the header</note>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>
