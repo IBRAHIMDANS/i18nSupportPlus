@@ -50,7 +50,7 @@ data class Options(
                     "--code" -> code = true
                     "--format" -> format = value(arg).let { name ->
                         Format.entries.firstOrNull { it.name.equals(name, ignoreCase = true) }
-                            ?: throw UsageError("unknown format '$name', expected text or json")
+                            ?: throw UsageError("unknown format '$name', expected text, json or github")
                     }
                     "--max-problems" -> maxProblems = value(arg).let { count ->
                         count.toIntOrNull()?.takeIf { it >= 0 } ?: throw UsageError("--max-problems expects a number >= 0, not '$count'")
@@ -81,17 +81,20 @@ object I18nCheck {
     const val CANNOT_CHECK = 2
 
     val USAGE = """
-        Usage: i18n-check [project] [--locales <dir> | --code] [--reference <locale>] [--format text|json] [--max-problems N]
+        Usage: i18n-check [project] [--locales <dir> | --code] [--reference <locale>] [--format text|json|github] [--max-problems N]
 
           project              the project checked, where .idea/i18nSettings.xml is read from (default: the current directory)
           --locales <dir>      only check the directory holding <locale>.json|yml or <locale>/<namespace>.json|yml
           --code               also report the keys the code (i18next, next-intl, vue-i18n, Transloco, ngx-translate, react-intl, Lingui) never uses, and those it uses but the reference lacks
           --reference <locale> the locale the others are compared to (default: the module's or the settings', then en)
-          --format text|json   the report's format (default: text)
+          --format text|json|github
+                               the report's format (default: text); github prints GitHub Actions annotations
+                               and writes a table to ${'$'}GITHUB_STEP_SUMMARY
           --max-problems N     the problems allowed before exiting with 1 (default: 0)
     """.trimIndent()
 
-    fun run(args: List<String>, out: PrintStream, err: PrintStream): Int {
+    /** [env] reads the environment: `GITHUB_STEP_SUMMARY`, for `--format github`. */
+    fun run(args: List<String>, out: PrintStream, err: PrintStream, env: (String) -> String? = System::getenv): Int {
         val options = try {
             Options.parse(args) ?: return OK.also { out.println(USAGE) }
         } catch (e: UsageError) {
@@ -102,7 +105,8 @@ object I18nCheck {
         return try {
             val result = check(options)
             warnUnreadLocales(options, err)
-            out.println(options.format.render(result, options.maxProblems))
+            out.println(options.format.render(result, options.maxProblems, options.project))
+            if (options.format == Format.GITHUB) GithubReport.summarize(result, options.maxProblems, env)
             if (result.problems > options.maxProblems) PROBLEMS else OK
         } catch (e: CannotCheck) {
             err.println("i18n-check: ${e.message}")
@@ -137,6 +141,7 @@ object I18nCheck {
             result.copy(
                 locales = result.locales.filter { it.locale == reference || !config.ignoresLocale(it.locale) },
                 module = scope.module?.name,
+                files = scope.files,
             )
         }
         if (!options.code) return ProjectResult(results)
@@ -160,10 +165,10 @@ object I18nCheck {
             }
         }
         if (!Files.isDirectory(locales)) throw CannotCheck("no such directory: $locales")
-        val translations = LocaleDirectory.read(locales, config)
-        if (translations.isEmpty()) {
+        val scope = LocaleDirectory.read(locales, config)
+        if (scope.translations.isEmpty()) {
             throw CannotCheck("no translation file in $locales: expected <locale>.json|yml or <locale>/<namespace>.json|yml")
         }
-        return listOf(Scope(null, translations))
+        return listOf(scope)
     }
 }

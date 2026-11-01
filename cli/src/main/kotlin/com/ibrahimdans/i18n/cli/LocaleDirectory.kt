@@ -29,42 +29,52 @@ object LocaleDirectory {
 
     private val FORMATS = CheckFormats.ALL.flatMap { format -> format.extensions.map { it to format } }.toMap()
 
-    /** Key -> locale -> value, what [TranslationCheck] compares; empty when [dir] holds no translation file. */
-    fun read(dir: Path, config: Config): Map<String, Map<String, String>> {
+    /** Key -> locale -> value, what [TranslationCheck] compares, and its files; no key when [dir] holds no translation file. */
+    fun read(dir: Path, config: Config): Scope {
         val result = mutableMapOf<String, MutableMap<String, String>>()
+        val files = mutableListOf<LocaleFile>()
         val aliases = config.localeAliasMap()
         fun isLocale(name: String) = LocaleNames.looksLikeLocale(name) || name in aliases
         for (entry in dir.listDirectoryEntries().sorted()) {
             when {
                 entry.isDirectory() && isLocale(entry.fileName.toString()) ->
                     translationFiles(entry).forEach { file ->
-                        collect(file, "${file.nameWithoutExtension}${config.nsSeparator}", entry.fileName.toString(), config, result)
+                        collect(file, "${file.nameWithoutExtension}${config.nsSeparator}", entry.fileName.toString(), config, result, files)
                     }
-                isTranslationFile(entry) && entry.extension.lowercase() == ArbCatalogue.EXTENSION -> collectArb(entry, config, result)
+                isTranslationFile(entry) && entry.extension.lowercase() == ArbCatalogue.EXTENSION -> collectArb(entry, config, result, files)
                 isTranslationFile(entry) && isLocale(entry.nameWithoutExtension) ->
-                    collect(entry, "", entry.nameWithoutExtension, config, result)
+                    collect(entry, "", entry.nameWithoutExtension, config, result, files)
             }
         }
-        return result
+        return Scope(null, result, files)
     }
 
-    private fun collectArb(file: Path, config: Config, result: MutableMap<String, MutableMap<String, String>>) {
+    private fun collectArb(file: Path, config: Config, result: MutableMap<String, MutableMap<String, String>>, files: MutableList<LocaleFile>) {
         val tree = CheckFormats.ARB.parse(Files.readString(file)) ?: throw CannotCheck(CheckFormats.unreadable(CheckFormats.ARB, file)!!)
         val locale = ArbCatalogue.localeOf(file.nameWithoutExtension, ArbCatalogue.declaredLocale(tree)) ?: return
         TranslationLeaves.collect(config, tree, "", locale, ParsedLeaves, result)
+        files += LocaleFile(locale, "", file.toAbsolutePath().normalize())
     }
 
     private fun translationFiles(dir: Path): List<Path> = dir.listDirectoryEntries().filter(::isTranslationFile).sorted()
 
     private fun isTranslationFile(path: Path): Boolean = path.isRegularFile() && path.extension.lowercase() in FORMATS
 
-    private fun collect(file: Path, nsPrefix: String, locale: String, config: Config, result: MutableMap<String, MutableMap<String, String>>) {
+    private fun collect(
+        file: Path,
+        nsPrefix: String,
+        locale: String,
+        config: Config,
+        result: MutableMap<String, MutableMap<String, String>>,
+        files: MutableList<LocaleFile>,
+    ) {
         val extension = file.extension.lowercase()
         val format = FORMATS.getValue(extension)
         val tree = format.parse(Files.readString(file), extension)
             ?: CheckFormats.unreadable(format, file)?.let { throw CannotCheck(it) }
             ?: return
         TranslationLeaves.collect(config, tree, nsPrefix, locale, ParsedLeaves, result)
+        files += LocaleFile(locale, nsPrefix, file.toAbsolutePath().normalize())
     }
 }
 
