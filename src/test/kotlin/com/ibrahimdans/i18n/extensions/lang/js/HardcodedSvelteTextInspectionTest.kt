@@ -77,11 +77,20 @@ class HardcodedSvelteTextInspectionTest : ExtractionTestBase() {
     }
 
     @Test
+    fun theQuickFixWritesTheStoreUnderTheNameTheComponentImportsItAs() {
+        val aliased = "<script>\n\timport { _ as tr } from 'svelte-i18n';\n</script>\n"
+        extract(aliased + "<button>Sa<caret>ve</button>", "test:ref.save")
+        myFixture.checkResult(aliased + "<button>{${'$'}tr('test:ref.save')}</button>")
+    }
+
+    @Test
     fun theStoreFollowsTheComponentsImport() {
         Assertions.assertEquals("t", SvelteMarkupTextExtractor.storeOf("import { t, locale } from 'svelte-i18n';"))
         Assertions.assertEquals("_", SvelteMarkupTextExtractor.storeOf("import { _, t } from \"svelte-i18n\";"))
         Assertions.assertEquals("_", SvelteMarkupTextExtractor.storeOf("import { writable } from 'svelte/store';"))
         Assertions.assertEquals(setOf("_", "locale"), SvelteMarkupTextExtractor.importedNames("import { _ as tr, locale } from 'svelte-i18n'"))
+        Assertions.assertEquals("tr", SvelteMarkupTextExtractor.storeOf("import { _ as tr, locale } from 'svelte-i18n'"))
+        Assertions.assertEquals("translate", SvelteMarkupTextExtractor.storeOf("import { t as translate } from 'svelte-i18n'"))
     }
 
     private fun extract(component: String, key: String): String {
