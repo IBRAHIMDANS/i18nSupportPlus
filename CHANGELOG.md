@@ -15,6 +15,7 @@
 - [i18next] **Keys read under a `context` option**: `t('friend', { context: gender })` is resolved against `friend_male` and `friend_female`, and `{ context: 'male' }` against `friend_male`, else `friend`; those variants no longer show up as keys with no reference in code.
 - [Angular] **Angular's own i18n is read**: in a project whose `angular.json` lists its translations, `i18n="@@home.title"` in a template and `` $localize`:@@home.title:…` `` in TypeScript are checked, completed and navigable against the XLIFF files, and a translation missing from a locale is written as the unit's `<target>`. See the [README](README.md#supported-frameworks)
 - [Machine translation] **ICU plurals are machine-translated with the target language's branches**: `{count, plural, one {…} other {…}}` gets `few` and `many` in Russian and `other` alone in Japanese, in *Translate*, *Fill Missing Translations*, *Retranslate Stale Translations* and for AI agents, instead of being left out. A branch your source lacks is translated from `other` and comes unchecked, for you to review.
+- [CLI] **`i18n-check` reads gettext PO, Laravel PHP and Flutter ARB files**: a Lingui, Django or Laravel project and a Flutter app get the missing, orphan and empty keys of each locale in CI, `msgctxt` and plural forms included. A Laravel array built by code stops the check, naming the file and the line. See the [README](README.md#command-line-check)
 
 ### Fixes
 

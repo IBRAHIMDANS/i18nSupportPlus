@@ -1,0 +1,25 @@
+msgid ""
+msgstr ""
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "Hello"
+msgstr "Bonjour"
+
+msgctxt "menu"
+msgid "Open"
+msgstr ""
+
+msgid "{count} item"
+msgid_plural "{count} items"
+msgstr[0] "{count} élément"
+msgstr[1] ""
+
+msgid "A long sentence"
+msgstr "Une longue phrase"
+
+#~ msgid "Obsolete"
+#~ msgstr "Obsolète"
+
+msgid "Legacy"
+msgstr "Ancien"

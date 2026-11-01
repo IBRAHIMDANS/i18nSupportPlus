@@ -12,7 +12,9 @@ import java.io.IOException
  * PSI: objects are the trees, anything else — string, number, boolean, null, array — a leaf.
  *
  * As there, the root object's `$schema` (a Paraglide message file's first property) is left out of
- * [entries] and [findChildren] but still found by [findChild]; a nested `$schema` is a key.
+ * [entries] and [findChildren] but still found by [findChild]; a nested `$schema` is a key. In a
+ * Flutter ARB catalogue ([arb]), the root's `@` properties — `@@locale`, the `@greeting` describing
+ * `greeting`'s placeholders — are metadata the same way.
  *
  * A `.json5` file is read with the JSON5 leniencies Jackson knows — comments, unquoted keys, single
  * quotes, trailing commas, JSON5 numbers — and keeps exact spans. Only reading: [JsonTranslationEditor]
@@ -22,13 +24,17 @@ class JsonTranslationTree private constructor(
     node: ParsedNode,
     children: List<JsonTranslationTree>?,
     private val isRoot: Boolean,
+    private val arb: Boolean = false,
 ) : ParsedNodeTree(node, children) {
 
     override fun listed(): List<ParsedNodeTree> =
-        if (isRoot) super.listed().filterNot { it.value().key == SCHEMA } else super.listed()
+        if (isRoot) super.listed().filterNot { isMetadata(it.value().key) } else super.listed()
+
+    private fun isMetadata(key: String?): Boolean = key == SCHEMA || (arb && key?.startsWith(ARB_METADATA) == true)
 
     companion object {
         private const val SCHEMA = "\$schema"
+        private const val ARB_METADATA = "@"
 
         private val factory = JsonFactory()
 
@@ -49,13 +55,13 @@ class JsonTranslationTree private constructor(
         /**
          * The tree of [text], whose root must be an object; null for any other root or for text
          * that is not JSON — or not JSON5 when [json5] — where the PSI would still build a tree
-         * around the error.
+         * around the error. [arb] reads a Flutter catalogue, its root's `@` metadata left out of the keys.
          */
-        fun parse(text: String, json5: Boolean = false): JsonTranslationTree? =
+        fun parse(text: String, json5: Boolean = false, arb: Boolean = false): JsonTranslationTree? =
             try {
                 (if (json5) json5Factory else factory).createParser(text).use { parser ->
                     if (parser.nextToken() != JsonToken.START_OBJECT) return null
-                    val root = read(parser, text, key = null, keySpan = null, isRoot = true)
+                    val root = read(parser, text, key = null, keySpan = null, isRoot = true, arb = arb)
                     root.takeIf { parser.nextToken() == null }
                 }
             } catch (e: IOException) {
@@ -63,7 +69,7 @@ class JsonTranslationTree private constructor(
             }
 
         /** The value [parser] stands on, its closing token consumed. */
-        private fun read(parser: JsonParser, text: String, key: String?, keySpan: TextSpan?, isRoot: Boolean = false): JsonTranslationTree {
+        private fun read(parser: JsonParser, text: String, key: String?, keySpan: TextSpan?, isRoot: Boolean = false, arb: Boolean = false): JsonTranslationTree {
             val start = parser.currentTokenLocation().charOffset.toInt()
             return when (parser.currentToken()) {
                 JsonToken.START_OBJECT -> {
@@ -74,7 +80,7 @@ class JsonTranslationTree private constructor(
                         parser.nextToken()
                         children += read(parser, text, name, TextSpan(nameStart, nameEnd(text, nameStart)))
                     }
-                    JsonTranslationTree(ParsedNode(key, null, keySpan, TextSpan(start, end(parser))), children, isRoot)
+                    JsonTranslationTree(ParsedNode(key, null, keySpan, TextSpan(start, end(parser))), children, isRoot, arb)
                 }
                 // Read before taking the end: the parser only reaches the closing quote then.
                 JsonToken.VALUE_STRING -> parser.text.let { value -> leaf(key, value, keySpan, start, end(parser)) }

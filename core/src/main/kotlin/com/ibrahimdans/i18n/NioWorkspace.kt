@@ -25,10 +25,14 @@ class ParsedFormat(
     private val id: String,
     /** The extensions of its files, without the dot. */
     val extensions: List<String>,
+    /** False for a format whose files a technology declares, the name telling no locale: Flutter's `app_en.arb`. */
+    private val scannedByName: Boolean = true,
     private val parser: (text: String, extension: String?) -> Tree<ParsedNode>?,
 ) : TranslationFormat {
 
     override fun config(): LocalizationConfig = LocalizationConfigImpl(id)
+
+    override fun scannedByName(): Boolean = scannedByName
 
     /**
      * [text] read as a translation tree, or null when it does not parse into one; [extension], the

@@ -1,0 +1,25 @@
+msgid ""
+msgstr ""
+"Language: en\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: src/App.tsx:12
+msgid "Hello"
+msgstr "Hello"
+
+msgctxt "menu"
+msgid "Open"
+msgstr "Open"
+
+msgid "Open"
+msgstr "Open the file"
+
+msgid "{count} item"
+msgid_plural "{count} items"
+msgstr[0] "{count} item"
+msgstr[1] "{count} items"
+
+msgid "A long "
+"sentence"
+msgstr ""
+"A long sentence"

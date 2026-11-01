@@ -150,6 +150,91 @@ class I18nCheckTest {
     }
 
     @Test
+    fun `PO catalogues - msgctxt keys apart, a plural form left blank is empty, header and obsolete entries skipped`() {
+        val run = check("--locales", "$resources/po")
+        assertEquals(
+            """
+            Reference locale: en (2 locales)
+
+            en: no problem
+            fr: 1 missing, 1 orphan, 2 empty
+              missing  Open
+              orphan   Legacy
+              empty    Open (msgctxt: menu)
+              empty    {count} item
+
+            4 problems found (allowed: 0).
+            """.trimIndent(),
+            run.out,
+        )
+        assertEquals(I18nCheck.PROBLEMS, run.exit)
+    }
+
+    @Test
+    fun `Laravel PHP arrays - nested arrays are nested keys, the file names the namespace`() {
+        val run = check("--locales", "$resources/php")
+        assertEquals(
+            """
+            Reference locale: en (2 locales)
+
+            en: no problem
+            fr: 1 missing, 1 orphan, 1 empty
+              missing  messages:auth.throttle
+              orphan   messages:legacy
+              empty    messages:welcome
+
+            3 problems found (allowed: 0).
+            """.trimIndent(),
+            run.out,
+        )
+        assertEquals(I18nCheck.PROBLEMS, run.exit)
+    }
+
+    @Test
+    fun `Laravel PHP array built by code - not checked, named with the line, exit 2`() {
+        val run = check("--locales", "$resources/php-partial")
+        assertEquals(I18nCheck.CANNOT_CHECK, run.exit)
+        assertTrue(run.err.contains("php-partial/en/messages.php: its catalogue is not written as plain literals (concatenation at line 5)"), run.err)
+    }
+
+    @Test
+    fun `ARB catalogues - locale from @@locale or the name, metadata no key`() {
+        val run = check("--locales", "$resources/arb")
+        assertEquals(
+            """
+            Reference locale: en (3 locales)
+
+            de: no problem
+            en: no problem
+            fr: 1 missing, 1 orphan, 1 empty
+              missing  title
+              orphan   old
+              empty    farewell
+
+            3 problems found (allowed: 0).
+            """.trimIndent(),
+            run.out,
+        )
+        assertEquals(I18nCheck.PROBLEMS, run.exit)
+    }
+
+    @Test
+    fun `project mode - Flutter catalogues found under lib, the build copies left out`(@TempDir project: Path) {
+        fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }
+        write("lib/l10n/app_en.arb", """{"@@locale": "en", "title": "App", "@title": {}, "hello": "Hello"}""")
+        write("lib/l10n/app_fr.arb", """{"title": "Appli"}""")
+        // Read, this copy would stop the check: it is not JSON.
+        write(".dart_tool/flutter_gen/gen_l10n/app_en.arb", "{")
+
+        val run = check(project.toString(), "--format", "json")
+
+        assertEquals(I18nCheck.PROBLEMS, run.exit, run.err)
+        val locales = JsonParser.parseString(run.out).asJsonObject["locales"].asJsonArray.map { it.asJsonObject }
+        assertEquals(listOf("en", "fr"), locales.map { it["locale"].asString })
+        assertEquals("[\"hello\"]", locales[1]["missing"].toString())
+    }
+
+    @Test
     fun `plural forms - each locale needs the categories of its own language`() {
         val run = check("--locales", "$resources/plurals", "--format", "json")
         val locales = JsonParser.parseString(run.out).asJsonObject["locales"].asJsonArray.map { it.asJsonObject }
