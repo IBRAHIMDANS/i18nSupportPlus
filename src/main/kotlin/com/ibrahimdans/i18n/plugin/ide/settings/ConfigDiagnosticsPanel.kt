@@ -1,6 +1,16 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.ibrahimdans.i18n.extensions.technology.i18next.I18NextTechnology
+import com.ibrahimdans.i18n.plugin.ide.preview.EditorRefresh
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
+import com.ibrahimdans.i18n.plugin.utils.localeLabel
+import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.components.service
+import com.intellij.openapi.project.DumbService
+import com.intellij.openapi.project.IndexNotReadyException
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
@@ -30,7 +40,13 @@ enum class ConfigIssue {
     ROOT_MISSING,
     ROOT_WITHOUT_TRANSLATIONS,
     DEFAULT_NS_EMPTY,
-    KEY_SEPARATOR_EMPTY
+    KEY_SEPARATOR_EMPTY,
+
+    /** No locale has a file for the default namespace: every key without a prefix is unresolved. */
+    DEFAULT_NS_NO_FILE,
+
+    /** Not a problem: the blank default namespace is read from the project's i18next initialisation. */
+    DEFAULT_NS_FROM_CODE
 }
 
 /**
@@ -43,7 +59,23 @@ enum class ConfigIssue {
 data class ConfigDiagnostic(
     val issue: ConfigIssue,
     val module: String? = null,
-    val path: String = ""
+    val path: String = "",
+    val suggestion: String? = null,
+    val origin: String? = null
+)
+
+/**
+ * What the translation files and the project's i18next initialisation say of the namespaces, for the
+ * default namespace checks: [byLocale], the namespaces each locale has a file for; [holdsDefaultByName],
+ * whether a file named after its locale (`en.json`) holds the default namespace whatever it is called;
+ * [code], what the i18next initialisation states; [readFromCode], whether the default namespace in use
+ * was read from it, the setting being blank. Empty when unknown: nothing is then reported.
+ */
+data class NamespaceFacts(
+    val byLocale: Map<String, Set<String>> = emptyMap(),
+    val holdsDefaultByName: Boolean = false,
+    val code: CodeDefaults? = null,
+    val readFromCode: Boolean = false
 )
 
 /**
@@ -55,7 +87,7 @@ data class ConfigDiagnostic(
 object ConfigDiagnostics {
 
     /** Every problem [config] currently has, in the order they should be shown. */
-    fun inspect(config: Config, probe: DirectoryProbe): List<ConfigDiagnostic> = buildList {
+    fun inspect(config: Config, probe: DirectoryProbe, facts: NamespaceFacts = NamespaceFacts()): List<ConfigDiagnostic> = buildList {
         val modules = config.modules.filter { it.rootDirectory.isNotBlank() }
 
         if (config.translationsRoot.isBlank()) {
@@ -68,8 +100,36 @@ object ConfigDiagnostics {
 
         modules.forEach { addRootIssue(it.name.ifBlank { it.rootDirectory }, it.rootDirectory, probe) }
 
-        if (config.defaultNs.isBlank()) add(ConfigDiagnostic(ConfigIssue.DEFAULT_NS_EMPTY))
+        val code = facts.code
+        if (facts.readFromCode && code != null) {
+            add(ConfigDiagnostic(ConfigIssue.DEFAULT_NS_FROM_CODE, path = config.defaultNamespaces().joinToString(", "), origin = code.origin))
+        } else if (config.defaultNs.isBlank()) {
+            add(ConfigDiagnostic(ConfigIssue.DEFAULT_NS_EMPTY))
+        }
+        defaultNamespaceWithoutFile(config, facts)?.let(::add)
         if (config.keySeparator.isBlank()) add(ConfigDiagnostic(ConfigIssue.KEY_SEPARATOR_EMPTY))
+    }
+
+    /**
+     * [ConfigIssue.DEFAULT_NS_NO_FILE] when no locale has a file for any default namespace, with the
+     * namespace to use instead: the one the i18next initialisation names, else the only one every
+     * locale has a file for. Null when the files are unknown, or a locale-named file holds the
+     * default namespace whatever its name.
+     */
+    fun defaultNamespaceWithoutFile(config: Config, facts: NamespaceFacts): ConfigDiagnostic? {
+        if (facts.byLocale.isEmpty() || facts.holdsDefaultByName) return null
+        val present = facts.byLocale.values.flatten().toSet()
+        val defaults = config.defaultNamespaces()
+        if (defaults.any { it in present }) return null
+        val fromCode = facts.code?.defaultNs.orEmpty().filter { it in present }
+        val inEveryLocale = facts.byLocale.values.reduce { all, namespaces -> all intersect namespaces }
+        val suggestion = fromCode.joinToString(",").ifEmpty { null } ?: inEveryLocale.singleOrNull()
+        return ConfigDiagnostic(
+            ConfigIssue.DEFAULT_NS_NO_FILE,
+            path = defaults.joinToString(", "),
+            suggestion = suggestion,
+            origin = facts.code?.origin?.takeIf { fromCode.isNotEmpty() }
+        )
     }
 
     private fun MutableList<ConfigDiagnostic>.addRootIssue(module: String?, path: String, probe: DirectoryProbe) {
@@ -95,6 +155,52 @@ internal fun ConfigDiagnostic.text(): String = when (issue) {
 
     ConfigIssue.DEFAULT_NS_EMPTY -> PluginBundle.message("settings.diagnostics.defaultNs.empty")
     ConfigIssue.KEY_SEPARATOR_EMPTY -> PluginBundle.message("settings.diagnostics.keySeparator.empty")
+    ConfigIssue.DEFAULT_NS_NO_FILE -> PluginBundle.message("settings.diagnostics.defaultNs.noFile", path)
+    ConfigIssue.DEFAULT_NS_FROM_CODE -> PluginBundle.message("settings.diagnostics.defaultNs.fromCode", path, origin.orEmpty())
+}
+
+/** The label of the action applying [ConfigDiagnostic.suggestion]: `Use 'common' (from src/i18n.ts)`. */
+internal fun ConfigDiagnostic.useSuggestionLabel(): String? = suggestion?.let {
+    if (origin == null) PluginBundle.message("settings.diagnostics.action.useNamespace", it)
+    else PluginBundle.message("settings.diagnostics.action.useNamespace.from", it, origin)
+}
+
+/**
+ * What [project]'s translation files and i18next initialisation say of the namespaces, under [config]:
+ * empty while the indexes are built, as nothing is known then.
+ */
+fun namespaceFacts(project: Project, config: Config): NamespaceFacts {
+    if (project.isDisposed || DumbService.isDumb(project)) return NamespaceFacts()
+    return try {
+        ReadAction.compute<NamespaceFacts, RuntimeException> {
+            val sources = project.service<LocalizationSourceService>().findAllSources(project)
+            val default = config.defaultNamespaces().first()
+            val byLocale = sources.filter { it.namespace != null || !it.isLocaleNamedFile() }
+                .groupBy({ it.localeLabel() }, { TranslationDataLoader.extractNamespace(it, default) })
+                .mapValues { (_, namespaces) -> namespaces.toSet() }
+            val code = I18NextTechnology.codeDefaultsOf(project, config)
+            val settings = Settings.getInstance(project)
+            val applied = settings.codeDefaults()?.takeIf { settings.defaultNs.isBlank() && it.defaultNs.isNotEmpty() }
+            NamespaceFacts(
+                byLocale = byLocale,
+                holdsDefaultByName = sources.any { it.namespace == null && it.isLocaleNamedFile() },
+                code = applied ?: code,
+                readFromCode = applied != null
+            )
+        }
+    } catch (_: IndexNotReadyException) {
+        NamespaceFacts()
+    }
+}
+
+/**
+ * Sets the default namespace to [namespace] — the way out [ConfigIssue.DEFAULT_NS_NO_FILE] offers
+ * outside the settings page — and refreshes the open editors, whose keys it changes.
+ */
+fun useDefaultNamespace(project: Project, namespace: String) {
+    val settings = Settings.getInstance(project)
+    settings.setConfig(settings.config().copy(defaultNs = namespace))
+    EditorRefresh.afterSettingsChange(project)
 }
 
 /**
@@ -116,7 +222,9 @@ class ConfigDiagnosticsPanel(
     private val project: Project,
     private val onChooseDirectory: ((ConfigDiagnostic) -> Unit)? = null,
     private val onRemoveModule: ((String) -> Unit)? = null,
-    private val onRunWizard: (() -> Unit)? = { SetupWizardDialog(project).show() }
+    private val onRunWizard: (() -> Unit)? = { SetupWizardDialog(project).show() },
+    private val onUseDefaultNamespace: ((String) -> Unit)? = null,
+    private val facts: (Config) -> NamespaceFacts = { namespaceFacts(project, it) }
 ) : JPanel() {
 
     private val probe = DirectoryProbe { path -> inspect(path) }
@@ -133,7 +241,7 @@ class ConfigDiagnosticsPanel(
     fun refresh(config: Config) {
         removeAll()
 
-        val diagnostics = ConfigDiagnostics.inspect(config, probe)
+        val diagnostics = ConfigDiagnostics.inspect(config, probe, facts(config))
         diagnostics.forEach { add(bannerFor(it)) }
         isVisible = diagnostics.isNotEmpty()
 
@@ -144,7 +252,9 @@ class ConfigDiagnosticsPanel(
     // --- rendering ---
 
     private fun bannerFor(diagnostic: ConfigDiagnostic): InlineBanner {
-        val banner = InlineBanner(diagnostic.text(), EditorNotificationPanel.Status.Warning)
+        val status = if (diagnostic.issue == ConfigIssue.DEFAULT_NS_FROM_CODE) EditorNotificationPanel.Status.Info
+        else EditorNotificationPanel.Status.Warning
+        val banner = InlineBanner(diagnostic.text(), status)
         banner.showCloseButton(false)
         banner.alignmentX = Component.LEFT_ALIGNMENT
 
@@ -169,7 +279,18 @@ class ConfigDiagnosticsPanel(
                 }
             }
 
-            ConfigIssue.DEFAULT_NS_EMPTY, ConfigIssue.KEY_SEPARATOR_EMPTY -> Unit
+            ConfigIssue.DEFAULT_NS_NO_FILE -> {
+                val suggestion = diagnostic.suggestion
+                val label = diagnostic.useSuggestionLabel()
+                if (suggestion != null && label != null) onUseDefaultNamespace?.let { use ->
+                    banner.addAction(label, Runnable { use(suggestion) })
+                }
+                onRunWizard?.let { runWizard ->
+                    banner.addAction(PluginBundle.message("settings.diagnostics.action.runWizard"), Runnable { runWizard() })
+                }
+            }
+
+            ConfigIssue.DEFAULT_NS_EMPTY, ConfigIssue.KEY_SEPARATOR_EMPTY, ConfigIssue.DEFAULT_NS_FROM_CODE -> Unit
         }
         return banner
     }

@@ -77,7 +77,18 @@ internal fun configFileEditButton(action: () -> Unit): JButton =
  */
 class SettingsPanel(val settings: Settings, val project: Project, private val configFile: ConfigFileView = ConfigFileView()) {
 
-    private val diagnosticsPanel = ConfigDiagnosticsPanel(project)
+    private val diagnosticsPanel: ConfigDiagnosticsPanel = ConfigDiagnosticsPanel(
+        project,
+        onUseDefaultNamespace = { namespace ->
+            defaultNamespace.text = namespace
+            diagnosticsPanel.refresh(settings.config())
+        },
+        facts = settings::namespaceFacts
+    )
+
+    private val defaultNamespace: JTextField by lazy {
+        textField(PluginBundle.message("settings.default.namespace"), settings::defaultNs, maxLength = 1000, columns = 20)
+    }
 
     private val referenceLocale = LocaleChoice.combo(
         textField(PluginBundle.message("settings.folding.preferredLanguage"), settings::foldingPreferredLanguage, columns = 6)
@@ -138,7 +149,7 @@ class SettingsPanel(val settings: Settings, val project: Project, private val co
                     cell(separatorField(PluginBundle.message("settings.plural.separator"), settings::pluralSeparator))
                 }
                 row(PluginBundle.message("settings.default.namespace")) {
-                    cell(textField(PluginBundle.message("settings.default.namespace"), settings::defaultNs, maxLength = 1000, columns = 20))
+                    cell(defaultNamespace)
                         .comment(PluginBundle.message("settings.default.namespace.comment"))
                 }
                 row(PluginBundle.message("settings.fallback.namespace")) {

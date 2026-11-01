@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.extensions.technology.i18next.I18NextTechnology
 import com.ibrahimdans.i18n.plugin.ide.settings.rules.EditorRuleState
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
@@ -94,12 +95,33 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
 
     /**
      * Returns plugin configuration: the stored settings, with those `i18n-check.json` sets laid over
-     * them.
+     * them, and those still blank filled from the project's i18next initialisation ([codeDefaults]).
      */
     override fun config(): Config {
+        val config = fileConfig()
+        return config.withCodeDefaults(codeDefaults(config))
+    }
+
+    /** [namespaceFacts] of this project under [config]; none for settings built with no project. */
+    fun namespaceFacts(config: Config): NamespaceFacts =
+        project?.let { com.ibrahimdans.i18n.plugin.ide.settings.namespaceFacts(it, config) } ?: NamespaceFacts()
+
+    /** The stored settings with `i18n-check.json` laid over them. */
+    private fun fileConfig(): Config {
         val stored = storedConfig()
         val content = configFile().content ?: return stored
         return content.applyTo(stored, ignored = IGNORED_FROM_FILE)
+    }
+
+    /**
+     * What the project's i18next initialisation (`src/i18n.ts`…) says of the settings [config] leaves
+     * blank — the default namespace, the reference locale — and where it says it. Null when nothing
+     * is blank, which spares reading the code at all.
+     */
+    fun codeDefaults(config: Config = fileConfig()): CodeDefaults? {
+        if (!config.leavesBlankForCode()) return null
+        val project = project?.takeUnless { it.isDisposed } ?: return null
+        return I18NextTechnology.codeDefaultsOf(project, config)
     }
 
     /** The settings `i18n-check.json` sets, as it reads them — empty without the file. */
@@ -210,7 +232,9 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
      */
     override fun setConfig(edited: Config) {
         val held = configFile().content?.names.orEmpty() - IGNORED_FROM_FILE
-        val config = if (held.isEmpty()) edited else ProjectConfigFile.restore(edited, storedConfig(), held)
+        val stored = storedConfig()
+        val config = (if (held.isEmpty()) edited else ProjectConfigFile.restore(edited, stored, held))
+            .keepingCodeDefaultsOut(stored, codeDefaults())
         searchInProjectOnly = config.searchInProjectOnly
         nsSeparator = config.nsSeparator
         keySeparator = config.keySeparator

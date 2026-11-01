@@ -55,6 +55,32 @@ data class Config (
             .filter{it.isNotBlank()}
             .take(MAX_DEFAULT_NAMESPACES)
 
+    /** True when a setting [CodeDefaults] can fill is blank: only then is the code worth reading. */
+    fun leavesBlankForCode(): Boolean = CODE_FIELDS.any { it.get(this).isBlank() }
+
+    /**
+     * This configuration with its blank settings filled from [code], the project's own i18next
+     * initialisation. A setting holding a value keeps it: the settings are the user's word.
+     */
+    fun withCodeDefaults(code: CodeDefaults?): Config =
+        if (code == null) this
+        else CODE_FIELDS.fold(this) { config, field ->
+            val value = field.code(code)
+            if (field.get(config).isBlank() && value != null) field.set(config, value) else config
+        }
+
+    /**
+     * [edited] as it is to be stored, given the [stored] settings and the [code] defaults they were
+     * shown with: a setting blank in [stored] that [edited] holds at the value [code] filled in stays
+     * blank, so that saving the page or a module never freezes what the code says into the settings.
+     */
+    fun keepingCodeDefaultsOut(stored: Config, code: CodeDefaults?): Config =
+        if (code == null) this
+        else CODE_FIELDS.fold(this) { config, field ->
+            val value = field.code(code)
+            if (field.get(stored).isBlank() && value != null && field.get(config) == value) field.set(config, "") else config
+        }
+
     /** i18next's `fallbackNS` as set in the settings: none by default. */
     fun fallbackNamespaces(): List<String> =
         fallbackNs.split("[;|,\\s]".toRegex()).filter { it.isNotBlank() }.take(MAX_DEFAULT_NAMESPACES)
@@ -112,4 +138,29 @@ data class Config (
     fun getLocalizationSetting(localizationId: String, setting: String): String? {
         return localizationConfig.get(localizationId + "/" + setting)
     }
+
+    /** A setting [CodeDefaults] fills when it is blank, and the value of [CodeDefaults] it takes. */
+    private class CodeField(
+        val get: (Config) -> String,
+        val set: (Config, String) -> Config,
+        val code: (CodeDefaults) -> String?,
+    )
+
+    private companion object {
+        val CODE_FIELDS = listOf(
+            CodeField({ it.defaultNs }, { c, v -> c.copy(defaultNs = v) }, { it.defaultNs.joinToString(",").ifEmpty { null } }),
+            CodeField({ it.foldingPreferredLanguage }, { c, v -> c.copy(foldingPreferredLanguage = v) }, { it.referenceLocale }),
+        )
+    }
 }
+
+/**
+ * What the project's own i18next initialisation states, for the settings left blank: `defaultNS`
+ * and `fallbackLng` of `i18next.init({…})` in [origin], a project-relative path shown with the
+ * values. See [Config.withCodeDefaults].
+ */
+data class CodeDefaults(
+    val origin: String,
+    val defaultNs: List<String> = emptyList(),
+    val referenceLocale: String? = null,
+)
