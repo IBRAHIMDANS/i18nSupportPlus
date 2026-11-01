@@ -25,7 +25,7 @@ import kotlin.time.Duration.Companion.minutes
  */
 object EditorScreenshots {
 
-    private const val NAVIGATION = "src/components/Navigation.tsx"
+    internal const val NAVIGATION = "src/components/Navigation.tsx"
     private const val DASHBOARD = "src/components/Dashboard.tsx"
     // Navigation.tsx, line 15: the key the annotation, gutter and completion images play with.
     private const val LINE_15_KEY = "navigation:breadrumb.home"
@@ -33,7 +33,7 @@ object EditorScreenshots {
     private fun reference(path: String): String = Files.readString(ScreenshotHarness.projectSource.resolve(path))
 
     /** Navigation.tsx with [key] on line 15, and menu.profile misspelled for a red badge on line 19. */
-    private fun navigation(key: String, misspelledProfile: Boolean = false): String {
+    internal fun navigation(key: String, misspelledProfile: Boolean = false): String {
         val text = reference(NAVIGATION).replace("t('$LINE_15_KEY')", "t('$key')")
         return if (misspelledProfile) text.replace("navigation:menu.profile", "navigation:menu.profil") else text
     }
@@ -188,7 +188,7 @@ object EditorScreenshots {
     private const val INLAY_MARGIN = 6
 
     /** Opens [path] with [text] as its content and waits for the plugin's highlighting of it. */
-    private fun ScreenshotScope.openEditor(path: String, text: String): JEditorUiComponent {
+    internal fun ScreenshotScope.openEditor(path: String, text: String): JEditorUiComponent {
         driver.openFile(path)
         val editor = waitForEditor(path.substringAfterLast('/'))
         if (editor.text != text) editor.text = text

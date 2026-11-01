@@ -107,11 +107,55 @@ object ScreenshotHarness {
         val screenshots = session.screenshots.filter(selected)
         if (screenshots.isEmpty()) return emptyList()
         val failures = mutableListOf<String>()
-        val project = copyReferenceProject(outputDirectory.resolve("projects").resolve("${session.name}-$runName"))
-        session.pluginSettings?.let { writePluginSettings(project, it) }
+        val project = prepareProject(outputDirectory.resolve("projects").resolve("${session.name}-$runName"), session.pluginSettings)
+        withIde("screenshots-${session.name}-$runName", project) {
+            for (screenshot in screenshots) {
+                var firstTry: Throwable? = null
+                try {
+                    // WebStorm opens its evaluation prompt once a session, on a timer: a scenario
+                    // it interrupts gets a second try once the prompt is closed.
+                    val attempt = {
+                        driver.dismissIdePrompts()
+                        val bounds = screenshot.take(this)
+                        // Some balloons show up after indexing.
+                        driver.closeAllNotifications()
+                        capture(bounds, outputDirectory.resolve(runName).resolve(screenshot.fileName), screenshot.keepPointer)
+                    }
+                    runCatching(attempt).onFailure {
+                        firstTry = it
+                        runCatching { screenshot.cleanUp(this) }
+                        attempt()
+                    }
+                } catch (e: Throwable) {
+                    val failure = captureScreen(outputDirectory.resolve(runName).resolve("failed-${screenshot.fileName}"))
+                    // The second try often fails on what the first one left behind: both are reported.
+                    val first = firstTry?.let { "; first try: ${firstLine(it)}" }.orEmpty()
+                    failures += "${screenshot.fileName} ($runName): ${firstLine(e)}$first, screen in $failure"
+                } finally {
+                    runCatching { screenshot.cleanUp(this) }
+                }
+            }
+        }
+        return failures
+    }
 
+    /**
+     * A copy of the reference project in [target], with [pluginSettings] as its `i18nSettings`
+     * options; null writes none, as on a project the plugin has never configured.
+     */
+    fun prepareProject(target: Path, pluginSettings: Map<String, String>?): Path {
+        val project = copyReferenceProject(target)
+        pluginSettings?.let { writePluginSettings(project, it) }
+        return project
+    }
+
+    /**
+     * Opens [project] in a fresh, licensed WebStorm with the plugin installed, waits for indexing,
+     * puts its frame at [FRAME_BOUNDS] and runs [block] on it; the IDE is closed afterwards.
+     */
+    fun withIde(contextName: String, project: Path, block: ScreenshotScope.() -> Unit) {
         Starter.newContext(
-            "screenshots-${session.name}-$runName",
+            contextName,
             TestCase(IdeProductProvider.WS, LocalProjectInfo(project)).withVersion(ideVersion)
         ).apply {
             applyVMOptionsPatch {
@@ -137,45 +181,22 @@ object ScreenshotHarness {
                 // would make every capture depend on the IDE build rather than on the test.
                 setBounds(FRAME_BOUNDS)
                 waitFor("the IDE frame to take its fixed bounds", 1.minutes) { boundsOnScreen == FRAME_BOUNDS }
-                val scope = ScreenshotScope(this@useDriverAndCloseIde, this)
-                for (screenshot in screenshots) {
-                    var firstTry: Throwable? = null
-                    try {
-                        // WebStorm opens its evaluation prompt once a session, on a timer: a scenario
-                        // it interrupts gets a second try once the prompt is closed.
-                        val attempt = {
-                            dismissIdePrompts()
-                            val bounds = screenshot.take(scope)
-                            // Some balloons show up after indexing.
-                            closeAllNotifications()
-                            capture(bounds, outputDirectory.resolve(runName).resolve(screenshot.fileName), screenshot.keepPointer)
-                        }
-                        runCatching(attempt).onFailure {
-                            firstTry = it
-                            runCatching { screenshot.cleanUp(scope) }
-                            attempt()
-                        }
-                    } catch (e: Throwable) {
-                        // The whole screen as it was, to see what the scenario ran into.
-                        val failure = outputDirectory.resolve(runName).resolve("failed-${screenshot.fileName}")
-                        Files.createDirectories(failure.parent)
-                        ImageIO.write(Robot().createScreenCapture(Rectangle(0, 0, 1920, 1440)), "png", failure.toFile())
-                        // The second try often fails on what the first one left behind: both are reported.
-                        val first = firstTry?.let { "; first try: ${firstLine(it)}" }.orEmpty()
-                        failures += "${screenshot.fileName} ($runName): ${firstLine(e)}$first, screen in $failure"
-                    } finally {
-                        runCatching { screenshot.cleanUp(scope) }
-                    }
-                }
+                ScreenshotScope(this@useDriverAndCloseIde, this).block()
             }
         }
-        return failures
+    }
+
+    /** The whole screen as it was, to see what a scenario ran into. */
+    fun captureScreen(destination: Path): Path {
+        Files.createDirectories(destination.parent)
+        ImageIO.write(Robot().createScreenCapture(Rectangle(0, 0, 1920, 1440)), "png", destination.toFile())
+        return destination
     }
 
     private fun firstLine(e: Throwable): String? = generateSequence(e) { it.cause }.last().message?.lineSequence()?.firstOrNull()
 
     /** WebStorm's own prompts, which open on a timer of their own and would sit over a capture. */
-    private fun Driver.dismissIdePrompts() {
+    fun Driver.dismissIdePrompts() {
         for (dialog in ui.xx("//div[@class='MyDialog']").list()) {
             if (dialog.hasText("Evaluation Feedback")) dialog.x("//div[@class='JButton' and @visible_text='No Thanks']").click()
         }
