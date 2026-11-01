@@ -33,7 +33,7 @@ class CreateKeyDialogQuickFix(private val fullKey: FullKey, private val text: St
         val caller = PsiDocumentManager.getInstance(project).getPsiFile(editor.document)
         // A modal dialog cannot open from inside the intention's action; the next EDT turn can.
         ApplicationManager.getApplication().invokeLater {
-            if (!project.isDisposed) opener(project, fullKey, caller)
+            if (!project.isDisposed) opener(project, fullKey.keyToCreate(), caller)
         }
     }
 

@@ -35,6 +35,7 @@ class TranslationCallKeyExtractor(private val functionNames: Set<String> = I18NE
             listOf(KeyElement.literal(node.unquoted())),
             namespacesOption(call).ifEmpty { stringsOf(hookArguments.firstOrNull()) },
             listOfNotNull(prefix?.let(KeyElement::literal)),
+            context = contextOption(call),
         )
     }
 

@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.extract.i18next
 
 import com.ibrahimdans.i18n.plugin.parser.CodeNode
+import com.ibrahimdans.i18n.plugin.tree.ContextOption
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import java.util.concurrent.ConcurrentHashMap
 
@@ -18,6 +19,9 @@ internal const val JSX_ATTRIBUTE = "jsx_attribute"
 private const val ARRAY = "array"
 private const val OBJECT = "object"
 private const val PAIR = "pair"
+private const val SHORTHAND_PROPERTY = "shorthand_property_identifier"
+private const val JSX_EXPRESSION = "jsx_expression"
+private const val CONTEXT = "context"
 private const val VARIABLE_DECLARATOR = "variable_declarator"
 private const val OBJECT_PATTERN = "object_pattern"
 private const val SHORTHAND_PATTERN = "shorthand_property_identifier_pattern"
@@ -87,6 +91,33 @@ internal fun propertyOf(node: CodeNode?, name: String): CodeNode? {
 
 /** The namespaces of [call]'s `{ ns }` option: `t(key, { ns: 'a' })`, `t(key, { ns: ['a', 'b'] })`. */
 internal fun namespacesOption(call: CodeNode): List<String> = stringsOf(propertyOf(call.arguments().getOrNull(1), "ns"))
+
+/**
+ * i18next's `context` option of [call], as the plugin's `OptionsExtractor` reads it: `{ context: 'male' }`
+ * names its variant, `{ context: gender }` and the shorthand `{ context }` are known at runtime only.
+ * Null when the call passes none.
+ */
+internal fun contextOption(call: CodeNode): ContextOption? {
+    val options = call.arguments().getOrNull(1)?.takeIf { it.type == OBJECT } ?: return null
+    if (options.items().any { it.type == SHORTHAND_PROPERTY && it.text == CONTEXT }) return ContextOption.Dynamic
+    return propertyOf(options, CONTEXT)?.let(::contextOf)
+}
+
+/**
+ * The `context` attribute of the JSX element whose attribute is [attribute], as the plugin's
+ * `XmlAttributeKeyExtractor` reads it: `<Trans i18nKey="friend" context={gender}>`. Null without one.
+ */
+internal fun jsxContextOf(attribute: CodeNode): ContextOption? {
+    val context = attribute.parent?.children
+        ?.firstOrNull { it.type == JSX_ATTRIBUTE && it.children.firstOrNull()?.text == CONTEXT }
+        ?: return null
+    val value = context.children.drop(1).lastOrNull { it.text != "=" } ?: return ContextOption.Dynamic
+    return contextOf(if (value.type == JSX_EXPRESSION) value.items().singleOrNull() ?: value else value)
+}
+
+/** A quoted string names its context; anything else is only known at runtime. */
+private fun contextOf(value: CodeNode): ContextOption =
+    if (value.isQuotedString()) ContextOption.Fixed(value.unquoted()) else ContextOption.Dynamic
 
 /**
  * The `useTranslation(…)` calls of one parsed file, by scope: what the plugin's

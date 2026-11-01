@@ -61,4 +61,20 @@ data class FullKey(
      */
     val isDynamic: Boolean
         get() = compositeKey.any { it.text == "*" || (it.text.startsWith("\${") && it.text.endsWith("}")) }
+
+    /**
+     * The key to create when this one is missing: under a fixed [context], its variant —
+     * `t('friend', { context: 'male' })` creates `friend_male`, the key the call reads first.
+     * The key itself otherwise: a dynamic context names no variant, and its base is the fallback.
+     */
+    fun keyToCreate(): FullKey {
+        val value = (context as? ContextOption.Fixed)?.value ?: return this
+        val last = compositeKey.lastOrNull()?.takeIf { source.endsWith(it.text) } ?: return this
+        val variant = ContextKey.variant(last.text, value)
+        return copy(
+            source = source.dropLast(last.text.length) + variant,
+            compositeKey = compositeKey.dropLast(1) + Literal(variant),
+            context = null,
+        )
+    }
 }
