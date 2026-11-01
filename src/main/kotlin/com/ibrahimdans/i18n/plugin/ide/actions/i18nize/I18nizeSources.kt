@@ -4,6 +4,8 @@ import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.extensions.lang.js.AngularMarkup
 import com.ibrahimdans.i18n.extensions.lang.js.AngularTemplateTextExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.HardcodedVueTextInspection
+import com.ibrahimdans.i18n.extensions.lang.js.SvelteMarkup
+import com.ibrahimdans.i18n.extensions.lang.js.SvelteMarkupTextExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.VueScriptTextExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.VueTemplateTextExtractor
 import com.ibrahimdans.i18n.plugin.ide.actions.Candidate
@@ -20,22 +22,25 @@ import com.intellij.psi.xml.XmlText
 /**
  * Where *Internationalize…* finds the texts of a file, and what writes their calls: the texts
  * *Batch Extract* offers in a JS/TS file, those of the `<template>` and the `<script>` of a Vue component,
- * and those of an Angular template — the ones *Hard-coded text in an Angular template* reports. A
- * `.html` file Angular does not parse as a template holds none.
+ * those of an Angular template and those of a Svelte component's markup — the ones *Hard-coded text
+ * in an Angular template* and *in a Svelte component* report. A `.html` file Angular does not parse
+ * as a template holds none.
  */
 internal object I18nizeSources {
 
     private val vueTemplate = VueTemplateTextExtractor()
     private val vueScript = VueScriptTextExtractor()
     private val angularTemplate = AngularTemplateTextExtractor()
+    private val svelteMarkup = SvelteMarkupTextExtractor()
 
-    /** The extractors of the source languages, and those of Vue components and Angular templates, which *Batch Extract* lacks. */
+    /** The extractors of the source languages, and those of Vue components, Angular templates and Svelte components, which *Batch Extract* lacks. */
     fun extractors(): List<TranslationExtractor> =
-        Extensions.LANG.extensionList.map { it.translationExtractor() } + vueTemplate + vueScript + angularTemplate
+        Extensions.LANG.extensionList.map { it.translationExtractor() } + vueTemplate + vueScript + angularTemplate + svelteMarkup
 
     /** The hard-coded texts of [file], in file order. Read action. */
     fun candidates(file: PsiFile): List<Candidate> {
         if (AngularMarkup.applies(file)) return markupCandidates(file, angularTemplate)
+        if (SvelteMarkup.applies(file)) return markupCandidates(file, svelteMarkup)
         if (file.name.endsWith(HTML)) return emptyList()
         if (!isVue(file)) return ExtractionCandidates.collect(file)
         val template = PsiTreeUtil.collectElements(file) { it is XmlText || it is XmlAttributeValue }

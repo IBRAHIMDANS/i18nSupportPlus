@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.Localization
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.extensions.lang.js.ReactIntlCall
+import com.ibrahimdans.i18n.extensions.lang.js.SvelteMarkupTextExtractor
 import com.ibrahimdans.i18n.plugin.factory.CallTemplate
 import com.ibrahimdans.i18n.plugin.ide.actions.MachineFill
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
@@ -142,6 +143,7 @@ internal class I18nizeApply private constructor(
                 if (reviewOrigins != null) marks.mark(reviewOrigins)
                 code.forEach { (edits, _) ->
                     apply(edits.document, edits.edits)
+                    if (edits.writesSvelteStore) SvelteMarkupTextExtractor.addImport(edits.document)
                     documents.commitDocument(edits.document)
                     replaced += edits.entries.size
                 }
@@ -149,11 +151,13 @@ internal class I18nizeApply private constructor(
         return Outcome(replaced, created, kept)
     }
 
-    private class FileEdits(val document: Document, val entries: List<EntryWork>, val edits: List<CodeEdit>)
+    /** [edits] for [document]; [writesSvelteStore] when a call reads svelte-i18n's store, which the component may not import yet. */
+    private class FileEdits(val document: Document, val entries: List<EntryWork>, val edits: List<CodeEdit>, val writesSvelteStore: Boolean)
 
     /**
      * The calls replacing [work]'s texts, and the hooks and imports they need — react-intl's
-     * `useIntl()` and `FormattedMessage` included; null when the file is gone.
+     * `useIntl()` and `FormattedMessage` included, svelte-i18n's store once the calls are written;
+     * null when the file is gone.
      */
     private fun codeEdits(project: Project, work: FileWork): FileEdits? {
         val file = work.plan.file
@@ -164,9 +168,11 @@ internal class I18nizeApply private constructor(
         val hooks = linkedMapOf<JSFunction, String>()
         val intlHooks = linkedSetOf<JSFunction>()
         val intlImports = sortedSetOf<String>()
+        var svelte = false
         val calls = entries.mapNotNull { entryWork ->
             val literal = entryWork.entry.candidate.literal
             val extractor = extractors.firstOrNull { it.canExtract(literal) } ?: return@mapNotNull null
+            if (extractor is SvelteMarkupTextExtractor) svelte = true
             var call = CallTemplate.template(extractor, literal, entryWork.entry.candidate.originalText)("'${entryWork.entry.key}'")
             HookInsertion.componentNeedingHook(literal)?.let { component ->
                 hooks.putIfAbsent(component, entryWork.entry.namespace)
@@ -179,7 +185,7 @@ internal class I18nizeApply private constructor(
         val intl = if (intlHooks.isEmpty() && intlImports.isEmpty()) emptyList() else HookInsertion.intlEdits(file, intlHooks, intlImports)
         // The literals of one message share a range (`'Hello ' + name`): replaced once.
         val vueHooks = VueHookInsertion.edits(entries.map { it.entry.candidate.literal })
-        return FileEdits(document, entries, calls.distinctBy { it.range } + HookInsertion.edits(file, hooks) + intl + vueHooks)
+        return FileEdits(document, entries, calls.distinctBy { it.range } + HookInsertion.edits(file, hooks) + intl + vueHooks, svelte)
     }
 
     /**
