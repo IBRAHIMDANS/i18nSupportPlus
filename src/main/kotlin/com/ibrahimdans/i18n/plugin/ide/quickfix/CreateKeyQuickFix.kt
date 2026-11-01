@@ -30,11 +30,14 @@ import com.intellij.util.concurrency.AppExecutorUtil
  * with a placeholder value chosen by the user via [BatchPlaceholderDialog].
  */
 class CreateKeyQuickFix(
-    private val fullKey: FullKey,
+    key: FullKey,
     private val selector: SourcesSelector,
     private val commandCaption: String,
     private val defaultTranslationValue: String? = null,
     private val onComplete: () -> Unit = {}): QuickFix(), CompositeKeyResolver<PsiElement> {
+
+    /** Under a fixed i18next `context`, the variant the call reads: see [FullKey.keyToCreate]. */
+    private val fullKey = key.keyToCreate()
 
     override fun getText(): String = commandCaption
 

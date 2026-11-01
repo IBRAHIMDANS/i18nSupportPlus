@@ -11,6 +11,8 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
 import com.ibrahimdans.i18n.plugin.parser.CodeKeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.KeyContext
 import com.ibrahimdans.i18n.plugin.parser.KeyResolver
+import com.ibrahimdans.i18n.plugin.tree.ContextKey
+import com.ibrahimdans.i18n.plugin.tree.ContextOption
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.utils.TextSpan
 import com.ibrahimdans.i18n.plugin.utils.unQuote
@@ -61,6 +63,7 @@ class TreeSitterKeyUsageIndex(
                 key.lookupNamespaces(),
                 if (key.isDynamic) null else node.text.unQuote(),
                 if (key.isDynamic) shapeOf(node.text.unQuote()) else null,
+                key.context,
             )
         }
         files[path] = sites
@@ -83,13 +86,34 @@ class TreeSitterKeyUsageIndex(
 
     /**
      * [key] spelled as [KeyUsageIndex] states, `common:menu.home`; a plural form stands for the key
-     * the code writes, as `IndirectKeyUsages.usageQuery` reads it.
+     * the code writes, as `IndirectKeyUsages.usageQuery` reads it. A key spelled as an i18next context
+     * variant, `friend_male`, is also used by the calls reading its base under that context —
+     * `t('friend', { context: gender })` — as the plugin's `IndirectKeyUsages` counts them.
      */
     @Synchronized
     override fun usages(key: String): List<KeyUsage> {
         val namespace = KeySpelling.namespaceOf(key)
-        val path = KeySpelling.segmentsOf(PluralKey.stripSuffix(key, config.pluralSeparator), config)
-        return byPath[path].orEmpty().filter { it.worksIn(namespace) }.map { it.usage }.distinct()
+        val path = pathOf(key)
+        val own = byPath[path].orEmpty()
+        val variantOf = variantOf(path)?.let { (basePath, context) ->
+            byPath[basePath].orEmpty().filter { it.path == basePath && ContextKey.reads(it.context, context) }
+        }.orEmpty()
+        return (own + variantOf).filter { it.worksIn(namespace) }.map { it.usage }.distinct()
+    }
+
+    /** The segments of [key], plural suffix stripped: the path a call writes for it. */
+    private fun pathOf(key: String): List<String> =
+        KeySpelling.segmentsOf(PluralKey.stripSuffix(key, config.pluralSeparator), config)
+
+    /**
+     * The base path and context of a [path] spelled as a context variant, `friend_male` → `friend`
+     * and `male`; null when its last segment is none, or when the context separator is also the key
+     * separator, the segments then holding no variant to tell apart.
+     */
+    private fun variantOf(path: List<String>): Pair<List<String>, String>? {
+        if (config.keySeparator == ContextKey.SEPARATOR) return null
+        val (base, context) = path.lastOrNull()?.let(ContextKey::split) ?: return null
+        return path.dropLast(1) + base to context
     }
 
     /** The rule of the plugin's `DynamicKeyUsages`, over every dynamic call site indexed. */
@@ -112,19 +136,26 @@ class TreeSitterKeyUsageIndex(
     fun unknownUsages(keys: Collection<String>): List<KeyCall> {
         // Each level of each key, with the namespaces it lives in: a call may name a whole object.
         val known = mutableMapOf<List<String>, MutableSet<String?>>()
+        // The context variants of each base path, with their namespaces: `friend` → (`male`, null).
+        val variants = mutableMapOf<List<String>, MutableSet<Pair<String, String?>>>()
         for (key in keys) {
-            val path = KeySpelling.segmentsOf(PluralKey.stripSuffix(key, config.pluralSeparator), config)
-            for (depth in 1..path.size) known.getOrPut(path.subList(0, depth)) { mutableSetOf() } += KeySpelling.namespaceOf(key)
+            val path = pathOf(key)
+            val namespace = KeySpelling.namespaceOf(key)
+            for (depth in 1..path.size) known.getOrPut(path.subList(0, depth)) { mutableSetOf() } += namespace
+            variantOf(path)?.let { (basePath, context) -> variants.getOrPut(basePath) { mutableSetOf() } += context to namespace }
         }
         return files.values.flatten()
-            .filter { site -> site.key != null && known[site.path].orEmpty().none(site::worksIn) }
+            .filter { site ->
+                site.key != null && known[site.path].orEmpty().none(site::worksIn) &&
+                    variants[site.path].orEmpty().none { (context, namespace) -> ContextKey.reads(site.context, context) && site.worksIn(namespace) }
+            }
             .map { KeyCall(it.key!!, it.usage) }
     }
 
     /**
      * A call site whose literal resolves to [path] in [namespaces] — none when it writes none and
      * sits under no hook — with its [key] as written, or, for a key built at runtime, the [shape] of
-     * the keys it may produce.
+     * the keys it may produce — and the i18next [context] it reads the key under.
      */
     private inner class CallSite(
         val usage: KeyUsage,
@@ -132,6 +163,7 @@ class TreeSitterKeyUsageIndex(
         val namespaces: List<String>,
         val key: String?,
         val shape: Shape?,
+        val context: ContextOption?,
     ) {
 
         /**

@@ -167,6 +167,33 @@ class TreeSitterKeyUsageIndexTest {
         assertEquals(KeyUsage("b.ts", TextSpan(24, 41)), index.unknownUsages(listOf("admin:menu.home", "admin:item_one")).last().usage)
     }
 
+    @Test
+    fun `a call passing context uses the variants it reads`() {
+        val index = TreeSitterKeyUsageIndex()
+        index.update(
+            "a.tsx",
+            "t('people.friend', { context: g }); t('people.pal', { context: 'male' }); " +
+                "const B = () => <Trans i18nKey=\"people.mate\" context={'female'} />; t('people.foe')",
+        )
+        assertEquals(1, index.usages("people.friend_male_one").size)
+        assertEquals(1, index.usages("people.friend_female").size)
+        assertEquals(1, index.usages("people.pal_male").size)
+        assertEquals(0, index.usages("people.pal_female").size)
+        assertEquals(1, index.usages("people.mate_female").size)
+        assertEquals(0, index.usages("people.mate_male").size)
+        assertEquals(0, index.usages("people.foe_male").size)
+    }
+
+    @Test
+    fun `unknown usages - a call passing context knows its variants`() {
+        val index = TreeSitterKeyUsageIndex()
+        index.update("a.ts", "t('friend', { context }); t('pal', { context: 'male' }); t('mate', { context: 'male' })")
+        assertEquals(
+            listOf("mate"),
+            index.unknownUsages(listOf("friend_female", "pal_male_one", "mate_female")).map { it.key },
+        )
+    }
+
     // ── indexing time ─────────────────────────────────────────────────────────
 
     @Test

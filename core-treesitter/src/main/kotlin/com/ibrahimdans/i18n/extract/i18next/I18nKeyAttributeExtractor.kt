@@ -7,8 +7,8 @@ import com.ibrahimdans.i18n.plugin.utils.KeyElement
 
 /**
  * The key of a JSX `i18nKey` attribute, react-i18next's `<Trans i18nKey="ns:a.b">`, on a tree-sitter
- * TSX tree: the string value, with no namespace — the plugin's `XmlAttributeKeyExtractor`, which
- * reads the attribute whatever its tag.
+ * TSX tree: the string value, with no namespace, and the tag's `context` attribute — the plugin's
+ * `XmlAttributeKeyExtractor`, which reads the attribute whatever its tag.
  */
 class I18nKeyAttributeExtractor : CodeKeyExtractor {
 
@@ -16,7 +16,7 @@ class I18nKeyAttributeExtractor : CodeKeyExtractor {
         node.isQuotedString() && node.parent?.takeIf { it.type == JSX_ATTRIBUTE }?.children?.firstOrNull()?.text == I18N_KEY
 
     override fun extract(node: CodeNode): RawKey? =
-        if (canExtract(node)) RawKey(listOf(KeyElement.literal(node.unquoted()))) else null
+        if (canExtract(node)) RawKey(listOf(KeyElement.literal(node.unquoted())), context = node.parent?.let(::jsxContextOf)) else null
 
     private companion object {
         const val I18N_KEY = "i18nKey"

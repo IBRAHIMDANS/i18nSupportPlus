@@ -9,6 +9,8 @@ import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
+import com.ibrahimdans.i18n.plugin.tree.ContextKey
+import com.ibrahimdans.i18n.plugin.tree.ContextOption
 import com.ibrahimdans.i18n.plugin.tree.PluralGroup
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
@@ -76,8 +78,25 @@ abstract class CompositeKeyCompletionContributor(private val lang: Lang): Comple
             // allNamespaces, not ns: a key written without one works in the namespaces its hook
             // declares (`useTranslation('auth')`), exactly as the annotator resolves it. Asking for
             // the explicit namespace alone offered the default namespace's keys — or every file's.
-            findCompletions(source, fullKey.lookupNamespaces(), fullKey.compositeKey.dropLast(1), element)
+            findCompletions(source, fullKey.lookupNamespaces(), fullKey.compositeKey.dropLast(1), element, fullKey.context)
         }
+
+    /**
+     * Groups the context variants a call passing i18next's `context` reads under their base key:
+     * `t('fr', { context: g })` is offered `friend` once, not `friend_male` and `friend_female`,
+     * which the call would read as `friend_male_male`. A fixed context groups its own variant only.
+     * Not when the context separator is also the key separator: the names hold no variant then.
+     */
+    private fun groupContextVariants(
+        completions: List<Pair<String, List<String>>>,
+        context: ContextOption?,
+        keySeparator: String,
+    ): List<Pair<String, List<String>>> {
+        if (context == null || keySeparator == ContextKey.SEPARATOR) return completions
+        return completions
+            .groupBy({ (key, _) -> ContextKey.split(key)?.takeIf { ContextKey.reads(context, it.second) }?.first ?: key }, { it.second })
+            .map { (key, forms) -> key to forms.flatten() }
+    }
 
     /**
      * Every key under [compositeKey], with its translation in the preview locale.
@@ -88,7 +107,13 @@ abstract class CompositeKeyCompletionContributor(private val lang: Lang): Comple
      * The values come from the same tree walk as the keys — each key's node is looked up in the
      * node already resolved for the listing — so completion reads no file more than it did.
      */
-    private fun findCompletions(source: String, namespaces: List<String>, compositeKey: List<Literal>, element: PsiElement): List<LookupElementBuilder> {
+    private fun findCompletions(
+        source: String,
+        namespaces: List<String>,
+        compositeKey: List<Literal>,
+        element: PsiElement,
+        context: ContextOption? = null,
+    ): List<LookupElementBuilder> {
         val config = Settings.getInstance(element.project).config()
         val sources = element.project.service<LocalizationSourceService>().findSources(namespaces, element)
         // Matched through LocaleMatching like inlay hints and hover, so `en` finds `en-GB`.
@@ -97,7 +122,7 @@ abstract class CompositeKeyCompletionContributor(private val lang: Lang): Comple
         val keys = sources.flatMap { localizationSource ->
             keysWithValues(compositeKey, localizationSource, localizationSource.localeLabel() == previewLocale, values)
         }
-        return groupPlurals(keys, config.pluralSeparator).map { (key, forms) ->
+        return groupContextVariants(groupPlurals(keys, config.pluralSeparator), context, config.keySeparator).map { (key, forms) ->
             val value = (pluralFormOrder(key, config.pluralSeparator) + forms).firstNotNullOfOrNull { values[it] }
             val lookup = LookupElementBuilder.create(source + key)
             if (value == null) lookup

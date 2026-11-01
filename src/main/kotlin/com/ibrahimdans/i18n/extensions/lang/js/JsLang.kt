@@ -70,6 +70,8 @@ open class JsLang : Lang {
 
         private val FORMATTED_MESSAGE = FormattedMessageExtractor()
 
+        private val I18N_KEY_ATTRIBUTE = XmlAttributeKeyExtractor()
+
         private val SYNTAX_OWNED_EXTRACTORS: List<KeyExtractor> = listOf(
             REACT_INTL_EXTRACTOR,
             DefineMessagesExtractor(),
@@ -184,8 +186,9 @@ open class JsLang : Lang {
         val typeName = entry.node.elementType.toString()
         return if (setOf("JS:STRING_LITERAL", "JS:STRING_TEMPLATE_EXPRESSION").contains (typeName)) entry
             else if (typeName == "JS:STRING_TEMPLATE_PART") entry.parent
-            // react-intl's `<FormattedMessage id="key">`: the key is an attribute value, not a JS string.
-            else if (FORMATTED_MESSAGE.canExtract(entry)) entry
+            // react-intl's `<FormattedMessage id="key">`, react-i18next's `<Trans i18nKey="key">`: the key
+            // is an attribute value, not a JS string.
+            else if (FORMATTED_MESSAGE.canExtract(entry) || I18N_KEY_ATTRIBUTE.canExtract(entry)) entry
             // Paraglide's `m.hello`: the key is the member's name, an identifier rather than a string.
             else entry.parent?.takeIf { typeName == "JS:IDENTIFIER" && (PARAGLIDE_MESSAGE.canExtract(it) || TYPESAFE_I18N.canExtract(it)) }
     }
