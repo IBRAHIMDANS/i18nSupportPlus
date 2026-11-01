@@ -1,0 +1,28 @@
+<!--
+  Source of the "Getting Started" field of the plugin's page on JetBrains Marketplace
+  (https://plugins.jetbrains.com/plugin/30971-i18n-support-plus, edit page → Getting Started).
+
+  The Marketplace does not read this file: paste its body into the field by hand after a change.
+  The field takes plain HTML; keep it to the tags used here (h2, p, ul, li, b, code).
+  The "Description" field is a different thing: it is generated at each release from the
+  "Plugin description" block of README.md, through plugin.xml. Never save it from the web form.
+-->
+
+<h2>1. Install</h2>
+<p><b>Settings → Plugins → Marketplace</b>, search for <b>I18n Support Plus</b>, click <b>Install</b> and restart the IDE. Works in WebStorm, IntelliJ IDEA Ultimate and PhpStorm 2025.2 or later.</p>
+
+<h2>2. Open your project: the setup wizard does the rest</h2>
+<p>The first time a project opens, a wizard detects its i18n framework (i18next / react-i18next, vue-i18n and Nuxt, next-intl, lingui, react-intl, ngx-translate, Transloco, svelte-i18n, i18n-js, Paraglide JS, Laravel…), finds the translation files and proposes one module per application in a monorepo. Check the summary and click <b>OK</b>. Run it again at any time from <b>Tools → i18n Support Plus → Run Setup Wizard…</b>.</p>
+
+<h2>3. Use it</h2>
+<p>Keys in the code are colored by status: translated in every locale, in some, in none. Hover a key to see its values, <b>Ctrl+Click</b> to open the translation, <b>Shift+F6</b> to rename it in every locale and call site. <b>Alt+Enter</b> on a hard-coded string extracts it into a key written to every locale at once; one <b>Ctrl+Z</b> undoes the files and the code. The plugin's tool window lists the missing, empty and unused keys per locale and namespace.</p>
+
+<h2>4. Adjust if needed</h2>
+<p><b>Settings → Tools → i18n Support Plus</b>: translation folders, namespaces and separators, the preview locale for folding and hints, machine translation engines (off by default), rules for your own <code>translate()</code> wrappers. Commit <code>i18n-check.json</code> to share the configuration with your team, and run the same checks in CI with the <code>i18n-check</code> command line or GitHub Action.</p>
+
+<h2>Other plugins</h2>
+<ul>
+<li><b>Coming from I18n Support</b>, the original plugin, which no longer installs on IDEs after 2023.1: install this one next to it, it reads your project settings as they are, then uninstall the old one.</li>
+<li><b>PO/POT files</b>: install <b>GNU GetText files support</b> for full support.</li>
+<li><b>Easy I18n</b> and <b>i18n Ally</b> cover the same ground: disable them to avoid duplicated hints and gutter icons.</li>
+</ul>
