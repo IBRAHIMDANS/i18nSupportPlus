@@ -253,4 +253,40 @@ class DialogViewModelRulesTest {
         val prefixed = key("caption", null).copy(keyPrefix = listOf(Literal("Overview"), Literal("help")), keyPrefixSource = "Overview.help")
         assertEquals(null to "Overview.help.caption", DialogViewModel.initialCreateState(prefixed, ":", "."))
     }
+
+    // ---- the order of the rows ----
+
+    private data class Row(val locale: String, val path: String, val reference: Boolean = false)
+
+    private fun order(vararg rows: Row) =
+        DialogViewModel.dialogOrder(rows.toList(), { it.locale }, { it.path }, { it.reference }).map { it.path }
+
+    @Test
+    fun `the reference locale leads, whatever order the index hands the files over in`() {
+        assertEquals(
+            listOf("en/auth.json", "de/auth.json", "fr/auth.json"),
+            order(Row("fr", "fr/auth.json"), Row("en", "en/auth.json", reference = true), Row("de", "de/auth.json")),
+        )
+    }
+
+    @Test
+    fun `without a reference the locales are listed alphabetically`() {
+        assertEquals(
+            listOf("de/auth.json", "en/auth.json", "fr/auth.json"),
+            order(Row("fr", "fr/auth.json"), Row("en", "en/auth.json"), Row("de", "de/auth.json")),
+        )
+    }
+
+    @Test
+    fun `the files of one locale follow their path, each module's reference first`() {
+        assertEquals(
+            listOf("apps/a/en/auth.json", "apps/b/fr/auth.json", "apps/b/en/auth.json", "apps/a/fr/auth.json"),
+            order(
+                Row("fr", "apps/a/fr/auth.json"),
+                Row("en", "apps/b/en/auth.json"),
+                Row("fr", "apps/b/fr/auth.json", reference = true),
+                Row("en", "apps/a/en/auth.json", reference = true),
+            ),
+        )
+    }
 }

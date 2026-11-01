@@ -14,6 +14,7 @@ import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.MessagePlaceholders
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
@@ -60,7 +61,7 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
             val namespaces = listOfNotNull(fullKey.ns?.text)
             val sources = scopedSources(namespaces, caller, module)
                 .ifEmpty { if (namespaces.isEmpty()) ModuleSources.sourcesOf(project, module) else emptyList() }
-            sources.associateWith { source ->
+            inDialogOrder(sources).associateWith { source ->
                 val ref = resolveCompositeKey(fullKey.compositeKey, source)
                 val element = ref?.element
                 if (ref != null && ref.unresolved.isEmpty() && element != null) {
@@ -70,6 +71,26 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
                 }
             }
         }
+
+    /**
+     * [sources] in the order the dialog lists them, see [dialogOrder]: the reference locale of
+     * each source's module — [ReferenceLocale.of], as the review badges read it — leads.
+     */
+    private fun inDialogOrder(sources: List<LocalizationSource>): List<LocalizationSource> {
+        val config = Settings.getInstance(project).config()
+        val moduleOf = sources.associateWith { source ->
+            if (config.modules.isEmpty()) null else ModuleSources.owner(config.modules, TranslationDataLoader.projectPathOf(source))
+        }
+        val references = sources.groupBy { moduleOf[it] }.mapValues { (module, inModule) ->
+            ReferenceLocale.of(module, config, inModule.map { it.localeLabel() }.distinct())
+        }
+        return dialogOrder(
+            sources,
+            localeOf = { it.localeLabel() },
+            pathOf = { it.displayPath },
+            isReference = { it.localeLabel() == references[moduleOf[it]] },
+        )
+    }
 
     /**
      * Returns the distinct sorted list of namespaces available in the project
@@ -95,7 +116,7 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
      * Returns empty values since this is for CREATE mode (no existing key to resolve).
      */
     fun loadSourcesForNamespace(namespace: String, caller: PsiElement? = null, module: ModuleConfig? = null): Map<LocalizationSource, String?> =
-        sourcesFor(listOf(namespace), caller, module).associateWith { null }
+        inDialogOrder(sourcesFor(listOf(namespace), caller, module)).associateWith { null }
 
     /**
      * The sources of [namespaces], in the module of [caller] when one is given — a key created
@@ -349,6 +370,21 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
             val extension = if (config.preferredLocalization == "yaml") "yml" else "json"
             return NamespacePlan.Create(FALLBACK_LOCALES.map { "$basePath/$root/$it/$name.$extension" })
         }
+
+        /**
+         * The order of the dialog's rows: the reference locale first — the one translators fill
+         * first — then the other locales alphabetically, and the files of one locale by path.
+         *
+         * The rows followed the index, whose order changes from one IDE to the next: the same
+         * project showed `fr` above `en` in one IDE and below it in another.
+         */
+        internal fun <T> dialogOrder(
+            sources: Collection<T>,
+            localeOf: (T) -> String,
+            pathOf: (T) -> String,
+            isReference: (T) -> Boolean,
+        ): List<T> =
+            sources.sortedWith(compareByDescending(isReference).thenBy(localeOf).thenBy(pathOf))
 
         /** What a new, empty translation file holds in its format. */
         internal fun emptyContentFor(fileName: String): String =
