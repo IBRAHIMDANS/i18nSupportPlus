@@ -130,7 +130,7 @@ class LocalizationSourceService {
         if (fullKey.fallbackNamespaces.isEmpty()) return own
         val pluralSeparator = Settings.getInstance(caller.project).config().pluralSeparator
         fun holdsKey(source: LocalizationSource) =
-            FallbackLookup.resolve(fullKey.compositeKey, source, pluralSeparator).any { it.unresolved.isEmpty() && it.element != null }
+            FallbackLookup.resolve(fullKey, source, pluralSeparator).any { it.unresolved.isEmpty() && it.element != null }
         if (own.any(::holdsKey)) return own
         return fullKey.fallbackNamespaces.asSequence()
             .map { findSources(listOf(it), caller) }

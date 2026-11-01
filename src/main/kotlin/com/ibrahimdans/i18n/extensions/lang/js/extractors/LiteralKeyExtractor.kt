@@ -19,7 +19,8 @@ class LiteralKeyExtractor: KeyExtractor {
             (element as PsiLiteralValue).value?.let { it as? String }?.let {
                 listOf(KeyElement.literal(it))
             } ?: listOf(),
-            OptionsExtractor.extractNamespaces(element)
+            OptionsExtractor.extractNamespaces(element),
+            context = OptionsExtractor.extractContext(element),
         )
 }
 

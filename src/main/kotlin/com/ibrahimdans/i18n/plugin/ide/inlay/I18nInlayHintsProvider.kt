@@ -94,7 +94,7 @@ open class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<Psi
                     .filter { it.localeLabel() == locale }
                     // With the plural separator, as the annotator and the gutter resolve: a key held as
                     // `item_one` / `item_other` got no hint, its first form is shown.
-                    .flatMap { resolve(fullKey.compositeKey, it, config.pluralSeparator) }
+                    .flatMap { resolve(fullKey, it, config.pluralSeparator) }
                     .filter { it.unresolved.isEmpty() }
                     .firstNotNullOfOrNull { PluralGroup.displayableValue(it.element) }
                     // A Paraglide message with variants is a JSON array: shown as its catch-all branch.

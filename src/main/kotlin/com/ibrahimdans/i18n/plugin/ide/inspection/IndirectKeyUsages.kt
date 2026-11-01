@@ -8,6 +8,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
+import com.ibrahimdans.i18n.plugin.tree.ContextKey
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.tree.Separators
 import com.ibrahimdans.i18n.plugin.utils.keyScopesOf
@@ -103,7 +104,12 @@ internal object IndirectKeyUsages {
     fun prefixedCounts(project: Project, keys: List<String>, config: Config): Map<String, Int> =
         prefixedUsages(project, keys, config).mapValues { it.value.size }
 
-    /** The literals [prefixedCounts] counts, keyed the same way. */
+    /**
+     * The literals [prefixedCounts] counts, keyed the same way — and the calls reading a key as an
+     * i18next context variant: `t('friend', { context: gender })` uses `friend_male` and
+     * `friend_female`, `{ context: 'male' }` the first only. Such a call never writes the variant's
+     * name, so the text scan cannot find it, prefix or not.
+     */
     fun prefixedUsages(project: Project, keys: List<String>, config: Config): Map<String, Set<PsiElement>> {
         if (keys.isEmpty()) return emptyMap()
         val defaultNamespaces = config.defaultNamespaces()
@@ -112,14 +118,9 @@ internal object IndirectKeyUsages {
         val keyScopes = keyScopesOf(project)
         val found = mutableMapOf<String, MutableSet<PsiElement>>()
 
-        val byWord = keys.groupBy { key ->
-            KeySpelling.segmentsOf(PluralKey.stripSuffix(key, config.pluralSeparator), config).last()
-        }
-        for ((word, wordKeys) in byWord) {
+        val byWord = keys.flatMap { key -> wantedPaths(key, config) }.groupBy { it.segments.last() }
+        for ((word, wanted) in byWord) {
             if (word.isBlank()) continue
-            val wanted = wordKeys.associateWith { key ->
-                KeySpelling.segmentsOf(PluralKey.stripSuffix(key, config.pluralSeparator), config)
-            }
             PsiSearchHelper.getInstance(project).processElementsWithWord(
                 { element, _ ->
                     val literal = languages.firstNotNullOfOrNull { it.resolveLiteral(element) } ?: return@processElementsWithWord true
@@ -127,12 +128,14 @@ internal object IndirectKeyUsages {
                         ?.let { parser.parse(it) }
                         ?: return@processElementsWithWord true
                     val scope = keyScopeOf(fullKey, keyScopes)
-                    if (fullKey.keyPrefix.isEmpty() && scope == null) return@processElementsWithWord true
+                    val prefixed = fullKey.keyPrefix.isNotEmpty() || scope != null
+                    if (!prefixed && fullKey.context == null) return@processElementsWithWord true
                     // A scope key is spelled `admin.title`: the scope is its first segment, not a namespace.
                     val path = listOfNotNull(scope) + fullKey.compositeKey.map { it.text }
                     val namespaces = if (scope != null) emptyList() else fullKey.lookupNamespaces()
-                    for ((key, segments) in wanted) {
+                    for ((key, segments, context) in wanted) {
                         if (path != segments) continue
+                        if (if (context == null) !prefixed else !ContextKey.reads(fullKey.context, context)) continue
                         val namespace = KeySpelling.namespaceOf(key)
                         val inNamespace = if (namespace == null) namespaces.isEmpty() || namespaces.any { it in defaultNamespaces }
                             else namespaces.isEmpty() || namespace in namespaces
@@ -147,6 +150,23 @@ internal object IndirectKeyUsages {
             )
         }
         return found
+    }
+
+    /** A call path [prefixedUsages] counts for [key]; with a [context], only a call reading that context. */
+    private data class WantedPath(val key: String, val segments: List<String>, val context: String? = null)
+
+    /**
+     * The paths a call naming [key] may write: the key's own, and, when its last segment is spelled
+     * as a context variant (`friend_male`, plural suffix stripped), the base under that context.
+     * Not when i18next's context separator is also the key separator: the segments then hold no
+     * variant to tell apart.
+     */
+    private fun wantedPaths(key: String, config: Config): List<WantedPath> {
+        val segments = KeySpelling.segmentsOf(PluralKey.stripSuffix(key, config.pluralSeparator), config)
+        val own = WantedPath(key, segments)
+        if (config.keySeparator == ContextKey.SEPARATOR) return listOf(own)
+        val (base, context) = segments.lastOrNull()?.let(ContextKey::split) ?: return listOf(own)
+        return listOf(own, WantedPath(key, segments.dropLast(1) + base, context))
     }
 
     /**

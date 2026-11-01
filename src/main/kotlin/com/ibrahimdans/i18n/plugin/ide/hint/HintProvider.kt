@@ -107,7 +107,7 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
         val previewLocale = LocaleMatching.pick(config.previewLocale.ifBlank { config.foldingPreferredLanguage }, sources.map { it.localeLabel() })
 
         val rows = sources.sortedByDescending { it.localeLabel() == previewLocale }.mapNotNull { source ->
-            val refs = resolve(fullKey.compositeKey, source, pluralSeparator)
+            val refs = resolve(fullKey, source, pluralSeparator)
             val displayed = refs.asSequence()
                 .filter { it.unresolved.isEmpty() }
                 .mapNotNull { PluralGroup.displayableValue(it.element) }

@@ -92,7 +92,8 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
         return RawKey(
             listOf(KeyElement.literal(element.text.unQuote())),
             optionsNamespaces.ifEmpty { hookNamespaces },
-            prefix?.takeIf { it.isNotBlank() }?.let { listOf(KeyElement.literal(it)) }.orEmpty()
+            prefix?.takeIf { it.isNotBlank() }?.let { listOf(KeyElement.literal(it)) }.orEmpty(),
+            context = OptionsExtractor.extractContext(element),
         )
     }
 

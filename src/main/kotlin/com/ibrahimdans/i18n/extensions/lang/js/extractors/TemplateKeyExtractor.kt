@@ -40,6 +40,7 @@ class TemplateKeyExtractor : KeyExtractor {
             element.node.getChildren(null).map {
                 KeyElement(it.text, if (it is JSExpression) KeyElementType.TEMPLATE else KeyElementType.LITERAL)
             },
-            OptionsExtractor.extractNamespaces(element)
+            OptionsExtractor.extractNamespaces(element),
+            context = OptionsExtractor.extractContext(element),
         )
 }

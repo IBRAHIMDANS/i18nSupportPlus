@@ -1,6 +1,8 @@
 package com.ibrahimdans.i18n.plugin.key
 
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
+import com.ibrahimdans.i18n.plugin.tree.ContextKey
+import com.ibrahimdans.i18n.plugin.tree.ContextOption
 import com.ibrahimdans.i18n.plugin.utils.nullableToList
 
 /**
@@ -24,6 +26,11 @@ data class FullKey(
      * A Lingui PO catalogue flags the other keys, the explicit ids, when it creates them.
      */
     val sourceText: Boolean = false,
+    /**
+     * i18next's `context` option (`t('friend', { context: 'male' })`): the key is then read as its
+     * variant `friend_male` ([ContextKey]). Null for a call passing none, which reads the key itself.
+     */
+    val context: ContextOption? = null,
 ) {
     /**
      * The namespaces the key is looked up in: the one written in the key, or else those its hook

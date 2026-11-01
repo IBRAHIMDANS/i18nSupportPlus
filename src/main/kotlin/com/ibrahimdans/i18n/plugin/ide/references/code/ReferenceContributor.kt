@@ -80,7 +80,7 @@ abstract class ReferenceContributorBase(private val referenceContributor: Refere
                         sourceService
                             .findReadSources(fullKey, element)
                             .flatMap { source ->
-                                resolve(fullKey.compositeKey, source, pluralSeparator).map {
+                                resolve(fullKey, source, pluralSeparator).map {
                                     ReferenceDescriptor(it, source.host)
                                 }
                             }

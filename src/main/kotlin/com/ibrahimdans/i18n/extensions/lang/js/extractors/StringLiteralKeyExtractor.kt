@@ -18,6 +18,7 @@ class StringLiteralKeyExtractor: KeyExtractor {
     override fun extract(element: PsiElement): RawKey =
         RawKey(
             listOf(KeyElement.literal(element.text.unQuote())),
-            OptionsExtractor.extractNamespaces(element)
+            OptionsExtractor.extractNamespaces(element),
+            context = OptionsExtractor.extractContext(element),
         )
 }

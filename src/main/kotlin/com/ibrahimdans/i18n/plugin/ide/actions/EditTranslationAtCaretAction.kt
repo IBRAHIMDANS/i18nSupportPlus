@@ -112,7 +112,7 @@ class EditTranslationAtCaretAction : AnAction() {
             val pluralSeparator = Settings.getInstance(project).config().pluralSeparator
             return project.service<LocalizationSourceService>().findReadSources(fullKey, literal)
                 .firstNotNullOfOrNull { source ->
-                    resolve(fullKey.compositeKey, source, pluralSeparator).asSequence()
+                    resolve(fullKey, source, pluralSeparator).asSequence()
                         .filter { it.unresolved.isEmpty() }
                         .mapNotNull { PluralGroup.displayableValue(it.element) }
                         .firstOrNull()

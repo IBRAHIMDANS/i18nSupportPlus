@@ -161,7 +161,7 @@ object LinkedMessages : CompositeKeyResolver<PsiElement> {
         if (fullKey.compositeKey.isEmpty()) return emptyList()
         val pluralSeparator = Settings.getInstance(project).config().pluralSeparator
         val resolved = project.service<LocalizationSourceService>().findReadSources(fullKey, element)
-            .flatMap { source -> resolve(fullKey.compositeKey, source, pluralSeparator) }
+            .flatMap { source -> resolve(fullKey, source, pluralSeparator) }
             .filter { it.unresolved.isEmpty() && it.path.isNotEmpty() && it.element != null }
         val locale = element.containingFile?.let(TranslationFileScope::sourceOf)?.localeLabel()
         val preferred = resolved.filter { it.localizationSource.localeLabel() == locale }.ifEmpty { resolved }
