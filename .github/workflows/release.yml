@@ -65,3 +65,75 @@ jobs:
         with:
           name: plugin-zip
           path: build/distributions/*.zip
+
+      - name: Upload i18n-check artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: cli-zip
+          path: cli/build/distributions/*.zip
+
+  # `ghcr.io/ibrahimdans/i18n-check`, for CI systems other than GitHub Actions. A job of its own, after the
+  # release: an image that fails to build or to start leaves the plugin and the zip published.
+  cli-image:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/ibrahimdans/i18n-check
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download i18n-check
+        uses: actions/download-artifact@v8
+        with:
+          name: cli-zip
+          path: ${{ runner.temp }}/cli-zip
+
+      # The image is built from the released zip itself, unzipped (unzip keeps the launcher executable).
+      - name: Unzip i18n-check
+        run: |
+          mkdir -p "$RUNNER_TEMP/image"
+          unzip -q "$RUNNER_TEMP"/cli-zip/i18n-check-*.zip -d "$RUNNER_TEMP/image"
+          mv "$RUNNER_TEMP"/image/i18n-check-* "$RUNNER_TEMP/image/i18n-check"
+
+      - name: Image tags
+        id: tags
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          TAGS="$IMAGE:$VERSION"
+          if [[ "$VERSION" != *-beta* && "$VERSION" != *-alpha* ]]; then TAGS="$TAGS,$IMAGE:latest"; fi
+          echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
+
+      # QEMU runs the arm64 image for its check below; building it needs none (the Dockerfile only copies).
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+
+      # Each platform's image starts, prints its usage and reads the code of `examples/simple` with
+      # tree-sitter, whose native library differs per platform. The example's problems are not the point:
+      # `--max-problems` lets it exit 0, while a parse failure or a missing native library exits 2.
+      - name: Check that the image starts on each platform
+        run: |
+          for PLATFORM in linux/amd64 linux/arm64; do
+            docker buildx build --platform "$PLATFORM" --load -t i18n-check:check -f cli/Dockerfile "$RUNNER_TEMP/image"
+            docker run --rm --platform "$PLATFORM" i18n-check:check --help > /dev/null
+            docker run --rm --platform "$PLATFORM" -v "$PWD/examples/simple:/work" i18n-check:check --code --max-problems 100000
+          done
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push the image
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ runner.temp }}/image
+          file: cli/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}

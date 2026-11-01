@@ -415,6 +415,27 @@ jobs:
 
 `args` takes the command line's arguments, `version` another release than the tag's.
 
+#### Other CI systems
+
+Each release, from the one after 1.16.1, also publishes `i18n-check` as a Docker image with Java 21 included, for Linux x86_64 and arm64: `ghcr.io/ibrahimdans/i18n-check:<version>`, and `:latest`. It checks the directory mounted on `/work` and takes the same arguments:
+
+```bash
+docker run --rm -v "$PWD:/work" ghcr.io/ibrahimdans/i18n-check:latest --code
+```
+
+In GitLab CI, the image's entry point is cleared so that the job's `script` runs, and `i18n-check` is on the `PATH`:
+
+```yaml
+translations:
+  image:
+    name: ghcr.io/ibrahimdans/i18n-check:latest
+    entrypoint: [""]
+  script:
+    - i18n-check --code
+```
+
+Pin a version tag rather than `latest` for a build that does not change on its own. `cli/Dockerfile` builds the same image from `./gradlew :cli:installDist`: `docker build -f cli/Dockerfile -t i18n-check cli/build/install`.
+
 ### AI Agents (MCP)
 
 On IntelliJ-based IDEs 2025.2.6 and later, the plugin adds nine tools to the IDE's built-in MCP server, so an AI agent translates, checks and maintains keys through the plugin rather than by rewriting the files — with your own Codex or Claude plan, no API key:
