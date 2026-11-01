@@ -14,15 +14,26 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Tests and coverage share one job on purpose. Run apart, they each paid the same five minutes
-  # to build the sandbox and execute the same ~1300 tests, and each drew independently on the
-  # platform flakes that make an IntelliJ suite red — two lotteries per pull request for one
-  # result. One job halves both the wall time and the exposure.
-  test:
+  # The plugin's suite, split across three runners. In one job it took 8½ of the job's 11½
+  # minutes; the fixture cannot fork (--max-workers=1), so the split is by machine. Gradle assigns
+  # each test class to a shard by a stable hash of its name (`-PtestShard`, build.gradle.kts):
+  # a new class always lands in exactly one shard. Shard 1 also runs the `core`, `cli` and
+  # `core-treesitter` suites, which take seconds.
+  test-shard:
+    name: test shard ${{ matrix.shard }}/3
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    # setup-gradle keys its cache by job id. A job id with no entry yet falls back to the most
+    # recent entry of any job — Plugin Compatibility's `verify`, 25 GB of IDEs, restored in 4 min
+    # instead of the 3 GB the suite needs in 30 s. The shards run the build the former `test` job
+    # ran, so they read (and, on main, write) its entries.
+    env:
+      GRADLE_BUILD_ACTION_CACHE_KEY_JOB: test
     steps:
       - uses: actions/checkout@v7
 
@@ -35,22 +46,132 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6.4.0
 
-      # cleanTest, so an up-to-date `test` is never skipped and the coverage report always
-      # reflects this commit. --max-workers=1 stays: the platform test fixture is not safe to
-      # fork, and a 2-vCPU runner has nothing to gain from parallel workers anyway.
-      - name: Run tests with coverage
+      # cleanTest, so an up-to-date `test` is never skipped and the coverage data always
+      # reflects this commit.
+      - name: Run tests
         run: |
-          ./gradlew cleanTest test jacocoTestReport \
+          tasks=":test"
+          if [ "${{ matrix.shard }}" = "1" ]; then tasks="test"; fi
+          ./gradlew cleanTest $tasks \
+            -PtestShard=${{ matrix.shard }}/3 \
             --no-configuration-cache \
             --stacktrace \
             --max-workers=1
+
+      - name: Upload coverage data
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: jacoco-exec-${{ matrix.shard }}
+          path: build/jacoco/test.exec
+          if-no-files-found: ignore
+
+      # The report needs the exact classes the agent saw; shard 1's are those of this commit.
+      - name: Upload compiled classes
+        if: matrix.shard == 1
+        uses: actions/upload-artifact@v7
+        with:
+          name: main-classes
+          path: build/classes/kotlin/main/
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-${{ matrix.shard }}
+          path: build/test-results/test/*.xml
+          if-no-files-found: ignore
 
       - name: Upload test report
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: test-report
+          name: test-report-${{ matrix.shard }}
           path: build/reports/tests/test/
+
+  # Named `test`, the check the pull request waits on. It merges the shards' coverage and
+  # comments it. `if: always()` and the first step matter: a job that `needs` a failed shard is
+  # otherwise skipped, and a skipped check reads as passed.
+  test:
+    needs: test-shard
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      JACOCO_VERSION: '0.8.15'
+    steps:
+      - name: Fail when a shard did not pass
+        if: needs.test-shard.result != 'success'
+        run: |
+          echo "A test shard ended with '${{ needs.test-shard.result }}': see the 'test shard' jobs."
+          exit 1
+
+      - uses: actions/checkout@v7
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Download coverage data
+        uses: actions/download-artifact@v8
+        with:
+          pattern: jacoco-exec-*
+          path: shards
+
+      - name: Download compiled classes
+        uses: actions/download-artifact@v8
+        with:
+          name: main-classes
+          path: classes
+
+      - name: Download test results
+        uses: actions/download-artifact@v8
+        with:
+          pattern: test-results-*
+          path: results
+
+      # The JaCoCo version Gradle's plugin uses, so the report reads the shards' data as
+      # jacocoTestReport did.
+      - name: Merge coverage and write the report
+        run: |
+          curl -fsSL -o jacococli.jar \
+            "https://repo1.maven.org/maven2/org/jacoco/org.jacoco.cli/${JACOCO_VERSION}/org.jacoco.cli-${JACOCO_VERSION}-nodeps.jar"
+          java -jar jacococli.jar merge shards/*/test.exec --destfile merged.exec
+          mkdir -p build/reports/jacoco/test
+          java -jar jacococli.jar report merged.exec \
+            --classfiles classes \
+            --sourcefiles src/main/kotlin \
+            --name 'i18n Support Plus' \
+            --xml build/reports/jacoco/test/jacocoTestReport.xml \
+            --html build/reports/jacoco/test/html 2>&1 | tee report.log
+          mismatched=$(grep -c "does not match" report.log || true)
+          echo "Classes whose coverage data does not match the compiled class: $mismatched"
+
+      - name: Summarise the shards
+        run: |
+          {
+            echo "| Shard | Test classes | Tests | Failures | Skipped | Time (s) |"
+            echo "|---|---|---|---|---|---|"
+            for dir in results/test-results-*; do
+              shard=${dir##*-}
+              awk -v shard="$shard" '
+                /<testsuite / {
+                  classes++
+                  for (i = 1; i <= NF; i++) {
+                    if ($i ~ /^tests=/)    { gsub(/[^0-9]/, "", $i); tests += $i }
+                    if ($i ~ /^failures=/) { gsub(/[^0-9]/, "", $i); failures += $i }
+                    if ($i ~ /^skipped=/)  { gsub(/[^0-9]/, "", $i); skipped += $i }
+                    if ($i ~ /^time=/)     { gsub(/[^0-9.]/, "", $i); time += $i }
+                  }
+                }
+                END { printf "| %s | %d | %d | %d | %d | %.0f |\n", shard, classes, tests, failures, skipped, time }
+              ' "$dir"/*.xml
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage report
         if: always()

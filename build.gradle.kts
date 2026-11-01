@@ -420,6 +420,23 @@ tasks {
         // caller of that ping, and a system property overrides its registry key.
         systemProperty("trace.data.collection.enabled", "false")
 
+        // CI splits the plugin's suite across runners: -PtestShard=2/3 runs the second third. The
+        // fixture cannot fork, so shards are separate machines, not parallel workers. A test class
+        // goes to a shard by a stable hash of its top-level name (nested classes follow it), so
+        // every class — a new one included — lands in exactly one shard, with no list to maintain.
+        providers.gradleProperty("testShard").orNull?.let { spec ->
+            val parts = spec.split('/').mapNotNull { it.trim().toIntOrNull() }
+            require(parts.size == 2 && parts[1] >= 1 && parts[0] in 1..parts[1]) {
+                "testShard must read i/n with 1 <= i <= n, got '$spec'"
+            }
+            val (index, count) = parts
+            exclude { element ->
+                if (element.isDirectory || !element.name.endsWith(".class")) return@exclude false
+                val topLevel = element.relativePath.pathString.removeSuffix(".class").substringBefore('$')
+                Math.floorMod(topLevel.hashCode(), count) != index - 1
+            }
+        }
+
         // A net for platform flakes, not for our own bugs. The IntelliJ test fixture occasionally
         // trips over its own teardown — a listener already disposed, an editor already closed —
         // and takes down whichever test was running at the time. A single retry separates that
