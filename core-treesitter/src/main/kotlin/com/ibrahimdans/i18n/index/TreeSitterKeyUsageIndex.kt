@@ -61,7 +61,8 @@ class TreeSitterKeyUsageIndex(
                 KeyUsage(path, TextSpan(node.span.start, node.span.end)),
                 key.compositeKey.map { it.text },
                 key.lookupNamespaces(),
-                if (key.isDynamic) null else node.text.unQuote(),
+                // As the code writes it: the literal's text, or the msgid built for a source-text `<Trans>`.
+                if (key.isDynamic) null else rawKey.keyElements.joinToString("") { it.text },
                 if (key.isDynamic) shapeOf(node.text.unQuote()) else null,
                 key.context,
             )

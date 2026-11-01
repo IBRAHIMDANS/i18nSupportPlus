@@ -13,10 +13,11 @@ import com.ibrahimdans.i18n.extract.i18next.unquoted
 import com.ibrahimdans.i18n.plugin.parser.CodeKeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.CodeNode
 import com.ibrahimdans.i18n.plugin.parser.RawKey
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 
-/** The functions `VueI18nTechnology` publishes: the global `$t` of templates, `$tc` and `$te`. */
-val VUE_I18N_FUNCTIONS: Set<String> = setOf("\$t", "\$tc", "\$te")
+/** The functions `VueI18nTechnology` publishes: the global `$t` of templates, `$tc` and `$te`, from its preset. */
+val VUE_I18N_FUNCTIONS: Set<String> = FrameworkPresets.VUE_I18N.callNames.toSet()
 
 /**
  * The vue-i18n extractors, over a component read by [VueSfc] or a plain script: `$t('key')` and its
