@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.ItemEditorPanel
 import com.ibrahimdans.i18n.plugin.ide.settings.ListEditorPanel
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.ui.JBColor
+import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import java.awt.BorderLayout
@@ -24,7 +25,7 @@ import javax.swing.event.DocumentListener
 
 /**
  * The *Machine Translation* form: the opt-in, then the engines tried in order, one typed form each,
- * then the project's glossary, shared by every engine.
+ * then what every engine of the project shares: the glossary, the form of address, the instructions.
  *
  * It edits [settings], a detached copy the configurable applies, and collects the API keys typed in
  * [keys] — written to the password safe on *Apply* only. [test] translates a sample with the selected
@@ -104,10 +105,36 @@ internal class MachineTranslationPanel(
         })
     }
 
+    /** The form of address by locale ([FormalitySetting.parse]); the copy follows as it is typed. */
+    val formalityField = JBTextField(FormalitySetting.format(settings.formality), 46).apply {
+        name = PluginBundle.message("settings.translate.formality")
+        emptyText.text = "de: informal; fr: formal"
+        document.addDocumentListener(typed { settings.formality = FormalitySetting.parse(text) })
+    }
+
+    /** The project's instructions, kept as typed: blank lines are skipped when sent. */
+    val instructionArea = JTextArea(settings.instruction, 3, 46).apply {
+        name = PluginBundle.message("settings.translate.instruction")
+        lineWrap = true
+        document.addDocumentListener(typed { settings.instruction = text })
+    }
+
     private val glossaryForm = panel {
         row(PluginBundle.message("settings.translate.glossary")) {
             scrollCell(glossaryArea).align(AlignX.FILL).comment(PluginBundle.message("settings.translate.glossary.comment"))
         }
+        row(PluginBundle.message("settings.translate.formality")) {
+            cell(formalityField).align(AlignX.FILL).comment(PluginBundle.message("settings.translate.formality.comment"))
+        }
+        row(PluginBundle.message("settings.translate.instruction")) {
+            scrollCell(instructionArea).align(AlignX.FILL).comment(PluginBundle.message("settings.translate.instruction.comment"))
+        }
+    }
+
+    private fun typed(onChange: () -> Unit) = object : DocumentListener {
+        override fun insertUpdate(e: DocumentEvent?) = onChange()
+        override fun removeUpdate(e: DocumentEvent?) = onChange()
+        override fun changedUpdate(e: DocumentEvent?) = onChange()
     }
 
     init {
@@ -232,13 +259,15 @@ internal class MachineTranslationPanel(
         val engine = editor.selected() ?: return
         testResult.foreground = JBColor.foreground()
         testResult.text = PluginBundle.message("settings.translate.test.running")
-        test(engine.toConfig(GlossaryTerm.glossary(settings.glossary)), String(keyField.password)) { message -> testResult.text = message }
+        test(engine.toConfig(GlossaryTerm.glossary(settings.glossary), settings.style()), String(keyField.password)) { message -> testResult.text = message }
     }
 
     private fun refresh() {
         warning.isVisible = enabledBox.isSelected
         editor.isEnabled = enabledBox.isSelected
         glossaryArea.isEnabled = enabledBox.isSelected
+        formalityField.isEnabled = enabledBox.isSelected
+        instructionArea.isEnabled = enabledBox.isSelected
     }
 
     override fun onItemChanged() {

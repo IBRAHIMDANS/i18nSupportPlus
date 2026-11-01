@@ -35,10 +35,10 @@ data class EngineState(
 ) : RemoteGlossaryStore {
     constructor() : this("", "", "", "", "", "", "", false, false)
 
-    fun toConfig(glossary: Glossary = Glossary.EMPTY): EngineConfig {
+    fun toConfig(glossary: Glossary = Glossary.EMPTY, style: Style = Style.EMPTY): EngineConfig {
         val presetConfig = TranslationEngines.preset(preset)
-        // An entry saved before its preset's prompt took `{glossary}`, then `{instruction}`, sends the preset's
-        // prompt of today: the same request while they are empty, the glossary and instruction once given.
+        // An entry saved before its preset's request took `{glossary}`, `{instruction}`, then `{formality}`, sends
+        // the preset's request of today: the same request while they are empty, the project's settings once given.
         val sent = presetConfig?.body?.takeIf { body in OPTIONAL_SLOTS.runningFold(it) { older, slot -> older.replace(slot, "") } } ?: body
         return EngineConfig(
             id = id, name = name, url = url.trim(),
@@ -52,13 +52,17 @@ data class EngineState(
             glossary = glossary,
             // Same rule for the engine's own glossary: its API stands beside the preset's request.
             nativeGlossary = presetConfig?.takeIf { it.body == sent && it.responsePath == responsePath.trim() }?.nativeGlossary,
-            remoteGlossary = this
+            remoteGlossary = this,
+            style = style
         )
     }
 
     companion object {
-        /** The placeholders a preset's prompt took after it was first saved, the latest first. */
-        private val OPTIONAL_SLOTS = listOf(INSTRUCTION_SLOT, "{glossary}")
+        /**
+         * What a preset's request took after it was first saved, the latest first: a placeholder inside an LLM
+         * prompt, or a whole field of DeepL's JSON — DeepL takes `"formality": "default"`, not an empty one.
+         */
+        private val OPTIONAL_SLOTS = listOf(", \"formality\": \"{formality}\"", INSTRUCTION_SLOT, "{glossary}")
 
         /** A new entry filled from [preset], with an id of its own. */
         fun of(preset: EngineConfig): EngineState = EngineState(
@@ -86,25 +90,52 @@ data class GlossaryTerm(
          */
         fun parse(text: String): MutableList<GlossaryTerm> = text.lines().mapNotNull { line ->
             val term = line.substringBefore('=').trim().takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-            val translations = linkedMapOf<String, String>()
-            if ('=' in line) line.substringAfter('=').split(';').forEach { part ->
-                val locale = part.substringBefore(':', "").trim()
-                val value = part.substringAfter(':', "").trim()
-                if (locale.isNotEmpty() && value.isNotEmpty()) translations[locale] = value
-            }
-            GlossaryTerm(term, translations)
+            GlossaryTerm(term, byLocale(line.substringAfter('=', "")))
         }.toMutableList()
 
         /** [terms] written as [parse] reads them. */
         fun format(terms: List<GlossaryTerm>): String = terms.joinToString("\n") { term ->
-            if (term.translations.isEmpty()) term.term
-            else term.term + " = " + term.translations.entries.joinToString("; ") { "${it.key}: ${it.value}" }
+            if (term.translations.isEmpty()) term.term else term.term + " = " + formatByLocale(term.translations)
         }
 
         /** [terms] as the engines read them. */
         fun glossary(terms: List<GlossaryTerm>): Glossary =
             Glossary(terms.filter { it.term.isNotBlank() }.map { Glossary.Term(it.term.trim(), it.translations.toMap()) })
     }
+}
+
+/** `fr: panier; de: Warenkorb` as values by locale; a part without a locale or a value is skipped. */
+internal fun byLocale(text: String): MutableMap<String, String> {
+    val values = linkedMapOf<String, String>()
+    text.split(';').forEach { part ->
+        val locale = part.substringBefore(':', "").trim()
+        val value = part.substringAfter(':', "").trim()
+        if (locale.isNotEmpty() && value.isNotEmpty()) values[locale] = value
+    }
+    return values
+}
+
+/** [values] written as [byLocale] reads them. */
+internal fun formatByLocale(values: Map<String, String>): String = values.entries.joinToString("; ") { "${it.key}: ${it.value}" }
+
+/**
+ * The project's form of address by locale, as the settings page writes it: `de: informal; fr: formal`.
+ * Only `formal` and `informal` are kept, in lower case — the default needs no entry.
+ */
+object FormalitySetting {
+
+    fun parse(text: String): MutableMap<String, String> =
+        byLocale(text).mapValues { it.value.lowercase() }.filterValues { it in NAMES }.toMutableMap()
+
+    fun format(formality: Map<String, String>): String = formatByLocale(formality)
+
+    /** [formality] and [instruction] as the engines read them. */
+    fun style(formality: Map<String, String>, instruction: String): Style = Style(
+        formality.mapNotNull { (locale, name) -> NAMES[name.lowercase()]?.let { locale to it } }.toMap(),
+        instruction
+    )
+
+    private val NAMES = mapOf("formal" to Formality.FORMAL, "informal" to Formality.INFORMAL)
 }
 
 /**
@@ -120,8 +151,15 @@ class MachineTranslationSettings : PersistentStateComponent<MachineTranslationSe
         var enabled: Boolean = false,
         var engines: MutableList<EngineState> = mutableListOf(),
         /** Terms kept as they are or translated one way, by every engine of the project. */
-        var glossary: MutableList<GlossaryTerm> = mutableListOf()
-    )
+        var glossary: MutableList<GlossaryTerm> = mutableListOf(),
+        /** The form of address by locale (`de` → `informal`), see [FormalitySetting]. */
+        var formality: MutableMap<String, String> = linkedMapOf(),
+        /** The project's instructions to the LLM engines, one per line, sent before the key's own. */
+        var instruction: String = ""
+    ) {
+        /** The [formality] and [instruction] as the engines read them. */
+        fun style(): Style = FormalitySetting.style(formality, instruction)
+    }
 
     private var state = Settings()
 
@@ -136,7 +174,9 @@ class MachineTranslationSettings : PersistentStateComponent<MachineTranslationSe
     fun copy(): Settings = Settings(
         state.enabled,
         state.engines.map { it.copy(glossaryDictionaries = LinkedHashMap(it.glossaryDictionaries)) }.toMutableList(),
-        state.glossary.map { it.copy(translations = LinkedHashMap(it.translations)) }.toMutableList()
+        state.glossary.map { it.copy(translations = LinkedHashMap(it.translations)) }.toMutableList(),
+        LinkedHashMap(state.formality),
+        state.instruction
     )
 
     /**
@@ -146,7 +186,8 @@ class MachineTranslationSettings : PersistentStateComponent<MachineTranslationSe
     fun provider(keys: ApiKeyStore = PasswordSafeApiKeys, transport: HttpTransport = IdeHttpTransport): TranslationProvider? {
         if (!state.enabled || state.engines.isEmpty()) return null
         val glossary = GlossaryTerm.glossary(state.glossary)
-        return TranslationEngines.provider(state.engines.map { it.toConfig(glossary) }, { keys.get(it.id) }, transport, IdeGlossaryWarning)
+        val style = state.style()
+        return TranslationEngines.provider(state.engines.map { it.toConfig(glossary, style) }, { keys.get(it.id) }, transport, IdeGlossaryWarning)
     }
 
     /**

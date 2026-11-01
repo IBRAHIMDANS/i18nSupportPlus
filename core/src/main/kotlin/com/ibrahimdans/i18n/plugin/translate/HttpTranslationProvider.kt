@@ -15,7 +15,9 @@ import java.security.MessageDigest
  *
  * [url], [headers] and [body] take placeholders: `{text}`, `{source}`, `{target}`, `{context}`,
  * `{glossary}` (the [glossary] terms of the target locale, as a sentence of an LLM prompt), `{instruction}`
- * (the user's [TranslationRequest.instruction], a sentence of an LLM prompt too — see [instructionPrompt]) and `{apiKey}`. They are replaced by JSON-escaped content *without* quotes, so the template writes the
+ * (the [style]'s form of address and instructions, then the user's [TranslationRequest.instruction], sentences of
+ * an LLM prompt too — see [instructionPrompt]), `{formality}` (the form of address as DeepL's `formality`, see
+ * [Formality]) and `{apiKey}`. They are replaced by JSON-escaped content *without* quotes, so the template writes the
  * quotes itself and a placeholder can sit inside a sentence — an LLM prompt. [unescapeHtml] decodes
  * the entities an engine asked for HTML output returns (`&#39;`, `&amp;`).
  */
@@ -39,8 +41,55 @@ data class EngineConfig(
      */
     val nativeGlossary: String? = null,
     /** Where the id of that glossary is kept between sessions: the engine's entry in the settings. */
-    val remoteGlossary: RemoteGlossaryStore? = null
+    val remoteGlossary: RemoteGlossaryStore? = null,
+    /** How the project wants its translations written: the form of address, its own instructions. */
+    val style: Style = Style.EMPTY
 )
+
+/**
+ * How the project wants its translations written, by the engines able to follow it.
+ *
+ * - [formality], by target locale (`de`, `pt_BR`): DeepL reads it as its own `formality` parameter
+ *   (`{formality}`), an LLM as a sentence of its prompt (`{instruction}`). Google and LibreTranslate have no
+ *   such option. A locale missing here gets the engine's default.
+ * - [instruction], the project's own words, one instruction per line: for an LLM prompt only, before the
+ *   instruction typed in the key's dialog. DeepL's `custom_instructions` is left out: it holds a few target
+ *   languages only and switches to its slower model.
+ */
+data class Style(val formality: Map<String, Formality> = emptyMap(), val instruction: String = "") {
+
+    /** The form of address for [target], which may come rewritten for its engine (`DE`, `EN-US`). */
+    fun formalityFor(target: String): Formality = valueForLocale(formality, target) ?: Formality.DEFAULT
+
+    companion object {
+        val EMPTY = Style()
+    }
+}
+
+/**
+ * The form of address of a translation: `Sie` or `du`, `vous` or `tu`. [deepl] is DeepL's `formality`
+ * value: the `prefer_` ones fall back to the default for a language without the distinction, where `more`
+ * and `less` fail the request. [sentence] is what an LLM prompt gets, opening with a space — empty for the
+ * default, leaving the request as it was.
+ */
+enum class Formality(val deepl: String, val sentence: String) {
+    DEFAULT("default", ""),
+    FORMAL("prefer_more", " Use the formal form of address (like \"Sie\" in German or \"vous\" in French)."),
+    INFORMAL("prefer_less", " Use the informal form of address (like \"du\" in German or \"tu\" in French).")
+}
+
+/**
+ * The value of [byLocale] for [target], which may come rewritten for its engine (`FR`, `EN-US`): the
+ * locale written alike, else the bare language, else another variant of it.
+ */
+internal fun <V> valueForLocale(byLocale: Map<String, V>, target: String): V? {
+    val wanted = normalizeLocale(target)
+    val language = wanted.substringBefore('-')
+    val normalized = byLocale.entries.associate { normalizeLocale(it.key) to it.value }
+    return normalized[wanted] ?: normalized[language] ?: normalized.entries.firstOrNull { it.key.substringBefore('-') == language }?.value
+}
+
+private fun normalizeLocale(locale: String): String = locale.trim().lowercase().replace('_', '-')
 
 /**
  * The project's terms, so an engine neither translates a product name nor varies a business term.
@@ -60,12 +109,7 @@ data class Glossary(val terms: List<Term> = emptyList()) {
          * The translation for [target], which may come rewritten for its engine (`FR`, `EN-US`):
          * the locale written alike, else the bare language, else another variant of it.
          */
-        fun translationFor(target: String): String? {
-            val wanted = normalize(target)
-            val language = wanted.substringBefore('-')
-            val byLocale = translations.entries.filter { it.value.isNotBlank() }.associate { normalize(it.key) to it.value }
-            return byLocale[wanted] ?: byLocale[language] ?: byLocale.entries.firstOrNull { it.key.substringBefore('-') == language }?.value
-        }
+        fun translationFor(target: String): String? = valueForLocale(translations.filterValues { it.isNotBlank() }, target)
     }
 
     /** One pattern for every kept term, the longest first, or null when none is kept. */
@@ -118,8 +162,6 @@ data class Glossary(val terms: List<Term> = emptyList()) {
         val EMPTY = Glossary()
 
         private val MASK_TAG = Regex("""<x id="\d+"/>""")
-
-        private fun normalize(locale: String): String = locale.trim().lowercase().replace('_', '-')
     }
 }
 
@@ -253,7 +295,9 @@ class HttpTranslationProvider(
         "target" to request.target,
         "context" to request.context,
         "glossary" to engine.glossary.prompt(request.target),
-        "instruction" to instructionPrompt(request.instruction),
+        "formality" to engine.style.formalityFor(request.target).deepl,
+        "instruction" to engine.style.formalityFor(request.target).sentence +
+            instructionPrompt(*engine.style.instruction.lines().toTypedArray(), request.instruction),
         "apiKey" to apiKey
     )
 
@@ -321,16 +365,23 @@ class HttpTranslationProvider(
     private fun failed(message: String) = Translation.Failed(message)
 
     companion object {
-        private val PLACEHOLDER = Regex("""\{(text|source|target|context|glossary|instruction|apiKey)}""")
+        private val PLACEHOLDER = Regex("""\{(text|source|target|context|glossary|instruction|formality|apiKey)}""")
         private val FENCE = Regex("""^\s*```\w*\s*|\s*```\s*$""")
         private val PATH_PART = Regex("""([^.\[\]]+)|\[(\d+)]""")
 
         /**
-         * What `{instruction}` becomes: [instruction] as a sentence opening with a space, to follow the
-         * prompt's last one — empty for a blank one, leaving the request as it was.
+         * The user's part of `{instruction}`: [instructions] — the project's lines, then the key's — as a
+         * sentence opening with a space, to follow the prompt's last one. The blank ones are skipped, and
+         * none leaves the request as it was.
          */
-        fun instructionPrompt(instruction: String): String =
-            instruction.trim().trimEnd('.').takeIf { it.isNotEmpty() }?.let { " Also follow this instruction from the user: $it." }.orEmpty()
+        fun instructionPrompt(vararg instructions: String): String {
+            val given = instructions.map { it.trim().trimEnd('.').trim() }.filter { it.isNotEmpty() }
+            return when (given.size) {
+                0 -> ""
+                1 -> " Also follow this instruction from the user: ${given.single()}."
+                else -> " Also follow these instructions from the user: ${given.joinToString(". ")}."
+            }
+        }
 
         fun fill(template: String, values: Map<String, String>, encode: (String) -> String): String =
             PLACEHOLDER.replace(template) { match -> values[match.groupValues[1]]?.let(encode) ?: match.value }
