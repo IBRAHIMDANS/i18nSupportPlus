@@ -23,8 +23,6 @@ import com.intellij.openapi.command.UndoConfirmationPolicy
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.openapi.ui.InputValidator
-import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiFile
@@ -33,7 +31,6 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
-import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.AlignY
@@ -41,12 +38,10 @@ import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.Row
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
-import com.intellij.util.ui.NamedColorUtil
 import java.awt.BorderLayout
 import java.awt.event.ActionEvent
 import javax.swing.Action
 import javax.swing.JButton
-import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.event.DocumentEvent
@@ -110,50 +105,14 @@ class TranslationDialog(
     private val variableWarnings = LinkedHashMap<LocalizationSource, JBLabel>()
     private val variableWarningRows = LinkedHashMap<LocalizationSource, Row>()
 
-    /**
-     * Empty when the project stores flat keys: the parser never splits such a key, so a namespace
-     * prepended to it was written as part of the key itself (`translation:menu.home`). The combo
-     * still picks the files the key goes to; the key only names itself.
-     */
-    private val nsSeparator: String =
-        Settings.getInstance(project).config().let { if (it.usesFlatKeys()) "" else it.nsSeparator }
-
-    /**
-     * Empty when the project stores flat keys: there is then nothing to split, and a dot inside
-     * a key is a character like any other rather than a level change.
-     */
-    private val keySeparator: String =
-        Settings.getInstance(project).config().let { if (it.usesFlatKeys()) "" else it.keySeparator }
-
-    /**
-     * What a CREATE dialog opens on — see [DialogViewModel.initialCreateState]. In EDIT mode
-     * the field shows the key whole and the namespace is the key's own.
-     */
-    private val initialNamespace: String? =
-        if (mode == Mode.CREATE) DialogViewModel.initialCreateState(fullKey, nsSeparator, Settings.getInstance(project).config().keySeparator).first else null
-
-    private val keyField = JBTextField(
-        if (mode == Mode.CREATE) DialogViewModel.initialCreateState(fullKey, nsSeparator, Settings.getInstance(project).config().keySeparator).second else fullKey.source
-    )
-    private val keyStatusLabel = JBLabel()
-    private val namespacePrefixLabel = JBLabel()
-
-    /**
-     * The namespace prefix and the key field as one control.
-     *
-     * They are held together by a [BorderLayout] rather than by two DSL cells so that the row
-     * below — the live status — sits in the same grid column as the whole field and can use its
-     * full width, instead of being clipped to the width of the prefix.
-     */
-    private val keyControl = JPanel(BorderLayout(JBUI.scale(PREFIX_GAP), 0)).apply {
-        add(namespacePrefixLabel, BorderLayout.WEST)
-        add(keyField, BorderLayout.CENTER)
-    }
-
     /** Holds the per-locale rows, which are rebuilt whenever the namespace changes. */
     private val sourcesHost = JPanel(BorderLayout())
 
-    private var namespaceCombo: JComboBox<String>? = null
+    /** The key field, its namespace and its live status. */
+    private val key = DialogKeyField(project, fullKey, mode, viewModel) { namespace ->
+        refreshSources(viewModel.loadSourcesForNamespace(namespace, caller, tabModule), namespace)
+    }
+
     private var copyButton: JButton? = null
 
     /** The review state under each locale, its thread, and the marks left on machine proposals. */
@@ -161,17 +120,11 @@ class TranslationDialog(
 
     /** *Translate*, its *Context* and *Instruction* fields, and the proposals it made. */
     private val machine = DialogMachineTranslation(
-        project, fullKey, tabModule, initialNamespace, viewModel,
-        typedKey = { keyField.text },
+        project, fullKey, tabModule, key.initialNamespace, viewModel,
+        typedKey = { key.field.text },
         textAreas = { textAreas },
         moduleOf = reviews::moduleOf,
     )
-
-    /** Keys already defined under the selected namespace; refreshed together with the sources. */
-    private var keysInNamespace: Set<String> = emptySet()
-
-    /** Keys of the selected namespace that only other modules define, with their names; refreshed with the sources. */
-    private var keysInOtherModules: Map<String, List<String>> = emptyMap()
 
     init {
         title =
@@ -182,32 +135,25 @@ class TranslationDialog(
     }
 
     override fun createCenterPanel(): JComponent {
-        keyField.isEditable = (mode == Mode.CREATE)
-        keyField.document.addDocumentListener(object : DocumentAdapter() {
-            override fun textChanged(e: DocumentEvent) {
-                refreshKeyStatus()
-                machine.refreshContext()
-            }
-        })
+        key.install { machine.refreshContext() }
         machine.start(disposable)
-        namespacePrefixLabel.foreground = NamedColorUtil.getInactiveTextColor()
 
         val content = panel {
             // The prefix sits against the field rather than inside it: a text component renders
             // no greyed prefix of its own, and an icon extension cannot carry a namespace name.
             // Glued to the left of the field, it reads as one control.
             row(PluginBundle.message("dialog.translation.key.label")) {
-                cell(keyControl).align(AlignX.FILL)
+                cell(key.control).align(AlignX.FILL)
             }
             // Nothing to say about a key that cannot be edited.
             row("") {
-                cell(keyStatusLabel).align(AlignX.FILL)
+                cell(key.statusLabel).align(AlignX.FILL)
             }.visible(mode == Mode.CREATE)
 
             if (mode == Mode.CREATE) {
                 row(PluginBundle.message("dialog.translation.namespace.label")) {
-                    cell(namespaceComboBox()).gap(RightGap.SMALL)
-                    cell(addNamespaceButton())
+                    cell(key.namespaceComboBox()).gap(RightGap.SMALL)
+                    cell(key.addNamespaceButton())
                 }
             }
 
@@ -240,7 +186,7 @@ class TranslationDialog(
         }
 
         if (mode == Mode.CREATE) {
-            val namespace = selectedNamespace()
+            val namespace = key.selectedNamespace()
             refreshSources(
                 if (namespace == null) emptyMap() else viewModel.loadSourcesForNamespace(namespace, caller, tabModule),
                 namespace
@@ -257,61 +203,6 @@ class TranslationDialog(
     }
 
     /**
-     * The namespace combo, which owns the namespace the key will be written under.
-     * A [JComboBox] built over a non-empty array selects its first item, so the initial
-     * selection is the one the sources are first built for.
-     */
-    private fun namespaceComboBox(): JComboBox<String> {
-        val namespaces = viewModel.loadNamespaces()
-        val combo = JComboBox(namespaces.toTypedArray())
-        namespaceCombo = combo
-        // Selected before the listener is attached: the initial rows are built once, below.
-        if (initialNamespace in namespaces) combo.selectedItem = initialNamespace
-        combo.addActionListener {
-            val selected = combo.selectedItem as? String ?: return@addActionListener
-            refreshSources(viewModel.loadSourcesForNamespace(selected, caller, tabModule), selected)
-        }
-        return combo
-    }
-
-    /**
-     * The "+" button creating a namespace without leaving the dialog.
-     */
-    private fun addNamespaceButton(): JButton {
-        val addButton = JButton("+")
-        // Same wording as the tool window's own Add Namespace action: the two are the
-        // one feature reached from two places, so they share the bundle keys rather than
-        // drifting apart in a second copy.
-        addButton.toolTipText = PluginBundle.message("toolwindow.action.add.namespace")
-        addButton.addActionListener {
-            // Parented on the button, not on the project: this prompt is opened from inside
-            // a modal dialog, so it has to be anchored to that dialog's window. A
-            // project-parented one is anchored to the IDE frame instead, which the modal
-            // dialog sits above.
-            val input = Messages.showInputDialog(
-                addButton,
-                PluginBundle.message("toolwindow.action.add.namespace.prompt"),
-                PluginBundle.message("toolwindow.action.add.namespace"),
-                null,
-                null,
-                namespaceValidator()
-            )?.trim()
-            if (input.isNullOrBlank()) return@addActionListener
-            val combo = namespaceCombo ?: return@addActionListener
-            viewModel.createNamespace(input)
-            // Refresh combo with new namespaces and select the newly created one
-            val updated = viewModel.loadNamespaces()
-            combo.removeAllItems()
-            updated.forEach { combo.addItem(it) }
-            combo.selectedItem = input
-            // Selecting an item the combo already held fires no event, so the refresh the
-            // listener would have done is asked for explicitly.
-            refreshSources(viewModel.loadSourcesForNamespace(input, caller, tabModule), input)
-        }
-        return addButton
-    }
-
-    /**
      * Rebuilds the per-locale rows for [namespace] and re-reads what that namespace already
      * defines, so the key check answers about the namespace actually selected.
      */
@@ -321,21 +212,14 @@ class TranslationDialog(
         variableWarningRows.clear()
         machine.proposals.clear()
         reviews.badges.clear()
-        // Only CREATE mode asks whether a key is free; EDIT mode is looking at one that exists,
-        // so it never pays for these reads. Without a caller or a tab's module the rows are the
-        // project's: no other module's file is left out to point to.
-        keysInNamespace = if (mode == Mode.CREATE) viewModel.existingKeys(namespace, sourcesMap.keys) else emptySet()
-        keysInOtherModules = if (mode == Mode.CREATE && (caller != null || tabModule != null))
-            viewModel.keysInOtherModules(namespace, sourcesMap.keys) else emptyMap()
-        namespacePrefixLabel.text =
-            if (mode == Mode.CREATE && !namespace.isNullOrBlank() && nsSeparator.isNotEmpty()) "$namespace$nsSeparator" else ""
+        key.scopeTo(namespace, sourcesMap.keys, otherModules = caller != null || tabModule != null)
 
         sourcesHost.removeAll()
         sourcesHost.add(buildSourceRows(sourcesMap), BorderLayout.CENTER)
         sourcesHost.revalidate()
         sourcesHost.repaint()
 
-        refreshKeyStatus()
+        key.refreshStatus()
         refreshVariables()
     }
 
@@ -379,62 +263,6 @@ class TranslationDialog(
                 row("") {
                     cell(badge)
                     link(PluginBundle.message("dialog.translation.review.link")) { reviews.open(source, root) }
-                }
-            }
-        }
-    }
-
-    /**
-     * The key as typed, without the namespace the combo contributes: the check and the set of
-     * existing keys both speak in keys relative to their namespace.
-     */
-    private fun keyText(): String {
-        val typed = keyField.text.orEmpty().trim()
-        val namespace = selectedNamespace()
-        return if (mode == Mode.CREATE && !namespace.isNullOrBlank() && nsSeparator.isNotEmpty()) {
-            typed.removePrefix("$namespace$nsSeparator")
-        } else {
-            typed
-        }
-    }
-
-    private fun selectedNamespace(): String? =
-        if (mode == Mode.CREATE) namespaceCombo?.selectedItem as? String else fullKey.ns?.text
-
-    /**
-     * Says under the field what the typed key will do, while it is being typed. An empty field
-     * says nothing: the dialog opens empty, and shouting at a user who has not typed yet is
-     * noise — OK-time validation still refuses it.
-     */
-    private fun refreshKeyStatus() {
-        if (mode != Mode.CREATE) {
-            keyStatusLabel.text = ""
-            keyStatusLabel.icon = null
-            return
-        }
-        when (DialogViewModel.checkKey(keyText(), keySeparator, keysInNamespace)) {
-            KeyCheck.EMPTY -> {
-                keyStatusLabel.text = ""
-                keyStatusLabel.icon = null
-            }
-            KeyCheck.INVALID_SEGMENT -> {
-                keyStatusLabel.text = PluginBundle.message("dialog.translation.key.status.invalid")
-                keyStatusLabel.icon = AllIcons.General.Error
-            }
-            KeyCheck.TAKEN -> {
-                keyStatusLabel.text = PluginBundle.message("dialog.translation.key.status.taken")
-                keyStatusLabel.icon = AllIcons.General.Warning
-            }
-            KeyCheck.AVAILABLE -> {
-                val elsewhere = keysInOtherModules[keyText().trim()]
-                if (elsewhere == null) {
-                    keyStatusLabel.text = PluginBundle.message("dialog.translation.key.status.available")
-                    keyStatusLabel.icon = AllIcons.General.InspectionsOK
-                } else {
-                    keyStatusLabel.text = PluginBundle.message(
-                        "dialog.translation.key.status.other.module", elsewhere.joinToString { "'$it'" }
-                    )
-                    keyStatusLabel.icon = AllIcons.General.Information
                 }
             }
         }
@@ -530,23 +358,7 @@ class TranslationDialog(
     }
 
     override fun doOKAction() {
-        val effectiveKey = if (mode == Mode.CREATE) {
-            val typedKey = keyText()
-            val selectedNs = selectedNamespace()
-            // Prepend the namespace, unless the key already carries one of its own. The
-            // separator comes from the settings rather than being a hard-coded ':', so a
-            // project that separates namespaces differently is written the way it reads.
-            val alreadyQualified = nsSeparator.isNotEmpty() && typedKey.contains(nsSeparator)
-            val fullKeyText =
-                if (selectedNs != null && nsSeparator.isNotEmpty() && !alreadyQualified) {
-                    "$selectedNs$nsSeparator$typedKey"
-                } else {
-                    typedKey
-                }
-            viewModel.parseKey(fullKeyText) ?: return
-        } else {
-            fullKey
-        }
+        val effectiveKey = key.effectiveKey() ?: return
         // One command for every locale written and for the review marks: one Ctrl+Z undoes the
         // dialog as a whole. No confirmation: a review file is a by-product of the values.
         CommandProcessor.getInstance().executeCommand(project, {
@@ -569,17 +381,7 @@ class TranslationDialog(
     internal fun confirm() = doOKAction()
 
     override fun doValidate(): ValidationInfo? {
-        if (mode == Mode.CREATE) {
-            when (DialogViewModel.checkKey(keyText(), keySeparator, keysInNamespace)) {
-                KeyCheck.EMPTY ->
-                    return ValidationInfo(PluginBundle.message("dialog.translation.error.key.empty"), keyField)
-                KeyCheck.INVALID_SEGMENT ->
-                    return ValidationInfo(PluginBundle.message("dialog.translation.key.status.invalid"), keyField)
-                // An existing key is not an error: correcting a translation is what this dialog
-                // is for. The warning under the field is the whole of what is owed here.
-                KeyCheck.TAKEN, KeyCheck.AVAILABLE -> Unit
-            }
-        }
+        key.validate()?.let { return it }
         val hasAnyValue = textAreas.values.any { it.text.isNotBlank() }
         if (!hasAnyValue) {
             return ValidationInfo(PluginBundle.message("dialog.translation.error.value.required"))
@@ -588,28 +390,17 @@ class TranslationDialog(
     }
 
     override fun getPreferredFocusedComponent(): JComponent =
-        if (mode == Mode.CREATE) keyField else textAreas.values.firstOrNull() ?: keyField
+        if (mode == Mode.CREATE) key.field else textAreas.values.firstOrNull() ?: key.field
 
     /** The size the user last gave the dialog is kept: with many locales, it was redone on every opening (#687). */
     override fun getDimensionServiceKey(): String = DIMENSION_KEY
-
-    /**
-     * Rejects an invalid namespace while the user types, so the input dialog cannot be
-     * confirmed with a name we would have to reject afterwards in a second dialog.
-     * The input is trimmed first, as the caller trims the accepted value too.
-     */
-    private fun namespaceValidator() = object : InputValidator {
-        override fun checkInput(inputString: String?): Boolean = isValidNamespace(inputString)
-
-        override fun canClose(inputString: String?): Boolean = isValidNamespace(inputString)
-    }
 
     /** The value shown for [locale], for tests. */
     internal fun valueOf(locale: String): String? = textAreas.entries.firstOrNull { it.key.localeLabel() == locale }?.value?.text
 
     /** Types [text] into the key field, for tests. */
     internal fun setKey(text: String) {
-        keyField.text = text
+        key.field.text = text
     }
 
     internal fun setValue(locale: String, value: String) {
@@ -688,11 +479,8 @@ class TranslationDialog(
         internal fun pluralFormOf(key: String, keySeparator: String, pluralSeparator: String): Pair<String, String>? =
             DialogMachineTranslation.pluralFormOf(key, keySeparator, pluralSeparator)
 
-        private val NAMESPACE_REGEX = Regex("[a-zA-Z0-9-]+")
-
         private const val TEXT_AREA_ROWS = 3
         private const val TEXT_AREA_COLUMNS = 40
-        private const val PREFIX_GAP = 2
 
         // Sizes go through JBUI so a HiDPI screen scales them instead of truncating the dialog.
         private const val MIN_WIDTH = 520
@@ -704,13 +492,7 @@ class TranslationDialog(
         /** Light enough to read black or white text through it, in either theme. */
         private val VARIABLE_HIGHLIGHT = JBColor(0xFFF2C4, 0x4C4426)
 
-        /**
-         * A namespace names a translation file, so it is restricted to letters, digits and
-         * hyphens. The rule is named and reachable rather than inlined in the validator: the
-         * validator is a widget listener and cannot be exercised headlessly, and this rule
-         * used to live in an after-the-fact error dialog with nothing pinning it.
-         */
-        internal fun isValidNamespace(name: String?): Boolean =
-            name?.trim()?.matches(NAMESPACE_REGEX) == true
+        /** Whether [name] can name a namespace: see [DialogKeyField.isValidNamespace]. */
+        internal fun isValidNamespace(name: String?): Boolean = DialogKeyField.isValidNamespace(name)
     }
 }
