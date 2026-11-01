@@ -24,7 +24,6 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.table.JBTable
 import com.intellij.util.messages.MessageBusConnection
-import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -36,16 +35,8 @@ import javax.swing.JScrollPane
 import javax.swing.JTable
 import javax.swing.RowSorter
 import javax.swing.SortOrder
-import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.DefaultTableModel
 import javax.swing.table.TableRowSorter
-
-/** Draws nothing: the Usage cells before any scan, whose raw value is a placeholder count. */
-private val BLANK_RENDERER = object : DefaultTableCellRenderer() {
-    override fun setValue(value: Any?) {
-        text = ""
-    }
-}
 
 /**
  * Panel displaying translations in a flat table format.
@@ -287,12 +278,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
         get() = allRows.any { viewModel.usageStatus(it.usageCount) != UsageStatus.NOT_SCANNED }
 
     /** The width the header of view column [index] needs to show its text whole, margin included. */
-    internal fun headerWidth(index: Int): Int {
-        val column = table.columnModel.getColumn(index)
-        val renderer = column.headerRenderer ?: table.tableHeader.defaultRenderer
-        val drawn = renderer.getTableCellRendererComponent(table, column.headerValue, false, false, -1, index)
-        return drawn.preferredSize.width + JBUI.scale(8)
-    }
+    internal fun headerWidth(index: Int): Int = headerWidth(table, index)
 
     /** The Usage column's width; for the tests. */
     internal fun usageColumnWidth(): Int =
@@ -420,23 +406,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
         tableModel.setDataVector(data, columnNames)
 
-        val translationRenderer = TranslationCellRenderer(leadingColumns, locales.size, viewModel, ::cellReview)
-        val scanned = usageScanned
-        // Before any scan every cell would say "Not scanned": the header says it once instead.
-        val usageRenderer = if (scanned) UsageCellRenderer(viewModel) else BLANK_RENDERER
-        val usageColIdx = leadingColumns + locales.size
-        val widths = viewModel.columnWidths(locales.size, withNamespace)
-
-        for (i in 0 until table.columnCount) {
-            val column = table.columnModel.getColumn(i)
-            column.cellRenderer = if (i == usageColIdx) usageRenderer else translationRenderer
-            widths.getOrNull(i)?.let { column.preferredWidth = it }
-            if (i == usageColIdx && !scanned) {
-                column.headerValue = PluginBundle.message("toolwindow.table.column.usage.not.scanned")
-                // The column's usual width cut the header to "Usage (not c…": it grows to the whole of it.
-                column.preferredWidth = maxOf(column.preferredWidth, headerWidth(i))
-            }
-        }
+        layOutColumns(table, leadingColumns, locales.size, withNamespace, usageScanned, viewModel, ::cellReview)
 
         val sorter = TableRowSorter(tableModel)
         table.rowSorter = sorter

@@ -9,6 +9,7 @@ import com.ibrahimdans.i18n.plugin.utils.displayValue
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.JBColor
+import com.intellij.util.ui.JBUI
 import java.awt.Component
 import java.awt.Font
 import java.time.Instant
@@ -290,5 +291,53 @@ internal class UsageCellRenderer(private val viewModel: TableViewModel) : Defaul
             UsageStatus.USED -> text = count.toString()
         }
         return component
+    }
+}
+
+/** Draws nothing: the Usage cells before any scan, whose raw value is a placeholder count. */
+private val BLANK_RENDERER = object : DefaultTableCellRenderer() {
+    override fun setValue(value: Any?) {
+        text = ""
+    }
+}
+
+/** The width the header of view column [index] of [table] needs to show its text whole, margin included. */
+internal fun headerWidth(table: JTable, index: Int): Int {
+    val column = table.columnModel.getColumn(index)
+    val renderer = column.headerRenderer ?: table.tableHeader.defaultRenderer
+    val drawn = renderer.getTableCellRendererComponent(table, column.headerValue, false, false, -1, index)
+    return drawn.preferredSize.width + JBUI.scale(8)
+}
+
+/**
+ * Gives every column of [table] its renderer and its width, once the model holds [leading]
+ * columns, [localeCount] locale columns and the usage column: [TranslationCellRenderer] on all but
+ * the last, which takes [UsageCellRenderer] once the keys were [scanned]. Before any scan every
+ * usage cell would say "Not scanned": the header says it once instead, its column grown to show it
+ * whole. [review] is the review of a locale cell; see [TranslationCellRenderer].
+ */
+internal fun layOutColumns(
+    table: JTable,
+    leading: Int,
+    localeCount: Int,
+    withNamespace: Boolean,
+    scanned: Boolean,
+    viewModel: TableViewModel,
+    review: (row: Int, column: Int, raw: String) -> CellReview,
+) {
+    val translationRenderer = TranslationCellRenderer(leading, localeCount, viewModel, review)
+    val usageRenderer = if (scanned) UsageCellRenderer(viewModel) else BLANK_RENDERER
+    val usageColIdx = leading + localeCount
+    val widths = viewModel.columnWidths(localeCount, withNamespace)
+
+    for (i in 0 until table.columnCount) {
+        val column = table.columnModel.getColumn(i)
+        column.cellRenderer = if (i == usageColIdx) usageRenderer else translationRenderer
+        widths.getOrNull(i)?.let { column.preferredWidth = it }
+        if (i == usageColIdx && !scanned) {
+            column.headerValue = PluginBundle.message("toolwindow.table.column.usage.not.scanned")
+            // The column's usual width cut the header to "Usage (not c…": it grows to the whole of it.
+            column.preferredWidth = maxOf(column.preferredWidth, headerWidth(table, i))
+        }
     }
 }
