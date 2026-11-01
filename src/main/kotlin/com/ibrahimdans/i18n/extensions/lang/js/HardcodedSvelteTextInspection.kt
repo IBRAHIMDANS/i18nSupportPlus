@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.extensions.lang.js
 
 import com.ibrahimdans.i18n.plugin.factory.MessageVariable
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
+import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
@@ -39,7 +40,8 @@ internal object SvelteMarkup : MarkupDialect {
  *    message `Hello {name}!`;
  *  - `placeholder="Name"` becomes `placeholder={$_('name')}`.
  *
- * The store is `$t` when the component imports `t` from svelte-i18n and not `_`, `$_` otherwise.
+ * The store is the name the component gives `_` when it imports it from svelte-i18n — `$tr` after
+ * `import { _ as tr }` —, else the one it gives `t`, else `$_`.
  */
 internal class SvelteMarkupTextExtractor : TranslationExtractor {
 
@@ -71,32 +73,42 @@ internal class SvelteMarkupTextExtractor : TranslationExtractor {
     }
 
     /** Imports `_` from svelte-i18n when the component imports neither it nor `t`. */
-    override fun postProcess(editor: Editor, offset: Int) {
-        val document = editor.document
-        val text = document.charsSequence.toString()
-        if (importedNames(text).any { it == DEFAULT_STORE || it == T_STORE }) return
-        val script = INSTANCE_SCRIPT.find(text)
-        if (script != null) document.insertString(script.range.last + 1, "\n\t$IMPORT")
-        else document.insertString(0, "<script>\n\t$IMPORT\n</script>\n\n")
-    }
+    override fun postProcess(editor: Editor, offset: Int) = addImport(editor.document)
 
     internal companion object {
         private const val DEFAULT_STORE = "_"
         private const val T_STORE = "t"
         private const val IMPORT = "import { _ } from 'svelte-i18n';"
         private val SVELTE_I18N_IMPORT = Regex("""import\s*\{([^}]*)}\s*from\s*['"]svelte-i18n['"]""")
+        private val AS = Regex("""\s+as\s+""")
 
         /** The component's own script, not its module script (`context="module"`, Svelte 5's `module`). */
         private val INSTANCE_SCRIPT = Regex("""<script(?![^>]*module)[^>]*>""")
 
-        /** The names a component imports from svelte-i18n, aliases left out: `_`, `t`, `locale`. */
-        fun importedNames(text: String): Set<String> =
-            SVELTE_I18N_IMPORT.findAll(text).flatMap { match ->
-                match.groupValues[1].split(',').map { it.trim().substringBefore(' ').trim() }
-            }.filter { it.isNotEmpty() }.toSet()
+        /**
+         * Imports `_` from svelte-i18n into the component [document] holds, at the top of its own
+         * script — a script created when it has none —, unless it imports `_` or `t` already.
+         */
+        fun addImport(document: Document) {
+            val text = document.charsSequence.toString()
+            if (importedNames(text).any { it == DEFAULT_STORE || it == T_STORE }) return
+            val script = INSTANCE_SCRIPT.find(text)
+            if (script != null) document.insertString(script.range.last + 1, "\n\t$IMPORT")
+            else document.insertString(0, "<script>\n\t$IMPORT\n</script>\n\n")
+        }
 
-        /** `t` when the component imports it from svelte-i18n and not `_`, else `_`. */
-        fun storeOf(text: String): String =
-            importedNames(text).let { if (T_STORE in it && DEFAULT_STORE !in it) T_STORE else DEFAULT_STORE }
+        /** The names a component imports from svelte-i18n, as svelte-i18n exports them: `_`, `t`, `locale`. */
+        fun importedNames(text: String): Set<String> = imports(text).keys
+
+        /** What the component imports from svelte-i18n, exported name → local name: `_ as tr` gives `_` → `tr`. */
+        private fun imports(text: String): Map<String, String> =
+            SVELTE_I18N_IMPORT.findAll(text)
+                .flatMap { it.groupValues[1].split(',') }
+                .map { it.trim().split(AS) }
+                .filter { it.first().isNotEmpty() }
+                .associate { it.first() to it.last() }
+
+        /** The local name of `_` when the component imports it from svelte-i18n, else of `t`, else `_`. */
+        fun storeOf(text: String): String = imports(text).let { it[DEFAULT_STORE] ?: it[T_STORE] ?: DEFAULT_STORE }
     }
 }

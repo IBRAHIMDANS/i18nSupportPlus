@@ -126,8 +126,8 @@ class I18nizeAction : AnAction() {
 
     internal companion object {
 
-        /** The extensions *Internationalize…* reads texts from: those *Batch Extract* handles, Vue components and Angular templates. */
-        private val EXTENSIONS = setOf("js", "jsx", "ts", "tsx", "vue", "html")
+        /** The extensions *Internationalize…* reads texts from: those *Batch Extract* handles, Vue and Svelte components, Angular templates. */
+        private val EXTENSIONS = setOf("js", "jsx", "ts", "tsx", "vue", "html", "svelte")
 
         private fun selection(e: AnActionEvent): Array<VirtualFile> =
             e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY)

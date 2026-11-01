@@ -4,6 +4,8 @@ import com.ibrahimdans.i18n.extensions.technology.transloco.TranslocoScopes
 import com.ibrahimdans.i18n.plugin.factory.MessageVariable
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.utils.ModulePresets
+import com.intellij.lang.injection.InjectedLanguageManager
+import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.xml.XmlAttribute
@@ -14,7 +16,7 @@ import com.intellij.psi.xml.XmlTag
  * `<input placeholder="Name">` — with a quick fix writing the pipe of the project's library
  * ([AngularTemplateTextExtractor]). The rules are those of [MarkupTexts]; besides:
  *  - only in a template the Angular plugin parses as one: a `.html` a component of an Angular
- *    project references, not a component's inline template;
+ *    project references, or a component's inline `template: '…'`, a fragment injected into it;
  *  - a tag carrying a translation directive holds a key, not a text — ngx-translate's
  *    `<p translate>key</p>`, Transloco's `transloco` — and one marked `i18n`, as an attribute
  *    marked `i18n-title`, is translated by Angular's own i18n.
@@ -81,12 +83,24 @@ internal class AngularTemplateTextExtractor : TranslationExtractor {
 
     override fun call(element: PsiElement): (argument: String, variables: List<MessageVariable>) -> String {
         val pipe = pipeOf(element)
+        val escape = hostEscaper(element)
         val attribute = (MarkupTexts.of(element, AngularMarkup) as? MarkupText.Attribute)?.attribute
-        if (attribute != null) return { argument, _ -> "[${attribute.name}]=\"$argument | $pipe\"" }
+        if (attribute != null) return { argument, _ -> escape("[${attribute.name}]=\"$argument | $pipe\"") }
         return { argument, variables ->
             val inputs = MessageVariables.inputs(variables)
-            if (inputs.isEmpty()) "{{ $argument | $pipe }}" else "{{ $argument | $pipe: $inputs }}"
+            escape(if (inputs.isEmpty()) "{{ $argument | $pipe }}" else "{{ $argument | $pipe: $inputs }}")
         }
+    }
+
+    /**
+     * How a call is written into the string literal holding an inline template: `'` escaped in
+     * `template: '…'`, `"` in `template: "…"` — the call is written into the literal as is. A
+     * template file, or a template literal (`` ` ``), takes it unchanged.
+     */
+    private fun hostEscaper(element: PsiElement): (String) -> String {
+        val host = InjectedLanguageManager.getInstance(element.project).getInjectionHost(element) as? JSLiteralExpression
+        val quote = host?.text?.firstOrNull()?.takeIf { it == '\'' || it == '"' } ?: return { it }
+        return { call -> call.replace("\\", "\\\\").replace("$quote", "\\$quote") }
     }
 
     private fun pipeOf(element: PsiElement): String = when (ModulePresets.presetOf(element)) {
