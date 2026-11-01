@@ -15,6 +15,7 @@
 - [Translation dialog] **The reference locale comes first**: *Create Translation* and *Edit Translations* list the locale you translate from at the top, then the others alphabetically, in the same order in every IDE.
 - [Editor] ***Show Translations Inline* folds the files already open**: turning it on, from the editor or in the settings, folds the keys of the open editors at once instead of only the files opened afterwards.
 - [Machine translation] **A busy or slow engine no longer costs you a whole batch**: a rate limit, a gateway down for a moment or a late answer is tried again, after the wait the engine asks for, and a batch the engine cannot handle is split so that only the text it chokes on fails. A large batch sent to a local model also gets more time to answer.
+- [Tool window] **A quoted or multi-line YAML value reads as its text, and editing it no longer adds quotes**: the table and the tree show `'It''s'` as "It's", a `\n` as a line break and a `|` or `>` block as its lines, and a value edited in the table is written back once, instead of `'''It''''s'''`.
 
 ## 1.16.1 - 2026-10-26
 
