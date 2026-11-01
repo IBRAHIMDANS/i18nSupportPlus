@@ -196,8 +196,13 @@ object TranslationDataLoader {
      */
     private fun extractLeafValue(node: Tree<PsiElement>): String {
         val psi = node.value()
+        // A JSON string reads its text, not its spelling: `"Say \"hi\""` is `Say "hi"`, `é` an
+        // `é`, JSON5's single quotes included. The table writes an edit back through the JSON
+        // writer, which escapes it, so a spelling shown here would be escaped once more by every edit.
+        if (psi is JsonStringLiteral) return psi.value
         if (psi is JsonProperty) {
-            return psi.value?.text?.removeSurrounding("\"") ?: ""
+            val value = psi.value
+            return (value as? JsonStringLiteral)?.value ?: value?.text?.removeSurrounding("\"") ?: ""
         }
         // A PHP string's escapes read back, so that an edit does not escape them a second time.
         if (TranslationPsi.isPhp(psi)) return TranslationPsi.readValue(psi) ?: ""
