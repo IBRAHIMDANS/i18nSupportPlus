@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.cli
 
+import com.ibrahimdans.i18n.plugin.format.ArbCatalogue
 import com.ibrahimdans.i18n.plugin.format.ParsedNode
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.LeafReader
@@ -16,7 +17,9 @@ import kotlin.io.path.nameWithoutExtension
 
 /**
  * The translations of one directory holding a file or a folder per locale:
- * `<dir>/<locale>.json` or `<dir>/<locale>/<namespace>.json`, in JSON, JSON5, YAML or as a TS / JS catalogue.
+ * `<dir>/<locale>.json` or `<dir>/<locale>/<namespace>.json`, in JSON, JSON5, YAML, PO, as a Laravel PHP
+ * array or as a TS / JS catalogue. A Flutter ARB catalogue (`app_fr.arb`) holds the locale its `@@locale`
+ * states, or the one ending its name.
  *
  * Only names [LocaleNames] reads as a locale count: `README.md` or `scripts/` beside them are left
  * alone. The keys of a namespace file are spelled `namespace:key`, with the configured namespace
@@ -37,11 +40,18 @@ object LocaleDirectory {
                     translationFiles(entry).forEach { file ->
                         collect(file, "${file.nameWithoutExtension}${config.nsSeparator}", entry.fileName.toString(), config, result)
                     }
+                isTranslationFile(entry) && entry.extension.lowercase() == ArbCatalogue.EXTENSION -> collectArb(entry, config, result)
                 isTranslationFile(entry) && isLocale(entry.nameWithoutExtension) ->
                     collect(entry, "", entry.nameWithoutExtension, config, result)
             }
         }
         return result
+    }
+
+    private fun collectArb(file: Path, config: Config, result: MutableMap<String, MutableMap<String, String>>) {
+        val tree = CheckFormats.ARB.parse(Files.readString(file)) ?: throw CannotCheck(CheckFormats.unreadable(CheckFormats.ARB, file)!!)
+        val locale = ArbCatalogue.localeOf(file.nameWithoutExtension, ArbCatalogue.declaredLocale(tree)) ?: return
+        TranslationLeaves.collect(config, tree, "", locale, ParsedLeaves, result)
     }
 
     private fun translationFiles(dir: Path): List<Path> = dir.listDirectoryEntries().filter(::isTranslationFile).sorted()
