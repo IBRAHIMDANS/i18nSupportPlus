@@ -288,17 +288,11 @@ if (webStormPath != null && File(webStormPath, "product-info.json").isFile) {
     }
 }
 
-// ── Reproducible README screenshots ─────────────────────────────────────────
+// ── WebStorm UI tests: README screenshots and verified flows ─────────────────
 //
 // These tasks deliberately sit outside `check`: each starts a licensed WebStorm and takes minutes
-// on a cold cache. The first scenario is intentionally small; new README captures join it only
-// once its component locator and output prove repeatable.
-// task name to (test mode, description): both run the same scenario, only the verdict differs.
-mapOf(
-    "generateUiScreenshots" to ("record" to "Regenerates the approved README UI screenshots in WebStorm."),
-    "verifyUiScreenshots" to ("verify" to "Verifies the approved README UI screenshots in WebStorm."),
-).forEach { (taskName, modeAndDescription) ->
-    val (mode, taskDescription) = modeAndDescription
+// on a cold cache. They share the uiTest source set; each task runs its own test class.
+fun registerUiTest(taskName: String, taskDescription: String, testClass: String, configure: Test.() -> Unit) {
     intellijPlatformTesting.testIdeUi.register(taskName) {
         type = IntelliJPlatformType.WebStorm
         version = uiTestWebStormVersion
@@ -310,21 +304,41 @@ mapOf(
             classpath = uiTestSourceSet.get().runtimeClasspath
             dependsOn(tasks.buildPlugin)
             useJUnitPlatform()
+            filter { includeTestsMatching(testClass) }
             maxParallelForks = 1
             jvmArgs("--add-opens=java.base/sun.nio.fs=ALL-UNNAMED")
             // The capture reads the Xvfb screen directly. Without this, a WAYLAND_DISPLAY in the
             // environment sends java.awt.Robot through the screencast portal, which refuses.
             systemProperty("awt.robot.screenshotMethod", "x11")
-            systemProperty("i18n.ui.screenshots.mode", mode)
             systemProperty("i18n.ui.screenshots.ideVersion", uiTestWebStormVersion)
-            systemProperty("i18n.ui.screenshots.baselineDirectory", layout.projectDirectory.dir("docs/img").asFile.absolutePath)
-            // -PuiScreenshots=a.png,b.png takes only those images, to iterate without taking them all.
-            systemProperty("i18n.ui.screenshots.only", providers.gradleProperty("uiScreenshots").getOrElse(""))
-            systemProperty("i18n.ui.screenshots.output", layout.buildDirectory.dir("ui-screenshots/$mode").get().asFile.absolutePath)
             systemProperty("i18n.ui.screenshots.projectSource", layout.projectDirectory.dir("examples/react-multi-namespace").asFile.absolutePath)
             testLogging { events("passed", "skipped", "failed") }
+            configure()
         }
     }
+}
+
+// task name to (test mode, description): both run the same scenario, only the verdict differs.
+mapOf(
+    "generateUiScreenshots" to ("record" to "Regenerates the approved README UI screenshots in WebStorm."),
+    "verifyUiScreenshots" to ("verify" to "Verifies the approved README UI screenshots in WebStorm."),
+).forEach { (taskName, modeAndDescription) ->
+    val (mode, taskDescription) = modeAndDescription
+    registerUiTest(taskName, taskDescription, "*.ReadmeScreenshotsTest") {
+        systemProperty("i18n.ui.screenshots.mode", mode)
+        systemProperty("i18n.ui.screenshots.baselineDirectory", layout.projectDirectory.dir("docs/img").asFile.absolutePath)
+        // -PuiScreenshots=a.png,b.png takes only those images, to iterate without taking them all.
+        systemProperty("i18n.ui.screenshots.only", providers.gradleProperty("uiScreenshots").getOrElse(""))
+        systemProperty("i18n.ui.screenshots.output", layout.buildDirectory.dir("ui-screenshots/$mode").get().asFile.absolutePath)
+    }
+}
+
+registerUiTest(
+    "verifyUiFlows",
+    "Plays the setup wizard, Show Translations Inline and the settings page in WebStorm and checks their effect.",
+    "*.VerifiedFlowsTest",
+) {
+    systemProperty("i18n.ui.flows.output", layout.buildDirectory.dir("ui-flows").get().asFile.absolutePath)
 }
 
 changelog {

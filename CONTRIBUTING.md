@@ -70,6 +70,17 @@ PNGs. `-PuiScreenshots=completion.png,hover-hint.png` takes only those images. B
 disposable projects and candidates below `build/ui-screenshots/`; a failing scenario leaves a
 full-screen `failed-<image>.png` there.
 
+`verifyUiFlows`, same setup, plays three user flows and checks their effect rather than their
+pixels: the setup wizard stores the root and default namespace it detected, *Show Translations
+Inline* folds the open editor's keys to their values and unfolds them, and an extension excluded
+in the settings page silences the editor. Each runs in its own WebStorm session; a failing flow
+leaves `build/ui-flows/failed-<flow>.png`.
+
+```bash
+xvfb-run -a --server-args="-screen 0 1920x1440x24" \
+  ./gradlew verifyUiFlows --no-daemon
+```
+
 The manual **UI screenshots** workflow is disabled for now (`if: false`): it would need the license
 as the repository secret `JETBRAINS_LICENSE_KEY`, and a personal license must not go there. Never
 put license material in a Gradle property, checked-in file, or workflow input.

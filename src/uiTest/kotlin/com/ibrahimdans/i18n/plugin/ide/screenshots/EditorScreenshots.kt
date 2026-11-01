@@ -25,7 +25,7 @@ import kotlin.time.Duration.Companion.minutes
  */
 object EditorScreenshots {
 
-    private const val NAVIGATION = "src/components/Navigation.tsx"
+    internal const val NAVIGATION = "src/components/Navigation.tsx"
     private const val DASHBOARD = "src/components/Dashboard.tsx"
     // Navigation.tsx, line 15: the key the annotation, gutter and completion images play with.
     private const val LINE_15_KEY = "navigation:breadrumb.home"
@@ -33,7 +33,7 @@ object EditorScreenshots {
     private fun reference(path: String): String = Files.readString(ScreenshotHarness.projectSource.resolve(path))
 
     /** Navigation.tsx with [key] on line 15, and menu.profile misspelled for a red badge on line 19. */
-    private fun navigation(key: String, misspelledProfile: Boolean = false): String {
+    internal fun navigation(key: String, misspelledProfile: Boolean = false): String {
         val text = reference(NAVIGATION).replace("t('$LINE_15_KEY')", "t('$key')")
         return if (misspelledProfile) text.replace("navigation:menu.profile", "navigation:menu.profil") else text
     }
@@ -121,11 +121,24 @@ object EditorScreenshots {
                 driver.showIntentionBulb(false)
                 driver.differentiateProjects(false)
                 editorAction(editor, "GotoDeclaration")
-                // en and fr both declare the key: the IDE asks which file to open.
-                if (runCatching { waitForText("the declaration chooser") { it.endsWith("navigation.json") } }.isSuccess) {
-                    driver.ui.keyboard { enter() }
-                }
+                // en and fr both declare the key: the IDE asks which file to open, in a popup list. Not
+                // waitForText: it also reads the frame, whose navigation.json tab then passes for the
+                // chooser, and Enter lands in the JSON editor as a new line.
+                val chooser = runCatching {
+                    lateinit var list: UiComponent
+                    waitFor("the declaration chooser", 1.minutes) {
+                        driver.ui.xx { byType("javax.swing.JList") }.list()
+                            .firstOrNull { it.component.isShowing() && it.getAllTexts().any { row -> "navigation.json" in row.text } }
+                            ?.also { list = it } != null
+                    }
+                    list
+                }.getOrNull()
+                chooser?.keyboard { enter() }
                 val json = waitForEditor("navigation.json")
+                // The declaration's editor takes the focus after it opens, at times after the capture:
+                // its tab is then grey and its caret hidden.
+                json.setFocus()
+                waitFor("the editor of navigation.json to take the focus", 1.minutes) { json.component.isFocusOwner() }
                 val tabs = frame.x("//div[@class='EditorTabs']").waitFound(1.minutes)
                 val bottom = lines(json, 1, 11, width = 1).let { it.y + it.height }
                 Rectangle(tabs.boundsOnScreen.x, tabs.boundsOnScreen.y, 760, bottom - tabs.boundsOnScreen.y)
@@ -188,7 +201,7 @@ object EditorScreenshots {
     private const val INLAY_MARGIN = 6
 
     /** Opens [path] with [text] as its content and waits for the plugin's highlighting of it. */
-    private fun ScreenshotScope.openEditor(path: String, text: String): JEditorUiComponent {
+    internal fun ScreenshotScope.openEditor(path: String, text: String): JEditorUiComponent {
         driver.openFile(path)
         val editor = waitForEditor(path.substringAfterLast('/'))
         if (editor.text != text) editor.text = text
