@@ -31,13 +31,48 @@ class ValueCheckTest {
     }
 
     @Test
-    fun `an ICU block needs its forms, a language without one form excepted`() {
-        val plural = "{n, plural, other {x}}"
-        assertEquals(listOf(IcuIssue("plural", IcuIssue.Lacking.ONE_OR_ZERO)), ValueCheck.icuIssues(plural, needsOne = true))
-        assertEquals(emptyList<IcuIssue>(), ValueCheck.icuIssues(plural, needsOne = false))
-        assertEquals(listOf(IcuIssue("select", IcuIssue.Lacking.OTHER)), ValueCheck.icuIssues("{g, select, male {x}}", needsOne = true))
-        assertFalse(ValueCheck.pluralNeedsOne("zh-TW"))
-        assertTrue(ValueCheck.pluralNeedsOne("pt_BR"))
+    fun `an ICU block only needs its other form`() {
+        assertEquals(emptyList<IcuIssue>(), ValueCheck.icuIssues("{n, plural, other {# items}}"))
+        assertEquals(emptyList<IcuIssue>(), ValueCheck.icuIssues("{n, plural, =0 {none} other {# items}}"))
+        assertEquals(emptyList<IcuIssue>(), ValueCheck.icuIssues("{n, plural, one {# item} other {# items}}"))
+        assertEquals(listOf(IcuIssue("plural")), ValueCheck.icuIssues("{n, plural, one {# item}}"))
+        assertEquals(listOf(IcuIssue("select")), ValueCheck.icuIssues("{g, select, male {x}}"))
+    }
+
+    @Test
+    fun `run accepts an English plural with its other form only`() {
+        val problems = ValueCheck.run(mapOf("a" to mapOf("en" to "{n, plural, other {# items}}", "fr" to "{n, plural, =0 {aucun élément} other {# éléments}}")), "en")
+        assertEquals(emptyList<ValueProblem>(), problems["en"])
+        assertEquals(emptyList<ValueProblem>(), problems["fr"])
+    }
+
+    @Test
+    fun `a plural form the reference lacks is compared to its other form, the count left out`() {
+        val problems = ValueCheck.run(
+            mapOf(
+                "item_one" to mapOf("en" to "{count} item in {cart}", "ru" to "{count} товар в {cart}"),
+                "item_other" to mapOf("en" to "{count} items in {cart}", "ru" to "{count} товаров в {cart}"),
+                "item_few" to mapOf("ru" to "товара в {basket}"),
+            ),
+            "en",
+        )
+        assertEquals(
+            listOf(
+                ValueProblem("item_few", "Placeholder '{cart}' of the reference locale is missing"),
+                ValueProblem("item_few", "Placeholder '{basket}' is not in the reference locale"),
+            ),
+            problems["ru"],
+        )
+    }
+
+    @Test
+    fun `the reference key of a key is itself, or the other form of a plural group`() {
+        val reference = setOf("item_one", "item_other", "title")
+        assertEquals("title", ValueCheck.referenceKeyOf("title") { it in reference })
+        assertEquals("item_other", ValueCheck.referenceKeyOf("item_few") { it in reference })
+        assertEquals(null, ValueCheck.referenceKeyOf("step_few") { it in reference })
+        assertTrue(ValueCheck.isPluralForm("item_few") { it in reference })
+        assertFalse(ValueCheck.isPluralForm("title") { it in reference })
     }
 
     @Test
@@ -61,9 +96,4 @@ class ValueCheckTest {
         assertEquals(emptyList<ValueProblem>(), problems["fr"])
     }
 
-    @Test
-    fun `run asks a plural of the locale an alias stands for`() {
-        val problems = ValueCheck.run(mapOf("a" to mapOf("cn" to "{n, plural, other {x}}")), "cn", pluralLocale = { "zh" })
-        assertEquals(emptyList<ValueProblem>(), problems["cn"])
-    }
 }

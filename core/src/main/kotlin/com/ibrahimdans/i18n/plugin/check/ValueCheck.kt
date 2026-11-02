@@ -1,14 +1,16 @@
 package com.ibrahimdans.i18n.plugin.check
 
+import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 
 /** What is wrong with the value of [key] in a locale, in a sentence. */
 data class ValueProblem(val key: String, val message: String)
 
-/** An ICU `plural` or `select` block of type [block] that lacks a form. */
-data class IcuIssue(val block: String, val lacking: Lacking) {
-    enum class Lacking { OTHER, ONE_OR_ZERO }
-}
+/**
+ * An ICU `plural` or `select` block of type [block] without its `other` form, the only one ICU
+ * requires: `{n, plural, other {# items}}` and `{n, plural, =0 {…} other {…}}` are complete.
+ */
+data class IcuIssue(val block: String)
 
 /**
  * The checks on what a translation says rather than which keys it has: placeholders, tags and ICU
@@ -25,14 +27,8 @@ object ValueCheck {
     /** i18next's variable for the plural count: a form may well spell the number or leave it out. */
     private const val PLURAL_COUNT = "{count}"
 
-    /**
-     * Languages whose only CLDR cardinal category is `other`: a plural in them carries no `one` or
-     * `zero` form, and asking for one is a false warning on every Japanese or Chinese catalogue.
-     */
-    private val OTHER_ONLY_LANGUAGES = setOf(
-        "bo", "dz", "id", "ig", "ii", "ja", "jbo", "jv", "kde", "kea", "km", "ko", "lkt", "lo", "ms",
-        "my", "nqo", "osa", "sah", "ses", "sg", "su", "th", "to", "tpi", "vi", "wo", "yo", "yue", "zh"
-    )
+    /** The `other` form of an i18next plural group, the one category every language has. */
+    private const val OTHER_FORM = "_${PluralCategories.OTHER}"
 
     /** Whether each `{` of [text] closes, on any line: an ICU message often spans several. */
     fun balanced(text: String): Boolean {
@@ -81,63 +77,79 @@ object ValueCheck {
     /** The tags of [value] that [reference] does not have. */
     fun extraTags(value: String, reference: String): Set<String> = tagsOf(value).beyond(tagsOf(reference))
 
-    /** Whether a `plural` block written in [locale] (`fr`, `pt-BR`) must hold a `one` or `zero` form. */
-    fun pluralNeedsOne(locale: String): Boolean =
-        locale.substringBefore('-').substringBefore('_').lowercase() !in OTHER_ONLY_LANGUAGES
+    /** The ICU blocks of the balanced [value] that lack their `other` form. */
+    fun icuIssues(value: String): List<IcuIssue> =
+        ICU_BLOCK.findAll(value)
+            .filter { match -> ICU_FORM.findAll(match.groupValues[2]).none { it.groupValues[1] == PluralCategories.OTHER } }
+            .map { IcuIssue(it.groupValues[1]) }
+            .toList()
 
-    /** The forms the ICU blocks of the balanced [value] lack. */
-    fun icuIssues(value: String, needsOne: Boolean): List<IcuIssue> = buildList {
-        for (match in ICU_BLOCK.findAll(value)) {
-            val (block, body) = match.destructured
-            val forms = ICU_FORM.findAll(body).map { it.groupValues[1] }.toSet()
-            if ("other" !in forms) add(IcuIssue(block, IcuIssue.Lacking.OTHER))
-            if (block == "plural" && needsOne && "one" !in forms && "zero" !in forms) {
-                add(IcuIssue(block, IcuIssue.Lacking.ONE_OR_ZERO))
-            }
-        }
+    /** The base of [key] when it ends like an i18next plural form (`item` for `item_few`), else null. */
+    private fun pluralBase(key: String): String? =
+        key.substringBeforeLast('_', "").takeIf { it.isNotEmpty() && key.substringAfterLast('_') in PluralCategories.ALL }
+
+    /**
+     * The key of the reference locale [key]'s value is compared to: [key] itself, or, for a plural
+     * form the reference does not have — `item_few` of Russian against English's `item_one` and
+     * `item_other` — the `_other` form of its group. Null when the reference holds neither.
+     */
+    fun referenceKeyOf(key: String, inReference: (String) -> Boolean): String? = when {
+        inReference(key) -> key
+        else -> pluralBase(key)?.let { it + OTHER_FORM }?.takeIf(inReference)
     }
 
     /**
+     * Whether [key] is a form of a plural group whose `_other` form [holds] finds: such a form may
+     * spell the count out or leave it, so `{count}` is not compared on it.
+     */
+    fun isPluralForm(key: String, holds: (String) -> Boolean): Boolean =
+        pluralBase(key)?.let { holds(it + OTHER_FORM) } == true
+
+    /** [placeholders] without `{count}` when they belong to a plural form. */
+    fun comparedPlaceholders(placeholders: Set<String>, pluralForm: Boolean): Set<String> =
+        if (pluralForm) placeholders - PLURAL_COUNT else placeholders
+
+    /**
      * The problems of each locale's values, sorted by key, on the key -> locale -> value map of a
-     * project's translations; a blank value is left to [LocaleCheck], which calls it empty.
-     * [pluralLocale] gives the locale whose plural forms a label needs: an alias's target (`gb` -> `en-GB`).
+     * project's translations; a blank value is left to [LocaleCheck], which calls it empty. A plural
+     * form the reference lacks is compared to the reference's `_other` form ([referenceKeyOf]).
+     *
+     * [pluralLocale] is no longer read: a `plural` block only requires `other`, whatever the
+     * language. It is kept so that `i18n-check`'s call stays as it is; drop it with the next change there.
      */
     fun run(
         translations: Map<String, Map<String, String>>,
         reference: String,
-        pluralLocale: (String) -> String = { it },
+        @Suppress("UNUSED_PARAMETER") pluralLocale: (String) -> String = { it },
     ): Map<String, List<ValueProblem>> {
         val pluralForms = PluralKey.groupForms(translations.keys)
             .filter { (base, forms) -> forms != listOf(base) }
             .values.flatten().toSet()
+        val inReference = { key: String -> translations[key]?.get(reference)?.isNotBlank() == true }
         val keys = translations.keys.sorted()
         return translations.values.flatMap { it.keys }.distinct().sorted().associateWith { locale ->
             keys.flatMap { key ->
                 val values = translations.getValue(key)
                 val value = values[locale]?.takeIf { it.isNotBlank() } ?: return@flatMap emptyList()
-                val compared = values[reference]?.takeIf { locale != reference && it.isNotBlank() && balanced(it) }
-                messages(value, compared, pluralNeedsOne(pluralLocale(locale)), key in pluralForms)
-                    .map { ValueProblem(key, it) }
+                val pluralForm = key in pluralForms
+                val referenceKey = if (pluralForm) referenceKeyOf(key, inReference) else key
+                val compared = referenceKey?.let { translations[it]?.get(reference) }
+                    ?.takeIf { locale != reference && it.isNotBlank() && balanced(it) }
+                messages(value, compared, pluralForm).map { ValueProblem(key, it) }
             }
         }
     }
 
     /** What is wrong with [value], compared to [reference] when there is one to compare it to. */
-    private fun messages(value: String, reference: String?, needsOne: Boolean, pluralForm: Boolean): List<String> {
+    private fun messages(value: String, reference: String?, pluralForm: Boolean): List<String> {
         if (!balanced(value)) return listOf("Unbalanced braces")
         return buildList {
-            icuIssues(value, needsOne).forEach {
-                add(
-                    when (it.lacking) {
-                        IcuIssue.Lacking.OTHER -> "ICU '${it.block}' block without the required 'other' form"
-                        IcuIssue.Lacking.ONE_OR_ZERO -> "ICU 'plural' block without a 'one' or 'zero' form"
-                    },
-                )
-            }
+            icuIssues(value).forEach { add("ICU '${it.block}' block without the required 'other' form") }
             if (reference == null) return@buildList
-            val ignored = if (pluralForm) setOf(PLURAL_COUNT) else emptySet()
-            (missingPlaceholders(value, reference) - ignored).forEach { add("Placeholder '$it' of the reference locale is missing") }
-            (extraPlaceholders(value, reference) - ignored).forEach { add("Placeholder '$it' is not in the reference locale") }
+            comparedPlaceholders(missingPlaceholders(value, reference), pluralForm)
+                .forEach { add("Placeholder '$it' of the reference locale is missing") }
+            comparedPlaceholders(extraPlaceholders(value, reference), pluralForm)
+                .forEach { add("Placeholder '$it' is not in the reference locale") }
             missingTags(value, reference).forEach { add("Tag '$it' of the reference locale is missing") }
             extraTags(value, reference).forEach { add("Tag '$it' is not in the reference locale") }
         }

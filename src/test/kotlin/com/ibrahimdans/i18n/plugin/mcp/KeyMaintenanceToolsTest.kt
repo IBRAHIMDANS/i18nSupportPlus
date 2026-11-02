@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.mcp
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.check.ValueProblem
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.intellij.openapi.application.ReadAction
@@ -60,6 +61,21 @@ class KeyMaintenanceToolsTest : PlatformBaseTest() {
         Assertions.assertEquals(listOf("common:extra"), fr.orphans)
         Assertions.assertEquals(listOf("common:save"), fr.empty)
         Assertions.assertNull(check.unused, "the code is searched on demand only")
+    }
+
+    @Test
+    fun `the check also gives what is wrong with the values, as i18n-check does`() = myFixture.runWithConfig(config) {
+        myFixture.addFileToProject("locales/en/common.json", """{"greet": "Hello {{name}}, {{count}} new", "ok": "OK"}""")
+        myFixture.addFileToProject("locales/fr/common.json", """{"greet": "Salut {{count}} nouveaux", "ok": "D'accord"}""")
+
+        val check = ReadAction.compute<List<KeyMaintenanceTools.ModuleCheck>, RuntimeException> { tools().check(null) }.single()
+
+        Assertions.assertEquals(
+            listOf(ValueProblem("common:greet", "Placeholder '{name}' of the reference locale is missing")),
+            check.values["fr"],
+        )
+        Assertions.assertNull(check.values["en"], "a locale without a problem is left out")
+        Assertions.assertEquals(1, check.problems)
     }
 
     @Test

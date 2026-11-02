@@ -863,18 +863,16 @@ class I18nCheckTest {
     }
 
     @Test
-    fun `values - incomplete ICU, a language with no one form left alone`(@TempDir dir: Path) {
+    fun `values - an ICU plural only needs its other form`(@TempDir dir: Path) {
         val noOther = "{n, plural, one {# item}}"
         val onlyOther = "{n, plural, other {# item}}"
-        Files.writeString(dir.resolve("ja.json"), """{ "b": "$onlyOther" }""")
         val run = checkValues(
             dir,
-            """{ "a": "$noOther", "b": "{n, plural, one {x} other {y}}" }""",
-            """{ "a": "$noOther", "b": "$onlyOther" }""",
+            """{ "a": "$noOther", "b": "$onlyOther", "c": "{n, plural, =0 {no items} other {# items}}" }""",
+            """{ "a": "$noOther", "b": "$onlyOther", "c": "{n, plural, =0 {aucun élément} other {# éléments}}" }""",
         )
         assertTrue("  value    a  ICU 'plural' block without the required 'other' form" in run.out, run.out)
-        assertTrue("  value    b  ICU 'plural' block without a 'one' or 'zero' form" in run.out, run.out)
-        assertTrue(run.out.lines().none { it.startsWith("ja:") && "bad value" in it }, run.out)
+        assertTrue(run.out.lines().none { it.startsWith("  value    b") || it.startsWith("  value    c") }, run.out)
     }
 
     @Test
