@@ -65,7 +65,9 @@ object ToolWindowScreenshots {
                 },
             ) {
                 val panel = showTable()
-                panel.namespaceCombo().selectItem("deposit-box")
+                // auth: its one key no code reads, errors.accountLocked. deposit-box has none since the
+                // usage count reads <Trans i18nKey>: activity.entry.fileAdded is used there.
+                panel.namespaceCombo().selectItem("auth")
                 panel.x { byAccessibleName("Count Key Usages") }.waitFound(1.minutes).click()
                 val table = panel.table()
                 // The Usage column is narrow: the cell reads "No referen…".
@@ -73,7 +75,7 @@ object ToolWindowScreenshots {
                 // The table opens its columns at fixed widths: widened as on the original image,
                 // so the keys and the "No reference" label read in full.
                 driver.resizeColumns(table.component, mapOf(0 to 515, 3 to 210))
-                val (row, _) = table.findRowColumn { it.endsWith("activity.entry.fileAdded") }
+                val (row, _) = table.findRowColumn { it.endsWith("errors.accountLocked") }
                 table.rightClickCell(row, 0)
                 val deleteItem = driver.ui.x { byVisibleText("Delete Key with No Reference") }.waitFound(1.minutes)
                 // Hovered, as a user about to pick it: the menu shows its selection highlight.
