@@ -176,6 +176,9 @@ object ScreenshotHarness {
             closeAndDisableAllBalloonNotifications()
             stopCaretBlinking()
             stopSmoothScrolling()
+            // The bulb shows once a file's analysis ends, in one session and not the next, and widens
+            // the gutter when it does: hover-hint, completion, folding-after and navigation differed.
+            hideIntentionBulb()
             ideFrame {
                 // Without a window manager under Xvfb the frame keeps its default size, which
                 // would make every capture depend on the IDE build rather than on the test.

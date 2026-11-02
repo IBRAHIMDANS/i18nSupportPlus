@@ -110,15 +110,10 @@ object EditorScreenshots {
             },
             Screenshot(
                 "navigation.png",
-                cleanUp = {
-                    driver.showIntentionBulb(true)
-                    driver.differentiateProjects(true)
-                },
+                cleanUp = { driver.differentiateProjects(true) },
             ) {
                 val editor = openEditor(NAVIGATION, navigation("common:actions.saxve", misspelledProfile = true))
                 editor.caretAtEndOf("'navigation:menu.ho")
-                // The JSON file's bulb shows once its analysis ends, in one session and not the next.
-                driver.showIntentionBulb(false)
                 driver.differentiateProjects(false)
                 editorAction(editor, "GotoDeclaration")
                 // en and fr both declare the key: the IDE asks which file to open, in a popup list. Not

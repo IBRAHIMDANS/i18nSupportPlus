@@ -25,8 +25,8 @@ interface IdeUiSettings {
 }
 
 /** The editor's intention bulb, which shows or not depending on when the file's analysis ends. */
-fun Driver.showIntentionBulb(show: Boolean) {
-    service(EditorSettings::class).setShowIntentionBulb(show)
+fun Driver.hideIntentionBulb() {
+    service(EditorSettings::class).setShowIntentionBulb(false)
 }
 
 /** The preview beside the intentions popup, which is still loading in one session and filled in the next. */

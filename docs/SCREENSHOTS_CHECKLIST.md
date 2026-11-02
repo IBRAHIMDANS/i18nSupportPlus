@@ -20,7 +20,7 @@
 
 ---
 
-## Captures de l'éditeur et de l'assistant — refaites le 2026-10-25 (#670)
+## Captures de l'éditeur et de l'assistant — refaites le 2026-11-02
 
 `Setup-wizard-step-{1,2,3}.png`, `annotation-{resolved,unresolved,missing-file}.png`, `completion.png`,
 `extraction.png`, `extraction-intent.png`, `extraction-add-namespace.png`, `gutter-icons.png`,
@@ -31,9 +31,9 @@ gouttière, ni `GutterUiComponent.hoverOverIcon` (ligne comptée à partir de 0)
 petits pas, n'a ouvert l'infobulle (2026-11-01). Attendre « `i18n:` » ne prouve rien : la barre d'état
 affiche `i18n: en · 100 %`.
 
-## Captures de la fenêtre d'outil et des réglages — refaites le 2026-10-26
+## Captures de la fenêtre d'outil et des réglages — refaites le 2026-11-02
 
-Vues *Tree / Table / Stats* dans la barre d'outils (#669), libellés et sous-pages de #666 / #667, WebStorm 2026.1.
+Vues *Tree / Table / Stats* dans la barre d'outils (#669), libellés et sous-pages de #666 / #667, WebStorm 2025.3.4 (Starter).
 
 | Fichier | Contenu |
 |---|---|
@@ -41,7 +41,7 @@ Vues *Tree / Table / Stats* dans la barre d'outils (#669), libellés et sous-pag
 | `toolwindow-tree.png` | groupes de namespace dépliés (`common`, `auth`, `dashboard`), badges `EN✓ FR✓`, légende |
 | `toolwindow-table.png` | colonne Namespace avec `common (default)`, deux cellules *Missing*, en-tête *Usage (not counted)* |
 | `toolwindow-table-namespace-filter.png` | combo *All namespaces* déroulée, `common (default)` en tête |
-| `toolwindow-table-orphans.png` | filtre `deposit-box`, après **Count Key Usages** : ligne *No reference* (`activity.entry.fileAdded`) avec le menu ouvert sur *Delete Key with No Reference*, lignes *Dynamic* `status.*` (appel `` t(`deposit-box:status.${status}`) ``) |
+| `toolwindow-table-orphans.png` | filtre `auth`, après **Count Key Usages** : ligne *No reference* (`errors.accountLocked`, lue par aucun code) avec le menu ouvert sur *Delete Key with No Reference*. `deposit-box` n'a plus de clé orpheline depuis que le comptage lit `<Trans i18nKey>` |
 | `toolwindow-stats.png` | matrice Namespace × locale, ligne Total, `common (default)`, barres vertes/orange |
 | `toolwindow-stats-popup.png` | popup `common (default) — 'fr': 2 missing, 0 empty` sous la cellule (titre tronqué par la popup) |
 | `toolwindow-create-translation.png` | dialogue *Create Translation* rempli (clé vérifiée, chemins, *Copy Reference to Empty Locales*) |
@@ -71,8 +71,7 @@ est remplacé par `stats.users.count` le temps de l'enregistrement, et *Partiall
 `_one`/`_other` de `fr` le déclenchent).
 
 ## À vérifier
-- `sync-missing-keys.png` (mars) : refaire si le dialogue a changé d'aspect
-- `folding-before.png`, `folding-after.png` (mars) : comparer avec l'IDE actuel
+- `gutter-icons-tooltip.png` (2026-10-25) : sans scénario, à refaire à la main (recette plus haut)
 
 ### Captures supplémentaires disponibles (référencées ni par le README ni par `docs/`)
 - `annotation-partial.png` — Code JSX avec icônes gutter orange (partial translation)
