@@ -74,6 +74,7 @@ object ProjectSources {
         val root = project.toAbsolutePath().normalize()
         for (source in sources) {
             val namespace = source.namespace
+                ?: packageNamespaceOf(source)
                 ?: if (source.isLocaleNamedFile()) defaultNamespaces.first() else source.name.substringBeforeLast('.')
             val nsPrefix = when {
                 namespace !in defaultNamespaces -> namespace + KeySpelling.NAMESPACE_SEPARATOR
@@ -84,6 +85,26 @@ object ProjectSources {
         }
         return Scope(module, result, files)
     }
+
+    /**
+     * The namespace of a Laravel package's override, `courier::messages` for
+     * `lang/vendor/courier/en/messages.php`, as the plugin's `PhpArrayLocalization` names it: apart
+     * from the application's own `messages`. Null for any other file.
+     */
+    private fun packageNamespaceOf(source: TranslationSource<ParsedNode, ParsedFormat>): String? {
+        if (source.localization != CheckFormats.PHP) return null
+        val segments = source.displayPath.trim('/').split('/')
+        if (segments.size < 5) return null
+        val (lang, vendor, packageName) = segments.subList(segments.size - 5, segments.size - 2)
+        if (lang != LANG || vendor != VENDOR) return null
+        return packageName + PACKAGE_SEPARATOR + segments.last().substringBeforeLast('.')
+    }
+
+    private const val LANG = "lang"
+    private const val VENDOR = "vendor"
+
+    /** Laravel's separator between a package and its file: `courier::messages.sent`. */
+    private const val PACKAGE_SEPARATOR = "::"
 
     /**
      * Transloco's scope files, display path → scope: a file named after a locale whose folder sits next to

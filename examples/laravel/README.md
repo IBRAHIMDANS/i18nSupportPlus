@@ -88,8 +88,8 @@ and with `--code` the PHP calls and Blade views:
 cli/build/install/i18n-check/bin/i18n-check examples/laravel --code
 ```
 
-It reports `Free shipping`, `messages:only_in_english` and the package override, listed as `messages:sent`, missing
-in `fr`; the override as unused (see *Not covered*); the three unknown keys of the code (`messages.does_not_exist`,
+It reports `Free shipping`, `messages:only_in_english` and the package override, listed under its package as
+`courier::messages:sent`, missing in `fr`; the override as unused (see *Not covered*); the three unknown keys of the code (`messages.does_not_exist`,
 `messages.cart.lines`, `messages.not_in_any_file`) with their file and line; and exits with `1`.
 
 ## Not covered
@@ -99,5 +99,6 @@ What the plugin does not handle yet on Laravel, left out of the checks above:
 - **Parameters** (`:name`, `:count`) are not checked against the arguments passed: the key resolves, nothing more.
 - **Plural forms** are one string to the plugin: `messages.cart.items` resolves, its `|` variants are not checked
   per locale.
-- **Package keys in `i18n-check`**: the override under `lang/vendor/courier/` is listed as `messages:sent`, not
-  `courier::messages.sent`, and `--code` does not read `__('courier::…')`: the override's key is reported unused.
+- **Package keys in `i18n-check --code`**: the override under `lang/vendor/courier/` is listed as
+  `courier::messages:sent`, apart from `lang/en/messages.php`, but `--code` does not read `__('courier::…')` yet: the
+  override's key is reported unused, where the plugin resolves it.
