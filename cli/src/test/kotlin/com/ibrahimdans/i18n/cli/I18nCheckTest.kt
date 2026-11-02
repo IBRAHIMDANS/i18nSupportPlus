@@ -670,6 +670,47 @@ class I18nCheckTest {
     }
 
     @Test
+    fun `code - a constant imported by a tsconfig path alias counts, comments and trailing commas allowed`(@TempDir project: Path) {
+        fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }
+        write("locales/en/common.json", """{"actions": {"save": "Save"}, "page": {"home": "Home"}}""")
+        write("src/i18n/keys.ts", "export const KEYS = { save: 'actions.save' } as const;\n")
+        write("src/i18n/titles.ts", "export enum Titles { Home = 'page.home' }\n")
+        write("src/app/page.tsx", "import { KEYS } from '@/i18n/keys';\nimport { Titles } from '~titles';\nconst { t } = useTranslation('common');\nt(KEYS.save);\nt(Titles.Home);\n")
+        write(
+            "tsconfig.json",
+            """
+            {
+              // create-next-app's alias
+              "compilerOptions": {
+                "baseUrl": ".", /* the project's root */
+                "paths": { "@/*": ["./src/*"], "~titles": ["src/i18n/titles.ts"], },
+              },
+            }
+            """.trimIndent(),
+        )
+
+        val report = JsonParser.parseString(check(project.toString(), "--code", "--format", "json").out).asJsonObject
+        assertEquals(emptyList<String>(), report["unused"].asJsonArray.map { it.asString })
+        assertEquals(0, report["unknown"].asJsonArray.size())
+    }
+
+    @Test
+    fun `code - a jsconfig alias is read, and without paths or with another alias the constant stays unread`(@TempDir project: Path) {
+        fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }
+        write("locales/en/common.json", """{"actions": {"save": "Save"}}""")
+        write("src/keys.js", "export const KEYS = { save: 'actions.save' };\n")
+        write("src/App.jsx", "import { KEYS } from '@/keys';\nconst { t } = useTranslation('common');\nt(KEYS.save);\n")
+        fun unused() = JsonParser.parseString(check(project.toString(), "--code", "--format", "json").out).asJsonObject["unused"].asJsonArray.map { it.asString }
+
+        write("jsconfig.json", """{"compilerOptions": {"paths": {"@/*": ["src/*"]}}}""")
+        assertEquals(emptyList<String>(), unused())
+        write("jsconfig.json", """{"compilerOptions": {"baseUrl": "."}}""")
+        assertEquals(listOf("common:actions.save"), unused())
+        write("jsconfig.json", """{"compilerOptions": {"paths": {"#/*": ["src/*"]}}}""")
+        assertEquals(listOf("common:actions.save"), unused())
+    }
+
+    @Test
     fun `code - next-intl's has asks whether a key exists, it is never unknown`(@TempDir project: Path) {
         Files.writeString(project.resolve("en.json"), """{"Nav": {"home": "Home"}}""")
         Files.writeString(project.resolve("Nav.tsx"), "export function Nav() { const t = useTranslations('Nav'); return t.has('beta') ? t('beta') : t('home'); }")

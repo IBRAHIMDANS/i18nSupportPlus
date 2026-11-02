@@ -71,7 +71,28 @@ class ConstantKeysTest {
     }
 
     @Test
-    fun `a path alias, a reassigned variable, a parameter and a computed value are not read`() {
+    fun `a constant imported by a path alias is read, an unknown alias is not`() {
+        val aliases = ConstantKeys.PathAliases(".", mapOf("@/*" to listOf("./src/*"), "@keys" to listOf("src/i18n/keys.ts")))
+        val keys = "export const KEYS = { save: 'actions.save' };\nexport enum Titles { Home = 'page.home' }\n"
+        val app = "import { KEYS } from '@/i18n/keys';\nimport { Titles } from '@keys';\nimport { OTHER } from '~/i18n/keys';\n${hook}t(KEYS.save);\nt(Titles.Home);\nt(OTHER.x);\n"
+        val files = mapOf("src/i18n/keys.ts" to keys, "src/pages/App.tsx" to app)
+        val index = TreeSitterKeyUsageIndex(imports = ConstantKeys.ProjectFiles(files, aliases)).apply { files.forEach { (path, text) -> update(path, text) } }
+        assertEquals(listOf(at("src/pages/App.tsx", app, "KEYS.save")), index.usages("common:actions.save"))
+        assertEquals(listOf(at("src/pages/App.tsx", app, "Titles.Home")), index.usages("common:page.home"))
+    }
+
+    @Test
+    fun `a path alias resolves from its base, the longest prefix first, and never above the project`() {
+        val aliases = ConstantKeys.PathAliases("./src", mapOf("@/*" to listOf("*"), "@/i18n/*" to listOf("locale-keys/*"), "@up/*" to listOf("../../*")))
+        assertEquals(listOf("src/components/Button"), aliases.pathsOf("@/components/Button"))
+        assertEquals(listOf("src/locale-keys/keys"), aliases.pathsOf("@/i18n/keys"))
+        assertEquals(emptyList<String>(), aliases.pathsOf("@up/keys"))
+        assertEquals(emptyList<String>(), aliases.pathsOf("react"))
+        assertEquals(emptyList<String>(), ConstantKeys.PathAliases.NONE.pathsOf("@/keys"))
+    }
+
+    @Test
+    fun `without its alias a path alias, a reassigned variable, a parameter and a computed value are not read`() {
         val text = """
             import { KEYS } from '@/keys';
             let changing = 'a.changing';
