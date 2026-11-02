@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- [Tool window] **Counting the usages in the Table View no longer freezes the IDE**: on a large project, a click on a toolbar or a file saved during the count could block the IDE until the count ended, and get it killed after 30 seconds. The count now steps aside for the IDE and picks up where it left off.
+
 ## 1.17.0 - 2026-11-02
 
 ### Features

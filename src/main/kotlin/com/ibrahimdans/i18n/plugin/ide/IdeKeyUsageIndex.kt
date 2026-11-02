@@ -20,6 +20,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.PsiSearchHelper
+import java.util.concurrent.Callable
 
 /**
  * [KeyUsageIndex] on the IDE's word index: the text scan of [IndirectKeyUsages], its key-prefix
@@ -56,22 +57,32 @@ class IdeKeyUsageIndex(private val project: Project, private val module: ModuleC
         return keys.associateWith { key -> (scope.textUsages(key) + prefixed[key].orEmpty()).distinct() }
     }
 
-    override fun usageCounts(keys: Collection<String>): Map<String, Int> =
-        search(keys) { unique, scope ->
-            val prefixed = scope.prefixedUsages(unique)
-            unique.associateWith { key -> scope.textCount(key) + prefixed[key].orEmpty().size }
-        }
+    /**
+     * Counted batch by batch ([batchesOf]), each in its own [readStep]: the table asks for every
+     * key a project holds, and one read action over all of them held back every write action —
+     * and the EDT queued behind it — until the last key was counted.
+     */
+    override fun usageCounts(keys: Collection<String>): Map<String, Int> {
+        val scope = readStep { textSearch() }
+        return batchesOf(keys.distinct(), scope.config).flatMap { batch ->
+            readStep {
+                val prefixed = scope.prefixedUsages(batch)
+                batch.map { key -> key to scope.textCount(key) + prefixed[key].orEmpty().size }
+            }
+        }.toMap()
+    }
 
-    /** Runs [query] in one read action, on the distinct [keys], with what the batch's text searches share. */
+    /** Runs [query] in one [readStep], on the distinct [keys], with what the batch's text searches share. */
     private fun <T> search(keys: Collection<String>, query: (List<String>, TextSearch) -> T): T =
-        ReadAction.compute<T, RuntimeException> {
-            val config = Settings.getInstance(project).config()
-            val scope = TextSearch(
-                project, config, ModuleSources.searchScope(project, module), PsiSearchHelper.getInstance(project),
-                FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry),
-            )
-            query(keys.distinct(), scope)
-        }
+        readStep { query(keys.distinct(), textSearch()) }
+
+    private fun textSearch(): TextSearch {
+        val config = Settings.getInstance(project).config()
+        return TextSearch(
+            project, config, ModuleSources.searchScope(project, module), PsiSearchHelper.getInstance(project),
+            FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry),
+        )
+    }
 
     private class TextSearch(
         private val project: Project,
@@ -88,13 +99,38 @@ class IdeKeyUsageIndex(private val project: Project, private val module: ModuleC
             IndirectKeyUsages.prefixedUsages(project, keys, config).mapValues { (_, found) -> found.filter { it.isIn(scope) } }
     }
 
-    override fun dynamicallyReached(keys: Collection<String>): Set<String> =
-        ReadAction.compute<Set<String>, RuntimeException> {
-            val config = Settings.getInstance(project).config()
-            DynamicKeyUsages.reachedKeys(
-                keys.toList(), ModuleSources.searchScope(project, module), PsiSearchHelper.getInstance(project), config.nsSeparator, config.keySeparator,
-            )
+    /** One [readStep] per word searched: the words of every orphan of a project are many. */
+    override fun dynamicallyReached(keys: Collection<String>): Set<String> {
+        val (config, scope) = readStep { Settings.getInstance(project).config() to ModuleSources.searchScope(project, module) }
+        return DynamicKeyUsages.reachedKeys(
+            keys.toList(), scope, PsiSearchHelper.getInstance(project), config.nsSeparator, config.keySeparator, ::readStep,
+        )
+    }
+
+    companion object {
+        /** Keys counted per [readStep]; a word's keys are never split, so a batch may hold more. */
+        internal const val BATCH_SIZE = 50
+
+        /**
+         * [keys] cut into batches of about [BATCH_SIZE], the keys whose prefix scan searches the
+         * same word ([IndirectKeyUsages.prefixWordOf]) kept together: that search runs once per batch.
+         */
+        internal fun batchesOf(keys: List<String>, config: Config): List<List<String>> {
+            val batches = mutableListOf<MutableList<String>>()
+            for (group in keys.groupBy { IndirectKeyUsages.prefixWordOf(it, config) }.values) {
+                val last = batches.lastOrNull()
+                if (last != null && last.size + group.size <= BATCH_SIZE) last += group else batches += group.toMutableList()
+            }
+            return batches
         }
+
+        /**
+         * Runs [compute] in a read action a write action cancels and restarts, rather than waits
+         * for; inside a read action already, it simply runs.
+         */
+        private fun <T> readStep(compute: () -> T): T =
+            ReadAction.nonBlocking<T>(Callable { compute() }).executeSynchronously()
+    }
 
     private fun usageOf(element: PsiElement): KeyUsage? {
         val path = element.containingFile?.virtualFile?.path ?: return null
