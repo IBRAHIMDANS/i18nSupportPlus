@@ -1,0 +1,11 @@
+<html>
+<body>
+<p>Reports a text written as is in the HTML of a Twig template of a Symfony project.</p>
+<p>Example: <code>&lt;button&gt;Save&lt;/button&gt;</code>, <code>&lt;input placeholder="Name"&gt;</code>.</p>
+<p>Off by default. The quick fix extracts the text into a key of the template's domain and writes Symfony's filter,
+<code>{{ 'save'|trans }}</code>; an echo of a value, <code>Hello {{ user.name }}!</code>, becomes the parameter
+<code>%name%</code> of the message. A text a tag splits, <code>{% if %}</code> or <code>{% trans %}</code>, is left alone.</p>
+<!-- tooltip end -->
+<p>Needs the Twig plugin and a <code>composer.json</code> requiring <code>symfony/translation</code>. Runs in the editor and headless, in Qodana or <code>inspect.sh</code>.</p>
+</body>
+</html>

@@ -13,7 +13,7 @@ import com.intellij.psi.PsiReference
  * ([TwigTrans]), each looked up in the domain the template names — the key's namespace.
  *
  * No translation function is involved: the filter and the tag are Twig syntax, read whatever the
- * technologies publish. Extracting a text of a template into a key is not offered.
+ * technologies publish. A text of the template's HTML is extracted into `{{ 'key'|trans }}` ([TwigMarkupTextExtractor]).
  */
 class TwigLang : Lang {
 
@@ -24,7 +24,7 @@ class TwigLang : Lang {
 
     override fun foldingProvider(): FoldingProvider = TwigFoldingProvider()
 
-    override fun translationExtractor(): TranslationExtractor = NoExtraction
+    override fun translationExtractor(): TranslationExtractor = TwigMarkupTextExtractor()
 
     /** A key of the template: its token asks no contributor, the reference is built here. */
     override fun references(literal: PsiElement): List<PsiReference> =
@@ -32,11 +32,4 @@ class TwigLang : Lang {
 
     /** A key of the template found by a text search — what usage counts and *Unused key* add up. */
     override fun resolveLiteral(entry: PsiElement): PsiElement? = entry.takeIf { TwigTrans.keyOf(it) != null }
-
-    /** Nothing of a template is offered for extraction. */
-    private object NoExtraction : TranslationExtractor {
-        override fun canExtract(element: PsiElement): Boolean = false
-        override fun isExtracted(element: PsiElement): Boolean = false
-        override fun text(element: PsiElement): String = ""
-    }
 }

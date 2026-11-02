@@ -1,7 +1,10 @@
 package com.ibrahimdans.i18n.extensions.technology.symfony
 
 import com.ibrahimdans.i18n.extensions.localization.xliff.XliffContentGenerator
+import com.ibrahimdans.i18n.extensions.lang.twig.TwigFoldingBuilder
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.ide.runWithConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationAction
@@ -89,6 +92,14 @@ class SymfonyTranslationsTest : PlatformBaseTest() {
     }
 
     @Test
+    fun aGettextCatalogueIsRead() {
+        symfonyProject()
+        myFixture.addFileToProject("translations/forms.en.po", "msgid \"\"\nmsgstr \"\"\n\nmsgid \"form.submit\"\nmsgstr \"Send\"\n")
+        assertEquals("Send", resolvedValue("a.php", "<?php \$translator->trans('form.sub<caret>mit', [], 'forms');"))
+        assertTrue(reportsUnresolved("src/a.php", "<?php \$translator->trans('form.missing', [], 'forms');"))
+    }
+
+    @Test
     fun anXliffCatalogueIsKeyedByResnameElseBySource() {
         symfonyProject()
         assertEquals("Invalid e-mail", resolvedValue("a.php", "<?php \$translator->trans('form.em<caret>ail', [], 'validators');"))
@@ -128,6 +139,19 @@ class SymfonyTranslationsTest : PlatformBaseTest() {
         assertTrue(offered == null && "'title'" in myFixture.file.text || offered.orEmpty().contains("title"), "offered: $offered")
         myFixture.configureByText("b.html.twig", "{{ 'sub<caret>'|trans }}")
         assertTrue(myFixture.completeBasic().isNullOrEmpty() && "'sub'" in myFixture.file.text, "subtitle is in admin, not in messages")
+    }
+
+    @Test
+    fun twigKeysAreFoldedIntoTheirTranslation() = myFixture.runWithConfig(Config(foldingEnabled = true, foldingPreferredLanguage = "en")) {
+        symfonyProject()
+        myFixture.configureByText("a.html.twig", "<h1>{{ 'user.name'|trans }}</h1>\n<p>{{ 'title'|trans({}, 'admin') }}</p>\n<p>{% trans %}user.name{% endtrans %}</p>")
+        val text = myFixture.file.text
+        val folds = TwigFoldingBuilder().buildFoldRegions(myFixture.file, myFixture.editor.document, false)
+            .map { text.substring(it.range.startOffset, it.range.endOffset) to it.placeholderText }
+        assertEquals(
+            listOf("'user.name'|trans" to "Name", "'title'|trans({}, 'admin')" to "Admin", "{% trans %}user.name{% endtrans %}" to "Name"),
+            folds
+        )
     }
 
     @Test
