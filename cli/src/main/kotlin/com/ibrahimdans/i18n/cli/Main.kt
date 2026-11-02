@@ -155,12 +155,13 @@ object I18nCheck {
         }
         if (!options.code) return ProjectResult(results)
         val code = CodeUsages(options.project, config)
+        // A module's keys are used by its own code only, as the IDE reads them.
         val referenceKeys = scopes.zip(results) { scope, result ->
-            scope.translations.filterValues { result.reference in it }.keys
+            scope.module to scope.translations.filterValues { result.reference in it }.keys
         }
         return ProjectResult(
-            results.zip(referenceKeys) { result, keys -> result.copy(unused = code.unused(keys)) },
-            code.unknown(referenceKeys.flatten()),
+            results.zip(referenceKeys) { result, (module, keys) -> result.copy(unused = code.unused(keys, module)) },
+            code.unknown(referenceKeys),
         )
     }
 
