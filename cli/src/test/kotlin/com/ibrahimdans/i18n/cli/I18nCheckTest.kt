@@ -190,6 +190,24 @@ class I18nCheckTest {
         assertEquals(I18nCheck.PROBLEMS, run.exit)
     }
 
+    /** The override's `sent` is empty in `fr`, the application's is not: two keys, never mixed. */
+    @Test
+    fun `Laravel package override - read under the package's namespace, apart from the application's file`() {
+        val run = check("$resources/php-vendor")
+        assertEquals(
+            """
+            Reference locale: en (2 locales)
+
+            en: no problem
+            fr: 1 empty
+              empty    courier::messages:sent
+
+            1 problem found (allowed: 0).
+            """.trimIndent(),
+            run.out,
+        )
+    }
+
     @Test
     fun `Laravel PHP array built by code - not checked, named with the line, exit 2`() {
         val run = check("--locales", "$resources/php-partial")
@@ -551,14 +569,14 @@ class I18nCheckTest {
 
     /**
      * What the plugin underlines in the Laravel example: helpers, the translator and Blade's directives,
-     * a file's key under its file's namespace, a JSON phrase whole. The package override stays unused:
-     * the call names it `courier::messages.sent`, the loaded files `messages:sent`.
+     * a file's key under its file's namespace, a JSON phrase whole. The package override is loaded under
+     * its package's namespace, `courier::messages:sent`, but stays unused: `--code` reads no package key yet.
      */
     @Test
     fun `code - laravel example, PHP calls and Blade views read`() {
         val project = "../examples/laravel"
         val run = check(project, "--code")
-        assertTrue(run.out.contains("Unused keys: 1\n  messages:sent\n"), run.out)
+        assertTrue(run.out.contains("Unused keys: 1\n  courier::messages:sent\n"), run.out)
         assertTrue(
             run.out.contains(
                 """
