@@ -1,5 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.google.gson.JsonParseException
+import com.google.gson.JsonParser
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.ide.wizard.AbstractWizard
@@ -29,6 +31,8 @@ import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.io.File
+import java.nio.file.FileSystems
+import java.nio.file.Path
 import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.DefaultListModel
@@ -70,6 +74,8 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
     private var cliConfig: I18nextCliConfig? = null
     /** The project's Nuxt or vue-i18n configuration; see [readVueConfig]. */
     private var vueConfig: VueI18nConfig? = null
+    /** The workspace packages' manifests, by project-relative folder; see [workspacePackagesIn]. */
+    private var workspacePackages: Map<String, String> = emptyMap()
     private val fileListModel = DefaultListModel<String>()
     private val fileList = JBList(fileListModel)
 
@@ -96,6 +102,7 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         scanTranslationFiles()
         readCliConfig()
         readVueConfig()
+        workspacePackages = project.basePath?.let { workspacePackagesIn(File(it)) }.orEmpty()
     }
 
     /** The wizard's own panel, with the step rail above it. */
@@ -183,6 +190,9 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
          */
         private val moduleBoxes = mutableListOf<Pair<ModuleConfig, JBCheckBox>>()
 
+        /** The code directories suggested for a module box, editable: see [WizardPlan.codeRootsOf]. */
+        private val codeRootFields = mutableMapOf<JBCheckBox, JBTextField>()
+
         /** The template module of [WizardPlan.Plan.template], ticked: unticked, the settings stay as they were. */
         private val templateBox = JBCheckBox()
         private val keySeparatorField = JBTextField(6)
@@ -242,10 +252,14 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
             splitIntoModules.isSelected = plan.root.widened
             splitIntoModules.text = PluginBundle.message("wizard.summary.root.split", plan.root.candidates.size)
             moduleBoxes.clear()
+            codeRootFields.clear()
             if (plan.root.widened) {
-                WizardPlan.modulesFor(plan.root, foundFiles, selectedFrameworks(), appManifests).mapTo(moduleBoxes) { module ->
-                    module to JBCheckBox(PluginBundle.message("wizard.summary.module", module.name, module.rootDirectory), true)
-                }
+                WizardPlan.modulesFor(plan.root, foundFiles, selectedFrameworks(), appManifests, workspacePackages)
+                    .mapTo(moduleBoxes) { module ->
+                        val box = JBCheckBox(PluginBundle.message("wizard.summary.module", module.name, module.rootDirectory), true)
+                        if (module.codeRoots.isNotEmpty()) codeRootFields[box] = JBTextField(module.codeRoots, 24)
+                        module to box
+                    }
             }
             plan.template?.let { template ->
                 templateBox.text = PluginBundle.message("wizard.summary.template", template.module.pathTemplate)
@@ -321,8 +335,19 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
             }
             if (plan.root.widened) {
                 row("") { cell(splitIntoModules) }
-                for ((_, box) in moduleBoxes) {
+                for ((module, box) in moduleBoxes) {
                     row("") { cell(box) }
+                    codeRootFields[box]?.let { field ->
+                        row("") {
+                            label(PluginBundle.message("settings.modules.codeRoots"))
+                            cell(field)
+                        }.rowComment(
+                            PluginBundle.message(
+                                "wizard.summary.codeRoots.origin",
+                                workspacePackages[module.rootDirectory]?.let(WizardPlan::packageNameOf).orEmpty()
+                            )
+                        )
+                    }
                 }
             }
             plan.template?.let { template ->
@@ -405,12 +430,18 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         private fun syncSplit() {
             rootField.isEnabled = !splitIntoModules.isSelected
             moduleBoxes.forEach { (_, box) -> box.isEnabled = splitIntoModules.isSelected }
+            codeRootFields.values.forEach { it.isEnabled = splitIntoModules.isSelected }
         }
 
         /** What the form says should be stored — nothing is re-derived at this point. */
         fun choices(): WizardChoices {
             val plan = shownPlan ?: return WizardChoices()
-            val modules = moduleBoxes.map { (module, box) -> module.copy(enabled = box.isSelected) }
+            val modules = moduleBoxes.map { (module, box) ->
+                module.copy(
+                    enabled = box.isSelected,
+                    codeRoots = codeRootFields[box]?.text?.trim() ?: module.codeRoots
+                )
+            }
             val splitting = plan.root.widened && splitIntoModules.isSelected && modules.any { it.enabled }
             return WizardChoices(
                 translationsRoot = rootField.text.trim().takeUnless { splitting },
@@ -631,5 +662,67 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
                 if (texts.isEmpty()) null else folder to texts.joinToString("\n")
             }.toMap()
         }
+
+        /**
+         * Project-relative folder -> `package.json` text, for each package of the workspace [base]
+         * declares: the `packages` globs of `pnpm-workspace.yaml`, else the `workspaces` of the root
+         * `package.json` (npm, Yarn). Empty without a workspace. What [WizardPlan.codeRootsOf] reads
+         * the dependencies from.
+         */
+        internal fun workspacePackagesIn(base: File): Map<String, String> {
+            val globs = workspaceGlobs(base)
+            if (globs.isEmpty()) return emptyMap()
+            val (excluded, included) = globs.partition { it.startsWith("!") }
+            val fileSystem = FileSystems.getDefault()
+            val includes = included.map { fileSystem.getPathMatcher("glob:${it.trim('/')}") }
+            val excludes = excluded.map { fileSystem.getPathMatcher("glob:${it.removePrefix("!").trim('/')}") }
+            return base.walkTopDown()
+                .maxDepth(WORKSPACE_DEPTH)
+                .onEnter { it == base || (it.name != "node_modules" && !it.name.startsWith(".")) }
+                .filter { it != base && it.isDirectory && File(it, "package.json").isFile }
+                .mapNotNull { folder ->
+                    val relative = folder.relativeTo(base).invariantSeparatorsPath
+                    val path = Path.of(relative)
+                    relative.takeIf { includes.any { it.matches(path) } && excludes.none { it.matches(path) } }
+                        ?.let { it to File(folder, "package.json").readText() }
+                }
+                .toMap()
+        }
+
+        /** The workspace globs [base] declares, `!` exclusions included. */
+        private fun workspaceGlobs(base: File): List<String> {
+            val pnpm = File(base, "pnpm-workspace.yaml")
+            if (pnpm.isFile) return pnpmPackages(pnpm.readLines())
+            val manifest = File(base, "package.json").takeIf { it.isFile } ?: return emptyList()
+            val workspaces = try {
+                JsonParser.parseString(manifest.readText()).takeIf { it.isJsonObject }?.asJsonObject?.get("workspaces")
+            } catch (_: JsonParseException) {
+                null
+            }
+            // npm and Yarn 1 take an array; Yarn also takes `{ "packages": [...] }`.
+            val array = when {
+                workspaces == null -> null
+                workspaces.isJsonArray -> workspaces.asJsonArray
+                workspaces.isJsonObject -> workspaces.asJsonObject.get("packages")?.takeIf { it.isJsonArray }?.asJsonArray
+                else -> null
+            } ?: return emptyList()
+            return array.filter { it.isJsonPrimitive }.map { it.asString }
+        }
+
+        /** The items of the top-level `packages:` list of a `pnpm-workspace.yaml`. */
+        private fun pnpmPackages(lines: List<String>): List<String> {
+            val start = lines.indexOfFirst { it.trimEnd() == "packages:" }
+            if (start < 0) return emptyList()
+            return lines.drop(start + 1)
+                .filterNot { it.isBlank() || it.trimStart().startsWith("#") }
+                .takeWhile { it.startsWith(" ") || it.startsWith("-") }
+                .map { it.trim() }
+                .filter { it.startsWith("-") }
+                .map { it.removePrefix("-").substringBefore(" #").trim().trim('\'', '"') }
+                .filter { it.isNotEmpty() }
+        }
+
+        /** How deep below the project root a workspace package is looked for. */
+        private const val WORKSPACE_DEPTH = 4
     }
 }

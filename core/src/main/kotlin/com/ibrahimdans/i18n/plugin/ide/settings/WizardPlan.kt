@@ -1,5 +1,8 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.google.gson.JsonObject
+import com.google.gson.JsonParseException
+import com.google.gson.JsonParser
 import com.ibrahimdans.i18n.plugin.utils.LocaleNames
 
 /**
@@ -221,12 +224,17 @@ object WizardPlan {
      * rather than the generic `{lang}/{ns}.json` a hand-added module starts from: a proposal that
      * resolves to nothing would be one more value presented as configured while configuring
      * nothing. Its preset is the one framework its own manifest declares, else the project's one.
+     *
+     * A module that is a [workspace] package other packages depend on is given those packages as
+     * [ModuleConfig.codeRoots]: a shared translations package holds no code calling its keys, so
+     * without them every key reads as unused. See [codeRootsOf].
      */
     fun modulesFor(
         plan: RootPlan,
         relativeFilePaths: List<String>,
         frameworks: Set<String>,
         manifests: Map<String, String> = emptyMap(),
+        workspace: Map<String, String> = emptyMap(),
     ): List<ModuleConfig> {
         val appRoots = plan.candidates.associateWith { appRootOf(it, manifests) }
         val shared = appRoots.values.groupingBy { it }.eachCount().filterValues { it > 1 }.keys
@@ -238,10 +246,49 @@ object WizardPlan {
                 name = moduleNameOf(root),
                 pathTemplate = pathTemplateOf(root, relativeFilePaths),
                 rootDirectory = root,
-                preset = preset
+                preset = preset,
+                codeRoots = codeRootsOf(root, workspace)
             )
         }
     }
+
+    /**
+     * The folders whose code uses the keys of the [workspace] package at [root] (project-relative
+     * folder -> `package.json` text): the packages declaring a dependency on its `name`, sorted.
+     * The package itself is kept first when its own manifest declares an i18n library, i.e. when
+     * it has code of its own calling its keys. Empty when no package depends on it: a package name
+     * alone proves nothing.
+     */
+    fun codeRootsOf(root: String, workspace: Map<String, String>): String {
+        val manifest = workspace[root] ?: return ""
+        val name = packageNameOf(manifest) ?: return ""
+        val dependents = workspace.filterKeys { it != root }
+            .filterValues { name in dependenciesOf(it) }
+            .keys.sorted()
+        if (dependents.isEmpty()) return ""
+        val own = listOf(root).filter { FrameworkDetector.detect(manifest).isNotEmpty() }
+        return (own + dependents).joinToString(", ")
+    }
+
+    /** The `name` of a `package.json`, null when it has none or is not JSON. */
+    fun packageNameOf(packageJson: String): String? =
+        parse(packageJson)?.get("name")?.takeIf { it.isJsonPrimitive }?.asString?.takeIf { it.isNotBlank() }
+
+    private fun dependenciesOf(packageJson: String): Set<String> {
+        val json = parse(packageJson) ?: return emptySet()
+        return DEPENDENCY_FIELDS.flatMapTo(mutableSetOf()) { field ->
+            json.get(field)?.takeIf { it.isJsonObject }?.asJsonObject?.keySet().orEmpty()
+        }
+    }
+
+    private fun parse(packageJson: String): JsonObject? =
+        try {
+            JsonParser.parseString(packageJson).takeIf { it.isJsonObject }?.asJsonObject
+        } catch (_: JsonParseException) {
+            null
+        }
+
+    private val DEPENDENCY_FIELDS = listOf("dependencies", "devDependencies", "peerDependencies")
 
     /** The folder of the application whose catalogues sit in [catalogueRoot]; see [modulesFor]. */
     private fun appRootOf(catalogueRoot: String, manifests: Map<String, String>): String {

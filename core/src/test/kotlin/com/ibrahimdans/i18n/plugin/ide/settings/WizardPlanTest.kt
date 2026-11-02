@@ -167,6 +167,58 @@ class WizardPlanTest {
         )
     }
 
+    // -- The code directories of a shared translations package
+
+    private val sharedPackage = listOf("apps/web/locales/en/common.json", "packages/i18n/locales/en/shared.json")
+
+    private val workspace = mapOf(
+        "apps/web" to """{"name": "web", "dependencies": {"@acme/i18n": "workspace:*", "react": "19"}}""",
+        "apps/admin" to """{"name": "admin", "devDependencies": {"@acme/i18n": "workspace:*"}}""",
+        "apps/docs" to """{"name": "docs", "dependencies": {"react": "19"}}""",
+        "packages/i18n" to """{"name": "@acme/i18n"}""",
+    )
+
+    /** The manifests are the workspace's own, as the wizard finds them above the catalogues. */
+    private fun codeRootsByModule(workspace: Map<String, String>): Map<String, String> {
+        val manifests = mapOf("apps/web" to "{}", "packages/i18n" to "{}") + workspace
+        return WizardPlan.modulesFor(WizardPlan.of(sharedPackage, emptySet()).root, sharedPackage, emptySet(), manifests, workspace)
+            .associate { it.rootDirectory to it.codeRoots }
+    }
+
+    @Test
+    fun `a shared package gets the workspace packages depending on it as code roots`() {
+        Assertions.assertEquals(
+            mapOf("apps/web" to "", "packages/i18n" to "apps/admin, apps/web"),
+            codeRootsByModule(workspace)
+        )
+    }
+
+    @Test
+    fun `a shared package with i18n code of its own keeps its own folder first`() {
+        val ownCode = workspace + ("packages/i18n" to """{"name": "@acme/i18n", "dependencies": {"i18next": "26"}}""")
+
+        Assertions.assertEquals("packages/i18n, apps/admin, apps/web", codeRootsByModule(ownCode)["packages/i18n"])
+    }
+
+    @Test
+    fun `no dependent package proposes no code roots`() {
+        val noDependent = workspace.filterKeys { it == "packages/i18n" || it == "apps/docs" }
+
+        Assertions.assertEquals("", codeRootsByModule(noDependent)["packages/i18n"])
+    }
+
+    @Test
+    fun `a project without a workspace proposes no code roots`() {
+        Assertions.assertEquals(setOf(""), codeRootsByModule(emptyMap()).values.toSet())
+    }
+
+    @Test
+    fun `a package name is read from the manifest, never guessed`() {
+        Assertions.assertEquals("@acme/i18n", WizardPlan.packageNameOf("""{"name": "@acme/i18n"}"""))
+        Assertions.assertNull(WizardPlan.packageNameOf("""{"version": "1.0.0"}"""))
+        Assertions.assertNull(WizardPlan.packageNameOf("not json"))
+    }
+
     // -- The application a module stands for
 
     private val monorepo = listOf(
