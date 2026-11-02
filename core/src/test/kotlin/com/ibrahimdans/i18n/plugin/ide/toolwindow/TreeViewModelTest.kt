@@ -250,8 +250,9 @@ class TreeViewModelTest {
         val statuses = viewModel.describeTree(viewModel.buildTree(data, Config()), locales, parent)
         val stats = TranslationCoverage.analyze(data, locales, parent).single { it.locale == "en-GB" }
 
-        assertEquals(LocaleState.PRESENT, statuses.getValue("color").localeStates["en-GB"], "inherited from en")
-        assertEquals(KeyStatus.COMPLETE, statuses.getValue("color").status)
+        assertEquals(LocaleState.INHERITED, statuses.getValue("color").localeStates["en-GB"], "inherited from en")
+        assertEquals(LocaleState.PRESENT, statuses.getValue("save").localeStates["en-GB"], "its own value, even equal to en's")
+        assertEquals(KeyStatus.COMPLETE, statuses.getValue("color").status, "an inherited key is translated")
         assertEquals(KeyStatus.EMPTY, statuses.getValue("cancel").status, "a blank en-GB value is its own, not inherited")
         // save, color and item are complete everywhere; cancel is blank in en-GB.
         assertEquals(NodeCompleteness(3, 4), statuses.getValue("").completeness)
@@ -259,6 +260,16 @@ class TreeViewModelTest {
 
         val flat = viewModel.describeTree(viewModel.buildTree(data, Config()), locales)
         assertEquals(KeyStatus.MISSING, flat.getValue("color").status, "without a parent, en-GB lacks color")
+    }
+
+    @Test
+    fun `a regional locale whose language has no file inherits nothing`() {
+        val data = mapOf("save" to mapOf("en" to "Save"))
+
+        val statuses = viewModel.describeTree(viewModel.buildTree(data, Config()), listOf("en", "pt-BR"), Config()::parentLocale)
+
+        assertEquals(LocaleState.MISSING, statuses.getValue("save").localeStates["pt-BR"], "no pt to read from")
+        assertEquals(KeyStatus.MISSING, statuses.getValue("save").status)
     }
 
     @Test
