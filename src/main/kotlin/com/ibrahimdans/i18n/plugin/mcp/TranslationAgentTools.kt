@@ -165,9 +165,9 @@ class TranslationAgentTools(private val project: Project) {
         if (locale !in locales) throw Refused("Unknown locale '$locale'. Locales: ${locales.joinToString()}")
         val source = sourceOf(module, locales) ?: throw Refused("No translations found")
         if (locale == source) throw Refused("'$locale' is the reference locale: it is translated from, not into")
-        val keySeparator = Settings.getInstance(project).config().keySeparator
+        val config = Settings.getInstance(project).config()
         val translations = TranslationDataLoader.loadAllTranslations(project, module)
-        return Snapshot(source, translations, MachineFill.itemsOf(translations, source, locale, keySeparator))
+        return Snapshot(source, translations, MachineFill.itemsOf(translations, source, locale, config.keySeparator, config.parentLocale(locale)))
     }
 
     private fun sourceOf(module: ModuleConfig?, locales: List<String>): String? =

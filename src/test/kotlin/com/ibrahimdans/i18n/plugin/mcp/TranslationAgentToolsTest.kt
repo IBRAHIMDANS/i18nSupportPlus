@@ -89,6 +89,34 @@ class TranslationAgentToolsTest : PlatformBaseTest() {
         Assertions.assertEquals(5, first.total, "the total counts what the limit leaves out")
     }
 
+    /** As *Fill Missing Translations*: `en-GB` defers to `en` for the keys it has no entry for. */
+    @Test
+    fun `a regional locale is not offered the keys it inherits from its language`() = myFixture.runWithConfig(config) {
+        seed()
+        myFixture.addFileToProject("locales/en-GB/common.json", """{"title": "Title", "save": ""}""")
+
+        val page = tools().missing(null, "en-GB", 100)
+
+        Assertions.assertEquals(listOf("common:save"), page.items.map { it.key }, "a blank value is still filled")
+        val inherited = tools().write(null, "en-GB", mapOf("common:cancel" to "Cancel"), "codex")
+        Assertions.assertEquals(emptyList<String>(), inherited.written)
+        Assertions.assertEquals(TranslationAgentTools.NOT_MISSING, inherited.rejected["common:cancel"])
+    }
+
+    @Test
+    fun `with regional fallback off a regional locale is offered every key it lacks`() =
+        myFixture.runWithConfig(config.copy(regionalFallback = false)) {
+            seed()
+            myFixture.addFileToProject("locales/en-GB/common.json", """{"title": "Title"}""")
+
+            val page = tools().missing(null, "en-GB", 100)
+
+            Assertions.assertEquals(
+                listOf("common:cancel", "common:count", "common:item_one", "common:item_other", "common:save"),
+                page.items.map { it.key }
+            )
+        }
+
     @Test
     fun `an ICU plural is listed with the locale's branches and written only with them`() = myFixture.runWithConfig(config) {
         seed()

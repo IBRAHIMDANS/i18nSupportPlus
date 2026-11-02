@@ -53,6 +53,7 @@ import javax.swing.tree.DefaultTreeModel
 private const val MARK_COMPLETE = "✓"
 private const val MARK_EMPTY = "!"
 private const val MARK_MISSING = "✗"
+private const val MARK_INHERITED = "↑"
 
 // ── Status colors ─────────────────────────────────────────────────────────────
 // namedColor, never JBColor.RED / JBColor.ORANGE: those are fixed constants that no
@@ -61,6 +62,8 @@ private const val MARK_MISSING = "✗"
 private val COLOR_COMPLETE = JBColor.namedColor("Label.successForeground", JBColor(Color(0x1E8A3B), Color(0x5FAD65)))
 private val COLOR_EMPTY = JBColor.namedColor("Label.warningForeground", JBColor(Color(0xA1740B), Color(0xF2C55C)))
 private val COLOR_MISSING = JBColor.namedColor("Label.errorForeground", JBColor(Color(0xC7222D), Color(0xFF5261)))
+// The table writes an inherited value in its plain foreground, neither success nor error: same here.
+private val COLOR_INHERITED: Color = JBColor.foreground()
 
 // ICON_EMPTY and ICON_MISSING are shared with the statistics tab's list of untranslated
 // keys, so an empty value wears the same mark in both places.
@@ -94,6 +97,11 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
     private val treeModel = DefaultTreeModel(rootTreeNode)
     private val tree = Tree(treeModel)
     private var allLocales: List<String> = emptyList()
+
+    /** Shown only once a locale inherits a key: most projects have no regional locale and never need it. */
+    private val inheritedLegend =
+        legendItem(AllIcons.General.Information, PluginBundle.message("toolwindow.tree.legend.inherited", MARK_INHERITED), COLOR_INHERITED)
+            .apply { isVisible = false }
 
     /**
      * Status of every node, keyed by full path — computed once per reload by
@@ -146,8 +154,10 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
                 allLocales = TranslationDataLoader.discoverLocales(project, moduleConfig)
                 nodeStatuses = viewModel.describeTree(translationRoot, allLocales, Settings.getInstance(project).config()::parentLocale)
                 lastTranslationRoot = translationRoot
+                val inherits = nodeStatuses.values.any { LocaleState.INHERITED in it.localeStates.values }
 
                 ApplicationManager.getApplication().invokeLater {
+                    inheritedLegend.isVisible = inherits
                     rebuildTree(viewModel.filter(currentFilter, translationRoot))
                 }
             } finally {
@@ -330,6 +340,7 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
         panel.add(legendItem(ICON_COMPLETE, PluginBundle.message("toolwindow.tree.legend.complete", MARK_COMPLETE), COLOR_COMPLETE))
         panel.add(legendItem(ICON_EMPTY, PluginBundle.message("toolwindow.tree.legend.empty", MARK_EMPTY), COLOR_EMPTY))
         panel.add(legendItem(ICON_MISSING, PluginBundle.message("toolwindow.tree.legend.missing", MARK_MISSING), COLOR_MISSING))
+        panel.add(inheritedLegend)
         panel.add(caption(PluginBundle.message("toolwindow.tree.legend.completeness")))
         return panel
     }
@@ -457,11 +468,13 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
         LocaleState.PRESENT -> COLOR_COMPLETE
         LocaleState.EMPTY -> COLOR_EMPTY
         LocaleState.MISSING -> COLOR_MISSING
+        LocaleState.INHERITED -> COLOR_INHERITED
     }
 
     private fun mark(state: LocaleState): String = when (state) {
         LocaleState.PRESENT -> MARK_COMPLETE
         LocaleState.EMPTY -> MARK_EMPTY
         LocaleState.MISSING -> MARK_MISSING
+        LocaleState.INHERITED -> MARK_INHERITED
     }
 }

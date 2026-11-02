@@ -26,8 +26,10 @@ data class TranslationNode(
  *  - [PRESENT] the locale carries a non-blank value
  *  - [EMPTY]   the locale carries the key but its value is blank
  *  - [MISSING] the locale does not carry the key at all
+ *  - [INHERITED] the locale does not carry the key, and reads its language's non-blank value
+ *    (`en` for `en-GB`): present for the node's status and completeness, shown apart from its own values
  */
-enum class LocaleState { PRESENT, EMPTY, MISSING }
+enum class LocaleState { PRESENT, EMPTY, MISSING, INHERITED }
 
 /**
  * Aggregate status of a tree node — the worst [LocaleState] found on the node
@@ -193,7 +195,7 @@ class TreeViewModel {
      * Per-locale state of a leaf key, in the order of [allLocales].
      * Locales the key carries but that were not discovered in the project are appended,
      * so a stale value is never silently hidden. Returns an empty map for a branch node.
-     * A locale with no entry inheriting a non-blank value from its [parentLocale] reads as present.
+     * A locale with no entry inheriting a non-blank value from its [parentLocale] is [LocaleState.INHERITED].
      */
     fun localeStates(
         node: TranslationNode,
@@ -205,7 +207,7 @@ class TreeViewModel {
         return locales.associateWith { locale ->
             val value = node.values[locale]
             when {
-                value == null && inherits(node, locale, parentLocale) -> LocaleState.PRESENT
+                value == null && inherits(node, locale, parentLocale) -> LocaleState.INHERITED
                 value == null -> LocaleState.MISSING
                 value.isBlank() -> LocaleState.EMPTY
                 else -> LocaleState.PRESENT
