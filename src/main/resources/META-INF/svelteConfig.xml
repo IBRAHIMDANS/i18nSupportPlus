@@ -7,8 +7,7 @@
       JavaScript never ran here.
     -->
     <extensions defaultExtensionNs="com.intellij">
-        <!-- Folds what JsFoldingProvider knows (Paraglide's m.hello(), `t`/`$t` calls); svelte-i18n's
-             `$_('key')` is none of them yet. -->
+        <!-- Folds what JsFoldingProvider knows: svelte-i18n's `$_('key')`, Paraglide's m.hello(), `t`/`$t` calls. -->
         <lang.foldingBuilder language="SvelteHTML" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder"/>
         <codeInsight.declarativeInlayProvider language="SvelteHTML"
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"
