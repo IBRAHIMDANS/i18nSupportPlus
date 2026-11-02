@@ -15,6 +15,7 @@ import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModulePresets
 import com.intellij.codeInsight.highlighting.ReadWriteAccessDetector
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationHandler
+import com.intellij.lang.ecmascript6.psi.ES6ImportExportSpecifier
 import com.intellij.lang.ecmascript6.psi.ES6ImportSpecifier
 import com.intellij.lang.javascript.psi.JSArgumentList
 import com.intellij.lang.javascript.psi.JSCallExpression
@@ -65,6 +66,9 @@ import java.util.Collections
  * The namespace is the call's: the hook declaring `t`, or its `{ ns }` option.
  */
 internal object ConstantKeyResolver {
+
+    /** Barrels re-exporting barrels: deep enough for real projects, bounded against a cycle. */
+    private const val MAX_RE_EXPORTS = 8
 
     private val HOOK = ReactUseTranslationHookExtractor()
 
@@ -136,8 +140,22 @@ internal object ConstantKeyResolver {
      * and the property behind the implicit element TypeScript resolves `KEYS.save` to on an `as const` object.
      */
     private fun declarationOf(target: PsiElement): PsiElement? {
-        val declared = if (target is ES6ImportSpecifier) target.resolveOverAliases().firstNotNullOfOrNull { it.element } else target
+        val declared = if (target is ES6ImportSpecifier) importedDeclaration(target) else target
         return if (declared is JSImplicitElement) declared.navigationElement else declared
+    }
+
+    /**
+     * The declaration an import names, followed through re-exports (`export { KEYS } from './keys'`).
+     * `multiResolve` is the platform's reference API: `resolveOverAliases` is gone from the JavaScript plugin in 2026.1.
+     */
+    private fun importedDeclaration(specifier: ES6ImportExportSpecifier): PsiElement? {
+        var current: PsiElement = specifier
+        repeat(MAX_RE_EXPORTS) {
+            val next = (current as? ES6ImportExportSpecifier)?.multiResolve(false)?.firstNotNullOfOrNull { it.element }
+            if (next == null || next == current) return if (current == specifier) null else current
+            current = next
+        }
+        return current
     }
 
     /** The string literals [expression] is made of, or null when one of its branches is something else. */
