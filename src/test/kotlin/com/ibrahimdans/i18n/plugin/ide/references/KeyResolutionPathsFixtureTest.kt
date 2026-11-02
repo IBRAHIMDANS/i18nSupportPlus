@@ -191,13 +191,17 @@ class KeyResolutionPathsFixtureTest : PlatformBaseTest() {
     /**
      * What completion offers in an empty key of [code], written to [path] — the lookup, or the one key
      * the platform inserted by itself when it was the only one.
+     *
+     * Only the plugin's own entries, whose object is the key text: the JavaScript completion adds the
+     * strings other code of the project writes (`defaultOnly` of another fixture file), depending on
+     * what its index holds when the test runs, which made the namespace assertions order-dependent.
      */
     private fun offered(path: String, code: String): List<String> {
         val caret = code.indexOf(CARET)
         myFixture.configureFromExistingVirtualFile(myFixture.addFileToProject(path, code.replace(CARET, "")).virtualFile)
         myFixture.editor.caretModel.moveToOffset(caret)
         val lookup = myFixture.completeBasic()
-        if (lookup != null) return myFixture.lookupElementStrings.orEmpty()
+        if (lookup != null) return lookup.filter { it.`object` is String }.map { it.lookupString }
         val text = myFixture.editor.document.text
         return listOf(text.substring(caret, text.indexOf('\'', caret)))
     }
