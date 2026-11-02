@@ -30,6 +30,8 @@ Highlights i18n keys with visual feedback on resolution status:
 - Bidirectional: navigate from translation files back to code usage
 - A key held by a constant is followed one step: `t(SAVE_KEY)`, `t(KEYS.save)` (an object of a `const`, `as const` or not) and `t(Keys.Save)` (a string `enum` member) are annotated, hinted and Ctrl+clicked at the call, imported or not; each branch of `const titleKey = cond ? 'a' : 'b'` is annotated where it is written. The constant's literal is the usage *Find Usages* lists and Shift+F6 rewrites, once. A parameter, a reassigned variable or a value computed by a function stays unread
 
+![Ctrl+clicking a key opens its value in the translation file](img/marketplace/navigation.gif)
+
 ![Navigation](img/navigation.png)
 
 ## Code Completion
@@ -89,6 +91,8 @@ In a JSON or YAML translation file, the reference locale's value follows each va
 ## Code Folding
 
 Replaces i18n keys with their translation values inline for better readability. Toggle with **Show Translations Inline** (under *i18n* in the editor context menu, or *Find Action*; give it a shortcut in *Settings › Keymap*): the files already open fold or unfold at once.
+
+![Switching the preview locale to fr, then folding the keys into their values](img/marketplace/folding.gif)
 
 ![Folding before](img/folding-before.png)
 ![Folding after](img/folding-after.png)

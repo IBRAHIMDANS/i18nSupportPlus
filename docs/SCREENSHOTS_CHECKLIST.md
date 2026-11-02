@@ -63,8 +63,12 @@ Recette (ffmpeg `x11grab` + xdotool sous Xvfb, sandbox sans indices ni erreurs T
 | `extract-i18n-key.gif` | Alt+Entrée sur `<h3>Status</h3>`, *Extract i18n key*, clé `sections.status` et valeur `fr`, valeur affichée en ligne |
 | `key-completion.gif` | `t('auth:` puis `login.button.` : complétion des clés avec leur valeur |
 | `create-key-quickfix.gif` | clé inconnue `deposit-box:status.help`, *Create i18n key*, valeurs `en` / `fr`, clé résolue |
+| `navigation.gif` (2026-11-02, WebStorm 2026.2, `Dashboard.tsx`) | Ctrl+clic sur `stats.users.label`, `dashboard.json` s'ouvre sur la valeur, retour au code |
+| `folding.gif` (2026-11-02, WebStorm 2026.2, `Dashboard.tsx`) | *Preview Locale* passée de `en` à `fr`, puis *Show Translations Inline* : les clés repliées sur leurs valeurs françaises |
 
-À faire : *Show Translations Inline* (l'activation replie les éditeurs ouverts depuis #707).
+Pour `navigation.gif` et `folding.gif`, l'appel volontairement faux de `Dashboard.tsx` (`dashboardd:statss.users.count`)
+est remplacé par `stats.users.count` le temps de l'enregistrement, et *Partially translated key* est coupé (les clés
+`_one`/`_other` de `fr` le déclenchent).
 
 ## À vérifier
 - `sync-missing-keys.png` (mars) : refaire si le dialogue a changé d'aspect
