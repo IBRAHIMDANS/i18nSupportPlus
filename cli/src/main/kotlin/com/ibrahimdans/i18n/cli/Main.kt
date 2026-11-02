@@ -20,7 +20,8 @@ class CannotCheck(message: String) : Exception(message)
 
 /**
  * What the command line asks for. [project] is where `.idea/i18nSettings.xml` is looked for, and the
- * translation files too unless [locales] names their directory; [code] checks the keys the code uses.
+ * translation files too unless [locales] names their directory; [code] checks the keys the code uses,
+ * [values] the placeholders, tags and ICU of the translations.
  */
 data class Options(
     val project: Path,
@@ -29,6 +30,7 @@ data class Options(
     val format: Format,
     val maxProblems: Int,
     val code: Boolean = false,
+    val values: Boolean = true,
 ) {
     companion object {
         /** The options of [args], or null when they ask for the help. */
@@ -39,6 +41,7 @@ data class Options(
             var format = Format.TEXT
             var maxProblems = 0
             var code = false
+            var values = true
             val rest = args.iterator()
             fun value(option: String): String =
                 if (rest.hasNext()) rest.next() else throw UsageError("$option needs a value")
@@ -48,6 +51,7 @@ data class Options(
                     "--locales" -> locales = Path.of(value(arg))
                     "--reference" -> reference = value(arg)
                     "--code" -> code = true
+                    "--no-values" -> values = false
                     "--format" -> format = value(arg).let { name ->
                         Format.entries.firstOrNull { it.name.equals(name, ignoreCase = true) }
                             ?: throw UsageError("unknown format '$name', expected text, json or github")
@@ -63,7 +67,7 @@ data class Options(
                 }
             }
             if (code && locales != null) throw UsageError("--code checks a whole project: drop --locales")
-            return Options(project ?: Path.of("."), locales, reference, format, maxProblems, code)
+            return Options(project ?: Path.of("."), locales, reference, format, maxProblems, code, values)
         }
     }
 }
@@ -81,7 +85,7 @@ object I18nCheck {
     const val CANNOT_CHECK = 2
 
     val USAGE = """
-        Usage: i18n-check [project] [--locales <dir> | --code] [--reference <locale>] [--format text|json|github] [--max-problems N]
+        Usage: i18n-check [project] [--locales <dir> | --code] [--reference <locale>] [--format text|json|github] [--max-problems N] [--no-values]
 
           project              the project checked, where .idea/i18nSettings.xml is read from (default: the current directory)
           --locales <dir>      only check the directory holding <locale>.json|yml or <locale>/<namespace>.json|yml
@@ -91,6 +95,7 @@ object I18nCheck {
                                the report's format (default: text); github prints GitHub Actions annotations
                                and writes a table to ${'$'}GITHUB_STEP_SUMMARY
           --max-problems N     the problems allowed before exiting with 1 (default: 0)
+          --no-values          do not check the placeholders, tags and ICU syntax of the values
     """.trimIndent()
 
     /** [env] reads the environment: `GITHUB_STEP_SUMMARY`, for `--format github`. */
@@ -137,9 +142,11 @@ object I18nCheck {
             val wanted = options.reference ?: ReferenceLocale.wanted(scope.module, config)
             val reference = LocaleMatching.pick(wanted, labels)
                 ?: throw CannotCheck("reference locale $wanted not found among ${labels.joinToString()}" + scope.module?.let { " in module ${it.name}" }.orEmpty())
-            val result = TranslationCheck.run(scope.translations, reference, config::aliasedLocale)
+            val result = TranslationCheck.run(scope.translations, reference, config::aliasedLocale, options.values)
+            fun checked(locale: String) = locale == reference || !config.ignoresLocale(locale)
             result.copy(
-                locales = result.locales.filter { it.locale == reference || !config.ignoresLocale(it.locale) },
+                locales = result.locales.filter { checked(it.locale) },
+                values = result.values?.filterKeys(::checked),
                 module = scope.module?.name,
                 files = scope.files,
             )

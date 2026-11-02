@@ -67,12 +67,13 @@ class I18nCheckTest {
               "reference": "en",
               "problems": 3,
               "locales": [
-                {"locale": "en", "missing": [], "orphans": [], "empty": []},
+                {"locale": "en", "missing": [], "orphans": [], "empty": [], "values": []},
                 {
                   "locale": "fr",
                   "missing": ["common:actions.eddit", "common:actions.saxve"],
                   "orphans": [],
-                  "empty": ["navigation:breadrumb.home"]
+                  "empty": ["navigation:breadrumb.home"],
+                  "values": []
                 }
               ]
             }
@@ -336,15 +337,15 @@ class I18nCheckTest {
                 {
                   "module": "web", "reference": "en", "problems": 1,
                   "locales": [
-                    {"locale": "en", "missing": [], "orphans": [], "empty": []},
-                    {"locale": "fr", "missing": ["cart"], "orphans": [], "empty": []}
+                    {"locale": "en", "missing": [], "orphans": [], "empty": [], "values": []},
+                    {"locale": "fr", "missing": ["cart"], "orphans": [], "empty": [], "values": []}
                   ]
                 },
                 {
                   "module": "admin", "reference": "fr", "problems": 2,
                   "locales": [
-                    {"locale": "en", "missing": ["roles"], "orphans": ["logs"], "empty": []},
-                    {"locale": "fr", "missing": [], "orphans": [], "empty": []}
+                    {"locale": "en", "missing": ["roles"], "orphans": ["logs"], "empty": [], "values": []},
+                    {"locale": "fr", "missing": [], "orphans": [], "empty": [], "values": []}
                   ]
                 }
               ]
@@ -723,5 +724,98 @@ class I18nCheckTest {
         val run = check("--help")
         assertEquals(I18nCheck.OK, run.exit)
         assertTrue(run.out.startsWith("Usage: i18n-check"))
+    }
+
+    /** `en.json` and `fr.json` in [dir], holding [en] and [fr]; the check run on them with [args]. */
+    private fun checkValues(dir: Path, en: String, fr: String, vararg args: String): Run {
+        Files.writeString(dir.resolve("en.json"), en)
+        Files.writeString(dir.resolve("fr.json"), fr)
+        return check("--locales", dir.toString(), *args)
+    }
+
+    @Test
+    fun `values - a placeholder missing or added is a problem`(@TempDir dir: Path) {
+        val run = checkValues(
+            dir,
+            """{ "a": "Hi {name} {age}", "b": "Hi {name}" }""",
+            """{ "a": "Salut {name}", "b": "Salut {name} {city}" }""",
+        )
+        assertEquals(I18nCheck.PROBLEMS, run.exit)
+        assertTrue("fr: 2 bad values" in run.out, run.out)
+        assertTrue("  value    a  Placeholder '{age}' of the reference locale is missing" in run.out, run.out)
+        assertTrue("  value    b  Placeholder '{city}' is not in the reference locale" in run.out, run.out)
+    }
+
+    @Test
+    fun `values - an unbalanced brace is one problem`(@TempDir dir: Path) {
+        val run = checkValues(dir, """{ "a": "Hi {name}" }""", """{ "a": "Salut {name" }""")
+        assertTrue("  value    a  Unbalanced braces" in run.out, run.out)
+        assertTrue("1 problem found" in run.out, run.out)
+    }
+
+    @Test
+    fun `values - tags that differ from the reference`(@TempDir dir: Path) {
+        val run = checkValues(dir, """{ "a": "See <1>terms</1>" }""", """{ "a": "Voir <1>les CGU <b>ici</b>" }""")
+        assertTrue("Tag '</1>' of the reference locale is missing" in run.out, run.out)
+        assertTrue("Tag '</b>' is not in the reference locale" in run.out, run.out)
+    }
+
+    @Test
+    fun `values - incomplete ICU, a language with no one form left alone`(@TempDir dir: Path) {
+        val noOther = "{n, plural, one {# item}}"
+        val onlyOther = "{n, plural, other {# item}}"
+        Files.writeString(dir.resolve("ja.json"), """{ "b": "$onlyOther" }""")
+        val run = checkValues(
+            dir,
+            """{ "a": "$noOther", "b": "{n, plural, one {x} other {y}}" }""",
+            """{ "a": "$noOther", "b": "$onlyOther" }""",
+        )
+        assertTrue("  value    a  ICU 'plural' block without the required 'other' form" in run.out, run.out)
+        assertTrue("  value    b  ICU 'plural' block without a 'one' or 'zero' form" in run.out, run.out)
+        assertTrue(run.out.lines().none { it.startsWith("ja:") && "bad value" in it }, run.out)
+    }
+
+    @Test
+    fun `values - a multi-line ICU message is balanced`(@TempDir dir: Path) {
+        val message = "{n, plural,\\n one {x}\\n other {y}\\n}"
+        val run = checkValues(dir, """{ "a": "$message" }""", """{ "a": "$message" }""")
+        assertEquals(I18nCheck.OK, run.exit, run.out)
+    }
+
+    @Test
+    fun `values - a plural form may spell the count out`(@TempDir dir: Path) {
+        val run = checkValues(
+            dir,
+            """{ "item_one": "One item", "item_other": "{{count}} items" }""",
+            """{ "item_one": "{{count}} objet", "item_other": "{{count}} objets" }""",
+        )
+        assertEquals(I18nCheck.OK, run.exit, run.out)
+    }
+
+    @Test
+    fun `values - JSON lists them per locale`(@TempDir dir: Path) {
+        val run = checkValues(dir, """{ "a": "Hi {name} {age}" }""", """{ "a": "Salut {name}" }""", "--format", "json")
+        val root = JsonParser.parseString(run.out).asJsonObject
+        assertEquals(1, root["problems"].asInt)
+        val fr = root["locales"].asJsonArray.map { it.asJsonObject }.single { it["locale"].asString == "fr" }
+        val value = fr["values"].asJsonArray.single().asJsonObject
+        assertEquals("a", value["key"].asString)
+        assertEquals("Placeholder '{age}' of the reference locale is missing", value["message"].asString)
+    }
+
+    @Test
+    fun `values - --no-values leaves them out of the report and of the exit code`(@TempDir dir: Path) {
+        val run = checkValues(dir, """{ "a": "Hi {name} {age}" }""", """{ "a": "Salut {name}" }""", "--no-values")
+        assertEquals(I18nCheck.OK, run.exit, run.out)
+        assertTrue("Placeholder" !in run.out, run.out)
+    }
+
+    @Test
+    fun `values - an ignored locale is left out`(@TempDir dir: Path) {
+        Files.createDirectories(dir.resolve("locales"))
+        Files.writeString(dir.resolve("i18n-check.json"), """{ "ignoredLocales": "fr" }""")
+        Files.writeString(dir.resolve("locales/en.json"), """{ "a": "Hi {name} {age}" }""")
+        Files.writeString(dir.resolve("locales/fr.json"), """{ "a": "Salut {name}" }""")
+        assertEquals(I18nCheck.OK, check(dir.toString()).exit)
     }
 }

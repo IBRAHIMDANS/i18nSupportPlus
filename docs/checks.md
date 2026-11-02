@@ -41,7 +41,7 @@ The inspections also run without an editor, in [Qodana](https://www.jetbrains.co
 
 ```bash
 unzip i18n-check-1.16.0.zip
-i18n-check-1.16.0/bin/i18n-check [project] [--locales <dir> | --code] [--reference <locale>] [--format text|json|github] [--max-problems N]
+i18n-check-1.16.0/bin/i18n-check [project] [--locales <dir> | --code] [--reference <locale>] [--format text|json|github] [--max-problems N] [--no-values]
 ```
 
 `./gradlew :cli:installDist` builds it from this repository instead, in `cli/build/install/i18n-check/`.
@@ -70,6 +70,7 @@ It runs the plugin's own checks in CI, with the plugin's settings, whatever the 
   Settings: those of [Share the configuration with your team](configuration.md#share-the-configuration-with-your-team), which the IDE reads from the same file, and `previewLocale`; per module the same fields, `enabled` (`false` puts the module aside: neither checked nor reported) included.
 - `--locales <dir>` checks only that directory: a file per locale (`en.json`, `fr.yml`) or a folder per locale with a file per namespace (`en/common.json`); other files are left alone.
 - For each locale, it reports the keys **missing** compared to the reference, the **orphan** keys the reference does not hold, and the **empty** values. Plural keys (`item_one`, `item_other`) are checked against the forms each language needs: `ja` only `item_other`, `ru` also `item_few` and `item_many`.
+- It also checks the **values**, as the inspections do: a placeholder of the reference missing from a translation or not in the reference, an unbalanced brace, tags that differ from the reference's, and an ICU `plural` or `select` block lacking a form. A translation with no placeholder at all is left alone, and `{count}` may differ in a plural form. `--no-values` turns this off. The length, the final punctuation, a value copied from the reference, the naming convention and the other inspections stay in the IDE.
 - `--code` also reads the JavaScript, TypeScript, Vue and Svelte files — and the `.html` templates of an Angular project, one whose `package.json` requires `@angular/core`, and the `.php` files and Blade views of a Laravel project, one whose `composer.json` requires `laravel/framework` — and reports the **unused** keys of the reference locale — a key a template literal may build, such as `` t(`status.${kind}`) `` for `status.*`, is not one — and the **unknown** keys, called by the code but absent from the reference locale, with their file and line. It reads:
   - **i18next / react-i18next**: `t('key')`, `i18n.t`, `useTranslation(ns, { keyPrefix })`, `<Trans i18nKey>`;
   - **next-intl**: the `t` of `useTranslations('Ns')` and `await getTranslations('Ns' | { namespace })`, `Ns` prefixing its keys, and `t.rich`, `t.markup`, `t.raw`, `t.has` (a key `t.has` asks for is never unknown);
@@ -83,17 +84,23 @@ It runs the plugin's own checks in CI, with the plugin's settings, whatever the 
 
   A module whose `preset` names one of these frameworks is read with its calls only, as in the IDE; without a preset all are read, and another framework's preset is read as i18next. The frameworks are described once, as data shared with the IDE (`FrameworkPresets`): the same names, descriptors and components are read on both sides. Astro components are not read yet.
 - A key the code passes through a constant (`t(KEYS.save)`, `t(SAVE_KEY)`), which the IDE follows, is not read by `--code`, which reports such a key as unused.
-- Exit code: `0` when the problems, unused and unknown keys included, do not exceed `--max-problems` (0 by default), `1` when they do, `2` on a wrong command line, a file that does not parse, an unknown reference locale or no translation file.
+- Exit code: `0` when the problems, bad values, unused and unknown keys included, do not exceed `--max-problems` (0 by default), `1` when they do, `2` on a wrong command line, a file that does not parse, an unknown reference locale or no translation file.
 
-`--format json` prints (`unused` and `unknown` with `--code` only):
+`--format json` prints (`unused` and `unknown` with `--code` only, `values` unless `--no-values` is given):
 
 ```json
 {
   "reference": "en",
-  "problems": 5,
+  "problems": 6,
   "locales": [
-    { "locale": "en", "missing": [], "orphans": [], "empty": [] },
-    { "locale": "fr", "missing": ["common:actions.edit"], "orphans": ["common:actions.old"], "empty": ["navigation:menu.home"] }
+    { "locale": "en", "missing": [], "orphans": [], "empty": [], "values": [] },
+    {
+      "locale": "fr",
+      "missing": ["common:actions.edit"],
+      "orphans": ["common:actions.old"],
+      "empty": ["navigation:menu.home"],
+      "values": [{ "key": "common:greeting", "message": "Placeholder '{name}' of the reference locale is missing" }]
+    }
   ],
   "unused": ["common:status.loading"],
   "unknown": [{ "key": "dashboard:stats.user", "file": "src/components/Dashboard.tsx", "line": 27 }]
@@ -125,9 +132,9 @@ Unless `args` sets its own `--format`, the action runs `--format github`: each p
 ::error file=public/locales/en/common.json,line=1,title=Unused key::No code uses common:status.loading
 ```
 
-- An unknown key is annotated on the line calling it. A missing, orphan or empty key is annotated on line 1 of the locale's file holding its namespace, an unused key on the reference locale's file; a locale with no file for that namespace gets an annotation on the run only.
+- An unknown key is annotated on the line calling it. A missing, orphan or empty key or a bad value is annotated on line 1 of the locale's file holding its namespace, an unused key on the reference locale's file; a locale with no file for that namespace gets an annotation on the run only.
 - They are `::error` while the problems exceed `--max-problems`, `::warning` when the check passes. GitHub shows a limited number of annotations per step: the full list stays in the log.
-- The run's summary page gets a table of each locale's missing, orphan and empty keys (`$GITHUB_STEP_SUMMARY`).
+- The run's summary page gets a table of each locale's missing, orphan and empty keys and bad values (`$GITHUB_STEP_SUMMARY`).
 - Paths are given from the directory `i18n-check` runs in, the workspace in GitHub Actions.
 
 ### Other CI systems

@@ -14,6 +14,7 @@ data class LocaleFile(val locale: String, val nsPrefix: String, val path: Path)
  * - an unknown key on the line of the code calling it;
  * - a missing, orphan or empty key on line 1 of the locale's file holding its namespace — the readers
  *   keep no line — or with no file when the locale has none for it;
+ * - a bad value on line 1 of the locale's file holding its key, likewise;
  * - an unused key on line 1 of the reference locale's file.
  *
  * The commands are `::error` while the problems exceed `--max-problems`, `::warning` when the check passes.
@@ -42,6 +43,9 @@ object GithubReport {
                     }
                     locale.empty.forEach {
                         add(command(level, fileOf(it), 1, "Empty translation", "$it is empty in ${locale.locale}"))
+                    }
+                    module.values?.get(locale.locale).orEmpty().forEach {
+                        add(command(level, fileOf(it.key), 1, "Bad translation value", "${it.key} in ${locale.locale}: ${it.message}"))
                     }
                 }
                 module.unused.orEmpty().forEach {
@@ -73,11 +77,13 @@ object GithubReport {
                 appendLine("#### ${module.module?.let { "Module $it" } ?: "Outside the modules"}")
                 appendLine()
             }
-            appendLine("| Locale | Missing | Orphans | Empty |")
-            appendLine("| --- | ---: | ---: | ---: |")
+            val values = module.values
+            appendLine("| Locale | Missing | Orphans | Empty |" + if (values != null) " Bad values |" else "")
+            appendLine("| --- | ---: | ---: | ---: |" + if (values != null) " ---: |" else "")
             for (locale in module.locales) {
                 val name = if (locale.locale == module.reference) "${locale.locale} (reference)" else locale.locale
-                appendLine("| $name | ${locale.missing.size} | ${locale.orphans.size} | ${locale.empty.size} |")
+                val bad = if (values != null) " ${values[locale.locale].orEmpty().size} |" else ""
+                appendLine("| $name | ${locale.missing.size} | ${locale.orphans.size} | ${locale.empty.size} |$bad")
             }
             appendLine()
             module.unused?.let { appendLine("Unused keys: ${it.size}"); appendLine() }

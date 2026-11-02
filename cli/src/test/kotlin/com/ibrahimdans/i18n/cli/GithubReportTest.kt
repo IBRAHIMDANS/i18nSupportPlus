@@ -98,10 +98,10 @@ class GithubReportTest {
             earlier step
             ### i18n-check
 
-            | Locale | Missing | Orphans | Empty |
-            | --- | ---: | ---: | ---: |
-            | en (reference) | 0 | 0 | 0 |
-            | fr | 1 | 1 | 0 |
+            | Locale | Missing | Orphans | Empty | Bad values |
+            | --- | ---: | ---: | ---: | ---: |
+            | en (reference) | 0 | 0 | 0 | 0 |
+            | fr | 1 | 1 | 0 | 0 |
 
             Unused keys: 0
 
@@ -125,5 +125,21 @@ class GithubReportTest {
     fun `escaping - as @actions core escapes a command's message and properties`() {
         assertEquals("50%25 done%0Anext", GithubReport.escapeData("50% done\nnext"))
         assertEquals("a%3Ab%2Cc%0D", GithubReport.escapeProperty("a:b,c\r"))
+    }
+
+    @Test
+    fun `a bad value is annotated on the locale's file and counted in the summary`(@TempDir dir: Path) {
+        Files.writeString(dir.resolve("en.json"), """{ "a": "Hi {name} {age}" }""")
+        Files.writeString(dir.resolve("fr.json"), """{ "a": "Salut {name}" }""")
+        val summary = dir.resolve("summary.md")
+
+        val run = check("--locales", dir.toString(), "--format", "github", env = mapOf(GithubReport.STEP_SUMMARY to summary.toString()))
+
+        assertEquals(
+            "::error file=${fromWorkspace(dir.resolve("fr.json"))},line=1,title=Bad translation value::" +
+                "a in fr: Placeholder '{age}' of the reference locale is missing",
+            run.commands.single(),
+        )
+        assertTrue("| fr | 0 | 0 | 0 | 1 |" in Files.readString(summary))
     }
 }
