@@ -19,12 +19,14 @@ import java.nio.file.Path
 /**
  * The translations [module] holds, key -> locale -> value, what [TranslationCheck] compares, and the
  * [files] they were read from. [module] is null for the whole project, or for the files outside every
- * module of a project declaring several.
+ * module of a project declaring several. [codeUnread] are the keys only files of [CheckFormats.CODE_UNREAD]
+ * hold: no code `--code` reads can use them.
  */
 data class Scope(
     val module: ModuleConfig?,
     val translations: Map<String, Map<String, String>>,
     val files: List<LocaleFile> = emptyList(),
+    val codeUnread: Set<String> = emptySet(),
 )
 
 /**
@@ -71,6 +73,8 @@ object ProjectSources {
         val defaultNamespaces = config.defaultNamespaces()
         val result = mutableMapOf<String, MutableMap<String, String>>()
         val files = mutableListOf<LocaleFile>()
+        val readKeys = mutableSetOf<String>()
+        val unreadKeys = mutableSetOf<String>()
         val root = project.toAbsolutePath().normalize()
         for (source in sources) {
             val namespace = source.namespace
@@ -80,10 +84,14 @@ object ProjectSources {
                 namespace !in defaultNamespaces -> namespace + KeySpelling.NAMESPACE_SEPARATOR
                 else -> scopes[source.displayPath]?.let { it + config.keySeparator }.orEmpty()
             }
-            TranslationLeaves.collect(config, source.tree!!, nsPrefix, source.localeLabel(), ParsedLeaves, result)
+            val own = mutableMapOf<String, MutableMap<String, String>>()
+            TranslationLeaves.collect(config, source.tree!!, nsPrefix, source.localeLabel(), ParsedLeaves, own)
+            // The last file read wins, as when collecting into [result] directly.
+            own.forEach { (key, values) -> result.getOrPut(key) { mutableMapOf() }.putAll(values) }
+            (if (source.localization in CheckFormats.CODE_UNREAD) unreadKeys else readKeys) += own.keys
             files += LocaleFile(source.localeLabel(), nsPrefix, root.resolve(source.displayPath.trim('/')))
         }
-        return Scope(module, result, files)
+        return Scope(module, result, files, unreadKeys - readKeys)
     }
 
     /**

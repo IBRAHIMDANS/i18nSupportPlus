@@ -159,8 +159,12 @@ object I18nCheck {
         val referenceKeys = scopes.zip(results) { scope, result ->
             scope.module to scope.translations.filterValues { result.reference in it }.keys
         }
+        // The keys of a format whose code is not read (ARB, `.properties`) are never unused, as the IDE leaves them out.
         return ProjectResult(
-            results.zip(referenceKeys) { result, (module, keys) -> result.copy(unused = code.unused(keys, module)) },
+            results.mapIndexed { i, result ->
+                val (module, keys) = referenceKeys[i]
+                result.copy(unused = code.unused(keys - scopes[i].codeUnread, module))
+            },
             code.unknown(referenceKeys),
         )
     }
