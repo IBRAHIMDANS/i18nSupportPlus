@@ -52,14 +52,15 @@ interface SourceWorkspace<N, F : TranslationFormat> : Workspace {
  *   locale and namespace the template states ([ModuleSources]).
  * - **Root**: with a translations root set, only files under it; otherwise a file whose folder or
  *   name looks like a locale ([isIncluded]).
- * - **Namespaces**: a lookup by namespace takes the files named after it, falling back to the
- *   default namespaces, then to every source for a key naming none ([sources] with names).
+ * - **Namespaces**: a lookup by namespace takes the files named after it and those a module template
+ *   states it for ([namespaceSources]), falling back to the default namespaces, then to every source
+ *   for a key naming none ([sources] with names).
  * - **Technologies**: the sources a framework's configuration declares (`findSourcesByConfiguration`)
  *   come with the rest, and a file they state a locale or a namespace for is listed once, as they state it.
  *
  * Nothing is cached: the plugin's `LocalizationSourceService` caches the parts — [scannedSources],
- * [namedSources], [configuredSources] — and puts them together with [compose], [select] and
- * [namespaceFiles].
+ * [namedSources], [configuredSources] — and puts them together with [namespaceSources], [compose],
+ * [select] and [namespaceFiles].
  *
  * Outside the IDE:
  * ```
@@ -87,6 +88,9 @@ class SourceDiscovery<N, F : TranslationFormat>(
     /** [Config.localeAliasMap], read once per discovery for the same reason. */
     private val aliases: Map<String, String> = config.localeAliasMap()
 
+    /** Whether an active module has a template: only then may the scan state a namespace a file is not named after. */
+    private val templated: Boolean = ModuleSources.hasTemplates(ModuleSources.active(config.modules))
+
     /** Every translation source of the workspace: what [scannedSources] finds, with the [configuredSources]. */
     fun sources(): List<TranslationSource<N, F>> = compose(scannedSources(), configuredSources())
 
@@ -95,11 +99,36 @@ class SourceDiscovery<N, F : TranslationFormat>(
      * [TranslationSource.displayPath] is project-relative for a file under [Workspace.basePath].
      */
     fun sources(fileNames: List<String>): List<TranslationSource<N, F>> =
-        select(fileNames, ::namedSources, configuredSources(), ::sources)
+        select(fileNames, ::namespaceSources, configuredSources(), ::sources)
 
-    /** The files named after one of [fileNames], whatever the configuration says — see [namespaceFiles]. */
+    /** The files of one of [fileNames], whatever the configuration says — see [namespaceFiles]. */
     fun namespaceFiles(fileNames: List<String>): List<TranslationSource<N, F>> =
-        if (fileNames.isEmpty()) emptyList() else namespaceFiles(fileNames, namedSources(fileNames), configuredSources())
+        if (fileNames.isEmpty()) emptyList() else namespaceFiles(fileNames, namespaceSources(fileNames), configuredSources())
+
+    /** [namedSources], with the files a module template designates for one of [fileNames] — see the overload. */
+    fun namespaceSources(fileNames: List<String>): List<TranslationSource<N, F>> =
+        namespaceSources(fileNames, namedSources(fileNames), ::scannedSources)
+
+    /**
+     * The files of the namespaces [fileNames]: those [named] after one of them, with the [scanned]
+     * ones a module template states one of them for although the file is named otherwise.
+     *
+     * With `locales/{ns}/{lang}.json`, `locales/common/en.json` is the `common` namespace's file, but
+     * its name is `en.json`: looked up by name alone, `t('common:save')` found no source, and a key
+     * naming no namespace fell back to every namespace at once. [scanned] is only asked for when an
+     * active module has a template — callers pass their cached scan — and [named] itself is returned
+     * when it adds nothing, which callers caching it compare by identity.
+     */
+    fun namespaceSources(
+        fileNames: List<String>,
+        named: List<TranslationSource<N, F>>,
+        scanned: () -> List<TranslationSource<N, F>>,
+    ): List<TranslationSource<N, F>> {
+        if (!templated || fileNames.isEmpty()) return named
+        val listed = named.mapTo(HashSet()) { it.displayPath }
+        val designated = scanned().filter { it.namespace != null && it.namespace in fileNames && it.displayPath !in listed }
+        return if (designated.isEmpty()) named else named + designated
+    }
 
     /**
      * Every file of a format that is a source by itself: one a module template designates, or one the

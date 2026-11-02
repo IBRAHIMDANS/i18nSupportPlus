@@ -18,7 +18,9 @@ import com.ibrahimdans.i18n.plugin.rules.RuleDecision
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.lang.javascript.patterns.JSPatterns
 import com.intellij.lang.javascript.psi.ecma6.JSComputedPropertyNameOwner
+import com.intellij.lang.javascript.psi.ecma6.JSStringTemplateExpression
 import com.intellij.lang.javascript.psi.JSArgumentList
+import com.intellij.lang.javascript.psi.JSArrayLiteralExpression
 import com.intellij.lang.javascript.psi.JSConditionalExpression
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.lang.javascript.psi.JSProperty
@@ -111,16 +113,32 @@ internal class JsReferenceAssistant: ReferenceAssistant {
                 return arguments.arguments.firstOrNull() === element && jsRuleDecision(element) == RuleDecision.INCLUDE
             }
 
+            /**
+             * A key of `t(['specific', 'generic'])`: i18next shows the first one that exists, so each is a
+             * key, matched by the same calls as a key passed directly — a template too, whose dynamic head
+             * reaches its keys as `t(`errors.${code}`)` does. Without it, `errors.*` in
+             * `t([`errors.${code}`, 'errors.unknown'])` had no usage and was reported unused.
+             */
+            private fun isKeyOfArrayArgument(element: PsiElement): Boolean {
+                val isKey = element is JSStringTemplateExpression || (element is JSLiteralExpression && element.isQuotedLiteral)
+                if (!isKey) return false
+                val array = element.parent as? JSArrayLiteralExpression ?: return false
+                val isFirstArgument = (array.parent as? JSArgumentList)?.arguments?.firstOrNull() === array
+                if (!isFirstArgument) return false
+                val matched = ternaryArg.accepts(array) || jsRuleDecision(element) == RuleDecision.INCLUDE
+                return matched && isDirectOrConfiguredCall(element)
+            }
+
             override fun accepts(o: Any?): Boolean {
                 return JSPatterns.jsLiteralExpression().accepts(o) && isAlias(o as JSLiteralExpression)
                     || (v.accepts(o) && (o !is PsiElement || isDirectOrConfiguredCall(o)))
-                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o) || isReactIntlId(o) || isNextIntlMethodKey(o) || isSvelteI18nKey(o) || isTranslocoKey(o) || isConstantKey(o)))
+                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isKeyOfArrayArgument(o) || isRuleIncludedArgument(o) || isReactIntlId(o) || isNextIntlMethodKey(o) || isSvelteI18nKey(o) || isTranslocoKey(o) || isConstantKey(o)))
             }
 
             override fun accepts(o: Any?, context: ProcessingContext?): Boolean {
                 return JSPatterns.jsLiteralExpression().accepts(o) && isAlias(o as JSLiteralExpression)
                     || (v.accepts(o, context) && (o !is PsiElement || isDirectOrConfiguredCall(o)))
-                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o) || isReactIntlId(o) || isNextIntlMethodKey(o) || isSvelteI18nKey(o) || isTranslocoKey(o) || isConstantKey(o)))
+                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isKeyOfArrayArgument(o) || isRuleIncludedArgument(o) || isReactIntlId(o) || isNextIntlMethodKey(o) || isSvelteI18nKey(o) || isTranslocoKey(o) || isConstantKey(o)))
             }
 
             override fun getCondition(): ElementPatternCondition<PsiElement>? {

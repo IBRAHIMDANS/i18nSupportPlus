@@ -147,6 +147,64 @@ class RenameNamespaceProcessorTest : PlatformBaseTest() {
         Assertions.assertTrue(controller.contains("__('messagesx.welcome')"), controller)
     }
 
+    /** A Blade view names its keys in PHP fragments: `@lang(…)` and `{{ __(…) }}` are rewritten like a controller's. */
+    @Test
+    fun aBladeViewIsRewrittenWithTheLaravelFile() {
+        val messages = "<?php\n\nreturn ['welcome' => 'Welcome'];\n"
+        addFileToProject("composer.json", """{"require": {"php": "^8.2", "laravel/framework": "^11.0"}}""")
+        addFileToProject("lang/en/messages.php", messages)
+        addFileToProject("lang/fr/messages.php", messages)
+        addFileToProject(
+            "resources/views/home.blade.php",
+            "<h1>@lang('messages.welcome')</h1>\n<p>{{ __('messages.welcome') }}</p>\n<p>{{ __('auth.messages') }}</p>\n"
+        )
+
+        myFixture.renameElement(psiFile("lang/en/messages.php"), "notices.php")
+
+        val view = text("resources/views/home.blade.php")!!
+        Assertions.assertTrue(view.contains("@lang('notices.welcome')"), view)
+        Assertions.assertTrue(view.contains("{{ __('notices.welcome') }}"), view)
+        Assertions.assertTrue(view.contains("{{ __('auth.messages') }}"), view)
+    }
+
+    /** `i18n-check.json` sets the default namespace: the stored settings cannot change it, the file is rewritten. */
+    @Test
+    fun theConfigFileNamingTheNamespaceIsRewritten() {
+        addFileToProject("i18n-check.json", """{ "defaultNs": "common", "fallbackNs": "other;common" }""")
+        addLocales()
+        addFileToProject("src/Prefix.js", "export const a = (t) => t('common:save');")
+        try {
+            Settings.getInstance(project).configFileChanged()
+
+            myFixture.renameElement(psiFile("locales/en/common.json"), "shared.json")
+
+            // The platform may reformat the edited JSON: compare it without its blanks.
+            Assertions.assertEquals("""{"defaultNs":"shared","fallbackNs":"other;shared"}""", text("i18n-check.json")?.filterNot { it.isWhitespace() })
+            val config = Settings.getInstance(project).config()
+            Assertions.assertEquals("shared", config.defaultNs, "the settings read the rewritten file")
+            Assertions.assertEquals("other;shared", config.fallbackNs)
+        } finally {
+            com.intellij.openapi.application.WriteAction.runAndWait<RuntimeException> { myFixture.tempDirFixture.getFile("i18n-check.json")?.delete(this) }
+            Settings.getInstance(project).configFileChanged()
+        }
+    }
+
+    /** i18next nests a key in a value, `$t(common:save)`: the namespace written there is renamed too. */
+    @Test
+    fun aNestedKeyInAValueIsRewritten() {
+        addFileToProject("locales/en/common.json", """{"save": "Save", "both": "${'$'}t(common:save) and ${'$'}t(common:save, { \"count\": 2 })"}""")
+        addFileToProject("locales/fr/common.json", """{"save": "Enregistrer"}""")
+        addFileToProject("locales/en/other.json", """{"x": "${'$'}t(common:save) now", "y": "${'$'}t(commonly:save)", "z": "common:save"}""")
+
+        myFixture.renameElement(psiFile("locales/en/common.json"), "shared.json")
+
+        Assertions.assertEquals(
+            """{"save": "Save", "both": "${'$'}t(shared:save) and ${'$'}t(shared:save, { \"count\": 2 })"}""",
+            text("locales/en/shared.json")
+        )
+        Assertions.assertEquals("""{"x": "${'$'}t(shared:save) now", "y": "${'$'}t(commonly:save)", "z": "common:save"}""", text("locales/en/other.json"))
+    }
+
     @Test
     fun theOptionUntickedRenamesTheFileAlone() {
         addLocales()

@@ -66,7 +66,8 @@ internal object ParaglideCall {
         document.insertString(offset, statement)
     }
 
-    private fun specifier(file: PsiFile): String {
+    /** The specifier [addImport] writes; the Astro extraction writes it in a component's frontmatter. */
+    fun specifier(file: PsiFile): String {
         val project = file.project
         val scope = GlobalSearchScope.projectScope(project)
         val written = mutableListOf<String>()

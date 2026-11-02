@@ -5,7 +5,7 @@ import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.extensions.lang.js.JsLang
 import com.ibrahimdans.i18n.extensions.lang.js.JsxLang
 import com.ibrahimdans.i18n.extract.CodeExtractors
-import com.ibrahimdans.i18n.extract.i18next.findKeys
+import com.ibrahimdans.i18n.extract.ConstantKeys
 import com.ibrahimdans.i18n.extract.treesitter.TreeSitterCodeNode
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.parser.ExpressionNormalizer
@@ -38,8 +38,10 @@ class ExtractorParityTest : PlatformBaseTest() {
     private fun lineOf(text: String, offset: Int) = text.substring(0, offset).count { it == '\n' } + 1
 
     /** What the annotator annotates in [path]: each element the language reads a key from, its leaf token left out as the annotator leaves it. */
-    private fun psiKeys(path: String): List<String> {
-        val text = root.resolve(path).readText()
+    private fun psiKeys(path: String): List<String> = psiKeysOf(path, root.resolve(path).readText())
+
+    /** [psiKeys] of [text], read as a file named like [path]. */
+    private fun psiKeysOf(path: String, text: String): List<String> {
         val lang: Lang = if (path.endsWith(".tsx")) JsxLang() else JsLang()
         val names = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
         myFixture.configureByText(File(path).name, text)
@@ -60,10 +62,12 @@ class ExtractorParityTest : PlatformBaseTest() {
     }
 
     /** What `i18n-check --code` reads in [path], outside any module: every framework's extractors. */
-    private fun treeSitterKeys(path: String): List<String> {
-        val text = root.resolve(path).readText()
+    private fun treeSitterKeys(path: String): List<String> = treeSitterKeysOf(path, root.resolve(path).readText())
+
+    /** [treeSitterKeys] of [text], read as a file named like [path], the keys passed through a constant included. */
+    private fun treeSitterKeysOf(path: String, text: String): List<String> {
         val tree = TreeSitterCodeNode.parseTsx(text, path)
-        return findKeys(tree, CodeExtractors.forPreset(null)).map { (node, key) -> describe(lineOf(text, node.span.start), key) }.distinct()
+        return ConstantKeys.findKeys(text, tree, CodeExtractors.forPreset(null)).map { (node, key) -> describe(lineOf(text, node.span.start), key) }.distinct()
     }
 
     private fun assertParity(vararg paths: String) {
@@ -95,6 +99,22 @@ class ExtractorParityTest : PlatformBaseTest() {
             assertEquals(emptyList<String>(), psiKeys(path), path)
             assertEquals(emptyList<String>(), treeSitterKeys(path), path)
         }
+    }
+
+    @Test
+    fun testKeysKeptInConstants() {
+        val text = """
+            const SAVE = 'actions.save';
+            const KEYS = { page: { home: 'page.home' } } as const;
+            enum Titles { Cart = 'page.cart' }
+            export function Page() {
+              const { t } = useTranslation('common');
+              return [t(SAVE), t(KEYS.page.home), t(Titles.Cart)];
+            }
+        """.trimIndent()
+        val psi = psiKeysOf("Page.tsx", text)
+        assertEquals(3, psi.size, psi.toString())
+        assertEquals(psi, treeSitterKeysOf("Page.tsx", text))
     }
 
     @Test

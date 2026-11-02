@@ -1,7 +1,7 @@
 package com.ibrahimdans.i18n.index
 
+import com.ibrahimdans.i18n.extract.ConstantKeys
 import com.ibrahimdans.i18n.extract.i18next.I18NEXT_FUNCTIONS
-import com.ibrahimdans.i18n.extract.i18next.findKeys
 import com.ibrahimdans.i18n.extract.i18next.i18nextExtractors
 import com.ibrahimdans.i18n.extract.treesitter.TreeSitterCodeNode
 import com.ibrahimdans.i18n.plugin.KeyUsage
@@ -25,20 +25,24 @@ import com.ibrahimdans.i18n.plugin.utils.unQuote
  * only that file's entries are rebuilt. Answers what the plugin's `IdeKeyUsageIndex` answers from the
  * IDE's word index: a call site counts for its key and for every key above it (`menu` for
  * `t('menu.home')`); one writing no namespace and under no hook counts in every namespace; one under a
- * hook counts in the hook's namespaces and the [fallbackNamespaces]. Translation values linking to a
- * key (vue-i18n's `@:key`) are not read: no extractor of this module reads translation files.
+ * hook counts in the hook's namespaces and the [fallbackNamespaces]. A call passing a constant,
+ * `t(KEYS.save)`, counts for the keys the constant holds, at its argument ([ConstantKeys]). Translation
+ * values linking to a key (vue-i18n's `@:key`) are not read: no extractor of this module reads
+ * translation files.
  *
  * Calls are serialized: an index is safe to share between threads, not fast to query from many.
  *
  * @param config the settings the keys are read with: separators, default namespaces, flat keys
  * @param fallbackNamespaces i18next's `fallbackNS`, in order
  * @param extractors what the files are read with: i18next's calls by default
+ * @param imports where a constant imported from another file is read, none by default
  */
 class TreeSitterKeyUsageIndex(
     private val config: Config = Config(),
     fallbackNamespaces: List<String> = config.fallbackNamespaces(),
     functionNames: Set<String> = I18NEXT_FUNCTIONS,
     private val extractors: List<CodeKeyExtractor> = i18nextExtractors(functionNames),
+    private val imports: ConstantKeys.Imports = ConstantKeys.Imports.NONE,
 ) : KeyUsageIndex {
 
     private val context = KeyContext(config, fallbackNamespaces = { fallbackNamespaces })
@@ -55,7 +59,7 @@ class TreeSitterKeyUsageIndex(
     fun update(path: String, text: String) {
         remove(path)
         val root = TreeSitterCodeNode.parseTsx(text, path)
-        val sites = findKeys(root, extractors).mapNotNull { (node, rawKey) ->
+        val sites = ConstantKeys.findKeys(text, root, extractors, imports).mapNotNull { (node, rawKey) ->
             val key = KeyResolver.parse(rawKey, context) ?: return@mapNotNull null
             CallSite(
                 KeyUsage(path, TextSpan(node.span.start, node.span.end)),

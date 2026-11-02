@@ -191,6 +191,24 @@ class I18nCheckTest {
         assertEquals(I18nCheck.PROBLEMS, run.exit)
     }
 
+    /** The override's `sent` is empty in `fr`, the application's is not: two keys, never mixed. */
+    @Test
+    fun `Laravel package override - read under the package's namespace, apart from the application's file`() {
+        val run = check("$resources/php-vendor")
+        assertEquals(
+            """
+            Reference locale: en (2 locales)
+
+            en: no problem
+            fr: 1 empty
+              empty    courier::messages:sent
+
+            1 problem found (allowed: 0).
+            """.trimIndent(),
+            run.out,
+        )
+    }
+
     @Test
     fun `Laravel PHP array built by code - not checked, named with the line, exit 2`() {
         val run = check("--locales", "$resources/php-partial")
@@ -552,14 +570,14 @@ class I18nCheckTest {
 
     /**
      * What the plugin underlines in the Laravel example: helpers, the translator and Blade's directives,
-     * a file's key under its file's namespace, a JSON phrase whole. The package override stays unused:
-     * the call names it `courier::messages.sent`, the loaded files `messages:sent`.
+     * a file's key under its file's namespace, a JSON phrase whole. The package override is loaded under
+     * its package's namespace, `courier::messages:sent`, but stays unused: `--code` reads no package key yet.
      */
     @Test
     fun `code - laravel example, PHP calls and Blade views read`() {
         val project = "../examples/laravel"
         val run = check(project, "--code")
-        assertTrue(run.out.contains("Unused keys: 1\n  messages:sent\n"), run.out)
+        assertTrue(run.out.contains("Unused keys: 1\n  courier::messages:sent\n"), run.out)
         assertTrue(
             run.out.contains(
                 """
@@ -607,6 +625,20 @@ class I18nCheckTest {
 
         val unused = JsonParser.parseString(check(project.toString(), "--code", "--format", "json").out).asJsonObject["unused"].asJsonArray
         assertEquals(listOf("a"), unused.map { it.asString })
+    }
+
+    @Test
+    fun `code - a key kept in a constant counts, imported or not, and an unknown one is reported at the call`(@TempDir project: Path) {
+        fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }
+        write("locales/en/common.json", """{"actions": {"save": "Save"}, "page": {"home": "Home"}, "unused": "Unused"}""")
+        write("src/keys.ts", "export const KEYS = { save: 'actions.save', gone: 'actions.gone' } as const;\n")
+        write("src/App.tsx", "import { KEYS } from './keys';\nenum Titles { Home = 'page.home' }\nconst { t } = useTranslation('common');\nt(KEYS.save);\nt(Titles.Home);\nt(KEYS.gone);\n")
+
+        val report = JsonParser.parseString(check(project.toString(), "--code", "--format", "json").out).asJsonObject
+        assertEquals(listOf("common:unused"), report["unused"].asJsonArray.map { it.asString })
+        val unknown = report["unknown"].asJsonArray.single().asJsonObject
+        assertEquals("actions.gone", unknown["key"].asString)
+        assertEquals(6, unknown["line"].asInt)
     }
 
     @Test

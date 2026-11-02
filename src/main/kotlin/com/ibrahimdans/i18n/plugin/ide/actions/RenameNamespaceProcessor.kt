@@ -4,18 +4,24 @@ import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
+import com.ibrahimdans.i18n.plugin.ide.references.translation.LinkedMessages
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
+import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.ide.util.PropertiesComponent
+import com.intellij.json.psi.JsonFile
+import com.intellij.json.psi.JsonObject
+import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.lang.javascript.psi.JSArgumentList
 import com.intellij.lang.javascript.psi.JSArrayLiteralExpression
 import com.intellij.lang.javascript.psi.JSCallExpression
@@ -25,6 +31,7 @@ import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.openapi.command.undo.GlobalUndoableAction
 import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.components.service
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.io.FileUtilRt
@@ -32,6 +39,7 @@ import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.ElementManipulators
 import com.intellij.psi.PsiDirectory
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileSystemItem
@@ -58,7 +66,8 @@ import java.util.Collections
  *  - the `common:` prefix of the keys written with it, `useTranslation('common')` and its arrays,
  *    `withTranslation`, `getFixedT`, the `ns` option (`{ ns: 'common' }`, `<Trans ns="common">`) and
  *    the `defaultNS` / `fallbackNS` of an i18next initialisation;
- *  - the default and fallback namespaces of the settings.
+ *  - a key a translation value names with it, i18next's `"$t(common:save) now"`;
+ *  - the default and fallback namespaces of the settings, `i18n-check.json`'s included.
  * All in the one command of the rename, so one undo takes everything back. The call sites are listed
  * in the rename preview, as the usages of the namespace.
  *
@@ -271,7 +280,34 @@ private class NamespaceCallSites(private val container: NamespaceContainer) {
             UsageSearchContext.ANY,
             true
         )
+        nestedKeys().forEach { found.putIfAbsent(it.element, it) }
         return found.values.toList()
+    }
+
+    /**
+     * The namespace written at the head of a key a translation value names: `common` in i18next's
+     * `"$t(common:save) now"`. Read in the translation files of the namespace's module, each link
+     * read as [LinkedMessages] reads it, its key as a key of the same module.
+     */
+    private fun nestedKeys(): List<PsiReference> {
+        val manager = PsiManager.getInstance(project)
+        val files = project.service<LocalizationSourceService>().findAllSources(project)
+            .mapNotNull { (it.tree?.value() ?: it.host)?.containingFile?.originalFile?.virtualFile }
+            .distinct()
+        return files.mapNotNull(manager::findFile).filter(::inOwnModule).flatMap { file ->
+            PsiTreeUtil.collectElements(file) { LinkedMessages.isTranslationValue(it) }.mapNotNull(::nestedKeyAt)
+        }
+    }
+
+    private fun nestedKeyAt(value: PsiElement): PsiReference? {
+        val ranges = LinkedMessages.linksOf(value).mapNotNull { link ->
+            val key = parser.parse(RawKey(listOf(KeyElement.literal(link.key))), value) ?: return@mapNotNull null
+            if (key.ns?.text != namespace || !link.key.startsWith(namespace)) return@mapNotNull null
+            val separator = link.key.getOrNull(namespace.length)
+            if (separator == null || separator.isLetterOrDigit() || separator == '_') return@mapNotNull null
+            TextRange.from(link.range.startOffset, namespace.length)
+        }
+        return if (ranges.isEmpty()) null else NestedNamespaceReference(value, ranges, container)
     }
 
     /** The namespace's longest word: `admin-panel` is no word of the index. */
@@ -361,16 +397,69 @@ private class NamespaceReference(element: PsiElement, range: TextRange, private 
 }
 
 /**
- * The settings naming a renamed namespace: the default and fallback namespaces, as stored. A value
- * read from the project's i18next initialisation is not stored: the code, renamed with the call sites,
- * keeps saying it. Undone with the rest of the rename.
+ * The keys a translation value names with the namespace — `"$t(common:save) and $t(common:close)"` —
+ * renamed with [container]: one reference for the whole value, listed once in the preview, which
+ * rewrites every namespace [ranges] covers.
+ */
+private class NestedNamespaceReference(
+    element: PsiElement,
+    private val ranges: List<TextRange>,
+    private val container: NamespaceContainer,
+) : PsiReferenceBase<PsiElement>(element, ranges.first(), true) {
+
+    override fun resolve(): PsiElement = container.item
+
+    override fun handleElementRename(newElementName: String): PsiElement {
+        val text = element.text
+        if (ranges.any { it.substring(text) != container.namespace }) return element
+        val manipulator = ElementManipulators.getManipulator(element) ?: return element
+        val span = TextRange(ranges.first().startOffset, ranges.last().endOffset)
+        val renamed = StringBuilder(span.substring(text))
+        val namespace = container.namespaceOf(newElementName)
+        ranges.asReversed().forEach { renamed.replace(it.startOffset - span.startOffset, it.endOffset - span.startOffset, namespace) }
+        return manipulator.handleContentChange(element, span, renamed.toString()) ?: element
+    }
+}
+
+/**
+ * The settings naming a renamed namespace: the default and fallback namespaces, as stored, and as
+ * `i18n-check.json` sets them. A value read from the project's i18next initialisation is not stored:
+ * the code, renamed with the call sites, keeps saying it. Undone with the rest of the rename.
  */
 private object NamespaceSettings {
 
     private val LIST_SEPARATOR = "[;|,\\s]"
+    private val FILE_FIELDS = listOf("defaultNs", "fallbackNs")
 
     fun rename(project: Project, old: String, new: String) {
         if (new.isBlank() || new == old) return
+        renameInConfigFile(project, old, new)
+        renameStored(project, old, new)
+    }
+
+    /**
+     * The value of `defaultNs` and `fallbackNs` in `i18n-check.json`, rewritten in the file — the
+     * stored settings cannot change what it sets. Saved at once, so the settings read it now; undone
+     * with the rest of the rename, as an edit of the file.
+     */
+    private fun renameInConfigFile(project: Project, old: String, new: String) {
+        val file = Settings.getInstance(project).configFileOrNull() ?: return
+        val json = PsiManager.getInstance(project).findFile(file) as? JsonFile ?: return
+        val root = json.topLevelValue as? JsonObject ?: return
+        var changed = false
+        FILE_FIELDS.forEach { name ->
+            val literal = root.findProperty(name)?.value as? JsonStringLiteral ?: return@forEach
+            val renamed = renamedIn(literal.value, old, new) ?: return@forEach
+            ElementManipulators.handleContentChange(literal, renamed)
+            changed = true
+        }
+        if (!changed) return
+        val document = PsiDocumentManager.getInstance(project).getDocument(json) ?: return
+        PsiDocumentManager.getInstance(project).doPostponedOperationsAndUnblockDocument(document)
+        FileDocumentManager.getInstance().saveDocument(document)
+    }
+
+    private fun renameStored(project: Project, old: String, new: String) {
         val settings = Settings.getInstance(project)
         val defaultNs = renamedIn(settings.defaultNs, old, new)
         val fallbackNs = renamedIn(settings.fallbackNs, old, new)
