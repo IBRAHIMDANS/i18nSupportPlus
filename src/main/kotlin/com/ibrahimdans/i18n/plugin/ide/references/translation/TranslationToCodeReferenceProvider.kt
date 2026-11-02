@@ -3,7 +3,10 @@ package com.ibrahimdans.i18n.plugin.ide.references.translation
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.AngularI18nMetadata
 import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideOutdir
+import com.ibrahimdans.i18n.extensions.technology.symfony.SymfonyCatalogue
+import com.ibrahimdans.i18n.extensions.technology.symfony.SymfonyTranslations
 import com.ibrahimdans.i18n.Lang
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.tree.KeyComposer
 import com.ibrahimdans.i18n.plugin.tree.Separators
@@ -35,6 +38,7 @@ internal class TranslationToCodeReferenceProvider : KeyComposer<PsiElement> {
     fun getReferences(element: PsiElement, textRange: TextRange, parents: List<String>): List<PsiReference> {
         val project = element.project
         val config = Settings.getInstance(project).config()
+        symfonyDomainOf(element)?.let { domain -> return symfonyReferences(element, textRange, parents.drop(1), domain, config) }
         // A scope file (Transloco) is named after its locale: its keys are written `scope.key`.
         val scope = element.containingFile?.let(::keyScopeOf)
         val key = composeKey(
@@ -51,6 +55,23 @@ internal class TranslationToCodeReferenceProvider : KeyComposer<PsiElement> {
             return listOf(TranslationToCodeReference(element, textRange, key))
         }
         return emptyList()
+    }
+
+    /** The domain of the Symfony catalogue holding [element], or null outside one. */
+    private fun symfonyDomainOf(element: PsiElement): String? {
+        val file = element.containingFile?.originalFile?.virtualFile ?: return null
+        if (!SymfonyTranslations.isCatalogue(element.project, file)) return null
+        return SymfonyCatalogue.parse(file.name)?.domain
+    }
+
+    /**
+     * A Symfony call never writes the domain in the key — `trans('key', [], 'admin')` — so the bare key
+     * is searched for, and the calls kept are those reading it from [domain].
+     */
+    private fun symfonyReferences(element: PsiElement, textRange: TextRange, path: List<String>, domain: String, config: Config): List<PsiReference> {
+        val key = path.joinToString(config.keySeparator)
+        if (key.isEmpty()) return emptyList()
+        return listOf(TranslationToCodeReference(element, textRange, key, listOf(domain)))
     }
 }
 
@@ -138,7 +159,16 @@ class ReferencesAccumulator(
 /**
  * Reference to key usage for translation file
  */
-class TranslationToCodeReference(element: PsiElement, textRange: TextRange, val composedKey: String) : PsiReferenceBase<PsiElement>(element, textRange), PsiPolyVariantReference {
+/**
+ * [namespaces], when given, are those the call sites must read [composedKey] from, which then carries
+ * none: a Symfony catalogue's domain, an argument of the call rather than a part of the key.
+ */
+class TranslationToCodeReference(
+    element: PsiElement,
+    textRange: TextRange,
+    val composedKey: String,
+    private val namespaces: List<String>? = null,
+) : PsiReferenceBase<PsiElement>(element, textRange), PsiPolyVariantReference {
 
     /**
      * Finds usages of json translation
@@ -153,11 +183,12 @@ class TranslationToCodeReference(element: PsiElement, textRange: TextRange, val 
                 // the accumulator wants the two apart, and a key composed without a namespace
                 // is one of the defaults — which is what a bare call site works under.
                 val namespace = composedKey.substringBefore(separators.ns, "")
-                val referencesAccumulator = ReferencesAccumulator(
-                    composedKey.substringAfter(separators.ns),
-                    separators,
-                    if (namespace.isEmpty()) config.defaultNamespaces() else listOf(namespace),
-                )
+                val referencesAccumulator = if (namespaces != null) ReferencesAccumulator(composedKey, separators, namespaces)
+                    else ReferencesAccumulator(
+                        composedKey.substringAfter(separators.ns),
+                        separators,
+                        if (namespace.isEmpty()) config.defaultNamespaces() else listOf(namespace),
+                    )
                 // In a monorepo, the code of the module owning this translation file only.
                 PsiSearchHelper.getInstance(project).processElementsWithWord(
                     referencesAccumulator.process(),

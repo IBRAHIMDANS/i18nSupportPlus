@@ -1,0 +1,26 @@
+<idea-plugin>
+    <!--
+      Twig templates of a Symfony project: `'key'|trans` and `{% trans %}key{% endtrans %}`. The Twig
+      plugin is bundled in PhpStorm only, and does not need the PHP plugin: a template is read alone.
+      Every extension stays inert outside a Symfony project (a composer.json requiring symfony/translation).
+    -->
+    <extensions defaultExtensionNs="com.intellij">
+        <annotator language="Twig" implementationClass="com.ibrahimdans.i18n.extensions.lang.twig.TwigCompositeKeyAnnotator"/>
+        <!-- A Twig token asks no reference contributor: Ctrl+click on `'key'|trans` goes through a handler. -->
+        <gotoDeclarationHandler implementation="com.ibrahimdans.i18n.extensions.lang.twig.TwigGotoDeclarationHandler"/>
+        <!-- The body of `{% trans %}key{% endtrans %}` is markup: the editor reads the HTML tree's text there. -->
+        <psi.referenceContributor language="XML" implementation="com.ibrahimdans.i18n.extensions.lang.twig.TwigTagReferenceContributor"/>
+        <completion.contributor language="Twig" implementationClass="com.ibrahimdans.i18n.extensions.lang.twig.TwigCompletionContributor"/>
+        <lang.foldingBuilder language="Twig" implementationClass="com.ibrahimdans.i18n.extensions.lang.twig.TwigFoldingBuilder"/>
+        <codeInsight.declarativeInlayProvider language="Twig"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"
+            providerId="i18n.translations.inlay"
+            group="OTHER_GROUP"
+            bundle="messages.I18nBundle"
+            nameKey="inlay.hints.name"/>
+        <lang.documentationProvider language="Twig" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
+    </extensions>
+    <extensions defaultExtensionNs="com.ibrahimdans.i18n">
+        <lang implementation="com.ibrahimdans.i18n.extensions.lang.twig.TwigLang"/>
+    </extensions>
+</idea-plugin>

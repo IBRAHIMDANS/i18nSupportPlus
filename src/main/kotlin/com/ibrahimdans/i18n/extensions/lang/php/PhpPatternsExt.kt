@@ -4,6 +4,7 @@ import com.intellij.patterns.InitialPatternCondition
 import com.intellij.util.ProcessingContext
 import com.jetbrains.php.injection.PhpElementPattern
 import com.jetbrains.php.lang.psi.elements.FunctionReference
+import com.jetbrains.php.lang.psi.elements.NewExpression
 import com.jetbrains.php.lang.psi.elements.ParameterList
 import com.jetbrains.php.lang.psi.elements.PhpExpression
 
@@ -36,7 +37,8 @@ class PhpPatternsExt {
             )
 
         /**
-         * Captures argument of php function call
+         * Captures the first argument of a php function call, or of a `new`: Symfony's
+         * `new TranslatableMessage('key')` names a key as a call does.
          */
         fun phpArgument(): PhpElementPattern.Capture<PhpExpression> =
             PhpElementPattern.Capture<PhpExpression>(
@@ -47,7 +49,7 @@ class PhpPatternsExt {
                             ?.let {
                                 val function = it.parent
                                 (0 < it.parameters.size) && (it.parameters[0] == o) &&
-                                    (function is FunctionReference)
+                                    (function is FunctionReference || function is NewExpression)
                             } ?: false
                 }
             )

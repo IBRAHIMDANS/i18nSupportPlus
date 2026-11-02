@@ -70,8 +70,23 @@ class FrameworkDetectorTest {
     /** Laravel's satellites, or its translation component alone, do not bring the framework's layout. */
     @Test
     fun `a composer json without laravel framework detects nothing`() {
-        assertTrue(FrameworkDetector.detect(composerJson("php", "symfony/translation")).isEmpty())
+        assertTrue(FrameworkDetector.detect(composerJson("php", "symfony/console")).isEmpty())
         assertTrue(FrameworkDetector.detect(composerJson("laravel/tinker", "illuminate/translation")).isEmpty())
+    }
+
+    /** `composer require translation` adds the component: a Symfony application without it translates nothing. */
+    @Test
+    fun `a composer json requiring symfony translation is a Symfony project`() {
+        assertEquals(setOf("symfony"), FrameworkDetector.detect(composerJson("php", "symfony/framework-bundle", "symfony/translation")))
+        assertTrue(FrameworkDetector.detect(composerJson("php", "symfony/framework-bundle")).isEmpty())
+    }
+
+    @Test
+    fun `the Symfony preset fills the documented layout`() {
+        val layout = LayoutPresets.of("symfony")!!
+        assertEquals("translations/{ns}.{lang}.yaml", layout.pathTemplate)
+        assertEquals("{key}", layout.keyTemplate)
+        assertTrue("symfony" in FrameworkDetector.LABELS, "offered by the wizard and by the module presets")
     }
 
     @Test

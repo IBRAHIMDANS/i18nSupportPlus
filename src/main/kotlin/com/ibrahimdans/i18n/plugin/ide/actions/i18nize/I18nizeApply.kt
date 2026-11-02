@@ -225,7 +225,7 @@ internal class I18nizeApply private constructor(
         if (reference.unresolved.isEmpty() || !element.isTree()) return false
         val generator = source.localization.contentGenerator()
         if (!generator.isSuitable(element.value())) return false
-        generator.generate(element.value(), fullKey, reference.unresolved, value)
+        generator.generate(element.value(), fullKey, element.pathToCreate(reference.unresolved), value)
         return true
     }
 

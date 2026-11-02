@@ -1,0 +1,4 @@
+# Installed by `composer install`: the plugin only reads composer.json, never vendor/.
+/vendor
+composer.lock
+.env

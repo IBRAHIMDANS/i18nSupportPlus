@@ -24,6 +24,12 @@ import com.intellij.psi.PsiFile
  */
 internal object TranslationFileScope {
 
+    /**
+     * The namespace a technology states for [file] — a Symfony catalogue's domain, `messages` for
+     * `messages.fr.yaml` — or null when the file's name gives it, as for most formats.
+     */
+    fun statedNamespaceOf(file: PsiFile): String? = sourceOf(file)?.namespace
+
     /** The source [file] is read as, or null when it is not a translation file. */
     fun sourceOf(file: PsiFile): LocalizationSource? {
         val virtualFile = file.originalFile.virtualFile ?: return null

@@ -43,5 +43,10 @@
     "pathTemplate": "lang/{lang}/{ns}.php",
     "keyTemplate": "{ns}.{key}",
     "source": "https://laravel.com/docs/localization (lang/en/messages.php at the project root since Laravel 9, keys written messages.welcome)"
+  },
+  "symfony": {
+    "pathTemplate": "translations/{ns}.{lang}.yaml",
+    "keyTemplate": "{key}",
+    "source": "https://symfony.com/doc/current/translation.html (translations/messages.fr.yaml, one file per domain and locale; the domain is an argument of the call, never written in the key)"
   }
 }

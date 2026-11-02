@@ -163,6 +163,7 @@
     <depends optional="true" config-file="propertiesConfig.xml">com.intellij.properties</depends>
     <depends optional="true" config-file="gitConfig.xml">Git4Idea</depends>
     <depends optional="true" config-file="mcpConfig.xml">com.intellij.mcpServer</depends>
+    <depends optional="true" config-file="twigConfig.xml">com.jetbrains.twig</depends>
     <resource-bundle>messages.I18nBundle</resource-bundle>
     <extensionPoints>
         <extensionPoint interface="com.ibrahimdans.i18n.Localization" name="localization" dynamic="true"/>
@@ -563,5 +564,7 @@
         <!-- Angular's native i18n: the XLIFF files angular.json lists, read as sources. -->
         <localization implementation="com.ibrahimdans.i18n.extensions.localization.xliff.XliffLocalization"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.angulari18n.AngularI18nTechnology"/>
+        <!-- Symfony: the catalogues of translations/ (YAML, XLIFF, PHP, JSON), one namespace per domain. -->
+        <technology implementation="com.ibrahimdans.i18n.extensions.technology.symfony.SymfonyTranslations"/>
     </extensions>
 </idea-plugin>

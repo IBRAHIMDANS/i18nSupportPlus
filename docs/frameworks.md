@@ -21,6 +21,7 @@ Every syntax the plugin reads, per framework, the languages it reads them in, an
 | typesafe-i18n | `LL.home.title()`, `$LL.home.title()` (Svelte), read as the key `home.title`, once the file imports typesafe-i18n's generated code <sup>7</sup> | Yes, `.typesafe-i18n.json` |
 | Meteor universe:i18n | the application's own hook, `useTranslator('Home')` or `useTranslation('Home')`, then `t('title')`, read as the key `Home.title` <sup>6</sup> | No |
 | Angular i18n (`@angular/localize`) | `<h1 i18n="@@home.title">`, `i18n-alt="@@logo.alt"`, `` $localize`:@@home.title:Welcome` ``, read as the key `home.title` <sup>8</sup> | Yes, `angular.json` |
+| Symfony (`symfony/translation`) | `$translator->trans('key', [], 'admin')`, `t('key')`, `new TranslatableMessage('key')`; in Twig `{{ 'key'\|trans }}`, `'key'\|trans({}, 'admin')`, `trans(domain='admin')`, `{% trans %}key{% endtrans %}`, `{% trans from 'admin' %}`, `{% trans_default_domain 'admin' %}` <sup>9</sup> | No |
 
 `useTranslation` supports both string form (`useTranslation('ns')`) and array form (`useTranslation(['ns1', 'ns2'])`). The namespace can also come from an options object (`t('key', { ns: 'auth' })`) or from the key itself (`t('auth:key')`). A `context` option reads the key's variant, as i18next does: `t('friend', { context: 'male' })` reads `friend_male`, else `friend`, and `t('friend', { context: gender })` any `friend_…` variant; those variants are then used, never reported as having no reference in code.
 
@@ -68,6 +69,22 @@ from either marker to its units and from a unit's `id` to the code, the tool win
 extraction and the rename. Not tested: folding and inlay hints. A ready-to-open project:
 [examples/angular-native-i18n](../examples/angular-native-i18n/README.md).
 
+<sup>9</sup> Read in a project whose `composer.json`, outside `vendor/`, requires `symfony/translation` — what
+`composer require translation` adds; elsewhere `trans` is any method and Drupal's `|trans` holds a text. The catalogues
+are the files of every `translations/` folder named `<domain>.<locale>.<format>` — YAML, XLIFF 1.2 and 2.0, PHP and
+JSON — and `messages+intl-icu.fr.yaml` is the `messages` domain. The domain is the namespace: a call names it third
+(`trans('key', [], 'admin')`), a Twig filter second or as `domain=`, a `{% trans %}` tag after `from`; a template's
+`{% trans_default_domain %}` applies to the keys naming none, and `messages` to the rest. A domain computed at runtime
+makes no key, as which catalogue holds it is unknown. A catalogue is read flattened, as Symfony reads it: `user.name`
+is `name` nested under `user:` or a key written `user.name` whole, and an XLIFF unit is keyed by its `resname`
+(`name` in 2.0), else its `<source>`, its value being its `<target>`, else its `<source>`. A key created in an XLIFF
+catalogue is written with its `resname`, the key in its `<source>` and the value in its `<target>`. Twig needs the Twig
+plugin, bundled in PhpStorm. The setup wizard proposes the *Symfony* preset — `translations/{ns}.{lang}.yaml` — for a
+`composer.json` requiring `symfony/translation`. Tested: annotation, Ctrl+click and the missing key in PHP and in Twig,
+completion and inlay hints in Twig, YAML (nested and flat), XLIFF and ICU catalogues. Not tested: folding. Not read:
+`.po`, `.csv` and `.ini` catalogues, `trans()` in JavaScript (`@symfony/ux-translator`). A ready-to-open project:
+[examples/symfony](../examples/symfony/README.md).
+
 ## Supported Languages
 
 | Language | Extensions | Annotations | Completion | Folding | Hints | References |
@@ -79,6 +96,7 @@ extraction and the rename. Not tested: folding and inlay hints. A ready-to-open 
 | Vue SFC | `.vue` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | PHP | `.php` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Blade | `.blade.php` | ✓ | — | ✓ | ✓ | ✓ |
+| Twig (Symfony) | `.twig` | ✓ | ✓ | — | ✓ | ✓ |
 | Angular templates | `.html` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Svelte | `.svelte` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Astro | `.astro` | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -86,7 +104,7 @@ extraction and the rename. Not tested: folding and inlay hints. A ready-to-open 
 **—** means no test covers it yet: it may work, it is not promised. A ✓ is backed by a test.
 
 > Vue support requires the Vue.js plugin (optional dependency).
-> PHP support requires the PHP plugin (optional dependency); Blade views, the Blade plugin, bundled in PhpStorm.
+> PHP support requires the PHP plugin (optional dependency); Blade views, the Blade plugin, and Twig templates, the Twig plugin, both bundled in PhpStorm.
 > Angular templates require the Angular plugin, and are read inside an Angular project only (see <sup>1</sup> above).
 > Svelte components require the [Svelte plugin](https://plugins.jetbrains.com/plugin/12375-svelte) (see <sup>2</sup> above).
 >
@@ -102,16 +120,17 @@ extraction and the rename. Not tested: folding and inlay hints. A ready-to-open 
 | YAML | `.yaml`, `.yml` | ✓ | ✓ |
 | PO/POT (gettext) | `.po`, `.pot` | ✓ | ✓ |
 | Laravel PHP arrays | `lang/<locale>/<file>.php`, the file name as namespace | ✓ | ✓ |
+| Symfony catalogues | `translations/<domain>.<locale>.yaml`, `.xlf`, `.php`, `.json`, the domain as namespace (<sup>9</sup>) | ✓ | ✓ |
 | Flutter ARB | `.arb` (`lib/l10n/app_<locale>.arb`), the locale from `@@locale` or the file name | — | ✓ |
 | Java resource bundles (requires the bundled **Properties** plugin) | `.properties` (`messages_<locale>.properties`), the locale from the file name | — | ✓ |
-| XLIFF 1.2 and 2.0 (Angular i18n) | `.xlf`, `.xliff`, the files `angular.json` lists (<sup>8</sup>) | ✓ | ✓ |
+| XLIFF 1.2 and 2.0 (Angular i18n, Symfony) | `.xlf`, `.xliff`, the files `angular.json` lists (<sup>8</sup>), a Symfony project's catalogues (<sup>9</sup>) | ✓ | ✓ |
 | TS/JS catalogues (an object keyed by locale, as i18n-js writes) | `.ts`, `.js` | ✓ | ✓ |
 | i18next `resources` declared in a TS/JS configuration file | `.ts`, `.js` | ✓ | ✓ |
 
 **—** means no test covers it yet. In the last two formats, a missing key is written into its object literal, in the
 file's indentation, quotes and trailing commas; an object built in code (a spread, a computed key) is left as it is,
 with a warning naming the key to add by hand. XLIFF is read as a translation source in an
-Angular project only; elsewhere, like CSV, it is exported and imported from *Tools › i18n Support Plus*.
+Angular or a Symfony project only; elsewhere, like CSV, it is exported and imported from *Tools › i18n Support Plus*.
 
 Flutter ARB catalogues feed the tool window, the statistics, the missing-key checks and *Sync Keys*; their `@key`
 and `@@locale` metadata is no key. A key created in a catalogue that describes its keys, the template, gets its

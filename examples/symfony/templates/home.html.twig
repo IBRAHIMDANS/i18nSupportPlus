@@ -1,0 +1,10 @@
+<h1>{{ 'home.title'|trans }}</h1>
+<p>{{ 'home.greeting'|trans({'%name%': app.user.name ?? 'Ada'}) }}</p>
+<p>{{ 'cart.items'|trans({'count': 3}) }}</p>
+<p>{{ 'dashboard.title'|trans({}, 'admin') }}</p>
+<p>{{ 'dashboard.title'|trans(domain='admin')|upper }}</p>
+<p>{% trans %}only_in_english{% endtrans %}</p>
+<footer>{{ 'footer.copyright'|trans }}</footer>
+
+{# Reported: the key is in no catalogue of the domain. #}
+<p>{{ 'home.subtitle'|trans }}</p>

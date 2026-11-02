@@ -1,5 +1,7 @@
 package com.ibrahimdans.i18n.plugin.tree
 
+import com.ibrahimdans.i18n.plugin.key.lexer.Literal
+
 /**
  * Tree wrapper
  */
@@ -38,4 +40,12 @@ interface Tree<T> {
      * the caller falls back to [findChild].
      */
     fun entries(): List<Pair<String, Tree<T>>>? = null
+
+    /**
+     * The path a key missing below this node is written under, in this node's value, given what is
+     * [unresolved] of it: [unresolved] itself, unless the node stands for keys written whole sharing a
+     * prefix — a Symfony catalogue read flattened, where `flat.other` is one more key written whole
+     * next to `flat.key`, not `other` nested in the file.
+     */
+    fun pathToCreate(unresolved: List<Literal>): List<Literal> = unresolved
 }

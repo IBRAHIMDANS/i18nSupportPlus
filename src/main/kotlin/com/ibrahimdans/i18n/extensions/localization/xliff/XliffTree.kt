@@ -3,6 +3,13 @@ package com.ibrahimdans.i18n.extensions.localization.xliff
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.psi.xml.XmlTag
+
+/**
+ * How the units of an XLIFF file are named: by their `id`, as Angular names its messages (`@@home.title`),
+ * or by the key Symfony reads them under ([XliffDocument.namedUnits]).
+ */
+enum class XliffNaming { ID, SYMFONY }
 
 /**
  * An XLIFF file as a translation tree: flat, one key per unit id, as Angular names its messages
@@ -10,10 +17,17 @@ import com.intellij.psi.PsiFile
  *
  * In a file of [role] [XliffRole.TARGET] a unit whose `<target>` is missing has no key yet — the
  * translation the locale lacks — while an empty `<target/>` is a key with an empty value.
+ *
+ * Named [XliffNaming.SYMFONY], a unit is keyed by its `resname` and its text is its `<target>`, else its
+ * `<source>`, as Symfony falls back to it: the role plays no part.
  */
-class XliffTree(private val file: PsiFile, private val role: XliffRole) : Tree<PsiElement> {
+class XliffTree(
+    private val file: PsiFile,
+    private val role: XliffRole,
+    private val naming: XliffNaming = XliffNaming.ID,
+) : Tree<PsiElement> {
 
-    override fun findChild(name: String): Tree<PsiElement>? = leafOf(XliffDocument.units(file)[name])
+    override fun findChild(name: String): Tree<PsiElement>? = leafOf(units()[name])
 
     override fun isTree(): Boolean = true
 
@@ -21,15 +35,21 @@ class XliffTree(private val file: PsiFile, private val role: XliffRole) : Tree<P
 
     /** The ids starting with [prefix], as completion lists keys: each one's value is the `id` attribute's value. */
     override fun findChildren(prefix: String): List<Tree<PsiElement>> =
-        XliffDocument.units(file).values
-            .filter { it.id.startsWith(prefix) && it.valueTag(role) != null }
+        units().values
+            .filter { it.id.startsWith(prefix) && valueTagOf(it) != null }
             .mapNotNull { unit -> unit.idValue?.let(::IdName) }
 
     override fun entries(): List<Pair<String, Tree<PsiElement>>> =
-        XliffDocument.units(file).values.mapNotNull { unit -> leafOf(unit)?.let { unit.id to it } }
+        units().values.mapNotNull { unit -> leafOf(unit)?.let { unit.id to it } }
+
+    private fun units(): Map<String, XliffUnit> =
+        if (naming == XliffNaming.SYMFONY) XliffDocument.namedUnits(file) else XliffDocument.units(file)
+
+    private fun valueTagOf(unit: XliffUnit): XmlTag? =
+        if (naming == XliffNaming.SYMFONY) unit.target ?: unit.source else unit.valueTag(role)
 
     private fun leafOf(unit: XliffUnit?): Tree<PsiElement>? =
-        unit?.valueTag(role)?.let { Leaf(XliffDocument.valueElementOf(it)) }
+        unit?.let(::valueTagOf)?.let { Leaf(XliffDocument.valueElementOf(it)) }
 
     /** A unit's text: its plain text node, or the `<source>` / `<target>` tag holding markup or nothing. */
     private class Leaf(private val element: PsiElement) : Tree<PsiElement> {
