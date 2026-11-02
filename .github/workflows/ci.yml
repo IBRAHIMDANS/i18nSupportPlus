@@ -19,7 +19,13 @@ jobs:
   # each test class to a shard by a stable hash of its name (`-PtestShard`, build.gradle.kts):
   # a new class always lands in exactly one shard. Shard 1 also runs the `core`, `cli` and
   # `core-treesitter` suites, which take seconds.
+  #
+  # Not on the pull request `Prepare Release` opens: it changes `pluginVersion` and the changelog
+  # only, on the commit of main the suite has just passed, and nothing is merged until it is. The
+  # `descriptor` job still checks what the release ships. A job skipped by `if:` reads as passed,
+  # and the run still exists, which is what #805 needed.
   test-shard:
+    if: ${{ !startsWith(github.head_ref, 'release/v') }}
     name: test shard ${{ matrix.shard }}/3
     runs-on: ubuntu-latest
     permissions:
@@ -91,10 +97,11 @@ jobs:
 
   # Named `test`, the check the pull request waits on. It merges the shards' coverage and
   # comments it. `if: always()` and the first step matter: a job that `needs` a failed shard is
-  # otherwise skipped, and a skipped check reads as passed.
+  # otherwise skipped, and a skipped check reads as passed. Skipped on purpose on a release pull
+  # request, like the shards.
   test:
     needs: test-shard
-    if: always()
+    if: ${{ always() && !startsWith(github.head_ref, 'release/v') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
