@@ -13,6 +13,7 @@ import com.ibrahimdans.i18n.extract.svelte.SvelteSfc
 import com.ibrahimdans.i18n.extract.vuei18n.VueSfc
 import com.ibrahimdans.i18n.index.TreeSitterKeyUsageIndex
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationLeaves
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.unQuote
@@ -42,13 +43,29 @@ data class UnknownKey(val key: String, val file: String, val line: Int)
  * declared in the file, or imported from another script of the project by a relative path or by a path alias of
  * the `tsconfig.json`, else `jsconfig.json`, at the project's root (`@/keys`, [pathAliasesOf]).
  */
-class CodeUsages(project: Path, config: Config) {
+class CodeUsages(project: Path, private val config: Config) {
 
-    /** One index per preset, its files read with that preset's extractors. */
-    private val indexes: List<TreeSitterKeyUsageIndex>
+    private val modules: List<ModuleConfig>
 
     /** The text of each file indexed, by project-relative path: where a call's line is read. */
     private val texts: Map<String, String>
+
+    /** The code of each script, component and template, by project-relative path. */
+    private val code: Map<String, String>
+
+    /** The PHP files and Blade views of a Laravel project, by project-relative path. */
+    private val php: Map<String, String>
+
+    /** The packages' files the project overrides, `courier::messages`. */
+    private val packageScopes: Set<String>
+
+    private val imports: ConstantKeys.ProjectFiles
+
+    /** The indexes of the whole project's code. */
+    private val indexes: List<TreeSitterKeyUsageIndex>
+
+    /** The indexes of the code that uses each module's keys, built when first asked for. */
+    private val moduleIndexes = mutableMapOf<ModuleConfig, List<TreeSitterKeyUsageIndex>>()
 
     /** The keys of each component's `<i18n>` blocks, by project-relative path: known to its own calls. */
     private val blockKeys: Map<String, Set<String>>
@@ -61,45 +78,75 @@ class CodeUsages(project: Path, config: Config) {
         texts = NioWorkspace(root, SourceDiscovery.DEFAULT_EXCLUDED_DIRECTORIES + config.excludedDirectorySet())
             .files(extensions)
             .associate { root.relativize(it.file).joinToString("/") to Files.readString(it.file) }
-        val modules = ModuleSources.active(config.modules)
-        val (php, scripts) = texts.entries.partition { (path, _) -> path.endsWith(".$PHP") }
-        val laravelIndex = php.takeIf { it.isNotEmpty() }?.let { files ->
-            val packageScopes = files.mapNotNullTo(mutableSetOf()) { (path, _) -> packageScopeOf(path) }
-            TreeSitterKeyUsageIndex(config, extractors = laravelExtractors(config.nsSeparator, config.keySeparator), keyScopes = packageScopes).apply {
-                files.forEach { (path, text) -> update(path, LaravelSource.codeOf(text, packageScopes)) }
-            }
-        }
-        val code = scripts.associate { (path, text) -> path to codeOf(path, text) }
-        val imports = ConstantKeys.ProjectFiles(code, pathAliasesOf(root))
-        indexes = listOfNotNull(laravelIndex) + code.entries
-            .groupBy { (path, _) -> ModuleSources.owner(modules, ModuleSources.FilePath(path, anchored = true))?.preset?.trim()?.ifEmpty { null } }
-            .map { (preset, files) ->
-                TreeSitterKeyUsageIndex(config, extractors = CodeExtractors.forPreset(preset), imports = imports).apply {
-                    files.forEach { (path, text) -> update(path, text) }
-                }
-            }
+        modules = ModuleSources.active(config.modules)
+        val (phpFiles, scripts) = texts.entries.partition { (path, _) -> path.endsWith(".$PHP") }
+        php = phpFiles.associate { it.toPair() }
+        packageScopes = php.keys.mapNotNullTo(mutableSetOf(), ::packageScopeOf)
+        code = scripts.associate { (path, text) -> path to codeOf(path, text) }
+        imports = ConstantKeys.ProjectFiles(code, pathAliasesOf(root))
+        indexes = indexesOf { true }
         blockKeys = texts.filterKeys { it.endsWith(VUE) }.mapValues { (_, text) -> blockKeysOf(text, config) }.filterValues { it.isNotEmpty() }
     }
 
-    /** The [keys] no call uses, nor any key built at runtime may produce, sorted. */
-    fun unused(keys: Collection<String>): List<String> {
+    /**
+     * The [keys] no call uses, nor any key built at runtime may produce, sorted. A [module]'s keys are only used by the
+     * code it holds ([ModuleSources.holdsCode]): its folder, or its `codeRoots`; without a module, by the whole project.
+     */
+    fun unused(keys: Collection<String>, module: ModuleConfig? = null): List<String> {
+        val indexes = indexesUsing(module)
         val unseen = keys.filter { key -> indexes.all { it.usages(key).isEmpty() } }
         val reached = indexes.flatMapTo(mutableSetOf()) { it.dynamicallyReached(unseen) }
         return (unseen - reached).sorted()
     }
 
     /**
-     * The calls naming a key that none of [keys] is or holds, by file and line. A component's own
-     * `<i18n>` block holds keys for its calls, and next-intl's `t.has(key)` only asks whether one exists.
+     * The calls naming a key that none of their file's modules holds, by file and line: [keys] gives each module — null
+     * for the whole project — its keys, and a file whose code no module holds is checked against all of them. A
+     * component's own `<i18n>` block holds keys for its calls, and next-intl's `t.has(key)` only asks whether one exists.
      */
-    fun unknown(keys: Collection<String>): List<UnknownKey> =
-        indexes.flatMap { it.unknownUsages(keys) }
+    fun unknown(keys: List<Pair<ModuleConfig?, Collection<String>>>): List<UnknownKey> {
+        val everyKey by lazy { keys.flatMapTo(mutableSetOf()) { it.second } }
+        fun keysOf(path: String): Set<String> {
+            val file = ModuleSources.FilePath(path, anchored = true)
+            val holders = keys.filter { (module, _) -> module != null && ModuleSources.holdsCode(module, file) }
+            return if (holders.isEmpty()) everyKey else holders.flatMapTo(mutableSetOf()) { it.second }
+        }
+        return texts.keys.groupBy(::keysOf)
+            .flatMap { (known, paths) ->
+                val files = paths.toSet()
+                indexes.flatMap { it.unknownUsages(known) }.filter { it.usage.path in files }
+            }
             .filterNot { call -> call.key in blockKeys[call.usage.path].orEmpty() || isExistenceCheck(call.usage.path, call.usage.span.start) }
             .map { call ->
                 val line = texts.getValue(call.usage.path).substring(0, call.usage.span.start).count { it == '\n' } + 1
                 UnknownKey(writtenKey(call.key, call.usage.path, call.usage.span.start, call.usage.span.end), call.usage.path, line)
             }
             .sortedWith(compareBy({ it.file }, { it.line }))
+    }
+
+    /** The indexes of the code that uses [module]'s keys: the whole project's without a module. */
+    private fun indexesUsing(module: ModuleConfig?): List<TreeSitterKeyUsageIndex> =
+        if (module == null) indexes
+        else moduleIndexes.getOrPut(module) { indexesOf { path -> ModuleSources.holdsCode(module, ModuleSources.FilePath(path, anchored = true)) } }
+
+    /**
+     * The indexes of the files [holds] keeps: the Laravel ones read with Laravel's calls, the others one index per
+     * preset, read with the extractors of their module's preset.
+     */
+    private fun indexesOf(holds: (String) -> Boolean): List<TreeSitterKeyUsageIndex> {
+        val laravelIndex = php.filterKeys(holds).takeIf { it.isNotEmpty() }?.let { files ->
+            TreeSitterKeyUsageIndex(config, extractors = laravelExtractors(config.nsSeparator, config.keySeparator), keyScopes = packageScopes).apply {
+                files.forEach { (path, text) -> update(path, LaravelSource.codeOf(text, packageScopes)) }
+            }
+        }
+        return listOfNotNull(laravelIndex) + code.filterKeys(holds).entries
+            .groupBy { (path, _) -> ModuleSources.owner(modules, ModuleSources.FilePath(path, anchored = true))?.preset?.trim()?.ifEmpty { null } }
+            .map { (preset, files) ->
+                TreeSitterKeyUsageIndex(config, extractors = CodeExtractors.forPreset(preset), imports = imports).apply {
+                    files.forEach { (path, text) -> update(path, text) }
+                }
+            }
+    }
 
     /** The code of the file at [path]: a component or a template read as the code it holds. */
     private fun codeOf(path: String, text: String): String = when {
