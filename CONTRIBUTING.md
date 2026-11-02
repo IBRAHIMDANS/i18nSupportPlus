@@ -99,8 +99,8 @@ The former `runWebStorm` + xdotool process remains the fallback for an image no 
 ./gradlew check
 ```
 
-CI splits the plugin's suite into three shards, each test class assigned by a hash of its name.
-To rerun the shard that failed, pass its number: `./gradlew :test -PtestShard=2/3`.
+CI splits the plugin's suite into four shards, each test class assigned by a hash of its name.
+To rerun the shard that failed, pass its number: `./gradlew :test -PtestShard=2/4`.
 
 Test fixtures live in `src/test/resources/` (`keyExtraction/`, `references/`, `folding/`…). Most
 plugin tests extend `PlatformBaseTest`; `TestsCommon.kt` holds the shared helpers
