@@ -43,6 +43,7 @@
 
 ### Fixes
 
+- [CLI] **`i18n-check --code` no longer reports the keys of Java bundles and Flutter ARB catalogues unused**: it reads no Java nor Dart code, so in a project mixing a JavaScript front with a Spring back end or a Flutter app, those keys made the check fail. They are left out of the unused keys, as in the IDE.
 - [Checks] **A one-word ICU form is no longer taken for a placeholder**: translating `{n, plural, =0 {none} other {# items}}` as `=0 {rien}`, or `{g, select, male {he} …}` as `male {il}`, no longer reports `{none}` missing and `{rien}` extra, in the *Placeholder consistency* inspection or in `i18n-check`.
 - [Setup wizard] **next-intl and Paraglide catalogues are found**: when the project uses next-intl or Paraglide JS, the setup wizard now offers the files of their `messages/` folder (`messages/en.json`, `messages/fr.json`), where it used to find nothing.
 - [Setup wizard] **next-intl and Paraglide catalogues are found in a monorepo**: the `messages/` folder of an application (`apps/web/messages/en.json`) is offered when that application's own `package.json` declares the library, even if the root one does not.
