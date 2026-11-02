@@ -2,6 +2,9 @@ package com.ibrahimdans.i18n.plugin.ide.inspections
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.inspection.PlaceholderConsistencyInspection
+import com.ibrahimdans.i18n.plugin.ide.runWithConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -169,5 +172,31 @@ class PlaceholderConsistencyInspectionTest : PlatformBaseTest() {
             .mapNotNull { it.description }
             .filter { it.startsWith("Placeholder") }
         assertTrue(warnings.any { it.contains("{count}") && it.contains("missing") })
+    }
+
+    /** A module template declares each file's locale and namespace: the reference is the same namespace's file. */
+    private fun templateWarnings(template: String, english: String, french: String): List<String> = run {
+        var warnings = emptyList<String>()
+        myFixture.runWithConfig(Config(modules = listOf(ModuleConfig(name = "app", pathTemplate = template)))) {
+            myFixture.enableInspections(PlaceholderConsistencyInspection::class.java)
+            myFixture.addFileToProject(english, """{"msg": "Hello {name}"}""")
+            myFixture.addFileToProject(english.replace("common", "other"), """{"msg": "Hello"}""")
+            val file = myFixture.addFileToProject(french, """{"msg": "Bonjour {nom}"}""")
+            myFixture.configureFromExistingVirtualFile(file.virtualFile)
+            warnings = myFixture.doHighlighting().mapNotNull { it.description }.filter { it.startsWith("Placeholder") }
+        }
+        warnings
+    }
+
+    @Test
+    fun testFolderPerNamespaceTemplateComparesToItsNamespace() {
+        val warnings = templateWarnings("locales/{ns}/{lang}.json", "locales/common/en.json", "locales/common/fr.json")
+        assertTrue(warnings.any { it.contains("{name}") }, "$warnings")
+    }
+
+    @Test
+    fun testFolderPerLocaleTemplateComparesToItsNamespace() {
+        val warnings = templateWarnings("locales/{lang}/{ns}.json", "locales/en/common.json", "locales/fr/common.json")
+        assertTrue(warnings.any { it.contains("{name}") }, "$warnings")
     }
 }
