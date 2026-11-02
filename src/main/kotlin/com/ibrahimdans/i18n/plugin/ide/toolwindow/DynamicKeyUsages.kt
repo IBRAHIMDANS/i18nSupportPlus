@@ -64,6 +64,7 @@ object DynamicKeyUsages {
      *
      * One search per distinct prefix or suffix rather than per key: the three `status.*` keys
      * share the single word `deposit-box:status`, and the scan runs over every key a project holds.
+     * [perWord] runs each word's search: the caller's own read action, one per word.
      */
     fun reachedKeys(
         keys: List<String>,
@@ -71,10 +72,11 @@ object DynamicKeyUsages {
         searchHelper: PsiSearchHelper,
         nsSeparator: String,
         keySeparator: String,
+        perWord: (() -> Set<String>) -> Set<String> = { it() },
     ): Set<String> {
         if (keys.isEmpty()) return emptySet()
         val shapes = searchWords(keys, nsSeparator, keySeparator)
-            .flatMapTo(mutableSetOf()) { dynamicLiterals(it, scope, searchHelper) }
+            .flatMapTo(mutableSetOf()) { word -> perWord { dynamicLiterals(word, scope, searchHelper) } }
             .mapNotNullTo(mutableSetOf(), ::shapeOf)
         if (shapes.isEmpty()) return emptySet()
 

@@ -152,6 +152,10 @@ internal object IndirectKeyUsages {
         return found
     }
 
+    /** The word [prefixedUsages] searches on behalf of [key]: the last segment of its own path. */
+    fun prefixWordOf(key: String, config: Config): String =
+        wantedPaths(key, config).first().segments.lastOrNull().orEmpty()
+
     /** A call path [prefixedUsages] counts for [key]; with a [context], only a call reading that context. */
     private data class WantedPath(val key: String, val segments: List<String>, val context: String? = null)
 
