@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
+import com.ibrahimdans.i18n.extensions.localization.xliff.XliffDocument
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.extensions.technology.angulari18n.AngularI18nIdRename
 import com.ibrahimdans.i18n.extensions.localization.plain.`object`.PlainObjectTextTree
@@ -240,7 +241,7 @@ class RenameI18nKeyHandler : RenameHandler {
         val codeEdits = codeUsages(project, ref, translations, lastSegment, config).mapNotNull { literal ->
             renamedLiteral(literal, lastSegment, newSegment, config)
         }
-        val translationEdits = translations.mapNotNull { renamedProperty(it, lastSegment, newSegment, config) }
+        val translationEdits = translations.flatMap { renamedProperties(it, lastSegment, newSegment, config) }
         // Each translation moves its own review, plural forms included: `item_one` → `product_one`.
         val reviews = translations.mapNotNull { translation ->
             ReviewMigration.moveOf(translation) { path ->
@@ -274,9 +275,10 @@ class RenameI18nKeyHandler : RenameHandler {
         val languages = Extensions.LANG.extensionList
         PsiSearchHelper.getInstance(project).processElementsWithWord(
             { element, _ ->
-                val literal = languages.firstNotNullOfOrNull { it.resolveLiteral(element) }
-                val reference = listOfNotNull(literal, literal?.parent)
-                    .firstNotNullOfOrNull { candidate -> candidate.references.filterIsInstance<I18nReference>().firstOrNull() }
+                val (lang, literal) = languages.firstNotNullOfOrNull { lang -> lang.resolveLiteral(element)?.let { lang to it } }
+                    ?: return@processElementsWithWord true
+                val reference = listOfNotNull(literal, literal.parent)
+                    .firstNotNullOfOrNull { candidate -> lang.references(candidate).filterIsInstance<I18nReference>().firstOrNull() }
                 if (reference != null && reference.multiResolve(false).any { it.element in translations }) {
                     usages += reference.element
                 }
@@ -302,12 +304,19 @@ class RenameI18nKeyHandler : RenameHandler {
     }
 
     /**
-     * The edit renaming the property holding [translation] (a value node), plural suffix kept, or
-     * null when that property is not named after [lastSegment].
+     * The edits renaming the property holding [translation] (a value node), plural suffix kept; none
+     * when that property is not named after [lastSegment]. A Symfony XLIFF unit names its key twice,
+     * in its `resname` and its `<source>`: both are renamed.
      */
-    private fun renamedProperty(translation: PsiElement, lastSegment: String, newSegment: String, config: Config): Edit? {
+    private fun renamedProperties(translation: PsiElement, lastSegment: String, newSegment: String, config: Config): List<Edit> {
         // A PO catalogue is no key-value tree: its key is the msgid of the entry.
-        val nameElement = TranslationPsi.keyElementOf(translation) ?: PlainObjectTextTree.msgidOf(translation) ?: return null
+        val names = (TranslationPsi.keyElementOf(translation) ?: PlainObjectTextTree.msgidOf(translation))?.let(::listOf)
+            ?: XliffDocument.symfonyKeyElementsOf(translation)
+        return names.mapNotNull { renamedKeyElement(it, lastSegment, newSegment, config) }
+    }
+
+    /** The edit renaming the key [nameElement] writes, or null when it is not named after [lastSegment]. */
+    private fun renamedKeyElement(nameElement: PsiElement, lastSegment: String, newSegment: String, config: Config): Edit? {
         val document = documentOf(nameElement) ?: return null
         val raw = nameElement.text
         val quote = raw.firstOrNull()?.takeIf { it in QUOTES && raw.length > 1 && raw.last() == it }
@@ -322,6 +331,9 @@ class RenameI18nKeyHandler : RenameHandler {
     private fun renamedName(name: String, lastSegment: String, newSegment: String, config: Config): String? = when {
         name == lastSegment -> newSegment
         PluralKey.stripSuffix(name, config.pluralSeparator) == lastSegment -> newSegment + name.removePrefix(lastSegment)
+        // A key written whole (`flat.key`, a Symfony catalogue read flattened): its last segment only.
+        config.keySeparator.isNotEmpty() && !config.usesFlatKeys() && name.endsWith(config.keySeparator + lastSegment) ->
+            name.dropLast(lastSegment.length) + newSegment
         else -> null
     }
 
@@ -361,6 +373,10 @@ class RenameI18nKeyHandler : RenameHandler {
         val literal = element.parent ?: element
         return literal.references.filterIsInstance<I18nReference>().firstOrNull()
             ?: element.references.filterIsInstance<I18nReference>().firstOrNull()
+            // A key whose token asks no reference contributor (Twig): the language gives its reference.
+            ?: Extensions.LANG.extensionList.firstNotNullOfOrNull { lang ->
+                lang.resolveLiteral(element)?.let { lang.references(it).filterIsInstance<I18nReference>().firstOrNull() }
+            }
     }
 
     private companion object {

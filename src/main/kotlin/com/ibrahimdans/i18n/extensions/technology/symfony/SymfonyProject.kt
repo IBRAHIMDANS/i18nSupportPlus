@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.extensions.technology.symfony
 
+import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VfsUtilCore
@@ -20,10 +21,17 @@ internal object SymfonyProject {
 
     private const val TRANSLATION_PACKAGE = "\"symfony/translation\""
 
-    /** Kept until a `composer.json` changes or a file is added, removed or moved. */
+    /**
+     * Kept until a `composer.json` changes or a file is added, removed or moved. Under a read action of
+     * its own: a technology is asked for its sources from the tool window's background thread too.
+     */
     fun isSymfony(project: Project): Boolean {
         if (DumbService.isDumb(project)) return false
-        return CachedValuesManager.getManager(project).getCachedValue(project) {
+        return runReadAction { cached(project) }
+    }
+
+    private fun cached(project: Project): Boolean =
+        CachedValuesManager.getManager(project).getCachedValue(project) {
             val manifests = FilenameIndex.getVirtualFilesByName("composer.json", GlobalSearchScope.projectScope(project))
                 .filter { "/vendor/" !in it.path }
             val symfony = manifests.any { manifest ->
@@ -31,5 +39,4 @@ internal object SymfonyProject {
             }
             CachedValueProvider.Result.create(symfony, *manifests.toTypedArray(), VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
         }
-    }
 }

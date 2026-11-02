@@ -7,6 +7,8 @@ import com.ibrahimdans.i18n.LocalizationConfigImpl
 import com.ibrahimdans.i18n.LocalizationFileType
 import com.ibrahimdans.i18n.TranslationReferenceAssistant
 import com.ibrahimdans.i18n.WorkspaceFile
+import com.ibrahimdans.i18n.extensions.technology.symfony.SymfonyCatalogue
+import com.ibrahimdans.i18n.extensions.technology.symfony.SymfonyTranslations
 import com.ibrahimdans.i18n.plugin.ide.references.translation.TranslationToCodeReferenceContributor
 import com.ibrahimdans.i18n.plugin.ide.references.translation.TranslationToCodeReferenceProvider
 import com.ibrahimdans.i18n.plugin.tree.Tree
@@ -57,27 +59,39 @@ class XliffLocalization : Localization<PsiElement> {
 /** Registered on XML in `plugin.xml`; [XliffReferenceAssistant] keeps to the units of XLIFF files. */
 class XliffReferenceContributor : TranslationToCodeReferenceContributor<PsiElement>(XliffReferenceAssistant())
 
-/** Navigation from a unit's `id` to the code naming it: `i18n="@@id"`, `` $localize`:@@id:…` ``. */
+/**
+ * Navigation from a unit's `id` to the code naming it: `i18n="@@id"`, `` $localize`:@@id:…` ``. In a
+ * Symfony catalogue, from its `resname` (`name` in 2.0) to the calls naming the key in its domain.
+ */
 class XliffReferenceAssistant : TranslationReferenceAssistant<PsiElement> {
 
     private val provider = TranslationToCodeReferenceProvider()
 
     override fun pattern(): ElementPattern<out PsiElement> =
-        PlatformPatterns.psiElement(XmlAttributeValue::class.java).with(object : PatternCondition<XmlAttributeValue>("xliffUnitId") {
-            override fun accepts(element: XmlAttributeValue, context: ProcessingContext?): Boolean = unitIdOf(element) != null
+        PlatformPatterns.psiElement(XmlAttributeValue::class.java).with(object : PatternCondition<XmlAttributeValue>("xliffUnitKey") {
+            override fun accepts(element: XmlAttributeValue, context: ProcessingContext?): Boolean = pathOf(element) != null
         })
 
     override fun references(element: PsiElement): List<PsiReference> {
-        val id = (element as? XmlAttributeValue)?.let(::unitIdOf) ?: return emptyList()
-        return provider.getReferences(element, TextRange(1, element.textLength - 1), listOf(id))
+        val path = (element as? XmlAttributeValue)?.let(::pathOf) ?: return emptyList()
+        return provider.getReferences(element, TextRange(1, element.textLength - 1), path)
     }
 
-    /** The id [value] gives its unit, or null when it is not the `id` of a unit of an XLIFF file. */
-    private fun unitIdOf(value: XmlAttributeValue): String? {
+    /**
+     * The key path [value] names: the `id` of a unit, or in a Symfony catalogue its domain followed by
+     * the `resname` (`name` in 2.0) of the unit. Null for any other attribute.
+     */
+    private fun pathOf(value: XmlAttributeValue): List<String>? {
         val attribute = value.parent as? XmlAttribute ?: return null
-        if (attribute.name != "id") return null
         val tag = attribute.parent ?: return null
         if (!XliffDocument.isUnit(tag) || !XliffTranslationPsi.isXliff(value)) return null
-        return value.value.trim().takeIf { it.isNotEmpty() }
+        val key = value.value.trim().takeIf { it.isNotEmpty() } ?: return null
+        val file = value.containingFile?.originalFile?.virtualFile
+        val domain = file?.takeIf { SymfonyTranslations.isCatalogue(value.project, it) }?.let { SymfonyCatalogue.parse(it.name)?.domain }
+        return when {
+            domain != null -> listOf(domain, key).takeIf { attribute.name == XliffDocument.symfonyNameAttribute(tag) }
+            attribute.name == "id" -> listOf(key)
+            else -> null
+        }
     }
 }

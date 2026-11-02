@@ -61,7 +61,7 @@ class TwigTagReferenceContributor : PsiReferenceContributor() {
 }
 
 /** The references a key of a Twig template gives. */
-private object TwigKeyReferences : CompositeKeyResolver<PsiElement> {
+internal object TwigKeyReferences : CompositeKeyResolver<PsiElement> {
 
     private val lang = TwigLang()
 

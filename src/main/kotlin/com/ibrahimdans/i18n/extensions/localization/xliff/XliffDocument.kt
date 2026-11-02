@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.extensions.localization.xliff
 
+import com.ibrahimdans.i18n.extensions.technology.symfony.SymfonyTranslations
 import com.ibrahimdans.i18n.plugin.utils.LocaleNames
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -125,7 +126,7 @@ object XliffDocument {
 
     private fun namedUnitOf(tag: XmlTag): XliffUnit? {
         val (source, target) = textsOf(tag)
-        val attribute = tag.getAttribute(if (tag.localName == UNIT) "name" else "resname")
+        val attribute = tag.getAttribute(symfonyNameAttribute(tag))
         val name = attribute?.value?.trim()?.takeIf { it.isNotEmpty() }
         val key = name ?: source?.value?.trimmedText?.takeIf { it.isNotEmpty() } ?: return null
         return XliffUnit(key, tag, attribute?.valueElement?.takeIf { name != null }, source, target)
@@ -136,6 +137,25 @@ object XliffDocument {
         val holder = if (tag.localName == UNIT) tag.subTags.firstOrNull { it.localName == SEGMENT } ?: tag else tag
         return holder.subTags.firstOrNull { it.localName == SOURCE } to holder.subTags.firstOrNull { it.localName == TARGET }
     }
+
+    /**
+     * The elements writing the key of the Symfony unit [element] lies in: its `resname` (`name` in 2.0)
+     * and the text of its `<source>` when that text is the key, as `translation:extract` writes it.
+     * Empty outside a unit of a Symfony catalogue.
+     */
+    fun symfonyKeyElementsOf(element: PsiElement): List<PsiElement> {
+        val unit = unitTagOf(element) ?: return emptyList()
+        val file = element.containingFile ?: return emptyList()
+        val virtualFile = file.originalFile.virtualFile ?: return emptyList()
+        if (!SymfonyTranslations.isCatalogue(file.project, virtualFile)) return emptyList()
+        val name = unit.getAttribute(symfonyNameAttribute(unit))?.valueElement
+        val key = name?.value?.trim()
+        val source = textsOf(unit).first?.let(::valueElementOf)?.takeIf { it is XmlText && (key == null || it.text.trim() == key) }
+        return listOfNotNull(name, source)
+    }
+
+    /** The attribute naming a Symfony unit: `resname` in 1.2, `name` in 2.0. */
+    fun symfonyNameAttribute(unit: XmlTag): String = if (unit.localName == UNIT) "name" else "resname"
 
     /** The unit [element] lies in, or null outside one. */
     fun unitTagOf(element: PsiElement): XmlTag? =

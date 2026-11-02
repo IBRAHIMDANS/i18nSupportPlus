@@ -336,10 +336,19 @@ class SetupWizardDialogTest : PlatformBaseTest() {
     @org.junit.jupiter.api.Test
     fun `detectFrameworksIn ignores a composer json without laravel framework`() {
         val detected = detectInProject(
-            "composer.json" to """{"require": {"php": "^8.2", "symfony/translation": "^7.0"}}"""
+            "composer.json" to """{"require": {"php": "^8.2", "symfony/console": "^7.0"}}"""
         )
 
         assertTrue(detected.isEmpty(), "no framework expected, got: $detected")
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `detectFrameworksIn ticks symfony from composer json`() {
+        val detected = detectInProject(
+            "composer.json" to """{"require": {"php": "^8.2", "symfony/framework-bundle": "^7.0", "symfony/translation": "^7.0"}}"""
+        )
+
+        assertEquals(setOf("symfony"), detected)
     }
 
     @org.junit.jupiter.api.Test

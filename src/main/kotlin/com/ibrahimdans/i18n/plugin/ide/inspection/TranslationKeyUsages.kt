@@ -140,12 +140,13 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
     }
 
     /**
-     * The path of [element] in its file, outermost first, the file's own name at the front —
-     * the shape [composeKey] expects, and the one the reference assistants build.
+     * The path of [element] in its file, outermost first, the file's namespace at the front — its
+     * own name, unless a technology states it ([TranslationFileScope.statedNamespaceOf]) — the shape
+     * [composeKey] expects, and the one the reference assistants build.
      */
     private fun pathOf(element: PsiElement): List<String> =
         element.parents(true).mapNotNull {
-            TranslationPsi.nameOf(it) ?: (it as? PsiFile)?.name?.substringBeforeLast(".")
+            TranslationPsi.nameOf(it) ?: (it as? PsiFile)?.let { file -> TranslationFileScope.statedNamespaceOf(file) ?: file.name.substringBeforeLast(".") }
         }.toList().reversed()
 }
 

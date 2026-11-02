@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiReference
 
 /**
  * Twig templates of a Symfony project: the keys of `'key'|trans` and `{% trans %}key{% endtrans %}`
@@ -25,7 +26,12 @@ class TwigLang : Lang {
 
     override fun translationExtractor(): TranslationExtractor = NoExtraction
 
-    override fun resolveLiteral(entry: PsiElement): PsiElement? = null
+    /** A key of the template: its token asks no contributor, the reference is built here. */
+    override fun references(literal: PsiElement): List<PsiReference> =
+        if (TwigTrans.keyOf(literal) != null) TwigKeyReferences.of(literal, literal) else literal.references.toList()
+
+    /** A key of the template found by a text search — what usage counts and *Unused key* add up. */
+    override fun resolveLiteral(entry: PsiElement): PsiElement? = entry.takeIf { TwigTrans.keyOf(it) != null }
 
     /** Nothing of a template is offered for extraction. */
     private object NoExtraction : TranslationExtractor {

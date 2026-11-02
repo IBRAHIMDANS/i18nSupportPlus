@@ -3,8 +3,9 @@ package com.ibrahimdans.i18n.extensions.localization.yaml
 import com.ibrahimdans.i18n.*
 import com.ibrahimdans.i18n.plugin.ConfigurationProperty
 import com.ibrahimdans.i18n.plugin.PrimitiveType
-import com.ibrahimdans.i18n.plugin.ide.settings.LocalizationSettingsPanel
+import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
 import com.ibrahimdans.i18n.plugin.ide.references.translation.TranslationToCodeReferenceProvider
+import com.ibrahimdans.i18n.plugin.ide.settings.LocalizationSettingsPanel
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
@@ -23,6 +24,7 @@ import com.intellij.psi.PsiReference
 import com.intellij.psi.impl.source.PostprocessReformattingAspect
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.util.parents
+import javax.swing.Icon
 import org.jetbrains.yaml.YAMLElementGenerator
 import org.jetbrains.yaml.YAMLFileType
 import org.jetbrains.yaml.YAMLLanguage
@@ -31,7 +33,6 @@ import org.jetbrains.yaml.psi.YAMLDocument
 import org.jetbrains.yaml.psi.YAMLFile
 import org.jetbrains.yaml.psi.YAMLKeyValue
 import org.jetbrains.yaml.psi.YAMLMapping
-import javax.swing.Icon
 
 class YamlLocalization : Localization<YAMLKeyValue> {
     override fun types(): List<LocalizationFileType> = listOf(LocalizationFileType(YAMLFileType.YML, listOf("yaml")))
@@ -149,7 +150,8 @@ class YamlReferenceAssistant : TranslationReferenceAssistant<YAMLKeyValue> {
         for (psi in element.parents(true)) {
             when {
                 psi is YAMLKeyValue -> result.add(psi.key?.text?.unQuote() ?: return null)
-                psi is YAMLFile -> result.add(psi.name.substringBeforeLast("."))
+                // A Symfony catalogue, `messages.fr.yaml`, holds the domain its technology states.
+                psi is YAMLFile -> result.add(TranslationFileScope.statedNamespaceOf(psi) ?: psi.name.substringBeforeLast("."))
             }
         }
         return result.reversed()

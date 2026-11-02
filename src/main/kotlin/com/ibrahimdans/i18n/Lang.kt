@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.parser.CodeNode
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.utils.PsiCodeNode
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiReference
 
 /**
  * A source language the plugin reads keys from.
@@ -36,6 +37,12 @@ interface Lang : CodeLang {
      * pointing at an object is resolved rather than a "Reference to object": next-intl's `t.raw`.
      */
     fun allowsObjectValue(element: PsiElement): Boolean = false
+
+    /**
+     * The references [literal] holds: its own, unless the language's keys are tokens the reference
+     * contributors never reach — a Twig string, whose token asks none — and the language gives them.
+     */
+    fun references(literal: PsiElement): List<PsiReference> = literal.references.toList()
 
     override fun canExtractKey(node: CodeNode, translationFunctionNames: List<String>): Boolean =
         node is PsiCodeNode && canExtractKey(node.element, translationFunctionNames)

@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.extensions.localization.php
 
 import com.ibrahimdans.i18n.TranslationReferenceAssistant
+import com.ibrahimdans.i18n.extensions.technology.symfony.SymfonyTranslations
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
 import com.ibrahimdans.i18n.plugin.ide.references.translation.TranslationToCodeReferenceContributor
 import com.ibrahimdans.i18n.plugin.ide.references.translation.TranslationToCodeReferenceProvider
@@ -27,9 +28,12 @@ class PhpArrayReferenceAssistant : TranslationReferenceAssistant<StringLiteralEx
     override fun references(element: StringLiteralExpression): List<PsiReference> {
         val file = element.containingFile ?: return emptyList()
         val virtualFile = file.originalFile.virtualFile ?: return emptyList()
-        val namespace = PhpArrayLocalization.namespaceOf(virtualFile) ?: return emptyList()
+        val laravel = PhpArrayLocalization.namespaceOf(virtualFile)
         val path = PhpArrays.pathOf(element) ?: return emptyList()
-        if (TranslationFileScope.sourceOf(file)?.localization !is PhpArrayLocalization) return emptyList()
+        val source = if (laravel != null || SymfonyTranslations.isCatalogue(file.project, virtualFile)) TranslationFileScope.sourceOf(file) else null
+        if (source?.localization !is PhpArrayLocalization) return emptyList()
+        // A Symfony catalogue, `messages.fr.php`, holds the domain its technology states.
+        val namespace = laravel ?: source.namespace ?: return emptyList()
         return provider.getReferences(element, element.valueRange, listOf(namespace) + path)
     }
 }
