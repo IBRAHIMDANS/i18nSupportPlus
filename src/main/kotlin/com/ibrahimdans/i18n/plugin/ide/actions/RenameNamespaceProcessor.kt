@@ -9,6 +9,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
@@ -240,8 +241,9 @@ internal class NamespaceContainer private constructor(
  * (`t('common:save')`), and the namespace arguments and options of i18next and react-i18next.
  *
  * Found by searching the namespace as a word, then kept only where it stands whole in one of those
- * places: `'common'` as a plain string, a key `common.title` without the namespace separator, or
- * `othercommon:save` are not the namespace.
+ * places: `'common'` as a plain string, `othercommon:save`, or `common.title` where keys do not
+ * start with their namespace (no `{ns}.{key}` template, no *First component as namespace*) are not
+ * the namespace.
  */
 private class NamespaceCallSites(private val container: NamespaceContainer) {
 
@@ -250,11 +252,7 @@ private class NamespaceCallSites(private val container: NamespaceContainer) {
     private val namespace = container.namespace
     private val functionNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
 
-    /** The separators a key's namespace stands before: `:`, and `.` when the first component is the namespace. */
-    private val prefixes: List<String> = listOfNotNull(
-        config.nsSeparator.takeIf { it.isNotEmpty() },
-        config.keySeparator.takeIf { config.firstComponentNs && it.isNotEmpty() },
-    ).map { namespace + it }
+    private val parser = RawKeyParser(project)
 
     fun find(): List<PsiReference> {
         // The search hands files to several threads at once: the processor runs concurrently.
@@ -287,16 +285,27 @@ private class NamespaceCallSites(private val container: NamespaceContainer) {
         return module == own
     }
 
-    /** The namespace written at the head of a translation key: `common` in `t('common:save')`. */
+    /**
+     * The namespace written at the head of a translation key: `common` in `t('common:save')`, and
+     * `messages` in Laravel's `__('messages.welcome')`. The key is read as the plugin reads it — the
+     * project's separators, a module's `keyTemplate` (`{ns}.{key}`), *First component as namespace* —
+     * so a namespace is rewritten exactly where the plugin resolves one, whatever its separator.
+     */
     private fun keyPrefixAt(element: PsiElement, languages: List<Lang>): PsiReference? {
         val literal = languages.firstNotNullOfOrNull { it.resolveLiteral(element) } ?: return null
         // Read as a key, whether it resolves or not: a key missing from the namespace still names it.
-        val holder = listOfNotNull(literal, literal.parent).firstOrNull { candidate ->
-            ElementManipulators.getManipulator(candidate) != null && languages.any { it.canExtractKey(candidate, functionNames) }
+        val (keyElement, lang) = listOfNotNull(literal, literal.parent).firstNotNullOfOrNull { candidate ->
+            languages.firstOrNull { it.canExtractKey(candidate, functionNames) }?.let { candidate to it }
         } ?: return null
+        val key = lang.extractRawKey(keyElement)?.let { parser.parse(it, keyElement) } ?: return null
+        // PHP reads the key from the string's token, which only its literal can rewrite.
+        val holder = listOfNotNull(keyElement, keyElement.parent).firstOrNull { ElementManipulators.getManipulator(it) != null } ?: return null
+        // A namespace the key writes itself; one given by its hook (`useTranslation('common')`) is not in its text.
+        if (key.ns?.text != namespace) return null
         val text = holder.text
         val start = if (text.length > 1 && text.first() in QUOTES) 1 else 0
-        if (prefixes.none { text.startsWith(it, start) }) return null
+        val separator = text.getOrNull(start + namespace.length)
+        if (!text.startsWith(namespace, start) || separator == null || separator.isLetterOrDigit() || separator == '_') return null
         return NamespaceReference(holder, TextRange(start, start + namespace.length), container)
     }
 
