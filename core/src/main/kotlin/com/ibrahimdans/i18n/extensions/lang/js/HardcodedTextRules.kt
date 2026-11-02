@@ -2,7 +2,8 @@ package com.ibrahimdans.i18n.extensions.lang.js
 
 /**
  * What the hardcoded-text inspections agree is text to translate, whatever the template syntax:
- * [HardcodedJsxTextInspection] for JSX, [HardcodedVueTextInspection] for Vue templates.
+ * [HardcodedJsxTextInspection] for JSX, [HardcodedVueTextInspection] for Vue templates, and the markup
+ * inspections of Angular templates, Svelte and Astro components and Blade views.
  */
 object HardcodedTextRules {
 

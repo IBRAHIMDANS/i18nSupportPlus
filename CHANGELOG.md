@@ -23,6 +23,7 @@
 - [CLI] **`i18n-check` as a Docker image, for GitLab CI, Bitbucket, Jenkins or a machine without Java**: `docker run --rm -v "$PWD:/work" ghcr.io/ibrahimdans/i18n-check:latest --code` runs the check with Java 21 included, on Linux x86_64 and arm64. See [Other CI systems](docs/checks.md#other-ci-systems).
 - [MCP] **AI agents find an existing key before creating one**: the new `i18n_find_keys` tool finds keys by name, prefix or the text they hold, with their values and usages, and `i18n_create_key` no longer creates a key whose reference text another key already holds unless the agent asks for it, so an agent reuses `common:actions.save` instead of adding its twin.
 - [CLI] **`i18n-check` annotates pull requests**: `--format github`, which the GitHub action now uses by default, shows each unknown key on the line calling it and each missing, orphan or empty key on its locale's file, in the pull request's *Files changed*, and adds a table per locale to the run's summary. See the [documentation](docs/checks.md#command-line-check)
+- [Inspections] **Hard-coded text found in Blade views and Astro components**: two new inspections, off by default, report a text written as is in a Blade view or an Astro component's template, with a quick fix writing `{{ __('key') }}` in Blade and `{t('key')}` in Astro, where `t` is imported in the frontmatter when the component has none.
 
 ### Fixes
 
