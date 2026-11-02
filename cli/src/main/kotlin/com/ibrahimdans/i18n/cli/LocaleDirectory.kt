@@ -2,11 +2,13 @@ package com.ibrahimdans.i18n.cli
 
 import com.ibrahimdans.i18n.plugin.format.ArbCatalogue
 import com.ibrahimdans.i18n.plugin.format.ParsedNode
+import com.ibrahimdans.i18n.plugin.format.PropertiesBundle
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.LeafReader
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationLeaves
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocaleNames
+import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.extension
@@ -19,7 +21,8 @@ import kotlin.io.path.nameWithoutExtension
  * The translations of one directory holding a file or a folder per locale:
  * `<dir>/<locale>.json` or `<dir>/<locale>/<namespace>.json`, in JSON, JSON5, YAML, PO, as a Laravel PHP
  * array or as a TS / JS catalogue. A Flutter ARB catalogue (`app_fr.arb`) holds the locale its `@@locale`
- * states, or the one ending its name.
+ * states, or the one ending its name. A Java resource bundle (`messages_fr.properties`) holds the locale
+ * ending its name, as [PropertiesBundle.placementsIn] reads it.
  *
  * Only names [LocaleNames] reads as a locale count: `README.md` or `scripts/` beside them are left
  * alone. The keys of a namespace file are spelled `namespace:key`, with the configured namespace
@@ -35,6 +38,7 @@ object LocaleDirectory {
         val files = mutableListOf<LocaleFile>()
         val aliases = config.localeAliasMap()
         fun isLocale(name: String) = LocaleNames.looksLikeLocale(name) || name in aliases
+        val bundles = mutableListOf<Path>()
         for (entry in dir.listDirectoryEntries().sorted()) {
             when {
                 entry.isDirectory() && isLocale(entry.fileName.toString()) ->
@@ -42,11 +46,23 @@ object LocaleDirectory {
                         collect(file, "${file.nameWithoutExtension}${config.nsSeparator}", entry.fileName.toString(), config, result, files)
                     }
                 isTranslationFile(entry) && entry.extension.lowercase() == ArbCatalogue.EXTENSION -> collectArb(entry, config, result, files)
+                isTranslationFile(entry) && entry.extension.lowercase() == PropertiesBundle.EXTENSION -> bundles.add(entry)
                 isTranslationFile(entry) && isLocale(entry.nameWithoutExtension) ->
                     collect(entry, "", entry.nameWithoutExtension, config, result, files)
             }
         }
+        collectBundles(bundles, config, result, files)
         return Scope(null, result, files)
+    }
+
+    private fun collectBundles(bundles: List<Path>, config: Config, result: MutableMap<String, MutableMap<String, String>>, files: MutableList<LocaleFile>) {
+        val placements = PropertiesBundle.placementsIn(bundles.map { it.nameWithoutExtension }, ReferenceLocale.wanted(null, config))
+        for (file in bundles) {
+            val placement = placements[file.nameWithoutExtension] ?: continue
+            val nsPrefix = placement.namespace?.let { it + config.nsSeparator }.orEmpty()
+            TranslationLeaves.collect(config, CheckFormats.PROPERTIES.parse(Files.readString(file))!!, nsPrefix, placement.locale, ParsedLeaves, result)
+            files += LocaleFile(placement.locale, nsPrefix, file.toAbsolutePath().normalize())
+        }
     }
 
     private fun collectArb(file: Path, config: Config, result: MutableMap<String, MutableMap<String, String>>, files: MutableList<LocaleFile>) {

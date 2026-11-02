@@ -1,0 +1,6 @@
+<idea-plugin>
+    <extensions defaultExtensionNs="com.ibrahimdans.i18n">
+        <localization implementation="com.ibrahimdans.i18n.extensions.localization.properties.PropertiesLocalization"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.localization.properties.PropertiesBundles"/>
+    </extensions>
+</idea-plugin>

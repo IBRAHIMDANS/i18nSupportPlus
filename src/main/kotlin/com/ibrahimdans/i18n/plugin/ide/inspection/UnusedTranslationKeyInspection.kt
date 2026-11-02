@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
 import com.ibrahimdans.i18n.extensions.localization.arb.ArbCatalogues
+import com.ibrahimdans.i18n.plugin.format.PropertiesBundle
 import com.ibrahimdans.i18n.extensions.localization.json.JsonElementTree
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.review.ReviewMigration
@@ -88,6 +89,9 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
         if (file.originalFile.virtualFile?.parent?.name == INLANG_PROJECT) return false
         // Flutter reads an ARB key as a getter of its generated class, which no search here sees.
         if (ArbCatalogues.isArb(file.originalFile.virtualFile)) return false
+        // A resource bundle's keys are read by `getString` / `getMessage`, which no search here sees yet;
+        // any other `.properties` file is configuration.
+        if (file.originalFile.virtualFile?.extension == PropertiesBundle.EXTENSION) return false
         if (TranslationFileScope.sourceOf(file) != null) return true
         if (TOOL_CONFIGURATION.matches(file.name)) return false
         val config = Settings.getInstance(file.project).config()

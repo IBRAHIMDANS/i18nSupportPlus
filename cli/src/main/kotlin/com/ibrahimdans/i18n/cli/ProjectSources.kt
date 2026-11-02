@@ -44,7 +44,7 @@ object ProjectSources {
     /** The scopes of [project], none when it holds no translation file. */
     fun read(project: Path, config: Config): List<Scope> {
         // The tool window's rule: a file with no locale anywhere in its path is no locale's.
-        val found = SourceDiscovery(NioWorkspace(project), StaticI18nRegistry(CheckFormats.ALL, listOf(ArbSources(config))), config).sources()
+        val found = SourceDiscovery(NioWorkspace(project), StaticI18nRegistry(CheckFormats.ALL, listOf(ArbSources(config), PropertiesSources(config))), config).sources()
             .filter { it.hasRecognizedLocale() }
         found.firstNotNullOfOrNull { source ->
             if (source.tree != null) null
