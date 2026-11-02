@@ -122,9 +122,9 @@ internal object MachineFill {
      * apart, and one command writing them all.
      */
     fun run(project: Project, module: ModuleConfig?, source: String, targets: List<String>, provider: TranslationProvider, onWritten: () -> Unit = {}) {
-        val keySeparator = Settings.getInstance(project).config().keySeparator
+        val config = Settings.getInstance(project).config()
         preview(project, module, source, targets, provider, Pass.FILL, onWritten) { translations, target ->
-            itemsOf(translations, source, target, keySeparator)
+            itemsOf(translations, source, target, config.keySeparator, config.parentLocale(target))
         }
     }
 
@@ -224,8 +224,19 @@ internal object MachineFill {
      *   plural form only when its group has an `other`), each form the target language needs and
      *   lacks, from the source form of the same category or, marked for review, from `other`;
      * - an ICU plural (`{count, plural, …}`), its branches rebuilt with the target's ([itemOf]).
+     *
+     * A key [target] has no entry for while [parent] — the language a regional target inherits from,
+     * `en` for `en-GB` — holds a value is inherited, not missing: filling it would write a value
+     * where the file means to defer to its language. A key [target] holds blank is still filled.
      */
-    fun itemsOf(translations: Map<String, Map<String, String>>, source: String, target: String, keySeparator: String): List<Item> {
+    fun itemsOf(
+        translations: Map<String, Map<String, String>>,
+        source: String,
+        target: String,
+        keySeparator: String,
+        parent: String? = null,
+    ): List<Item> {
+        fun inherited(values: Map<String, String>?) = parent != null && values != null && target !in values && !values[parent].isNullOrBlank()
         val items = mutableListOf<Item>()
         // other key -> category -> key, for the keys reading as plural forms of a group holding an `other`.
         val groups = mutableMapOf<String, MutableMap<String, String>>()
@@ -236,10 +247,14 @@ internal object MachineFill {
                 continue
             }
             val text = values[source]
-            if (text.isNullOrBlank() || !values[target].isNullOrBlank()) continue
+            if (text.isNullOrBlank() || !values[target].isNullOrBlank() || inherited(values)) continue
             items += itemOf(key, text, target)
         }
         for ((otherKey, forms) in groups) {
+            // A group the target holds no form of while its language holds one is inherited as a whole.
+            if (parent != null && forms.values.none { target in translations[it].orEmpty() } &&
+                forms.values.any { !translations[it]?.get(parent).isNullOrBlank() }
+            ) continue
             val sourceForms = forms.mapNotNull { (category, key) -> translations[key]?.get(source)?.let { category to it } }.toMap()
             val existing = forms.mapNotNull { (category, key) -> translations[key]?.get(target)?.let { category to it } }.toMap()
             when (val plan = PluralTranslationPlan.of(sourceForms, target, existing)) {

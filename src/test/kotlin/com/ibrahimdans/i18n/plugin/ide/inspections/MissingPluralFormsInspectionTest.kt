@@ -4,6 +4,8 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.inspection.EmptyTranslationValueInspection
 import com.ibrahimdans.i18n.plugin.ide.inspection.MissingPluralFormsInspection
 import com.ibrahimdans.i18n.plugin.ide.launchActionAndWait
+import com.ibrahimdans.i18n.plugin.ide.runWithConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import org.junit.jupiter.api.Assertions
@@ -122,5 +124,20 @@ class MissingPluralFormsInspectionTest : PlatformBaseTest() {
             myFixture.doHighlighting().none { it.description?.startsWith("Plural ") == true },
             "the group is complete once fixed"
         )
+    }
+
+    /** `en-GB` inherits from `en` (#767): a form its language's file holds is not missing there. */
+    @Test
+    fun aRegionalFileInheritsTheFormsOfItsLanguage() {
+        myFixture.addFileToProject("locales/en/common.json", """{"item_one": "item", "item_other": "items"}""")
+        // `item_one` and `item_zero` make a group; `other` comes from en.
+        assertTrue(pluralWarnings("locales/en-GB/common.json", """{"item_one": "an item", "item_zero": "no item"}""").isEmpty())
+    }
+
+    @Test
+    fun aRegionalFileLacksTheFormsOfItsLanguageWithTheOptionOff() = myFixture.runWithConfig(Config(regionalFallback = false)) {
+        myFixture.addFileToProject("locales/en/common.json", """{"item_one": "item", "item_other": "items"}""")
+        val warnings = pluralWarnings("locales/en-GB/common.json", """{"item_one": "an item", "item_zero": "no item"}""")
+        Assertions.assertEquals(listOf("Plural 'item' lacks the form(s) other that 'en-GB' uses"), warnings)
     }
 }

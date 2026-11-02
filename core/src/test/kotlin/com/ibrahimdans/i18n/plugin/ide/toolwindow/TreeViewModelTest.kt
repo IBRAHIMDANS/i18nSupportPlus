@@ -234,6 +234,33 @@ class TreeViewModelTest {
         assertEquals(NodeCompleteness(complete = 0, total = 1), root.completeness)
     }
 
+    /** `en-GB` inherits from `en` (#767): the tree counts it as *Stats* does, not as missing. */
+    @Test
+    fun `describeTree reads a key a regional locale inherits as translated, like the Stats view`() {
+        val data = mapOf(
+            "save" to mapOf("en" to "Save", "en-GB" to "Save", "fr" to "Enregistrer"),
+            "color" to mapOf("en" to "Color", "fr" to "Couleur"),
+            "cancel" to mapOf("en" to "Cancel", "fr" to "Annuler", "en-GB" to ""),
+            "item_one" to mapOf("en" to "{{count}} item", "fr" to "{{count}} article"),
+            "item_other" to mapOf("en" to "{{count}} items", "fr" to "{{count}} articles"),
+        )
+        val locales = listOf("en", "en-GB", "fr")
+        val parent = Config()::parentLocale
+
+        val statuses = viewModel.describeTree(viewModel.buildTree(data, Config()), locales, parent)
+        val stats = TranslationCoverage.analyze(data, locales, parent).single { it.locale == "en-GB" }
+
+        assertEquals(LocaleState.PRESENT, statuses.getValue("color").localeStates["en-GB"], "inherited from en")
+        assertEquals(KeyStatus.COMPLETE, statuses.getValue("color").status)
+        assertEquals(KeyStatus.EMPTY, statuses.getValue("cancel").status, "a blank en-GB value is its own, not inherited")
+        // save, color and item are complete everywhere; cancel is blank in en-GB.
+        assertEquals(NodeCompleteness(3, 4), statuses.getValue("").completeness)
+        assertEquals(stats.translated, statuses.getValue("").completeness.complete, "the badge matches Stats for en-GB")
+
+        val flat = viewModel.describeTree(viewModel.buildTree(data, Config()), locales)
+        assertEquals(KeyStatus.MISSING, flat.getValue("color").status, "without a parent, en-GB lacks color")
+    }
+
     @Test
     fun `describeTree gives each namespace the totals of the Stats view`() {
         val data = mapOf(

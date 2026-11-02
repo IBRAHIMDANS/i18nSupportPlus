@@ -41,6 +41,10 @@ import com.intellij.psi.PsiElementVisitor
  * A group beside its bare key (`item` and `item_other`, as Crowdin exports) lacks nothing: i18next
  * falls back on the bare key for any form missing ([PluralKey.bareKeyCoversForms]).
  *
+ * A regional file inherits the forms its language's file holds
+ * ([com.ibrahimdans.i18n.plugin.ide.settings.Config.parentLocale]): `en-GB/common.json` holding
+ * `item_one` alone lacks nothing when `en/common.json` holds `item_other`.
+ *
  * The large-number `many` of French, Spanish, Italian, Portuguese and Catalan is only asked for
  * when [largeNumberForms] is set: real, but almost never translated.
  *
@@ -64,14 +68,23 @@ class MissingPluralFormsInspection : LocalInspectionTool() {
         if (DumbService.isDumb(holder.project)) return PsiElementVisitor.EMPTY_VISITOR
         val source = TranslationFileScope.sourceOf(holder.file) ?: return PsiElementVisitor.EMPTY_VISITOR
         val locale = source.localeLabel()
-        if (Settings.getInstance(holder.project).config().ignoresLocale(locale)) return PsiElementVisitor.EMPTY_VISITOR
+        val config = Settings.getInstance(holder.project).config()
+        if (config.ignoresLocale(locale)) return PsiElementVisitor.EMPTY_VISITOR
         val needed = PluralCategories.of(locale, largeNumberForms)
+        // The keys of the language's file a regional file inherits from, read once per file.
+        val inherited by lazy(LazyThreadSafetyMode.NONE) {
+            config.parentLocale(locale)
+                ?.let { TranslationFileScope.counterpartOf(holder.file, source, it) }
+                ?.tree?.value()?.containingFile
+                ?.let { TranslationFileKeys.translationLeaves(it).keys }
+                .orEmpty()
+        }
 
         return object : PsiElementVisitor() {
             override fun visitElement(element: PsiElement) {
                 val entry = TranslationPsi.entryOf(element) ?: return
                 val siblings = TranslationPsi.siblingNames(element) ?: return
-                check(entry.name, entry.keyElement, siblings, needed, locale, holder)
+                check(entry.name, entry.keyElement, siblings, needed, locale, holder) { inherited }
             }
         }
     }
@@ -86,14 +99,18 @@ class MissingPluralFormsInspection : LocalInspectionTool() {
         siblings: List<String>,
         needed: Set<String>,
         locale: String,
-        holder: ProblemsHolder
+        holder: ProblemsHolder,
+        inherited: () -> Set<List<String>>,
     ) {
         val (base, forms) = PluralKey.groupForms(siblings).entries
             .firstOrNull { (base, forms) -> forms.first() == name && forms != listOf(base) }
             ?.toPair() ?: return
         if (PluralKey.bareKeyCoversForms(base, siblings)) return
         val present = forms.map { it.removePrefix(base + SUFFIX_SEPARATOR) }.toSet()
-        val missing = PluralCategories.ALL.filter { it in needed && it !in present }
+        var missing = PluralCategories.ALL.filter { it in needed && it !in present }
+        if (missing.isEmpty()) return
+        val parentPath = TranslationFileKeys.pathOf(anchor).dropLast(1)
+        missing = missing.filterNot { parentPath + (base + SUFFIX_SEPARATOR + it) in inherited() }
         if (missing.isEmpty()) return
         holder.registerProblem(
             anchor,
