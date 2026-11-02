@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.intellij.openapi.project.Project
 
 /**
@@ -14,9 +15,9 @@ object TranslationStatsAnalyzer {
      * Returns a list of [LocaleStats] sorted by locale name.
      */
     fun analyze(project: Project, moduleConfig: ModuleConfig? = null): List<LocaleStats> =
-        TranslationCoverage.analyze(TranslationDataLoader.loadAllTranslations(project, moduleConfig))
+        TranslationCoverage.analyze(TranslationDataLoader.loadAllTranslations(project, moduleConfig), Settings.getInstance(project).config()::parentLocale)
 
     /** The coverage report of the project (or of a specific module), see [CoverageReport]. */
     fun report(project: Project, moduleConfig: ModuleConfig? = null): CoverageReport =
-        TranslationCoverage.report(TranslationDataLoader.loadAllTranslations(project, moduleConfig))
+        TranslationCoverage.report(TranslationDataLoader.loadAllTranslations(project, moduleConfig), Settings.getInstance(project).config()::parentLocale)
 }

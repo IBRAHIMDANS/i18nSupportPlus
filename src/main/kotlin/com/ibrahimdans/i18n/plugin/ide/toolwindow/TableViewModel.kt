@@ -92,12 +92,14 @@ class TableViewModel {
      * [StatusFilter.SOURCE_CHANGED] and [StatusFilter.CHANGES_REQUESTED] read [reviews] against the
      * value each shown cell holds now and the row's source, read in the reference locale even when
      * its column is hidden: an approval of an older value, or on an older source, reads as *to review*.
+     * [parentLocale] as in [inheritedFrom]: an inherited value is not [StatusFilter.MISSING].
      */
     fun filterByStatus(
         filter: StatusFilter,
         rows: List<TranslationRow>,
         shownLocales: List<String>,
         reviews: TableReviews = TableReviews.OFF,
+        parentLocale: (String) -> String? = { null },
     ): List<TranslationRow> {
         fun anyShown(status: ValueStatus) = { row: TranslationRow ->
             shownLocales.any { valueStatus(row.values[it] ?: "") == status }
@@ -107,7 +109,9 @@ class TableViewModel {
         }
         return when (filter) {
             StatusFilter.ALL -> rows
-            StatusFilter.MISSING -> rows.filter(anyShown(ValueStatus.MISSING))
+            StatusFilter.MISSING -> rows.filter { row ->
+                shownLocales.any { valueStatus(row.values[it] ?: "") == ValueStatus.MISSING && inheritedFrom(row, it, parentLocale) == null }
+            }
             StatusFilter.BLANK -> rows.filter(anyShown(ValueStatus.BLANK))
             StatusFilter.ORPHAN -> rows.filter { usageStatus(it.usageCount) == UsageStatus.ORPHAN }
             StatusFilter.DUPLICATE -> {
@@ -153,8 +157,9 @@ class TableViewModel {
         status: StatusFilter,
         shownLocales: List<String>,
         reviews: TableReviews = TableReviews.OFF,
+        parentLocale: (String) -> String? = { null },
     ): List<TranslationRow> =
-        filter(query, filterByStatus(status, filterByNamespace(namespace, rows), shownLocales, reviews))
+        filter(query, filterByStatus(status, filterByNamespace(namespace, rows), shownLocales, reviews, parentLocale))
 
     /**
      * The reviews of [locales] under [root], or [TableReviews.OFF] when there is no root or it has
@@ -222,6 +227,10 @@ class TableViewModel {
         raw.isBlank() -> ValueStatus.BLANK
         else -> ValueStatus.TRANSLATED
     }
+
+    /** The locale [row] reads [locale]'s value from, its [parentLocale], when it has no entry of its own: `en` for `en-GB`. */
+    fun inheritedFrom(row: TranslationRow, locale: String, parentLocale: (String) -> String?): String? =
+        parentLocale(locale)?.takeIf { locale !in row.values && !row.values[it].isNullOrBlank() }
 
     /** What the Usage column must say about a row whose [TranslationRow.usageCount] is [count]. */
     fun usageStatus(count: Int): UsageStatus = when (count) {

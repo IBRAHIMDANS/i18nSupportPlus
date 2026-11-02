@@ -686,7 +686,8 @@ class I18nCheckTest {
     @Test
     fun `country code folder - checked under its alias, with the plural forms of its locale`(@TempDir project: Path) {
         gbProject(project)
-        Files.writeString(project.resolve(SettingsFile.JSON_PATH), """{"localeAliases": "gb=en-GB"}""")
+        // Off: en-GB would inherit from en, and the plural forms of gb would not be compared.
+        Files.writeString(project.resolve(SettingsFile.JSON_PATH), """{"localeAliases": "gb=en-GB", "regionalFallback": false}""")
 
         val run = check(project.toString())
 
@@ -849,5 +850,25 @@ class I18nCheckTest {
         Files.writeString(dir.resolve("locales/en.json"), """{ "a": "Hi {name} {age}" }""")
         Files.writeString(dir.resolve("locales/fr.json"), """{ "a": "Salut {name}" }""")
         assertEquals(I18nCheck.OK, check(dir.toString()).exit)
+    }
+
+    @Test
+    fun `regional locale - inherits from its language, unless the settings turn it off`(@TempDir project: Path) {
+        fun write(path: String, text: String) {
+            val file = project.resolve(path)
+            Files.createDirectories(file.parent)
+            Files.writeString(file, text)
+        }
+        write("locales/en/common.json", """{"color": "color", "save": "Save"}""")
+        write("locales/en-GB/common.json", """{"color": "colour"}""")
+        write("locales/pt-BR/common.json", """{"color": "cor"}""")
+
+        val inherited = check(project.toString(), "--locales", project.resolve("locales").toString())
+        assertTrue("en-GB: no problem" in inherited.out, inherited.out)
+        assertTrue("pt-BR: 1 missing" in inherited.out, inherited.out)
+
+        write("i18n-check.json", """{"regionalFallback": false}""")
+        val full = check(project.toString(), "--locales", project.resolve("locales").toString())
+        assertTrue("en-GB: 1 missing" in full.out, full.out)
     }
 }

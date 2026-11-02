@@ -52,6 +52,7 @@ object ProjectConfigFile {
         "gettextAliases" to Field({ it.gettextAliases }, { c, v -> c.copy(gettextAliases = v) }),
         "foldingPreferredLanguage" to Field({ it.foldingPreferredLanguage }, { c, v -> c.copy(foldingPreferredLanguage = v) }),
         "ignoredLocales" to Field({ it.ignoredLocales }, { c, v -> c.copy(ignoredLocales = v) }),
+        "regionalFallback" to Field({ it.regionalFallback.toString() }, { c, v -> c.copy(regionalFallback = v.toBoolean()) }, flag = true),
         "localeAliases" to Field({ it.localeAliases }, { c, v -> c.copy(localeAliases = v) }),
         "keptKeys" to Field({ it.keptKeys }, { c, v -> c.copy(keptKeys = v) }),
         PREVIEW_LOCALE to Field({ it.previewLocale }, { c, v -> c.copy(previewLocale = v) }),

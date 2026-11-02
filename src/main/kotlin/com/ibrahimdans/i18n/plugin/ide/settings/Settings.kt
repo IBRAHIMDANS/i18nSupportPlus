@@ -62,6 +62,7 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
     internal var excludedFileExtensions = default.excludedFileExtensions
     internal var keptKeys = default.keptKeys
     internal var ignoredLocales = default.ignoredLocales
+    internal var regionalFallback = default.regionalFallback
     internal var localeAliases = default.localeAliases
     internal var gutterIconsEnabled = default.gutterIconsEnabled
     internal var setupWizardEnabled = default.setupWizardEnabled
@@ -218,6 +219,7 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
             excludedFileExtensions = excludedFileExtensions,
             keptKeys = keptKeys,
             ignoredLocales = ignoredLocales,
+            regionalFallback = regionalFallback,
             localeAliases = localeAliases,
             gutterIconsEnabled = gutterIconsEnabled,
             setupWizardEnabled = setupWizardEnabled,
@@ -261,6 +263,7 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
         excludedFileExtensions = config.excludedFileExtensions
         keptKeys = config.keptKeys
         ignoredLocales = config.ignoredLocales
+        regionalFallback = config.regionalFallback
         localeAliases = config.localeAliases
         gutterIconsEnabled = config.gutterIconsEnabled
         setupWizardEnabled = config.setupWizardEnabled

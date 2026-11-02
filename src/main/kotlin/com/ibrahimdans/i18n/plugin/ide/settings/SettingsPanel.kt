@@ -197,6 +197,10 @@ class SettingsPanel(val settings: Settings, val project: Project, private val co
                     cell(textField(PluginBundle.message("settings.ignored.locales"), settings::ignoredLocales, columns = 25))
                         .comment(PluginBundle.message("settings.ignored.locales.comment"))
                 }
+                row {
+                    cell(checkbox(PluginBundle.message("settings.regional.fallback"), settings::regionalFallback))
+                        .comment(PluginBundle.message("settings.regional.fallback.comment"))
+                }
                 row(PluginBundle.message("settings.kept.keys")) {
                     cell(textField(PluginBundle.message("settings.kept.keys"), settings::keptKeys, maxLength = 2000, columns = 25))
                         .comment(PluginBundle.message("settings.kept.keys.comment"))

@@ -9,7 +9,8 @@ import com.ibrahimdans.i18n.plugin.tree.PluralKey
  * [missing] and [missingKeys] are the keys this locale does not carry at all; [empty] and
  * [emptyKeys] the ones it carries with a blank value. The two used to be folded into one
  * count while the tree told them apart (`✗` against `!`): `3 missing` here next to two `✗`
- * and one `!` there did not add up for a reader.
+ * and one `!` there did not add up for a reader. [inherited] counts the keys it does not carry but
+ * reads from its language (`en-GB` from `en`): they are [translated], not [missing].
  */
 data class LocaleStats(
     val locale: String,
@@ -20,6 +21,7 @@ data class LocaleStats(
     val missingKeys: List<String> = emptyList(),
     val empty: Int = 0,
     val emptyKeys: List<String> = emptyList(),
+    val inherited: Int = 0,
 ) {
     /** Keys that are not translated, whichever way: absent or blank. */
     val untranslated: Int get() = missing + empty
@@ -76,15 +78,22 @@ object TranslationCoverage {
      * non-blank form of it: the categories differ per language, so counting forms reported
      * `item_few` missing in English and `item_one` missing in Japanese. A missing group is listed
      * under a form that exists elsewhere, so the popup can still navigate to it.
+     *
+     * [parentLocale] gives the locale a label inherits the keys it lacks from, null for none: a
+     * group it does not carry, translated there, is covered.
      */
-    fun analyze(allTranslations: Map<String, Map<String, String>>): List<LocaleStats> =
-        analyze(allTranslations, localesOf(allTranslations))
+    fun analyze(allTranslations: Map<String, Map<String, String>>, parentLocale: (String) -> String? = { null }): List<LocaleStats> =
+        analyze(allTranslations, localesOf(allTranslations), parentLocale)
 
     /**
      * Coverage of [allTranslations] for exactly [locales], in that order — including a locale
      * none of these keys is translated in, which then reads as 0%.
      */
-    fun analyze(allTranslations: Map<String, Map<String, String>>, locales: List<String>): List<LocaleStats> {
+    fun analyze(
+        allTranslations: Map<String, Map<String, String>>,
+        locales: List<String>,
+        parentLocale: (String) -> String? = { null },
+    ): List<LocaleStats> {
         val groups = PluralKey.groupForms(allTranslations.keys)
         val totalKeys = groups.size
         if (totalKeys == 0) return emptyList()
@@ -93,7 +102,11 @@ object TranslationCoverage {
             // A group is translated by any non-blank form, empty when it only has blank ones,
             // missing when the locale carries none of its forms.
             val untranslated = groups.values.filter { forms -> forms.none { !allTranslations[it]?.get(locale).isNullOrBlank() } }
-            val (emptyGroups, missingGroups) = untranslated.partition { forms -> forms.any { allTranslations[it]?.get(locale) != null } }
+            val (emptyGroups, absentGroups) = untranslated.partition { forms -> forms.any { allTranslations[it]?.get(locale) != null } }
+            val parent = parentLocale(locale)
+            val (inheritedGroups, missingGroups) = absentGroups.partition { forms ->
+                parent != null && forms.any { !allTranslations[it]?.get(parent).isNullOrBlank() }
+            }
             val missingKeys = missingGroups.map { forms -> forms.sorted().first() }.sorted()
             val emptyKeys = emptyGroups.map { forms -> forms.sorted().first() }.sorted()
             val translated = totalKeys - missingKeys.size - emptyKeys.size
@@ -107,6 +120,7 @@ object TranslationCoverage {
                 missingKeys = missingKeys,
                 empty = emptyKeys.size,
                 emptyKeys = emptyKeys,
+                inherited = inheritedGroups.size,
             )
         }
     }
@@ -114,16 +128,17 @@ object TranslationCoverage {
     /**
      * The [CoverageReport] of [allTranslations]: the total row, then one row per namespace group —
      * the default group (keys spelled without a prefix) first, then the named ones sorted.
+     * [parentLocale] as in [analyze].
      */
-    fun report(allTranslations: Map<String, Map<String, String>>): CoverageReport {
+    fun report(allTranslations: Map<String, Map<String, String>>, parentLocale: (String) -> String? = { null }): CoverageReport {
         val locales = localesOf(allTranslations)
-        val total = NamespaceStats(null, PluralKey.groupForms(allTranslations.keys).size, analyze(allTranslations, locales))
+        val total = NamespaceStats(null, PluralKey.groupForms(allTranslations.keys).size, analyze(allTranslations, locales, parentLocale))
         val namespaces = allTranslations.entries
             .groupBy({ KeySpelling.namespaceOf(it.key) }, { it.key to it.value })
             .map { (namespace, entries) ->
                 val keys = entries.toMap()
                 val group = if (namespace == null) NamespaceFilter.Default else NamespaceFilter.Named(namespace)
-                NamespaceStats(group, PluralKey.groupForms(keys.keys).size, analyze(keys, locales))
+                NamespaceStats(group, PluralKey.groupForms(keys.keys).size, analyze(keys, locales, parentLocale))
             }
             .sortedWith(compareBy<NamespaceStats> { it.group !is NamespaceFilter.Default }.thenBy { it.group?.label })
         return CoverageReport(locales, total, namespaces, allTranslations)

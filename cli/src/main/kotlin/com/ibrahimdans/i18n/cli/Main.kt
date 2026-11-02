@@ -142,7 +142,9 @@ object I18nCheck {
             val wanted = options.reference ?: ReferenceLocale.wanted(scope.module, config)
             val reference = LocaleMatching.pick(wanted, labels)
                 ?: throw CannotCheck("reference locale $wanted not found among ${labels.joinToString()}" + scope.module?.let { " in module ${it.name}" }.orEmpty())
-            val result = TranslationCheck.run(scope.translations, reference, config::aliasedLocale, options.values)
+            val result = TranslationCheck.run(
+                scope.translations, reference, config::aliasedLocale, config::parentLocale, options.values,
+            )
             fun checked(locale: String) = locale == reference || !config.ignoresLocale(locale)
             result.copy(
                 locales = result.locales.filter { checked(it.locale) },

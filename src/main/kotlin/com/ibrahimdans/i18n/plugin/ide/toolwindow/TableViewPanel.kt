@@ -338,7 +338,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
     private fun applyFilters() {
         val shown = viewModel.visibleLocales(locales, hiddenLocales)
-        val filtered = viewModel.visibleRows(allRows, currentFilter, filters.namespace, filters.status, shown, reviews)
+        val filtered = viewModel.visibleRows(allRows, currentFilter, filters.namespace, filters.status, shown, reviews, config::parentLocale)
         val withNamespace = viewModel.showsNamespaceColumn(filters.namespace, viewModel.namespaceFilters(allRows))
         rebuildTable(filtered, shown, withNamespace)
         updateEmptyText()
@@ -373,7 +373,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
         tableModel.setDataVector(data, columnNames)
 
-        layOutColumns(table, leadingColumns, locales.size, withNamespace, usageScanned, viewModel, ::cellReview)
+        layOutColumns(table, leadingColumns, locales.size, withNamespace, usageScanned, viewModel, ::cellReview, ::cellInherited)
 
         val sorter = TableRowSorter(tableModel)
         table.rowSorter = sorter
@@ -387,6 +387,13 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
     /** The locale [column] displays, or null when it is a leading or the usage column. */
     private fun localeAt(column: Int): String? = shownLocales.getOrNull(column - leadingColumns)
+
+    /** The locale the cell at the view [row] and [column] reads its value from, or null. */
+    private fun cellInherited(row: Int, column: Int): String? {
+        val locale = localeAt(column) ?: return null
+        val key = table.getValueAt(row, keyColumn) as? String ?: return null
+        return rowsByKey[key]?.let { viewModel.inheritedFrom(it, locale, config::parentLocale) }
+    }
 
     // ── Reviews ───────────────────────────────────────────────────────────────
 

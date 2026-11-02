@@ -28,7 +28,7 @@ You can reopen it at any time from **Tools > i18n Support Plus > Run Setup Wizar
 
 `.idea/i18nSettings.xml` is often kept out of version control, so each developer used to run the setup wizard again. Click **Export to i18n-check.json…** at the top of the settings page: the project's settings are written to `i18n-check.json` at its root, for the team to commit. Once the file is there, the IDE reads the settings it names from it, and so does [`i18n-check`](checks.md#command-line-check) in CI.
 
-- It takes the names of the settings below: `translationsRoot`, `excludedDirectories`, `jsConfiguration`, `defaultNs`, `fallbackNs`, `nsSeparator`, `keySeparator`, `pluralSeparator`, `firstComponentNs`, `flatKeys`, `gettext`, `gettextAliases`, `foldingPreferredLanguage` (the project reference locale), `ignoredLocales`, `localeAliases`, `keptKeys`, and `modules` (`name`, `rootDirectory`, `pathTemplate`, `fileTemplate`, `keyTemplate`, `preset`, `referenceLocale`, `callTemplate`, `writeDefaultValue`, `enabled`).
+- It takes the names of the settings below: `translationsRoot`, `excludedDirectories`, `jsConfiguration`, `defaultNs`, `fallbackNs`, `nsSeparator`, `keySeparator`, `pluralSeparator`, `firstComponentNs`, `flatKeys`, `gettext`, `gettextAliases`, `foldingPreferredLanguage` (the project reference locale), `ignoredLocales`, `regionalFallback`, `localeAliases`, `keptKeys`, and `modules` (`name`, `rootDirectory`, `pathTemplate`, `fileTemplate`, `keyTemplate`, `preset`, `referenceLocale`, `callTemplate`, `writeDefaultValue`, `enabled`).
 - A setting the file names wins over the IDE's, and is greyed out on the settings page: change it in the file, which **Edit i18n-check.json** opens. The others — folding, the gutter, the preview locale, inspections — stay on each machine.
 - A module's *Active* box stays on each machine too: *Focus on This Module* sets an application aside for you only. A module the file sets aside (`"enabled": false`) stays aside for everyone.
 - The file is read again as soon as it is saved. A name it does not know, or a file that does not parse, is reported in a notification, and the IDE keeps its own settings until it is fixed.
@@ -62,6 +62,7 @@ You can reopen it at any time from **Tools > i18n Support Plus > Run Setup Wizar
 |---------|---------|-------------|
 | Warn in code when a key is missing from some locales | `false` | Warn when a key exists in some locales but not others |
 | Locales not checked for missing keys | *(empty)* | Comma-separated locales (`de, pt-BR`) left out of the missing-key checks: a translation in progress or abandoned |
+| Regional locales inherit from their language | `true` | A key `en-GB` lacks and `en` holds in the same module is not missing, as i18next, vue-i18n and next-intl read it from `en`: the table shows it as *Inherited*, *Stats* counts it as covered, and `i18n-check` follows. Orphan and empty keys of `en-GB` stay reported; without `en`, `en-GB` is checked in full |
 | Keys used outside the code | *(empty)* | Comma-separated keys never reported as having no reference (`errors.*`, `*.label`): a key received from an API leaves no trace in the code |
 
 ### Modules

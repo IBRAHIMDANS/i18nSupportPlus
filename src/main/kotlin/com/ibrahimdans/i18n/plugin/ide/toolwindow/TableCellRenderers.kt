@@ -135,6 +135,7 @@ private val KEPT_LABEL = PluginBundle.message("toolwindow.table.usage.kept")
 private val KEPT_TOOLTIP = PluginBundle.message("toolwindow.table.usage.kept.tooltip")
 private val MISSING_LABEL = PluginBundle.message("toolwindow.table.value.missing")
 private val MISSING_TOOLTIP = PluginBundle.message("toolwindow.table.value.missing.tooltip")
+private val INHERITED_LABEL = PluginBundle.message("toolwindow.table.value.inherited")
 private val BLANK_LABEL = PluginBundle.message("toolwindow.table.value.blank")
 private val BLANK_TOOLTIP = PluginBundle.message("toolwindow.table.value.blank.tooltip")
 
@@ -169,12 +170,16 @@ private val DYNAMIC_FOREGROUND = JBColor.namedColor("Label.infoForeground", JBCo
  * state, the last decision, the origin and the last comment; for a source changed since the
  * decision, the source text of now. The icon of a missing or blank value
  * stays: that is the first thing to fix.
+ *
+ * A cell with no entry that [inherited] gives a locale for reads from that locale: it says so
+ * rather than *Missing*.
  */
 internal class TranslationCellRenderer(
     private val leading: Int,
     private val localeCount: Int,
     private val viewModel: TableViewModel,
     private val review: (row: Int, column: Int, raw: String) -> CellReview = { _, _, _ -> CellReview.NONE },
+    private val inherited: (row: Int, column: Int) -> String? = { _, _ -> null },
 ) : DefaultTableCellRenderer() {
     override fun getTableCellRendererComponent(
         table: JTable,
@@ -205,10 +210,17 @@ internal class TranslationCellRenderer(
 
         when (viewModel.valueStatus(raw)) {
             ValueStatus.MISSING -> {
-                text = MISSING_LABEL
-                icon = AllIcons.General.Error
-                toolTipText = MISSING_TOOLTIP
-                if (!isSelected) background = MISSING_BACKGROUND
+                val parent = inherited(row, column)
+                if (parent != null) {
+                    text = INHERITED_LABEL
+                    icon = AllIcons.General.Information
+                    toolTipText = PluginBundle.message("toolwindow.table.value.inherited.tooltip", parent)
+                } else {
+                    text = MISSING_LABEL
+                    icon = AllIcons.General.Error
+                    toolTipText = MISSING_TOOLTIP
+                    if (!isSelected) background = MISSING_BACKGROUND
+                }
             }
 
             ValueStatus.BLANK -> {
@@ -314,7 +326,8 @@ internal fun headerWidth(table: JTable, index: Int): Int {
  * columns, [localeCount] locale columns and the usage column: [TranslationCellRenderer] on all but
  * the last, which takes [UsageCellRenderer] once the keys were [scanned]. Before any scan every
  * usage cell would say "Not scanned": the header says it once instead, its column grown to show it
- * whole. [review] is the review of a locale cell; see [TranslationCellRenderer].
+ * whole. [review] is the review of a locale cell and [inherited] the locale it reads from; see
+ * [TranslationCellRenderer].
  */
 internal fun layOutColumns(
     table: JTable,
@@ -324,8 +337,9 @@ internal fun layOutColumns(
     scanned: Boolean,
     viewModel: TableViewModel,
     review: (row: Int, column: Int, raw: String) -> CellReview,
+    inherited: (row: Int, column: Int) -> String? = { _, _ -> null },
 ) {
-    val translationRenderer = TranslationCellRenderer(leading, localeCount, viewModel, review)
+    val translationRenderer = TranslationCellRenderer(leading, localeCount, viewModel, review, inherited)
     val usageRenderer = if (scanned) UsageCellRenderer(viewModel) else BLANK_RENDERER
     val usageColIdx = leading + localeCount
     val widths = viewModel.columnWidths(localeCount, withNamespace)
