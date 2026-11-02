@@ -155,6 +155,66 @@ class TranslationFileScannerTest {
         assertEquals(emptySet<String>(), TranslationFileScanner.folderNamesFor(setOf("i18next", "vue-i18n")))
     }
 
+    /** Maven and Gradle keep a Java resource bundle in `src/main/resources`, no translation folder. */
+    @Test
+    fun `java resource bundles are offered wherever they sit`() {
+        withTempProject { base ->
+            translationFile(base, "src/main/resources/messages.properties")
+            translationFile(base, "src/main/resources/messages_fr.properties")
+            translationFile(base, "src/main/resources/i18n/errors_pt_BR.properties")
+            translationFile(base, "src/main/resources/i18n/errors.properties")
+
+            val found = TranslationFileScanner.scan(base).map { it.replace(File.separatorChar, '/') }.sorted()
+
+            assertEquals(
+                listOf(
+                    "src/main/resources/i18n/errors.properties",
+                    "src/main/resources/i18n/errors_pt_BR.properties",
+                    "src/main/resources/messages.properties",
+                    "src/main/resources/messages_fr.properties"
+                ),
+                found
+            )
+        }
+    }
+
+    @Test
+    fun `a properties file without a localized sibling is configuration`() {
+        withTempProject { base ->
+            translationFile(base, "src/main/resources/application.properties")
+            translationFile(base, "gradle.properties")
+
+            assertEquals(emptyList<String>(), TranslationFileScanner.scan(base))
+        }
+    }
+
+    @Test
+    fun `bundles copied to target are not offered`() {
+        withTempProject { base ->
+            translationFile(base, "target/classes/messages.properties")
+            translationFile(base, "target/classes/messages_fr.properties")
+
+            assertEquals(emptyList<String>(), TranslationFileScanner.scan(base))
+        }
+    }
+
+    /** Java's fallback beside a file of the reference locale holds no locale of its own. */
+    @Test
+    fun `the default bundle file beside an english one is left out`() {
+        withTempProject { base ->
+            translationFile(base, "src/main/resources/messages.properties")
+            translationFile(base, "src/main/resources/messages_en.properties")
+            translationFile(base, "src/main/resources/messages_fr.properties")
+
+            val found = TranslationFileScanner.scan(base).map { it.replace(File.separatorChar, '/') }.sorted()
+
+            assertEquals(
+                listOf("src/main/resources/messages_en.properties", "src/main/resources/messages_fr.properties"),
+                found
+            )
+        }
+    }
+
     /** Stands in for the platform's `ProcessCanceledException`, which needs an application. */
     private class CancelledScan : RuntimeException()
 

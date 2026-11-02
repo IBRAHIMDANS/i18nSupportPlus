@@ -37,6 +37,9 @@ internal object CheckFormats {
 
     val ALL: List<ParsedFormat> = ParsedFormat.entries + listOf(TS, PO, PHP, ARB, PROPERTIES)
 
+    /** Formats whose code `--code` does not read, Dart and Java: their keys are never reported unused. */
+    val CODE_UNREAD: Set<ParsedFormat> = setOf(ARB, PROPERTIES)
+
     /**
      * Why [file], of [format], gave no tree: null for a TS, JS or PHP file holding code rather than a
      * catalogue — a helper sitting among the translations, left out — and the reason to stop the check otherwise.
