@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.preview
 
+import com.ibrahimdans.i18n.plugin.ide.folding.FoldingBuilderBase
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.intellij.openapi.application.ApplicationManager
@@ -35,11 +36,19 @@ object PreviewLocaleSwitcher {
         return if (index < 0) locales.first() else locales[(index + 1) % locales.size]
     }
 
-    /** Makes [locale] the preview locale of [project], and refreshes the editors and the status bar. */
+    /**
+     * Makes [locale] the preview locale of [project], and refreshes the editors and the status bar.
+     *
+     * The folded keys are updated too, as *Show Translations Inline* does: the platform keeps an
+     * editor's last folding update until the file or its folding changes, and a locale switch moves
+     * neither, so the hints followed while the folded keys kept their text in the old locale.
+     */
     fun switchTo(project: Project, locale: String) {
         val settings = Settings.getInstance(project)
         settings.previewLocale = locale
-        EditorRefresh.afterSettingsChange(project)
+        EditorRefresh.afterSettingsChange(project) {
+            if (settings.config().foldingEnabled) FoldingBuilderBase.refreshOpenEditors(project, fold = true)
+        }
         ApplicationManager.getApplication().invokeLater {
             if (project.isDisposed) return@invokeLater
             WindowManager.getInstance().getStatusBar(project)?.updateWidget(WIDGET_ID)
