@@ -283,4 +283,56 @@ class SourceDiscoveryTest {
 
         assertSame(named, discovery().namespaceFiles(listOf("common"), named, emptyList()))
     }
+
+    private fun folderPerNamespace(defaultNs: String = Config().defaultNs): Config {
+        file("locales/common/en.json", """{"save": "Save"}""")
+        file("locales/common/fr.json", """{"save": "Enregistrer"}""")
+        file("locales/auth/en.json", """{"title": "Sign in"}""")
+        file("locales/auth/fr.json", """{"title": "Connexion"}""")
+        return Config(defaultNs = defaultNs, modules = listOf(ModuleConfig(name = "app", pathTemplate = "locales/{ns}/{lang}.json")))
+    }
+
+    /** `locales/{ns}/{lang}.json`: `locales/common/en.json` is the `common` namespace's file, though named `en.json`. */
+    @Test
+    fun aNamespaceATemplateStatesFindsItsFolder() {
+        val discovery = discovery(folderPerNamespace())
+
+        assertEquals(listOf("locales/common/en.json", "locales/common/fr.json"), discovery.sources(listOf("common")).paths().sorted())
+        assertEquals(listOf("locales/auth/en.json", "locales/auth/fr.json"), discovery.sources(listOf("auth")).paths().sorted())
+        assertEquals(listOf("locales/auth/en.json", "locales/auth/fr.json"), discovery.namespaceFiles(listOf("auth")).paths().sorted())
+        assertTrue(discovery.sources(listOf("missing")).isEmpty(), "an unknown namespace stays unresolved")
+    }
+
+    /** A key naming no namespace resolves in the default namespace's folder, not in every namespace at once. */
+    @Test
+    fun aKeyNamingNoNamespaceResolvesInTheDefaultNamespaceFolder() {
+        assertEquals(
+            listOf("locales/common/en.json", "locales/common/fr.json"),
+            discovery(folderPerNamespace(defaultNs = "common")).sources(emptyList()).paths().sorted(),
+        )
+    }
+
+    /** No folder for the default namespace: the fallback to every source is unchanged. */
+    @Test
+    fun aDefaultNamespaceWithoutAFolderStillFallsBackToEverySource() {
+        assertEquals(4, discovery(folderPerNamespace()).sources(emptyList()).size)
+    }
+
+    /** `locales/{lang}/{ns}.json` with a template: the file named after its namespace is listed once. */
+    @Test
+    fun aFileNamedAfterItsNamespaceIsListedOnce() {
+        file("locales/en/common.json")
+        file("locales/fr/common.json")
+        val config = Config(modules = listOf(ModuleConfig(name = "app", pathTemplate = "locales/{lang}/{ns}.json")))
+
+        assertEquals(listOf("locales/en/common.json", "locales/fr/common.json"), discovery(config).sources(listOf("common")).paths().sorted())
+    }
+
+    /** Without a template the scan is never asked for, and the named list comes back as it is. */
+    @Test
+    fun namespaceSourcesKeepTheNamedListWithoutATemplate() {
+        val named = listOf(TranslationSource<ParsedNode, ParsedFormat>(null, "common.json", "en", "en/common.json", ParsedFormat.JSON))
+
+        assertSame(named, discovery().namespaceSources(listOf("common"), named) { error("the scan must not be asked for") })
+    }
 }

@@ -250,10 +250,16 @@ class LocalizationSourceService {
             ?: TypedSources(stamps).also { project.putUserData(TYPED_SOURCES_CACHE, SoftReference(it)) }
     }
 
+    /**
+     * The files of [fileNames]' namespaces the file index finds: named after one of them, or designated
+     * for one by a module template ([SourceDiscovery.namespaceSources], fed the cached scan).
+     */
     private fun typedSourcesByName(project: Project, config: Config, fileNames: List<String>): List<LocalizationSource> {
         val cache = typedSources(project, config)
         cache.byNames[fileNames]?.let { cached -> if (allValid(cached)) return cached }
-        return ReadAction.compute<List<LocalizationSource>, RuntimeException> { discovery(project, config).namedSources(fileNames) }
+        val discovery = discovery(project, config)
+        val named = ReadAction.compute<List<LocalizationSource>, RuntimeException> { discovery.namedSources(fileNames) }
+        return discovery.namespaceSources(fileNames, named) { typedAllSources(project, config) }
             .also { cache.byNames[fileNames] = it }
     }
 
