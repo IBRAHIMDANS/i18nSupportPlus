@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.ibrahimdans.i18n.plugin.format.PropertiesBundle
 import java.io.File
 
 /**
@@ -63,6 +64,10 @@ object TranslationFileScanner {
      * does, and its `messages/` was never offered. [base]'s own manifest is left to the caller, which
      * lets the user untick what it declares.
      *
+     * Java resource bundles (`messages_fr.properties`) are found in any folder walked, since Maven and
+     * Gradle keep them in `src/main/resources` rather than in a translation folder; a `.properties`
+     * file with no localized sibling (`application.properties`) is configuration, never listed.
+     *
      * [checkCanceled] is called as the walk goes, and is expected to throw when the user cancels —
      * it is `ProgressManager::checkCanceled` at runtime, and nothing in tests. The scanner takes
      * it as a lambda rather than reaching for `ProgressManager` itself so it stays headless.
@@ -85,6 +90,7 @@ object TranslationFileScanner {
         checkCanceled()
         val children = dir.listFiles() ?: return
         val names = if (depth == 0) folderNames else folderNames + manifestFolderNames(dir)
+        found += bundleFiles(base, dir)
         for (child in children) {
             if (!child.isDirectory) continue
             if (child.name in names) {
@@ -104,9 +110,28 @@ object TranslationFileScanner {
     private fun collectAll(base: File, folder: File, found: MutableList<String>, checkCanceled: () -> Unit) {
         for (file in folder.walkTopDown().maxDepth(MAX_SCAN_DEPTH)) {
             checkCanceled()
-            if (file.isFile && file.extension in EXTENSIONS) {
+            if (file.isDirectory) {
+                found += bundleFiles(base, file)
+            } else if (file.extension in EXTENSIONS) {
                 found.add(file.relativeTo(base).path)
             }
         }
     }
+
+    /**
+     * The bundle files directly in [dir], by [PropertiesBundle.placementsIn]'s rule, the plugin's.
+     * The reference locale is not known yet: the default one stands in, which only decides whether
+     * `messages.properties` is left out beside a `messages_en.properties`.
+     */
+    private fun bundleFiles(base: File, dir: File): List<String> {
+        val bundles = dir.listFiles { file -> file.isFile && file.extension == PropertiesBundle.EXTENSION }
+            ?.associateBy { it.nameWithoutExtension }
+            ?: return emptyList()
+        if (bundles.isEmpty()) return emptyList()
+        return PropertiesBundle.placementsIn(bundles.keys, DEFAULT_REFERENCE_LOCALE).keys
+            .map { bundles.getValue(it).relativeTo(base).path }
+            .sorted()
+    }
+
+    private const val DEFAULT_REFERENCE_LOCALE = "en"
 }
