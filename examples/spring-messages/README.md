@@ -7,8 +7,12 @@ file beside it: it is configuration, never read as translations.
 
 ## Run it
 
-Nothing to install: open this folder (`examples/spring-messages`) in an IDE with the bundled **Properties** plugin.
-Java code is not read yet (`getMessage("key", …)`), so there is no source file here.
+Open this folder (`examples/spring-messages`) in IntelliJ IDEA and let it import the Maven project (`pom.xml`, Spring's
+`spring-context` only). The setup wizard ticks *Spring*.
+
+`Greeter.java` reads the bundle both ways, `messageSource.getMessage("user.greeting", …)` and
+`ResourceBundle.getString("farewell")`. IDEA resolves both keys itself (Ctrl+click, completion, rename, *Unused
+property*); the plugin adds the bundle to its tool window and checks.
 
 ## What the messages cover
 
