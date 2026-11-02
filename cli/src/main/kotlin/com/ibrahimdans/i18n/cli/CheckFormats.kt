@@ -8,12 +8,13 @@ import com.ibrahimdans.i18n.plugin.format.PhpArrayTranslationTree
 import com.ibrahimdans.i18n.plugin.format.PoTranslationTree
 import com.ibrahimdans.i18n.plugin.format.PropertiesBundle
 import com.ibrahimdans.i18n.plugin.format.PropertiesTranslationTree
+import com.ibrahimdans.i18n.plugin.format.SymfonyXliffTree
 import java.nio.file.Files
 import java.nio.file.Path
 
 /**
  * The formats `i18n-check` reads: those `core` builds in, the gettext catalogues, Laravel's PHP
- * arrays, Flutter's ARB catalogues, Java's resource bundles (`.properties`), and the TypeScript / JavaScript catalogues, which need
+ * arrays, Flutter's ARB catalogues, Java's resource bundles (`.properties`), Symfony's XLIFF catalogues, and the TypeScript / JavaScript catalogues, which need
  * tree-sitter. Their ids are the plugin's localizations', so its per-format settings apply: an ARB
  * catalogue is a JSON file there.
  */
@@ -35,7 +36,10 @@ internal object CheckFormats {
         PropertiesTranslationTree.parse(text)
     }
 
-    val ALL: List<ParsedFormat> = ParsedFormat.entries + listOf(TS, PO, PHP, ARB, PROPERTIES)
+    /** Not scanned by name: [SymfonySources] declares the catalogues of a Symfony project, keyed as Symfony keys them. */
+    val XLIFF = ParsedFormat("XLIFF", "xliff", listOf("xlf", "xliff"), scannedByName = false) { text, _ -> SymfonyXliffTree.parse(text) }
+
+    val ALL: List<ParsedFormat> = ParsedFormat.entries + listOf(TS, PO, PHP, ARB, PROPERTIES, XLIFF)
 
     /** Formats whose code `--code` does not read, Dart and Java: their keys are never reported unused. */
     val CODE_UNREAD: Set<ParsedFormat> = setOf(ARB, PROPERTIES)
