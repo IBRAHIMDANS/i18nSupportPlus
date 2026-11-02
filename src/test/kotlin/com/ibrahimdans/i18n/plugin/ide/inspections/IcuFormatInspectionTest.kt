@@ -58,9 +58,9 @@ class IcuFormatInspectionTest : PlatformBaseTest() {
     }
 
     @Test
-    fun testPluralMissingOneAndZeroForm() {
-        val warnings = icuWarnings("""{"count": "{count, plural, other {# items}}"}""")
-        assertTrue(warnings.contains(PLURAL_FORMS))
+    fun testPluralWithOtherOnlyNoWarning() {
+        assertTrue(icuWarnings("""{"count": "{count, plural, other {# items}}"}""").isEmpty())
+        assertTrue(icuWarnings("""{"count": "{count, plural, =0 {none} other {# items}}"}""").isEmpty())
     }
 
     @Test

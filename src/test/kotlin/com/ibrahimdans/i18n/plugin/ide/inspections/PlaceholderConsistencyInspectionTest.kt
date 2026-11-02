@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.inspections
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.inspection.PlaceholderConsistencyInspection
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -61,6 +62,40 @@ class PlaceholderConsistencyInspectionTest : PlatformBaseTest() {
             """{"msg": "Bonjour {name}!"}"""
         )
         assertTrue(warnings.any { it.contains("{count}") && it.contains("missing") })
+    }
+
+    @Test
+    fun testExtraPlaceholderInTranslation() {
+        val warnings = placeholderWarnings(
+            """{"greeting": "Hello {name}!"}""",
+            """{"greeting": "Bonjour {name} {surname}!"}"""
+        )
+        assertEquals(listOf("Placeholder '{surname}' is not in the reference locale"), warnings)
+    }
+
+    @Test
+    fun testPluralFormMissingFromReferenceComparedToItsOtherForm() {
+        val warnings = placeholderWarnings(
+            """{"item_one": "{count} item in {cart}", "item_other": "{count} items in {cart}"}""",
+            """{"item_one": "{count} товар в {cart}", "item_few": "товара в {basket}", "item_other": "{count} товаров в {cart}"}""",
+            "ru.json"
+        )
+        assertEquals(
+            setOf(
+                "Placeholder '{cart}' present in reference locale is missing here",
+                "Placeholder '{basket}' is not in the reference locale",
+            ),
+            warnings.toSet()
+        )
+    }
+
+    @Test
+    fun testCountNotComparedOnAPluralForm() {
+        val warnings = placeholderWarnings(
+            """{"item_one": "One item in {cart}", "item_other": "{count} items in {cart}"}""",
+            """{"item_one": "{count} article dans {cart}", "item_other": "{count} articles dans {cart}"}"""
+        )
+        assertTrue(warnings.isEmpty(), warnings.toString())
     }
 
     @Test

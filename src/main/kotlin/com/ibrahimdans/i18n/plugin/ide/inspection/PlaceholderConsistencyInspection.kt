@@ -28,7 +28,11 @@ class PlaceholderConsistencyInspection : LocalInspectionTool() {
         }
     }
 
-    /** Checks the [value] written in [literal] against the same key's value in [refTranslations]. */
+    /**
+     * Checks the [value] written in [literal] against the same key's value in [refTranslations], or,
+     * for a plural form the reference lacks (`item_few`), against its `_other` form; `{count}` is not
+     * compared on a plural form, as `i18n-check` does.
+     */
     private fun check(
         literal: PsiElement,
         value: String,
@@ -39,9 +43,15 @@ class PlaceholderConsistencyInspection : LocalInspectionTool() {
             holder.registerProblem(literal, PluginBundle.message("inspection.placeholder.unbalanced"))
             return
         }
-        val refValue = refTranslations[TranslationFileKeys.keyOf(literal)] ?: return
-        for (missing in ValueCheck.missingPlaceholders(value, refValue)) {
+        val key = TranslationFileKeys.keyOf(literal)
+        val refKey = ValueCheck.referenceKeyOf(key) { refTranslations[it]?.isNotBlank() == true } ?: return
+        val refValue = refTranslations.getValue(refKey).takeIf(ValueCheck::balanced) ?: return
+        val pluralForm = ValueCheck.isPluralForm(key) { it in refTranslations }
+        for (missing in ValueCheck.comparedPlaceholders(ValueCheck.missingPlaceholders(value, refValue), pluralForm)) {
             holder.registerProblem(literal, PluginBundle.message("inspection.placeholder.missing", missing))
+        }
+        for (extra in ValueCheck.comparedPlaceholders(ValueCheck.extraPlaceholders(value, refValue), pluralForm)) {
+            holder.registerProblem(literal, PluginBundle.message("inspection.placeholder.extra", extra))
         }
     }
 }

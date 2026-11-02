@@ -3,6 +3,8 @@ package com.ibrahimdans.i18n.plugin.mcp
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.check.LocaleCheck
 import com.ibrahimdans.i18n.plugin.check.LocaleProblems
+import com.ibrahimdans.i18n.plugin.check.ValueCheck
+import com.ibrahimdans.i18n.plugin.check.ValueProblem
 import com.ibrahimdans.i18n.plugin.ide.IdeKeyUsageIndex
 import com.ibrahimdans.i18n.plugin.ide.actions.CleanupUnusedKeysAction
 import com.ibrahimdans.i18n.plugin.ide.actions.KeyLevelRename
@@ -53,13 +55,17 @@ import java.io.File
  */
 class KeyMaintenanceTools(private val project: Project) {
 
-    /** [unused] is null when the code was not searched. [problems] counts every list. */
+    /**
+     * [unused] is null when the code was not searched. [values] holds, per locale, what is wrong
+     * with the placeholders, tags and ICU of its values ([ValueCheck]). [problems] counts every list.
+     */
     data class ModuleCheck(
         val module: String,
         val reference: String,
         val problems: Int,
         val locales: List<LocaleProblems>,
         val unused: List<String>?,
+        val values: Map<String, List<ValueProblem>> = emptyMap(),
     )
 
     data class CheckReport(val problems: Int, val modules: List<ModuleCheck>)
@@ -105,8 +111,9 @@ class KeyMaintenanceTools(private val project: Project) {
 
     /**
      * The missing, orphan and empty keys of every locale of [moduleName], or of every module when
-     * null, compared with each module's reference locale; the locales the project does not check are
-     * left out. Needs a read action. The unused keys come from [withUnused].
+     * null, compared with each module's reference locale, and what is wrong with each locale's
+     * values, as `i18n-check` reports them; the locales the project does not check are left out.
+     * Needs a read action. The unused keys come from [withUnused].
      */
     fun check(moduleName: String?): List<ModuleCheck> {
         val scopes = if (moduleName.isNullOrBlank()) scopes() else listOf(scope(moduleName))
@@ -114,10 +121,12 @@ class KeyMaintenanceTools(private val project: Project) {
         return scopes.mapNotNull { (name, module) ->
             val locales = TranslationDataLoader.discoverLocales(project, module)
             val reference = referenceOf(module, locales) ?: return@mapNotNull null
+            val checked = { locale: String -> locale == reference || !config.ignoresLocale(locale) }
             val translations = TranslationDataLoader.loadAllTranslations(project, module)
             val problems = LocaleCheck.run(translations, reference, config::aliasedLocale, config::parentLocale)
-                .filter { it.locale == reference || !config.ignoresLocale(it.locale) }
-            ModuleCheck(name, reference, problems.sumOf { it.count }, problems, null)
+                .filter { checked(it.locale) }
+            val values = ValueCheck.run(translations, reference).filter { (locale, found) -> checked(locale) && found.isNotEmpty() }
+            ModuleCheck(name, reference, problems.sumOf { it.count } + values.values.sumOf { it.size }, problems, null, values)
         }
     }
 

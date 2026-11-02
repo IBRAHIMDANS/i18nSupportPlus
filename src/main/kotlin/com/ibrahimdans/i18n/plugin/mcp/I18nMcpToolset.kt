@@ -88,7 +88,8 @@ class I18nMcpToolset : McpToolset {
     @McpDescription(
         description = "Checks the translations of every module, or of one: per locale, the keys it lacks ('missing'), " +
             "the keys the reference locale does not hold ('orphans') and the blank values ('empty'), plural forms " +
-            "compared with what each language needs; and, with unused=true, the keys of the reference locale no code " +
+            "compared with what each language needs; per locale, what is wrong with the placeholders, tags and ICU of " +
+            "its values ('values'); and, with unused=true, the keys of the reference locale no code " +
             "uses ('unused'), keys kept by the project's keep list or possibly built at runtime left out. The same " +
             "check as the i18n-check command line. Locales the project does not check are left out."
     )
