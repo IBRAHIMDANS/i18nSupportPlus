@@ -278,6 +278,18 @@ class UnusedKeysFixtureTest : PlatformBaseTest() {
         assertEquals(emptyList<String>(), usagesOf("apps/web/locales/en/common.json", "orphan"))
     }
 
+    /** A module whose code roots name admin's code too, as a shared translations package does: admin's usage counts. */
+    @Test
+    fun `monorepo - code roots make the code of another folder count`() {
+        myFixture.copyDirectoryToProject("monorepo", "")
+        val shared = web.copy(codeRoots = "src/apps/web, src/apps/admin")
+        myFixture.runWithConfig(Config(modules = listOf(shared, admin))) {
+            assertFalse("common:orphan" in scanOrphans(shared), "admin uses orphan")
+            assertTrue("common:webDead" in scanOrphans(shared))
+            assertEquals(sortedSetOf("common:bothDead", "common:webDead"), inspectionReports("apps/web/locales/en/common.json"))
+        }
+    }
+
     @Test
     fun `monorepo - deleting an orphan of one module leaves the other module alone`() = withMonorepo {
         CleanupUnusedKeysAction().deleteKeys(project, listOf("common:webDead"), web)

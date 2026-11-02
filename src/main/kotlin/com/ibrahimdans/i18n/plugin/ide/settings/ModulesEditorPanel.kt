@@ -66,6 +66,10 @@ internal class ModulesEditorPanel(
         module.copy(rootDirectory = value)
     }
 
+    private val codeRootsField = boundTextField(PluginBundle.message("settings.modules.codeRoots"), 24) { module, value ->
+        module.copy(codeRoots = value)
+    }
+
     private val pathField = boundTextField(PluginBundle.message("settings.modules.pathTemplate"), 24) { module, value ->
         module.copy(pathTemplate = value)
     }
@@ -178,6 +182,9 @@ internal class ModulesEditorPanel(
             cell(rootField)
             cell(browseButton)
         }
+        row(PluginBundle.message("settings.modules.codeRoots")) {
+            cell(codeRootsField).comment(PluginBundle.message("settings.modules.codeRoots.comment"))
+        }
         row(PluginBundle.message("settings.modules.pathTemplate")) {
             cell(pathField).comment(PluginBundle.message("settings.modules.pathTemplate.comment"))
         }
@@ -285,6 +292,7 @@ internal class ModulesEditorPanel(
     private fun bind(module: ModuleConfig?) = load(module) { selected ->
         nameField.text = selected?.name ?: ""
         rootField.text = selected?.rootDirectory ?: ""
+        codeRootsField.text = selected?.codeRoots ?: ""
         pathField.text = selected?.pathTemplate ?: ""
         fileField.text = selected?.fileTemplate ?: ""
         keyField.text = selected?.keyTemplate ?: ""
@@ -304,7 +312,7 @@ internal class ModulesEditorPanel(
         // A module the file lists is changed in the file: only its *Active* box stays here.
         val editable = enabled && !heldByFile
         listOf(
-            nameField, rootField, pathField, fileField, keyField, referenceLocaleField, referenceLocaleCombo,
+            nameField, rootField, codeRootsField, pathField, fileField, keyField, referenceLocaleField, referenceLocaleCombo,
             callTemplateField, writeDefaultValueBox, presetCombo, browseButton,
         ).forEach { control ->
             control.isEnabled = editable

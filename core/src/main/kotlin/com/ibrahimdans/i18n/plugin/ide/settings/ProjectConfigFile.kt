@@ -75,7 +75,11 @@ object ProjectConfigFile {
         "callTemplate" to ModuleField({ it.callTemplate }, { callTemplate = it }),
         "writeDefaultValue" to ModuleField({ it.writeDefaultValue.toString() }, { writeDefaultValue = it.toBoolean() }, flag = true),
         "enabled" to ModuleField({ it.enabled.toString() }, { enabled = it.toBoolean() }, flag = true),
+        CODE_ROOTS to ModuleField({ it.codeRoots }, { codeRoots = it }),
     )
+
+    /** A module's code folders: a comma-separated string, or an array of folders. */
+    private const val CODE_ROOTS = "codeRoots"
 
     /** The setting names the file takes, [MODULES] aside. */
     val names: Set<String> get() = FIELDS.keys
@@ -130,6 +134,11 @@ object ProjectConfigFile {
             if (!list.isJsonArray) throw IllegalArgumentException("'$MODULES' must be an array")
             list.asJsonArray.map { module ->
                 val bean = module as? JsonObject ?: throw IllegalArgumentException("each module must be an object")
+                bean.get(CODE_ROOTS)?.takeIf { it.isJsonArray }?.let { roots ->
+                    bean.addProperty(CODE_ROOTS, roots.asJsonArray.joinToString(", ") {
+                        (it as? JsonPrimitive)?.asString ?: throw IllegalArgumentException("'$CODE_ROOTS' must list folders")
+                    })
+                }
                 moduleOf(stringsOf(bean, MODULE_FIELDS.keys))
             }
         }
