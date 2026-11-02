@@ -524,10 +524,12 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
      * Cancelling is a deliberate answer, not a failure: the dialog then opens on an empty list,
      * which is why the cancellation is caught here rather than propagated.
      */
-    private fun scanOffEdt(base: File): List<String> =
-        try {
+    private fun scanOffEdt(base: File): List<String> {
+        // Read on the EDT: the checkboxes are Swing state, and `messages/` is only a catalogue folder for some libraries.
+        val extraFolders = TranslationFileScanner.folderNamesFor(selectedFrameworks())
+        return try {
             ProgressManager.getInstance().runProcessWithProgressSynchronously<List<String>, RuntimeException>(
-                { TranslationFileScanner.scan(base) { ProgressManager.checkCanceled() } },
+                { TranslationFileScanner.scan(base, extraFolders) { ProgressManager.checkCanceled() } },
                 PluginBundle.message("wizard.scan.progress.title"),
                 true,
                 project
@@ -535,6 +537,7 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         } catch (canceled: ProcessCanceledException) {
             emptyList()
         }
+    }
 
     /**
      * Stores what the summary form holds — not what the scan implies.
