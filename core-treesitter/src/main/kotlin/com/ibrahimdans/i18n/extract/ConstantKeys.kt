@@ -16,9 +16,10 @@ import com.ibrahimdans.i18n.extract.i18next.findKeys as findWrittenKeys
  * never reassigned, and not exported) whose initializer is a string — a literal, a template without `${…}`,
  * or a conditional whose every branch is one —, to a property of an object literal initializing a `const`
  * (nested or not, `as const` or not), or to a string member of an `enum`. The name may be imported from
- * another file of the project by a relative path, `import { KEYS } from './keys'`, when that file exports
- * the constant itself ([Imports]). A parameter, a variable reassigned, a value a function computes, a path
- * alias (`@/keys`) or a re-export: nothing, as in the plugin.
+ * another file of the project by a relative path, `import { KEYS } from './keys'`, or by one of the project's
+ * path aliases, `import { KEYS } from '@/keys'` ([PathAliases]), when that file exports the constant itself
+ * ([Imports]). A parameter, a variable reassigned, a value a function computes or a re-export: nothing, as in
+ * the plugin.
  *
  * The extractors are not taught constants: the file is read a second time with each such argument written
  * as the literal it holds — a conditional as `(0 ? 'a' : 'b')`, which they read branch by branch — and
@@ -54,18 +55,64 @@ object ConstantKeys {
     }
 
     /**
-     * The files of a project, project-relative path → code, read as [Imports]: a relative import names one
-     * of them, its extension and an `index` file looked up as a bundler would. Each file is parsed once,
-     * the first time an import names it.
+     * The path aliases of a project's `tsconfig.json` or `jsconfig.json`: its `compilerOptions.paths`, each target read
+     * from [baseUrl], project-relative (`"."` when the file names none). The pattern `@/` followed by a wildcard, mapped
+     * to `./src/` followed by one, makes `@/i18n/keys` stand for `src/i18n/keys`. As TypeScript picks them, an exact
+     * pattern wins over a wildcard one, the longest prefix wins among these, and the targets of the pattern are tried
+     * in order; a pattern or target with more than one wildcard is left out.
      */
-    class ProjectFiles(private val files: Map<String, String>) : Imports {
+    class PathAliases(baseUrl: String, paths: Map<String, List<String>>) {
+
+        private val base = normalized(baseUrl)
+
+        private val patterns = paths.entries
+            .filter { (pattern, _) -> pattern.count { it == '*' } <= 1 }
+            .map { (pattern, targets) -> Pattern(pattern, targets.filter { target -> target.count { it == '*' } <= 1 }) }
+            .sortedWith(compareBy<Pattern> { it.isWildcard }.thenByDescending { it.prefix.length })
+
+        /** The project-relative paths `import … from '[source]'` stands for, before extensions and `index` files; empty when no alias matches. */
+        fun pathsOf(source: String): List<String> {
+            if (base == null) return emptyList()
+            val pattern = patterns.firstOrNull { it.matches(source) } ?: return emptyList()
+            val star = pattern.starOf(source)
+            return pattern.targets.mapNotNull { target -> normalized("$base/" + target.replace("*", star)) }
+        }
+
+        private class Pattern(pattern: String, val targets: List<String>) {
+            val isWildcard = '*' in pattern
+            val prefix = pattern.substringBefore('*')
+            private val suffix = if (isWildcard) pattern.substringAfter('*') else ""
+
+            fun matches(source: String): Boolean =
+                if (isWildcard) source.length >= prefix.length + suffix.length && source.startsWith(prefix) && source.endsWith(suffix)
+                else source == prefix
+
+            /** What the `*` of this pattern stands for in [source]. */
+            fun starOf(source: String): String = if (isWildcard) source.substring(prefix.length, source.length - suffix.length) else ""
+        }
+
+        companion object {
+            /** No alias: only relative imports name a file. */
+            val NONE = PathAliases(".", emptyMap())
+        }
+    }
+
+    /**
+     * The files of a project, project-relative path → code, read as [Imports]: a relative import names one
+     * of them, and so does one its [aliases] map (`@/keys`); its extension and an `index` file are looked up
+     * as a bundler would. Each file is parsed once, the first time an import names it.
+     */
+    class ProjectFiles(private val files: Map<String, String>, private val aliases: PathAliases = PathAliases.NONE) : Imports {
 
         private val parsed = mutableMapOf<String, CodeNode?>()
 
         @Synchronized
         override fun declaration(importer: String?, source: String, name: String): Declaration? {
-            if (importer == null || !source.startsWith(".")) return null
-            val path = candidatesOf(importer, source).firstOrNull { it in files } ?: return null
+            if (importer == null) return null
+            val bases =
+                if (source.startsWith(".")) listOfNotNull(normalized(importer.substringBeforeLast('/', "") + "/" + source))
+                else aliases.pathsOf(source)
+            val path = bases.asSequence().flatMap { candidatesOf(it) }.firstOrNull { it in files } ?: return null
             val root = parsed.getOrPut(path) { TreeSitterCodeNode.parseTsx(files.getValue(path), path) } ?: return null
             return exportedDeclaration(root, name)
         }
@@ -73,27 +120,26 @@ object ConstantKeys {
         private companion object {
             val EXTENSIONS = listOf("ts", "tsx", "js", "jsx", "mjs", "cjs")
 
-            /** The files `import … from '[source]'` may name in [importer]: as written, with an extension, an `index` file; `.js` standing for `.ts` too. */
-            fun candidatesOf(importer: String, source: String): List<String> {
-                val base = normalized(importer.substringBeforeLast('/', "") + "/" + source) ?: return emptyList()
+            /** The files an import of [base] may name: as written, with an extension, an `index` file; `.js` standing for `.ts` too. */
+            fun candidatesOf(base: String): List<String> {
                 val withoutJs = base.removeSuffix(".js").takeIf { it != base }
                 return listOf(base) +
                     EXTENSIONS.map { "$base.$it" } +
                     withoutJs?.let { stem -> listOf("ts", "tsx").map { "$stem.$it" } }.orEmpty() +
                     EXTENSIONS.map { "$base/index.$it" }
             }
-
-            /** [path] without its `.` and `..` segments, null when it climbs above the project. */
-            fun normalized(path: String): String? {
-                val segments = ArrayDeque<String>()
-                for (segment in path.split('/')) when (segment) {
-                    "", "." -> {}
-                    ".." -> segments.removeLastOrNull() ?: return null
-                    else -> segments.addLast(segment)
-                }
-                return segments.joinToString("/")
-            }
         }
+    }
+
+    /** [path] without its `.` and `..` segments, null when it climbs above the project. */
+    private fun normalized(path: String): String? {
+        val segments = ArrayDeque<String>()
+        for (segment in path.split('/')) when (segment) {
+            "", "." -> {}
+            ".." -> segments.removeLastOrNull() ?: return null
+            else -> segments.addLast(segment)
+        }
+        return segments.joinToString("/")
     }
 
     /** What a name resolves to: a variable, or an `enum`. */

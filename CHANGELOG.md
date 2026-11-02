@@ -4,6 +4,7 @@
 
 ### Features
 
+- [CLI] **`i18n-check --code` follows constants imported through a path alias**: `import { KEYS } from '@/i18n/keys'`, the alias of `create-next-app` and Vite's templates, is resolved with the `paths` and `baseUrl` of your `tsconfig.json` (or `jsconfig.json`), so keys kept in such a file no longer fail the check as unused.
 - [Modules] **A shared translations package sees the code that uses it**: set *Code directories* on a module (`apps/web, apps/admin`, or `codeRoots` in `i18n-check.json`) and its keys' usages are searched there, so the keys of a `packages/i18n` used by your applications no longer all look unused. See the [documentation](docs/configuration.md#modules)
 - [Setup wizard] **One folder per namespace is set up for you**: when your catalogues are laid out as `locales/common/en.json`, read from an i18next `loadPath` or seen in the files, the summary proposes a module with the template `locales/{ns}/{lang}.json`, so `t('common:save')` resolves without editing the modules by hand.
 - [CLI] **`i18n-check` also checks the values**: a placeholder or tag that differs from the reference locale, an unbalanced brace and an incomplete ICU block now fail in CI as they warn in the IDE, in the `text`, `json` and `github` reports. They count as problems, so an existing pipeline may find new ones; `--no-values` turns the check off.

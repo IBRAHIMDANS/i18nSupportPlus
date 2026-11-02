@@ -16,6 +16,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationLeaves
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.unQuote
+import com.google.gson.JsonParser
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -38,7 +39,8 @@ data class UnknownKey(val key: String, val file: String, val line: Int)
  * the plugin reads it; a package without an override keeps its keys unread and unreported.
  *
  * A key passed through a constant, `t(KEYS.save)`, is read as the IDE reads it ([ConstantKeys]): the constant
- * declared in the file, or imported from another script of the project by a relative path.
+ * declared in the file, or imported from another script of the project by a relative path or by a path alias of
+ * the `tsconfig.json`, else `jsconfig.json`, at the project's root (`@/keys`, [pathAliasesOf]).
  */
 class CodeUsages(project: Path, config: Config) {
 
@@ -68,7 +70,7 @@ class CodeUsages(project: Path, config: Config) {
             }
         }
         val code = scripts.associate { (path, text) -> path to codeOf(path, text) }
-        val imports = ConstantKeys.ProjectFiles(code)
+        val imports = ConstantKeys.ProjectFiles(code, pathAliasesOf(root))
         indexes = listOfNotNull(laravelIndex) + code.entries
             .groupBy { (path, _) -> ModuleSources.owner(modules, ModuleSources.FilePath(path, anchored = true))?.preset?.trim()?.ifEmpty { null } }
             .map { (preset, files) ->
@@ -128,6 +130,54 @@ class CodeUsages(project: Path, config: Config) {
         /** The scope the override at [path] declares, `courier::messages` for `lang/vendor/courier/en/messages.php`; null for any other file. */
         fun packageScopeOf(path: String): String? =
             PACKAGE_OVERRIDE.find(path)?.let { "${it.groupValues[1]}::${it.groupValues[2]}" }
+
+        /** Where TypeScript, then JavaScript, projects declare their path aliases. */
+        val COMPILER_CONFIGS = listOf("tsconfig.json", "jsconfig.json")
+
+        /**
+         * The path aliases of the `tsconfig.json` at [root], else its `jsconfig.json`: `compilerOptions.paths`, read from
+         * `compilerOptions.baseUrl` (the file's folder when it names none). Comments and trailing commas are allowed, as
+         * TypeScript allows them. `extends`, and the configuration of a sub-package, are not read: no alias then.
+         */
+        fun pathAliasesOf(root: Path): ConstantKeys.PathAliases {
+            val file = COMPILER_CONFIGS.map(root::resolve).firstOrNull(Files::isRegularFile) ?: return ConstantKeys.PathAliases.NONE
+            val options = runCatching { JsonParser.parseString(jsonOf(Files.readString(file))).asJsonObject["compilerOptions"] }
+                .getOrNull()?.takeIf { it.isJsonObject }?.asJsonObject ?: return ConstantKeys.PathAliases.NONE
+            val paths = options["paths"]?.takeIf { it.isJsonObject }?.asJsonObject ?: return ConstantKeys.PathAliases.NONE
+            val baseUrl = options["baseUrl"]?.takeIf { it.isJsonPrimitive }?.asString ?: "."
+            val targets = paths.entrySet().associate { (pattern, value) ->
+                pattern to (value.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { it.takeIf { e -> e.isJsonPrimitive }?.asString }.orEmpty())
+            }
+            return ConstantKeys.PathAliases(baseUrl, targets)
+        }
+
+        /** [jsonc] as JSON: its line and block comments and its trailing commas left out, strings kept as written. */
+        fun jsonOf(jsonc: String): String {
+            val out = StringBuilder(jsonc.length)
+            var i = 0
+            while (i < jsonc.length) {
+                val c = jsonc[i]
+                when {
+                    c == '"' -> {
+                        var end = i + 1
+                        while (end < jsonc.length && jsonc[end] != '"') end += if (jsonc[end] == '\\') 2 else 1
+                        end = minOf(end + 1, jsonc.length)
+                        out.append(jsonc, i, end)
+                        i = end
+                    }
+                    jsonc.startsWith("//", i) -> i = jsonc.indexOf('\n', i).let { if (it < 0) jsonc.length else it }
+                    jsonc.startsWith("/*", i) -> i = jsonc.indexOf("*/", i + 2).let { if (it < 0) jsonc.length else it + 2 }
+                    else -> {
+                        out.append(c)
+                        i++
+                    }
+                }
+            }
+            return TRAILING_COMMA.replace(out) { match -> match.groups[1]?.value ?: match.value }
+        }
+
+        /** A string, kept as it is, or a comma closing nothing, `, }` or `, ]`, which loses its comma: a string's own `,}` stays. */
+        val TRAILING_COMMA = Regex(""""(?:[^"\\]|\\.)*"|,(\s*[}\]])""")
 
         val I18N_BLOCK = Regex("""<i18n\b([^>]*)>(.*?)</i18n>""", RegexOption.DOT_MATCHES_ALL)
         val YAML_LANG = Regex("""\blang\s*=\s*["']ya?ml["']""")
