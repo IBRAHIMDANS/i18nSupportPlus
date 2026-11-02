@@ -71,8 +71,8 @@ extraction and the rename. Not tested: folding and inlay hints. A ready-to-open 
 
 <sup>9</sup> Read in a project whose `composer.json`, outside `vendor/`, requires `symfony/translation` — what
 `composer require translation` adds; elsewhere `trans` is any method and Drupal's `|trans` holds a text. The catalogues
-are the files of every `translations/` folder named `<domain>.<locale>.<format>` — YAML, XLIFF 1.2 and 2.0, PHP and
-JSON — and `messages+intl-icu.fr.yaml` is the `messages` domain. The domain is the namespace: a call names it third
+are the files of every `translations/` folder named `<domain>.<locale>.<format>` — YAML, XLIFF 1.2 and 2.0, PHP, JSON
+and gettext `.po` (with the Localization plugin) — and `messages+intl-icu.fr.yaml` is the `messages` domain. The domain is the namespace: a call names it third
 (`trans('key', [], 'admin')`), a Twig filter second or as `domain=`, a `{% trans %}` tag after `from`; a template's
 `{% trans_default_domain %}` applies to the keys naming none, and `messages` to the rest. A domain computed at runtime
 makes no key, as which catalogue holds it is unknown. A catalogue is read flattened, as Symfony reads it: `user.name`
@@ -81,8 +81,12 @@ is `name` nested under `user:` or a key written `user.name` whole, and an XLIFF 
 catalogue is written with its `resname`, the key in its `<source>` and the value in its `<target>`. Twig needs the Twig
 plugin, bundled in PhpStorm. The setup wizard proposes the *Symfony* preset — `translations/{ns}.{lang}.yaml` — for a
 `composer.json` requiring `symfony/translation`. Tested: annotation, Ctrl+click and the missing key in PHP and in Twig,
-completion and inlay hints in Twig, YAML (nested and flat), XLIFF and ICU catalogues. Not tested: folding. Not read:
-`.po`, `.csv` and `.ini` catalogues, `trans()` in JavaScript (`@symfony/ux-translator`). A ready-to-open project:
+completion, folding and inlay hints in Twig, YAML (nested and flat), XLIFF, PO and ICU catalogues, the usages and
+*Unused translation key*, Ctrl+click from a catalogue (an XLIFF `resname` included) to the code, and Shift+F6, which
+renames a key written whole and both the `resname` and the `<source>` of an XLIFF unit. A text of a template's HTML
+is reported by the *Hard-coded text in a Twig template* inspection (off by default) and extracted into
+`{{ 'key'|trans }}`, an echo `{{ user.name }}` becoming the parameter `%name%`. Not read: `.csv`, `.ini` and `.mo`
+catalogues, `trans()` in JavaScript (`@symfony/ux-translator`). A ready-to-open project:
 [examples/symfony](../examples/symfony/README.md).
 
 ## Supported Languages
@@ -96,7 +100,7 @@ completion and inlay hints in Twig, YAML (nested and flat), XLIFF and ICU catalo
 | Vue SFC | `.vue` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | PHP | `.php` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Blade | `.blade.php` | ✓ | — | ✓ | ✓ | ✓ |
-| Twig (Symfony) | `.twig` | ✓ | ✓ | — | ✓ | ✓ |
+| Twig (Symfony) | `.twig` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Angular templates | `.html` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Svelte | `.svelte` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Astro | `.astro` | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -120,7 +124,7 @@ completion and inlay hints in Twig, YAML (nested and flat), XLIFF and ICU catalo
 | YAML | `.yaml`, `.yml` | ✓ | ✓ |
 | PO/POT (gettext) | `.po`, `.pot` | ✓ | ✓ |
 | Laravel PHP arrays | `lang/<locale>/<file>.php`, the file name as namespace | ✓ | ✓ |
-| Symfony catalogues | `translations/<domain>.<locale>.yaml`, `.xlf`, `.php`, `.json`, the domain as namespace (<sup>9</sup>) | ✓ | ✓ |
+| Symfony catalogues | `translations/<domain>.<locale>.yaml`, `.xlf`, `.php`, `.json`, `.po`, the domain as namespace (<sup>9</sup>) | ✓ | ✓ |
 | Flutter ARB | `.arb` (`lib/l10n/app_<locale>.arb`), the locale from `@@locale` or the file name | — | ✓ |
 | Java resource bundles (requires the bundled **Properties** plugin) | `.properties` (`messages_<locale>.properties`), the locale from the file name | — | ✓ |
 | XLIFF 1.2 and 2.0 (Angular i18n, Symfony) | `.xlf`, `.xliff`, the files `angular.json` lists (<sup>8</sup>), a Symfony project's catalogues (<sup>9</sup>) | ✓ | ✓ |

@@ -89,8 +89,11 @@ class SymfonyTranslations : Technology {
         internal fun isCatalogue(project: Project, file: VirtualFile): Boolean =
             file.parent?.name == FOLDER && SymfonyCatalogue.parse(file.name) != null && SymfonyProject.isSymfony(project)
 
-        /** The formats of Symfony's loaders the plugin reads: Qt's `.ts` is no TypeScript; `.po`, `.csv` and `.ini` are left out. */
-        private val FORMATS = setOf("yaml", "yml", "xlf", "xliff", "php", "json")
+        /**
+         * The formats of Symfony's loaders the plugin reads, gettext's with the Localization plugin; Qt's `.ts`
+         * is no TypeScript, and `.csv`, `.ini`, `.mo` are read by none.
+         */
+        private val FORMATS = setOf("yaml", "yml", "xlf", "xliff", "php", "json", "po")
 
         /** The localization reading [file], by its extension; null for a format the plugin does not read. */
         private fun localizationOf(file: VirtualFile): Localization<PsiElement>? {

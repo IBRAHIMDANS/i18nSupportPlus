@@ -182,9 +182,13 @@ class SourceDiscovery<N, F : TranslationFormat>(
      * reference locale's file.
      */
     fun compose(scanned: List<TranslationSource<N, F>>, configured: List<TranslationSource<N, F>>): List<TranslationSource<N, F>> {
-        val claimed = configured.filter { it.namespace != null || it.locale != null }.mapTo(HashSet()) { it.displayPath }
+        val claimed = claimed(configured)
         return scanned.filter { it.displayPath !in claimed } + configured
     }
+
+    /** The files whose namespace or locale a technology states: listed as it states them, never as the name says. */
+    private fun claimed(configured: List<TranslationSource<N, F>>): Set<String> =
+        configured.filter { it.namespace != null || it.locale != null }.mapTo(HashSet()) { it.displayPath }
 
     /**
      * The sources holding the requested namespaces [fileNames], falling back to [Config.defaultNamespaces]
@@ -209,7 +213,10 @@ class SourceDiscovery<N, F : TranslationFormat>(
     ): List<TranslationSource<N, F>> {
         val requested = fileNames.takeIf { it.isNotEmpty() }
         val namespaces = requested ?: config.defaultNamespaces()
-        val sources = (named(namespaces) + configured.filter { it.namespace == null || it.namespace in namespaces })
+        // A format matching any file of its type (a PO catalogue) finds a Symfony catalogue by name too:
+        // the technology's source, stating its domain, is the one kept.
+        val claimed = claimed(configured)
+        val sources = (named(namespaces).filter { it.displayPath !in claimed } + configured.filter { it.namespace == null || it.namespace in namespaces })
             .distinctBy { it.displayPath }
         if (sources.isNotEmpty() || requested != null) return sources
         val stated = configured.filter { it.namespace != null }.mapTo(HashSet()) { it.displayPath }
@@ -227,7 +234,9 @@ class SourceDiscovery<N, F : TranslationFormat>(
         configured: List<TranslationSource<N, F>>,
     ): List<TranslationSource<N, F>> {
         val declared = configured.filter { it.namespace != null && it.namespace in fileNames }
-        return if (declared.isEmpty()) named else named + declared
+        if (declared.isEmpty()) return named
+        val claimed = claimed(configured)
+        return named.filter { it.displayPath !in claimed } + declared
     }
 
     /**

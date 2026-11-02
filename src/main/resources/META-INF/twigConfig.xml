@@ -19,6 +19,15 @@
             bundle="messages.I18nBundle"
             nameKey="inlay.hints.name"/>
         <lang.documentationProvider language="Twig" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
+        <!-- A template's markup is the HTML tree beside the Twig one: read only in a Symfony project's templates. -->
+        <localInspection
+            language="HTML"
+            groupName="i18n Support Plus"
+            key="inspection.hardcoded.twig.text.display.name"
+            shortName="I18nHardcodedTwigText"
+            enabledByDefault="false"
+            level="WEAK WARNING"
+            implementationClass="com.ibrahimdans.i18n.extensions.lang.twig.HardcodedTwigTextInspection"/>
     </extensions>
     <extensions defaultExtensionNs="com.ibrahimdans.i18n">
         <lang implementation="com.ibrahimdans.i18n.extensions.lang.twig.TwigLang"/>

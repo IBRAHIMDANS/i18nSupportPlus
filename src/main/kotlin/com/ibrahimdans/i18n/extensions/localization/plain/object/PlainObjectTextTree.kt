@@ -40,6 +40,10 @@ class PlainObjectTextTree(val element: PsiElement): Tree<PsiElement> {
         return element == element.containingFile
     }
 
+    /** Each msgid with the node [findChild] gives it, the header (`msgid ""`) left out: a Symfony catalogue read flattened lists them. */
+    override fun entries(): List<Pair<String, Tree<PsiElement>>> =
+        msgidIndex().filterKeys { it.isNotBlank() }.map { (name, line) -> name to PlainObjectTextTree(line) }
+
     override fun value(): PsiElement =
         element.nextSibling?.nextSibling?.let { it.children.at(0) ?: it } ?: element
 
