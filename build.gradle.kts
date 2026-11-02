@@ -115,8 +115,8 @@ dependencies {
     // The UI test runs in its own JVM, not inside the IDE, so it needs a stdlib of its own:
     // without it Starter's transitive 2.1.20 meets kotlin-reflect 2.2.20 (NoSuchFieldError CONTEXT).
     uiTestImplementation(kotlin("stdlib"))
-    uiTestImplementation("org.junit.jupiter:junit-jupiter-api:5.13.4")
-    uiTestRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.13.4")
+    uiTestImplementation("org.junit.jupiter:junit-jupiter-api:6.1.3")
+    uiTestRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.3")
     uiTestRuntimeOnly("org.junit.platform:junit-platform-launcher")
     uiTestImplementation("org.kodein.di:kodein-di-jvm:7.26.1")
     uiTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.1")
