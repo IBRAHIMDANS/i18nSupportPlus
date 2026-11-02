@@ -36,8 +36,27 @@ object DynamicKeyUsages {
      * after its last one. A key it can produce starts with the one and ends with the other.
      */
     internal data class Shape(val head: String, val tail: String) {
-        fun reaches(key: String, bare: String): Boolean =
-            (key.startsWith(head) || bare.startsWith(head)) && (key.endsWith(tail) || bare.endsWith(tail))
+        /**
+         * Whether [key] — [bare] without its namespace — is one this literal can produce.
+         *
+         * A literal that is one segment and an interpolation, nothing more (`errors.` of
+         * `t(`errors.${'$'}{code}`)`), says nothing about its namespace: it reaches the keys of the
+         * default namespace only, the ones written without a namespace, rather than every
+         * `errors.*` of every namespace. A tail narrows the shape enough to keep the old rule
+         * (`menu.${'$'}{id}.label`).
+         */
+        fun reaches(key: String, bare: String, nsSeparator: String, keySeparator: String): Boolean {
+            if (key != bare && tail.isEmpty() && isBareSegment(head, nsSeparator, keySeparator)) return false
+            return (key.startsWith(head) || bare.startsWith(head)) && (key.endsWith(tail) || bare.endsWith(tail))
+        }
+    }
+
+    /** True when [head] is one key segment followed by the key separator: `errors.`. */
+    private fun isBareSegment(head: String, nsSeparator: String, keySeparator: String): Boolean {
+        if (keySeparator.isEmpty() || !head.endsWith(keySeparator)) return false
+        val segment = head.dropLast(keySeparator.length)
+        return segment.isNotEmpty() && !segment.contains(keySeparator) &&
+            (nsSeparator.isEmpty() || !segment.contains(nsSeparator))
     }
 
     /**
@@ -61,7 +80,7 @@ object DynamicKeyUsages {
 
         return keys.filterTo(mutableSetOf()) { key ->
             val bare = key.substringAfter(nsSeparator, key)
-            shapes.any { it.reaches(key, bare) }
+            shapes.any { it.reaches(key, bare, nsSeparator, keySeparator) }
         }
     }
 
@@ -84,7 +103,7 @@ object DynamicKeyUsages {
         val bare = key.substringAfter(nsSeparator, key)
         return wordsOf(key, nsSeparator, keySeparator).any { word ->
             literals.getOrPut(word) { dynamicLiterals(word, scope, searchHelper) }
-                .any { shapeOf(it)?.reaches(key, bare) == true }
+                .any { shapeOf(it)?.reaches(key, bare, nsSeparator, keySeparator) == true }
         }
     }
 
@@ -134,18 +153,24 @@ object DynamicKeyUsages {
      * The prefixes of [key] a dynamic literal could carry, longest first: the key with its last
      * segment dropped, then the one before, and so on.
      *
-     * A prefix holding no separator at all is left out. It would be a bare first segment —
-     * `status`, `title` — matching a word far too common to search the whole project for, and
-     * the head it would find (`status.`) says nothing about which namespace it belongs to. The
-     * cost is that a dynamic key written under an implicit namespace and only one level deep
-     * (`t(`status.${'$'}{kind}`)` after `useTranslation('common')`) is not seen.
+     * A bare first segment — `errors`, `title` — is a word far too common to search the whole
+     * project for. For a key of the default namespace, written without one, it is searched
+     * followed by the separator and an interpolation instead (`errors.${'$'}{`): that is the shape
+     * of `t(`errors.${'$'}{code}`)` after `useTranslation()`, the usual message per error code, and
+     * the text occurs nowhere else. Its head says nothing about a namespace, so [Shape.reaches]
+     * lets it reach the default namespace's keys only. A key of another namespace keeps the old
+     * rule: its first segment alone is left out.
      */
     internal fun prefixesOf(key: String, nsSeparator: String, keySeparator: String): List<String> {
         val prefixes = mutableListOf<String>()
+        val defaultNamespace = nsSeparator.isEmpty() || !key.contains(nsSeparator)
         var current = key
         while (current.contains(keySeparator)) {
             current = current.substringBeforeLast(keySeparator)
-            if (current.contains(nsSeparator) || current.contains(keySeparator)) prefixes.add(current)
+            when {
+                current.contains(nsSeparator) || current.contains(keySeparator) -> prefixes.add(current)
+                defaultNamespace && current.isNotEmpty() -> prefixes.add(current + keySeparator + INTERPOLATION)
+            }
         }
         return prefixes
     }

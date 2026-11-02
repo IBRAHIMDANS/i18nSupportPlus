@@ -75,6 +75,26 @@ class DynamicKeyUsageTest : PlatformBaseTest() {
         assertEquals(listOf("common:menu.home"), candidates)
     }
 
+    /**
+     * `t(`errors.${'$'}{code}`)` under the default namespace reaches `errors.*` of that namespace
+     * only: *Clean Up* no longer offers `errors.timeout`, and still offers `auth:errors.timeout`.
+     */
+    @Test
+    fun `a one-segment dynamic key of the default namespace is not a cleanup candidate`() {
+        addFileToProject("locales/en/translation.json", """{"errors":{"timeout":"Timeout"},"menu":{"home":"Home"}}""")
+        addFileToProject("locales/en/auth.json", """{"errors":{"timeout":"Timeout"}}""")
+        addFileToProject("src/Error.tsx", "export const message = (code: string) => i18n.t(`errors.\${code}`);")
+        val rows = listOf(
+            TranslationRow("errors.timeout", mapOf("en" to "Timeout")),
+            TranslationRow("menu.home", mapOf("en" to "Home")),
+            TranslationRow("auth:errors.timeout", mapOf("en" to "Timeout")),
+        )
+
+        val candidates = viewModel.countUsages(project, rows).filter { it.usageCount == 0 }.map { it.key }
+
+        assertEquals(listOf("menu.home", "auth:errors.timeout"), candidates)
+    }
+
     @Test
     fun `a project holding no dynamic key literal is unaffected`() {
         addFileToProject("locales/en/common.json", """{"menu":{"home":"Home","away":"Away"}}""")
@@ -149,10 +169,10 @@ class DynamicKeyUsageTest : PlatformBaseTest() {
     @Test
     fun `a shape reaches a key starting with its head and ending with its tail`() {
         val shape = DynamicKeyUsages.Shape("", ":status.ok")
-        assertTrue(shape.reaches("common:status.ok", "status.ok"))
-        assertTrue(!shape.reaches("common:status.ko", "status.ko"))
-        assertTrue(DynamicKeyUsages.Shape("menu.", ".label").reaches("common:menu.x.label", "menu.x.label"))
-        assertTrue(!DynamicKeyUsages.Shape("menu.", ".label").reaches("common:menu.x.icon", "menu.x.icon"))
+        assertTrue(shape.reaches("common:status.ok", "status.ok", ":", "."))
+        assertTrue(!shape.reaches("common:status.ko", "status.ko", ":", "."))
+        assertTrue(DynamicKeyUsages.Shape("menu.", ".label").reaches("common:menu.x.label", "menu.x.label", ":", "."))
+        assertTrue(!DynamicKeyUsages.Shape("menu.", ".label").reaches("common:menu.x.icon", "menu.x.icon", ":", "."))
     }
 
     // ── The words searched, without the platform ──────────────────────────────
@@ -182,13 +202,22 @@ class DynamicKeyUsageTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `a prefix holding no separator is left out`() {
-        // `status` alone would search a word far too common, and the head it finds says
-        // nothing about which namespace it belongs to.
+    fun `a bare first segment is searched only in front of an interpolation, for the default namespace`() {
+        // `status` alone would search a word far too common. Under a namespace it is left out;
+        // for a key of the default namespace, `status.${'$'}{` is searched instead.
         assertEquals(listOf("common:status"), DynamicKeyUsages.prefixesOf("common:status.pending", ":", "."))
-        assertEquals(listOf("a.b"), DynamicKeyUsages.prefixesOf("a.b.c", ":", "."))
-        assertTrue(DynamicKeyUsages.prefixesOf("a.b", ":", ".").isEmpty())
+        assertEquals(listOf("a.b", "a.\${"), DynamicKeyUsages.prefixesOf("a.b.c", ":", "."))
+        assertEquals(listOf("errors.\${"), DynamicKeyUsages.prefixesOf("errors.timeout", ":", "."))
         assertTrue(DynamicKeyUsages.prefixesOf("home", ":", ".").isEmpty())
+    }
+
+    @Test
+    fun `a one-segment head without a tail reaches the default namespace only`() {
+        val errors = DynamicKeyUsages.Shape("errors.", "")
+        assertTrue(errors.reaches("errors.timeout", "errors.timeout", ":", "."))
+        assertTrue(!errors.reaches("auth:errors.timeout", "errors.timeout", ":", "."))
+        // A namespace written in the head, or a tail, keeps the old rule.
+        assertTrue(DynamicKeyUsages.Shape("common:errors.", "").reaches("common:errors.timeout", "errors.timeout", ":", "."))
     }
 
     @Test

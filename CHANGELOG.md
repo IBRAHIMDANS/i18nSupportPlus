@@ -41,6 +41,7 @@
 ### Fixes
 
 - [CLI] **Laravel package overrides no longer reported unused or missing**: `i18n-check --code` reads `__('courier::messages.sent')` under the override of `lang/vendor/courier/`, and a locale that overrides nothing of a package is no longer told its keys are missing, since it keeps the package's own translation.
+- [Cleanup] **Keys reached by `` t(`errors.${code}`) `` are no longer reported unused**: a key built at runtime from one segment of the default namespace, the usual message per error code, now counts as a use of every `errors.*` key there, so neither the *Unused translation key* inspection nor *Clean Up Keys with No Reference* offers them for deletion.
 - [CLI] **Laravel package overrides keep their own keys**: `i18n-check` lists a file under `lang/vendor/<package>/` under its package's namespace, `courier::messages:sent`, as the plugin does, instead of mixing it with the application's `lang/<locale>/messages.php`.
 - [Modules] **One folder per namespace resolves**: with a module laid out as `locales/{ns}/{lang}.json`, `t('common:save')` now finds `locales/common/en.json` and its other locales, and a key without a namespace resolves in the default namespace's folder instead of in every namespace at once.
 - [i18next] **`<Trans>` reads its `ns` and `t` props**: `<Trans i18nKey="title" ns="auth">` and `ns={['auth', 'common']}` look the key up in those namespaces, and `<Trans t={t}>` takes the namespace and `keyPrefix` of the `useTranslation` that gave `t`, so these keys are no longer reported missing or unused.

@@ -273,6 +273,53 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
         assertEquals(listOf("spare"), unusedIn("locales/en/common.json"))
     }
 
+    /**
+     * `t(`errors.${'$'}{code}`)` under the default namespace: the usual message per error code. Its
+     * head is a bare first segment, once left out as a word too common to search for, so every
+     * `errors.*` was reported with a *Delete* quick fix one click away.
+     */
+    @Test
+    fun testKeysUnderAOneSegmentDynamicKeyOfTheDefaultNamespaceNotFlagged() {
+        myFixture.addFileToProject(
+            "locales/en/translation.json",
+            """{"errors": {"timeout": "Timeout", "denied": "Denied"}, "menu": {"home": "Home"}}"""
+        )
+        myFixture.addFileToProject("src/Error.js", "export const message = (t, code) => t(`errors.\${code}`);")
+        assertEquals(listOf("home"), unusedIn("locales/en/translation.json"))
+    }
+
+    @Test
+    fun testOneSegmentDynamicKeyInAKeyArrayNotFlagged() {
+        myFixture.addFileToProject(
+            "locales/en/translation.json",
+            """{"errors": {"timeout": "Timeout", "unknown": "Unknown"}, "menu": {"home": "Home"}}"""
+        )
+        myFixture.addFileToProject(
+            "src/Error.js",
+            "export const message = (t, code) => t([`errors.\${code}`, 'errors.unknown']);"
+        )
+        assertEquals(listOf("home"), unusedIn("locales/en/translation.json"))
+    }
+
+    /** `errors` written as a plain word, or as an object in code, reaches no key. */
+    @Test
+    fun testFirstSegmentAsAPlainWordProtectsNothing() {
+        myFixture.addFileToProject("locales/en/translation.json", """{"errors": {"timeout": "Timeout"}}""")
+        myFixture.addFileToProject(
+            "src/Form.js",
+            "export const check = (form, n) => { form.errors.push(n); return `errors: \${n}`; };"
+        )
+        assertEquals(listOf("timeout"), unusedIn("locales/en/translation.json"))
+    }
+
+    /** The one-segment head names no namespace: it reaches the default namespace, not `auth`. */
+    @Test
+    fun testOneSegmentDynamicKeyDoesNotReachAnotherNamespace() {
+        myFixture.addFileToProject("locales/en/auth.json", """{"errors": {"timeout": "Timeout"}}""")
+        myFixture.addFileToProject("src/Error.js", "export const message = (t, code) => t(`errors.\${code}`);")
+        assertEquals(listOf("timeout"), unusedIn("locales/en/auth.json"))
+    }
+
     @Test
     fun testSameNamedPropertyOfAnUnrelatedJsonFileIsNotAUsage() {
         myFixture.addFileToProject("locales/en/common.json", """{"title": "Title", "home": "Home"}""")
