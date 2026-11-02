@@ -123,6 +123,30 @@ class RenameNamespaceProcessorTest : PlatformBaseTest() {
         Assertions.assertEquals("export const a = (t) => t('common:save');", text("src/Prefix.js"))
     }
 
+    /** Laravel writes the namespace with the key separator (`{ns}.{key}`): `messages.welcome` names the file `messages.php`. */
+    @Test
+    fun aLaravelFileIsRenamedWithItsDottedCallSites() {
+        val messages = "<?php\n\nreturn [\n    'welcome' => 'Welcome',\n    'auth' => ['failed' => 'Failed'],\n];\n"
+        addFileToProject("composer.json", """{"require": {"php": "^8.2", "laravel/framework": "^11.0"}}""")
+        addFileToProject("lang/en/messages.php", messages)
+        addFileToProject("lang/fr/messages.php", messages)
+        addFileToProject("lang/en/auth.php", "<?php\n\nreturn ['messages' => 'Other'];\n")
+        addFileToProject(
+            "app/Http/Controllers/HomeController.php",
+            "<?php\n\nclass HomeController {\n    public function index() {\n" +
+                "        return [__('messages.welcome'), trans('messages.auth.failed'), __('auth.messages'), __('messagesx.welcome')];\n    }\n}\n"
+        )
+
+        myFixture.renameElement(psiFile("lang/en/messages.php"), "notices.php")
+
+        Assertions.assertTrue(exists("lang/en/notices.php") && exists("lang/fr/notices.php"), "every locale's file is renamed")
+        val controller = text("app/Http/Controllers/HomeController.php")!!
+        Assertions.assertTrue(controller.contains("__('notices.welcome')"), controller)
+        Assertions.assertTrue(controller.contains("trans('notices.auth.failed')"), controller)
+        Assertions.assertTrue(controller.contains("__('auth.messages')"), "a key segment of another file is no namespace: $controller")
+        Assertions.assertTrue(controller.contains("__('messagesx.welcome')"), controller)
+    }
+
     @Test
     fun theOptionUntickedRenamesTheFileAlone() {
         addLocales()
