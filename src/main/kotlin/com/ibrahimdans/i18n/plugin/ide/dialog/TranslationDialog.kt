@@ -91,6 +91,8 @@ class TranslationDialog(
     private val caller: PsiFile? = null,
     /** The tool window tab's module, when opened from one: it scopes the files offered as [caller]'s does. */
     private val tabModule: ModuleConfig? = null,
+    /** CREATE only: the value proposed for the reference locale — the default text the code shows meanwhile. */
+    private val initialValue: String? = null,
 ) : DialogWrapper(project) {
 
     private val viewModel = DialogViewModel(project)
@@ -211,6 +213,7 @@ class TranslationDialog(
 
         sourcesHost.removeAll()
         sourcesHost.add(buildSourceRows(sourcesMap), BorderLayout.CENTER)
+        prefillReferenceLocale()
         sourcesHost.revalidate()
         sourcesHost.repaint()
 
@@ -259,6 +262,13 @@ class TranslationDialog(
                 }
             }
         }
+    }
+
+    /** [initialValue] in the empty field of the locale *Copy* would copy from: the reference one. */
+    private fun prefillReferenceLocale() {
+        if (mode != Mode.CREATE || initialValue.isNullOrEmpty()) return
+        val reference = viewModel.localeToCopyFrom(textAreas.keys) ?: return
+        textAreas.entries.firstOrNull { it.key.localeLabel() == reference && it.value.text.isBlank() }?.value?.text = initialValue
     }
 
     /** The variables checked again, and the buttons enabled when they have something to do; on each keystroke. */

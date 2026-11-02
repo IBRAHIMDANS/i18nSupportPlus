@@ -45,7 +45,7 @@ class LinguiPoCatalogueTest : PlatformBaseTest() {
     @AfterEach
     fun restoreDialogs() {
         TestDialogManager.setTestInputDialog(TestInputDialog.DEFAULT)
-        CreateKeyDialogQuickFix.opener = { project, key, caller -> TranslationDialog(project, key, Mode.CREATE, caller).show() }
+        CreateKeyDialogQuickFix.opener = { project, key, caller, _ -> TranslationDialog(project, key, Mode.CREATE, caller).show() }
     }
 
     private fun withCatalogue(entries: String, header: String = HEADER, body: () -> Unit) = myFixture.runWithConfig(config) {
@@ -63,7 +63,7 @@ class LinguiPoCatalogueTest : PlatformBaseTest() {
 
     /** Stands in for the translation dialog, which a headless container cannot show (see CreateKeyTest). */
     private fun createKey() {
-        CreateKeyDialogQuickFix.opener = { project, key, caller ->
+        CreateKeyDialogQuickFix.opener = { project, key, caller, _ ->
             val viewModel = DialogViewModel(project)
             viewModel.sourcesFor(key.allNamespaces(), caller).forEach { viewModel.saveTranslation(it, key, "Value") }
         }

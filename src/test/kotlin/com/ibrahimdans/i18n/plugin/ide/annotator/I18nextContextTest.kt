@@ -92,7 +92,7 @@ class I18nextContextTest : PlatformBaseTest() {
         myFixture.addFileToProject("locales/en/test.json", """{"people": {"enemy": "Foe"}}""")
         myFixture.configureByText("Friend.tsx", "export const a = (t) => t('test:people.fri<caret>end', { context: 'male' });")
         val created = mutableListOf<String>()
-        CreateKeyDialogQuickFix.opener = { _, key, _ -> created += key.source }
+        CreateKeyDialogQuickFix.opener = { _, key, _, _ -> created += key.source }
         myFixture.launchActionAndWait(myFixture.filterAvailableIntentions(createKey).first { it.text == createKey })
         assertEquals(listOf("test:people.friend_male"), created)
     }
@@ -110,7 +110,7 @@ class I18nextContextTest : PlatformBaseTest() {
 
     @AfterEach
     fun restoreDialog() {
-        CreateKeyDialogQuickFix.opener = { project, key, caller -> TranslationDialog(project, key, Mode.CREATE, caller).show() }
+        CreateKeyDialogQuickFix.opener = { project, key, caller, _ -> TranslationDialog(project, key, Mode.CREATE, caller).show() }
     }
 
     private val createKey = "Create i18n key"
