@@ -43,7 +43,7 @@ object WizardPlan {
      * [detected] is a compromise wider than any of them — a monorepo holding `apps/web/locales`
      * and `apps/api/locales` lands on `apps`, which contains far more than translations.
      *
-     * [origin] is the configuration file the root was read from (i18next-cli, Nuxt or vue-i18n),
+     * [origin] is the configuration file the root was read from ([I18nextCliConfig], [VueI18nConfig]),
      * null when it was derived from the files.
      */
     data class RootPlan(val detected: String?, val candidates: List<String>, val origin: String? = null) {
@@ -65,8 +65,7 @@ object WizardPlan {
      *
      * An i18next-cli configuration [cliConfig], or a Nuxt / vue-i18n one [vueConfig], wins over the
      * scan for what it states: it is what the project wrote down, where the scan only infers from
-     * the files' names. The i18next one comes first for the root, the two never stating the same
-     * other setting.
+     * the files' names. The i18next one comes first when both state a setting.
      */
     fun of(
         relativeFilePaths: List<String>,
@@ -83,12 +82,13 @@ object WizardPlan {
             )
         val stated = listOfNotNull(
             cliConfig?.defaultNs?.let { Deduction(Field.DEFAULT_NS, it, cliConfig.file) },
+            cliConfig?.referenceLocale?.let { Deduction(Field.REFERENCE_LOCALE, it, cliConfig.file) },
             vueConfig?.referenceLocale?.let { Deduction(Field.REFERENCE_LOCALE, it, vueConfig.file) },
             vueConfig?.let { config ->
                 WizardSettingsDeducer.deduce(config.localeFiles, emptySet()).preferredLocalization
                     ?.let { Deduction(Field.PREFERRED_LOCALIZATION, it, config.file) }
             },
-        )
+        ).distinctBy { it.field }
         val deductions = stated + deductionsOf(relativeFilePaths, frameworks)
             .filterNot { scanned -> stated.any { it.field == scanned.field } }
         val separators = cliConfig

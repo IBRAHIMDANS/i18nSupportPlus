@@ -289,6 +289,19 @@ class WizardPlanTest {
         Assertions.assertNull(plan.separators)
     }
 
+    @Test
+    fun `a stated reference locale is proposed with its origin, the i18next one first`() {
+        val lingui = I18nextCliConfig("lingui.config.ts", output = "src/locales/{locale}/messages", referenceLocale = "en")
+
+        val plan = WizardPlan.of(nested, emptySet(), lingui, VueI18nConfig("src/i18n.ts", referenceLocale = "fr"))
+
+        Assertions.assertEquals("src/locales", plan.root.detected)
+        Assertions.assertEquals(
+            WizardPlan.Deduction(WizardPlan.Field.REFERENCE_LOCALE, "en", "lingui.config.ts"),
+            plan.deductions.single { it.field == WizardPlan.Field.REFERENCE_LOCALE },
+        )
+    }
+
     // -- What a Nuxt or vue-i18n configuration states
 
     private val nuxtConfig = VueI18nConfig(

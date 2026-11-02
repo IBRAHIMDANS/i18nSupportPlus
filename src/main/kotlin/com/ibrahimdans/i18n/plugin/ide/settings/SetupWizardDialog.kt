@@ -66,7 +66,7 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
 
     /** The manifests of the applications holding the catalogues, by project-relative folder; see [manifestsAbove]. */
     private val appManifests = mutableMapOf<String, String>()
-    /** The project's i18next-cli configuration, when it has one at its root; see [readCliConfig]. */
+    /** The project's i18next, Lingui or Transloco configuration, when it has one; see [readCliConfig]. */
     private var cliConfig: I18nextCliConfig? = null
     /** The project's Nuxt or vue-i18n configuration; see [readVueConfig]. */
     private var vueConfig: VueI18nConfig? = null
@@ -459,18 +459,24 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
     }
 
     /**
-     * Reads the i18next-cli configuration at the project root, if there is one: its output folder,
-     * default namespace and separators are what the project already wrote down.
+     * Reads the first configuration the project holds of [I18nextCliConfig.WIZARD_FILE_NAMES]: its
+     * catalogues' folder, default namespace, reference locale and separators are what the project
+     * already wrote down.
      *
-     * The project root only: a monorepo holds one per application, and a single one taken for the
-     * whole project would override the per-application modules the scan proposes.
+     * Near the project root only: a monorepo holds one per application, and a single one taken for
+     * the whole project would override the per-application modules the scan proposes.
      */
     private fun readCliConfig() {
         val base = File(project.basePath ?: return)
-        val name = I18nextCliConfig.FILE_NAMES.firstOrNull { File(base, it).isFile } ?: return
-        val file = LocalFileSystem.getInstance().findFileByIoFile(File(base, name)) ?: return
+        val files = I18nextCliConfig.WIZARD_FILE_NAMES
+            .filter { File(base, it).isFile }
+            .mapNotNull { name -> LocalFileSystem.getInstance().findFileByIoFile(File(base, name))?.let { name to it } }
         cliConfig = runReadAction {
-            PsiManager.getInstance(project).findFile(file)?.let { I18nextCliConfigReader.read(it, name) }
+            files.firstNotNullOfOrNull { (name, file) ->
+                PsiManager.getInstance(project).findFile(file)?.let { psi ->
+                    I18nextCliConfigReader.readForWizard(psi, name) { File(base, it).isDirectory }
+                }
+            }
         }
     }
 
