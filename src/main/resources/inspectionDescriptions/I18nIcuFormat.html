@@ -1,8 +1,7 @@
 <html>
 <body>
-<p>Reports an ICU <code>plural</code> or <code>select</code> lacking its <code>other</code> case, or a plural lacking <code>one</code> (or <code>zero</code>).</p>
-<p>Example: <code>{count, plural, one {# file}}</code> has no <code>other</code> case: any count but one breaks the message.</p>
-<p>Languages whose only plural category is <code>other</code> (Japanese, Chinese) are never asked for <code>one</code>.</p>
+<p>Reports an ICU <code>plural</code> or <code>select</code> lacking its <code>other</code> case, the only one ICU requires, or an unbalanced brace.</p>
+<p>Example: <code>{count, plural, one {# file}}</code> has no <code>other</code> case: any count but one breaks the message. <code>{count, plural, other {# files}}</code> and <code>{count, plural, =0 {no file} other {# files}}</code> are complete.</p>
 <!-- tooltip end -->
 <p>Runs in the editor and headless, in Qodana or <code>inspect.sh</code>.</p>
 </body>

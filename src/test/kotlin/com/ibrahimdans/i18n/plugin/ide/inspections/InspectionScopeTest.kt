@@ -37,17 +37,19 @@ class InspectionScopeTest : PlatformBaseTest() {
         assertTrue(warnings.isEmpty(), "package.json must not be inspected: $warnings")
     }
 
-    /** Japanese has `other` only: an ICU plural there carries no `one` form, and that is correct. */
+    /** ICU only requires `other`: a plural with `other` alone is valid in Japanese and in English alike. */
     @Test
-    fun aPluralWithOtherOnlyIsValidInJapanese() {
-        val warnings = warningsIn("locales/ja/common.json", """{"items": "{count, plural, other {# 個}}"}""")
-        assertTrue(warnings.none { it.contains("one") || it.contains("zero") }, "$warnings")
+    fun aPluralWithOtherOnlyIsValidInEveryLanguage() {
+        val japanese = warningsIn("locales/ja/common.json", """{"items": "{count, plural, other {# 個}}"}""")
+        assertTrue(japanese.isEmpty(), "$japanese")
+        val english = warningsIn("locales/en/common.json", """{"items": "{count, plural, other {# items}}"}""")
+        assertTrue(english.isEmpty(), "$english")
     }
 
     @Test
-    fun aPluralWithOtherOnlyIsStillReportedInEnglish() {
-        val warnings = warningsIn("locales/en/common.json", """{"items": "{count, plural, other {# items}}"}""")
-        assertTrue(warnings.isNotEmpty(), "English has a `one` category: $warnings")
+    fun aPluralWithoutOtherIsReportedInATranslationFile() {
+        val warnings = warningsIn("locales/en/common.json", """{"items": "{count, plural, one {# item}}"}""")
+        assertTrue(warnings.any { it.contains("'other'") }, "a plural block lacks its required `other` form: $warnings")
     }
 
     /** `locales/fr/common.json` is compared with `locales/en/common.json`, not with a sibling `en.json`. */
