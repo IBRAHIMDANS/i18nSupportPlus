@@ -2,11 +2,13 @@ package com.ibrahimdans.i18n.extensions.lang.js.extractors
 
 import com.intellij.psi.xml.XmlAttributeValue
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.extensions.lang.js.ConstantKeyResolver
 import com.ibrahimdans.i18n.extensions.lang.js.isDirectOrConfiguredCall
 import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
 import com.ibrahimdans.i18n.plugin.utils.ModulePresets
 import com.ibrahimdans.i18n.plugin.utils.default
 import com.intellij.lang.javascript.patterns.JSPatterns
+import com.intellij.lang.javascript.psi.JSArgumentList
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSConditionalExpression
 import com.intellij.lang.javascript.psi.JSIndexedPropertyAccessExpression
@@ -35,6 +37,9 @@ internal class JsFoldingProvider: FoldingProvider {
 
         /** next-intl's `t.rich('key')`, `t.markup`, `t.raw`: calls named after the method, not after `t`. */
         val NEXT_INTL_MESSAGE = NextIntlMethodExtractor(NextIntlMethodExtractor.MESSAGE_METHODS)
+
+        /** svelte-i18n's stores: `$_('key')`, `$format`, `$json`, and the `id` of `$_({ id, values })`. */
+        val SVELTE_I18N = SvelteI18nExtractor()
     }
 
     /**
@@ -45,8 +50,18 @@ internal class JsFoldingProvider: FoldingProvider {
         PsiTreeUtil.findChildrenOfAnyType(root, JSReferenceExpression::class.java, JSIndexedPropertyAccessExpression::class.java)
             .filter { PARAGLIDE_MESSAGE.canExtract(it) && ModulePresets.allows(ModulePresets.presetOf(it), "paraglide") }
 
+    /**
+     * The constants passed first to a translation call under [root] — `t(SAVE_KEY)`, `t(KEYS.save)`,
+     * `t(Keys.Save)` — that hold exactly one key, read the way the key extraction reads them.
+     * The cheap shape test comes first: every reference of the file is walked.
+     */
+    private fun constantArguments(root: PsiElement): List<PsiElement> =
+        PsiTreeUtil.findChildrenOfType(root, JSReferenceExpression::class.java)
+            .filter { (it.parent as? JSArgumentList)?.arguments?.firstOrNull() === it && ConstantKeyResolver.callKey(it) != null }
+
     private fun isI18nArgument(element: PsiElement): Boolean {
         if (NEXT_INTL_MESSAGE.canExtract(element)) return ModulePresets.allows(ModulePresets.presetOf(element), "next-intl")
+        if (SVELTE_I18N.canExtract(element)) return ModulePresets.allows(ModulePresets.presetOf(element), "svelte-i18n")
         val argument = ternaryArgument(element) ?: element
         if (!JSPatterns.jsArgument("t", 0).accepts(argument) &&
             !JSPatterns.jsArgument("\$t", 0).accepts(argument)) return false
@@ -102,7 +117,8 @@ internal class JsFoldingProvider: FoldingProvider {
         // react-i18next's `<Trans>`, which no call holds: they used to be left unfolded.
         val direct = literals.filter { isI18nArgument(it) && !isInsideSpreadArgument(it) } +
             attributeValues.filter(I18N_KEY_ATTRIBUTE::canExtract) +
-            paraglideMembers(root)
+            paraglideMembers(root) +
+            constantArguments(root)
 
         // vue-i18n's template keys sit in the component's own PSI, not in an injected fragment:
         // `keypath` is a plain attribute, and the Vue plugin parses `v-t`'s value in place. They
@@ -129,6 +145,7 @@ internal class JsFoldingProvider: FoldingProvider {
                             .filter { isI18nArgument(it) && !isInsideSpreadArgument(it) }
                             .forEach { result.add(it) }
                         result.addAll(paraglideMembers(pair.first))
+                        result.addAll(constantArguments(pair.first))
                     }
                 }
             }

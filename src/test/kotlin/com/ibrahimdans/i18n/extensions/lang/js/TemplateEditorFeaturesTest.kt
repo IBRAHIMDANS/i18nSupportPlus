@@ -87,8 +87,8 @@ class TemplateEditorFeaturesTest : PlatformBaseTest() {
 
     /**
      * Already ✓ in the table, on `JsFoldingBuilder` called by hand: here through the editor's own
-     * pass, which ran no builder of ours on a `.svelte` before `svelteConfig.xml`. Paraglide's
-     * member, because the folding provider folds no svelte-i18n `$_('key')` yet, in any file.
+     * pass, which ran no builder of ours on a `.svelte` before `svelteConfig.xml`. svelte-i18n's
+     * `$_('key')` is covered by `SvelteI18nAndConstantFoldingTest`.
      */
     @Test
     fun `a Paraglide message in a Svelte component is folded`() = myFixture.runWithConfig(config) {
