@@ -62,6 +62,29 @@ class PropertiesCheckTest {
     }
 
     @Test
+    fun `project mode - the file without a suffix takes the reference locale of its module`(@TempDir project: Path) {
+        project.write("i18n-check.json", """{"modules": [{"name": "web", "rootDirectory": "apps/web", "referenceLocale": "fr"}, {"name": "admin", "rootDirectory": "apps/admin"}]}""")
+        project.write("apps/web/src/main/resources/messages.properties", "user.name=Nom\nfarewell=Au revoir\n")
+        project.write("apps/web/src/main/resources/messages_en.properties", "user.name=Name\n")
+        project.write("apps/admin/src/main/resources/messages.properties", "user.name=Name\n")
+        project.write("apps/admin/src/main/resources/messages_fr.properties", "user.name=Nom\n")
+
+        val run = check(project.toString(), "--format", "json")
+
+        Assertions.assertEquals(I18nCheck.PROBLEMS, run.exit, run.err)
+        val modules = JsonParser.parseString(run.out).asJsonObject["modules"].asJsonArray.map { it.asJsonObject }.associateBy { it["module"].asString }
+        val web = modules.getValue("web")
+        Assertions.assertEquals("fr", web["reference"].asString)
+        val webLocales = web["locales"].asJsonArray.map { it.asJsonObject }.associateBy { it["locale"].asString }
+        Assertions.assertEquals(setOf("fr", "en"), webLocales.keys)
+        Assertions.assertEquals("[\"farewell\"]", webLocales.getValue("en")["missing"].toString())
+        val admin = modules.getValue("admin")
+        Assertions.assertEquals("en", admin["reference"].asString)
+        Assertions.assertEquals(setOf("en", "fr"), admin["locales"].asJsonArray.map { it.asJsonObject["locale"].asString }.toSet())
+        Assertions.assertEquals(0, admin["problems"].asInt)
+    }
+
+    @Test
     fun `example project - the problems its README lists`() {
         val run = check("../examples/spring-messages")
 
