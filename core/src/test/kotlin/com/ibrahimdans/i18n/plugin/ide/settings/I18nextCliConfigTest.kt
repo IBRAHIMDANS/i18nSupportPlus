@@ -31,4 +31,28 @@ class I18nextCliConfigTest {
         assertNull(rootOf("/var/locales/{{language}}.json"))
         assertNull(rootOf(null))
     }
+
+    @Test
+    fun `a trailing slash is a folder, and Lingui's single braces are placeholders`() {
+        assertEquals("src/assets/i18n", rootOf("src/assets/i18n/"))
+        assertEquals("src/locales", rootOf("src/locales/{locale}/messages"))
+    }
+
+    @Test
+    fun `a project-relative output ignores the file's folder`() {
+        val config = I18nextCliConfig("src/i18n.ts", output = "public/locales/{{lng}}.json", fromProjectRoot = true)
+
+        assertEquals("public/locales", config.translationsRoot)
+    }
+
+    @Test
+    fun `placeholders become the plugin's`() {
+        fun template(output: String) = I18nextCliConfig("f.ts", output = output).pathTemplate
+
+        assertEquals("{lang}/{ns}.json", template("locales/{{lng}}/{{ns}}.json"))
+        assertEquals("{ns}/{lang}.json", template("public/locales/{{namespace}}/{{language}}.json"))
+        assertEquals("{lang}/messages", template("src/locales/{locale}/messages"))
+        assertNull(template("locales/all.json"))
+        assertNull(template("locales/{{lng}}/{{unknown}}.json"))
+    }
 }
