@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.extensions.localization.xliff
 
 import com.ibrahimdans.i18n.ContentGenerator
+import com.ibrahimdans.i18n.extensions.technology.symfony.SymfonyTranslations
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
@@ -11,6 +12,7 @@ import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
+import com.intellij.psi.xml.XmlTag
 
 /**
  * Writes a key into an XLIFF file: the `<target>` of its unit in a locale's file, the `<source>` of a
@@ -52,13 +54,18 @@ class XliffContentGenerator : ContentGenerator {
     }
 
     override fun generate(element: PsiElement, fullKey: FullKey, unresolved: List<Literal>, translationValue: String?) {
+        val file = element.containingFile ?: return
+        // A Symfony catalogue is read flattened: `user.email` may be found as far as `user.` among the keys
+        // written whole, and the key is all of the composite key, never only its unresolved end.
+        if (isSymfony(file)) return writeSymfony(file, idOf(fullKey.compositeKey), translationValue ?: "")
         // The id is one key: a dotted id resolves as a single segment, and an unresolved one is all of it.
         val id = idOf(unresolved.ifEmpty { fullKey.compositeKey })
-        write(element.containingFile ?: return, id, translationValue ?: "")
+        write(file, id, translationValue ?: "")
     }
 
     /** Writes [value] as [id]'s text in [file], in the element the file's role reads. */
     fun write(file: PsiFile, id: String, value: String) {
+        if (isSymfony(file)) return writeSymfony(file, id, value)
         val role = XliffDocument.roleOf(file)
         val unit = XliffDocument.units(file)[id]
         if (unit != null) {
@@ -70,14 +77,34 @@ class XliffContentGenerator : ContentGenerator {
         // The reference's source is copied as written, inline elements (`<x id="INTERPOLATION"/>`) included.
         val sourceXml = if (role == XliffRole.SOURCE) escape(value) else referenceSourceOf(file, id).orEmpty()
         val targetXml = if (role == XliffRole.TARGET) escape(value) else null
-        // Laid out like the units already there, one level below the container when it holds none.
+        appendUnit(container) { indent -> unitText(escape(id), sourceXml, targetXml, version2, indent) }
+    }
+
+    /** Appends the unit [text] writes at the indentation it is given: that of the units already there, one level below the container when it holds none. */
+    private fun appendUnit(container: XmlTag, text: (indent: String) -> String) {
         val last = container.subTags.lastOrNull()
         val containerIndent = XliffTranslationPsi.indentOf(container, "")
         val indent = last?.let { XliffTranslationPsi.indentOf(it, "$containerIndent$STEP") } ?: "$containerIndent$STEP"
-        val text = unitText(escape(id), sourceXml, targetXml, version2, indent)
-        if (last != null) XliffTranslationPsi.insertAfter(last, "\n$text")
-        else XliffTranslationPsi.insertAtStart(container, "\n$text\n$containerIndent")
+        if (last != null) XliffTranslationPsi.insertAfter(last, "\n${text(indent)}")
+        else XliffTranslationPsi.insertAtStart(container, "\n${text(indent)}\n$containerIndent")
     }
+
+    /**
+     * Writes [value] as the `<target>` of the unit Symfony reads as [key]: its `resname` (1.2) or `name` (2.0),
+     * the key written in its `<source>` too, as `translation:extract` writes it.
+     */
+    private fun writeSymfony(file: PsiFile, key: String, value: String) {
+        val unit = XliffDocument.namedUnits(file)[key]
+        if (unit != null) return setText(unit, XliffRole.TARGET, value)
+        val container = XliffDocument.unitContainer(file) ?: return
+        val version2 = XliffDocument.rootOf(file)?.let(XliffDocument::isVersion2) == true
+        val nameAttribute = if (version2) "name" else "resname"
+        appendUnit(container) { indent -> unitText(escape(key), escape(key), escape(value), version2, indent, nameAttribute) }
+    }
+
+    /** Whether [file] is a Symfony catalogue, keyed by `resname` rather than by `id`. */
+    private fun isSymfony(file: PsiFile): Boolean =
+        file.virtualFile?.let { SymfonyTranslations.isCatalogue(file.project, it) } == true
 
     /** Sets the text of [unit] that a file of [role] reads, creating its `<target>` after the `<source>` when missing. */
     private fun setText(unit: XliffUnit, role: XliffRole, value: String) {
@@ -91,14 +118,23 @@ class XliffContentGenerator : ContentGenerator {
     }
 
     /** A new unit as text, its first line at [indent] and each level [STEP] deeper. */
-    private fun unitText(id: String, sourceXml: String, targetXml: String?, version2: Boolean, indent: String): String {
+    private fun unitText(
+        id: String,
+        sourceXml: String,
+        targetXml: String?,
+        version2: Boolean,
+        indent: String,
+        nameAttribute: String? = null,
+    ): String {
         val texts = listOfNotNull("<source>$sourceXml</source>", targetXml?.let { "<target>$it</target>" })
+        val name = nameAttribute?.let { " $it=\"$id\"" }.orEmpty()
         return if (version2) {
             val inner = "$indent$STEP$STEP"
-            "$indent<unit id=\"$id\">\n$indent$STEP<segment>\n" + texts.joinToString("") { "$inner$it\n" } +
+            "$indent<unit id=\"$id\"$name>\n$indent$STEP<segment>\n" + texts.joinToString("") { "$inner$it\n" } +
                 "$indent$STEP</segment>\n$indent</unit>"
         } else {
-            "$indent<trans-unit id=\"$id\" datatype=\"html\">\n" + texts.joinToString("") { "$indent$STEP$it\n" } + "$indent</trans-unit>"
+            val datatype = if (nameAttribute == null) " datatype=\"html\"" else ""
+            "$indent<trans-unit id=\"$id\"$name$datatype>\n" + texts.joinToString("") { "$indent$STEP$it\n" } + "$indent</trans-unit>"
         }
     }
 

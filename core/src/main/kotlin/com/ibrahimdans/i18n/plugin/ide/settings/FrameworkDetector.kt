@@ -1,7 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
 /**
- * Maps the dependencies of a manifest — `package.json`, or `composer.json` for Laravel — to the i18n
+ * Maps the dependencies of a manifest — `package.json`, or `composer.json` for Laravel and Symfony — to the i18n
  * frameworks the setup wizard knows about, and an `angular.json` listing its translations to Angular's
  * own i18n.
  *
@@ -31,6 +31,9 @@ object FrameworkDetector {
      *
      * Laravel is a Composer package: `laravel/framework` is matched in `composer.json`. Composer names
      * are `vendor/package`, which no npm dependency spells unscoped, so one table serves both manifests.
+     * Symfony is given away by its translation component, which `composer require translation` adds:
+     * a Symfony application without it translates nothing. Laravel's own `composer.json` never names it,
+     * the component coming in through `laravel/framework`.
      *
      * Angular's own i18n needs `@angular/localize`, which `ng extract-i18n` and a localized build require;
      * an `angular.json` listing translations gives it away as well ([detect]).
@@ -47,6 +50,7 @@ object FrameworkDetector {
         "next-intl" to listOf("next-intl"),
         "paraglide" to listOf("@inlang/paraglide-js", "@inlang/paraglide-sveltekit", "@inlang/paraglide-next", "@inlang/paraglide-astro"),
         "laravel" to listOf("laravel/framework"),
+        "symfony" to listOf("symfony/translation"),
         ANGULAR_I18N to listOf("@angular/localize")
     )
 
@@ -63,6 +67,7 @@ object FrameworkDetector {
         "next-intl" to "next-intl",
         "paraglide" to "Paraglide JS (inlang)",
         "laravel" to "Laravel (PHP)",
+        "symfony" to "Symfony (PHP, Twig)",
         ANGULAR_I18N to "Angular i18n (native, XLIFF)"
     )
 

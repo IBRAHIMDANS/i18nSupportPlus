@@ -27,6 +27,7 @@ class PhpLang: Lang {
         val decision = phpRuleDecision(element)
         if (decision == RuleDecision.EXCLUDE) return false
         if (isLaravelTranslatorCall(element) && LaravelProject.isLaravel(element.project)) return true
+        if (SymfonyCalls.isCall(element)) return true
         val publishedNames = phpTranslationFunctionNames(element.project, config, translationFunctionNames)
         val functionNames = if (decision == RuleDecision.INCLUDE) publishedNames + listOfNotNull(phpCalleeOf(element)) else publishedNames
         // The annotator receives leaf tokens (e.g. "double quoted string"), but phpArgument()
@@ -60,8 +61,10 @@ class PhpLang: Lang {
 /**
  * [rawKey], written in [element], read whole when it is a phrase of a Laravel JSON file:
  * `__('Saved.')` is the key `Saved.` of `lang/en.json`, not `Saved` followed by an empty segment.
+ * A Symfony call's key is looked up in the domain the call names ([SymfonyCalls]).
  */
 internal fun phpRawKey(element: PsiElement, rawKey: RawKey): RawKey {
+    SymfonyCalls.domainOf(element)?.let { return rawKey.copy(arguments = listOf(it)) }
     val text = rawKey.keyElements.singleOrNull()?.text ?: return rawKey
     if (PHRASE_SEPARATORS.none { it in text }) return rawKey
     return if (LaravelJsonPhrases.contains(element.project, text)) rawKey.copy(unsplit = true) else rawKey

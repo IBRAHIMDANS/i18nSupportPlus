@@ -90,12 +90,24 @@ object XliffDocument {
         }
     }
 
-    private fun collectUnits(root: XmlTag?): Map<String, XliffUnit> {
+    /**
+     * The units of [file] by the key Symfony reads them under: 1.2's `resname`, 2.0's `name`, else the
+     * text of their `<source>` — `translation:extract` writes `<trans-unit id="hash" resname="key">`.
+     * Each unit's id is that key, and its id value the attribute naming it, when there is one.
+     */
+    fun namedUnits(file: PsiFile?): Map<String, XliffUnit> {
+        if (rootOf(file) == null) return emptyMap()
+        return CachedValuesManager.getCachedValue(file!!) {
+            CachedValueProvider.Result.create(collectUnits(rootOf(file), ::namedUnitOf), file)
+        }
+    }
+
+    private fun collectUnits(root: XmlTag?, read: (XmlTag) -> XliffUnit? = ::unitOf): Map<String, XliffUnit> {
         val units = linkedMapOf<String, XliffUnit>()
         fun visit(tag: XmlTag) {
             for (child in tag.subTags) {
                 when (child.localName) {
-                    TRANS_UNIT, UNIT -> unitOf(child)?.let { units.putIfAbsent(it.id, it) }
+                    TRANS_UNIT, UNIT -> read(child)?.let { units.putIfAbsent(it.id, it) }
                     FILE, BODY, GROUP -> visit(child)
                 }
             }
@@ -107,10 +119,22 @@ object XliffDocument {
     private fun unitOf(tag: XmlTag): XliffUnit? {
         val attribute = tag.getAttribute("id") ?: return null
         val id = attribute.value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        val holder = if (tag.localName == UNIT) tag.subTags.firstOrNull { it.localName == SEGMENT } ?: tag else tag
-        val source = holder.subTags.firstOrNull { it.localName == SOURCE }
-        val target = holder.subTags.firstOrNull { it.localName == TARGET }
+        val (source, target) = textsOf(tag)
         return XliffUnit(id, tag, attribute.valueElement, source, target)
+    }
+
+    private fun namedUnitOf(tag: XmlTag): XliffUnit? {
+        val (source, target) = textsOf(tag)
+        val attribute = tag.getAttribute(if (tag.localName == UNIT) "name" else "resname")
+        val name = attribute?.value?.trim()?.takeIf { it.isNotEmpty() }
+        val key = name ?: source?.value?.trimmedText?.takeIf { it.isNotEmpty() } ?: return null
+        return XliffUnit(key, tag, attribute?.valueElement?.takeIf { name != null }, source, target)
+    }
+
+    /** The `<source>` and `<target>` of a unit: its own in 1.2, those of its first `<segment>` in 2.0. */
+    private fun textsOf(tag: XmlTag): Pair<XmlTag?, XmlTag?> {
+        val holder = if (tag.localName == UNIT) tag.subTags.firstOrNull { it.localName == SEGMENT } ?: tag else tag
+        return holder.subTags.firstOrNull { it.localName == SOURCE } to holder.subTags.firstOrNull { it.localName == TARGET }
     }
 
     /** The unit [element] lies in, or null outside one. */

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">
+  <file source-language="en" target-language="fr" datatype="plaintext" original="file.ext">
+    <body>
+      <trans-unit id="email" resname="contact.email.invalid">
+        <source>contact.email.invalid</source>
+        <target>Cette adresse e-mail n'est pas valide.</target>
+      </trans-unit>
+      <trans-unit id="short">
+        <source>This value is too short.</source>
+        <target>Cette valeur est trop courte.</target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>

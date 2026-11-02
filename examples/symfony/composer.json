@@ -1,0 +1,10 @@
+{
+    "name": "acme/symfony-translations",
+    "type": "project",
+    "require": {
+        "php": ">=8.2",
+        "symfony/framework-bundle": "7.1.*",
+        "symfony/translation": "7.1.*",
+        "symfony/twig-bundle": "7.1.*"
+    }
+}

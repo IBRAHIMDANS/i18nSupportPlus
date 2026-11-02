@@ -29,8 +29,9 @@ class I18nInlayHintsRegistrationTest : PlatformBaseTest() {
     fun `declared on JavaScript alone among its dialects, with a settings group`() {
         // The dialects inherit it: one declaration per dialect rendered a .tsx hint three times.
         // PHP and Blade (phpConfig.xml) are no dialect of JavaScript: a Laravel key's hint.
-        // Nor are an Angular template (angularConfig.xml) and a Svelte component (svelteConfig.xml).
-        assertEquals(listOf("Angular2Html", "Blade", "JavaScript", "PHP", "SvelteHTML"), ours.mapNotNull { it.language }.sorted())
+        // Nor are an Angular template (angularConfig.xml), a Svelte component (svelteConfig.xml) and a
+        // Twig template (twigConfig.xml).
+        assertEquals(listOf("Angular2Html", "Blade", "JavaScript", "PHP", "SvelteHTML", "Twig"), ours.mapNotNull { it.language }.sorted())
         ours.forEach { bean ->
             assertTrue(bean.isEnabledByDefault, "${bean.language}: on by default")
             // No message: with a String expected value the inherited junit.framework overload wins.
@@ -60,6 +61,14 @@ class I18nInlayHintsRegistrationTest : PlatformBaseTest() {
         addFileToProject("locales/en/common.json", """{"title": "Deposit box"}""")
         val hints = renderedHints("Page.tsx", "const x = t('common:title');")
         assertEquals(1, hints.size, "one hint, not one per dialect the file inherits: $hints")
+    }
+
+    @Test
+    fun `a twig template of a symfony project renders the hint once`() = myFixture.runWithConfig(Config(foldingPreferredLanguage = "en")) {
+        addFileToProject("composer.json", """{"require": {"symfony/translation": "7.1.*"}}""")
+        addFileToProject("translations/messages.en.yaml", "title: Deposit box\n")
+        val hints = renderedHints("page.html.twig", "<h1>{{ 'title'|trans }}</h1>")
+        assertEquals(1, hints.size, "one hint after the key: $hints")
     }
 
     @Test

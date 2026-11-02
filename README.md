@@ -44,7 +44,7 @@
 <!-- Plugin description -->
 Turns i18n keys into first-class code symbols in **WebStorm, IntelliJ IDEA Ultimate and PhpStorm**: see each key's value and status, jump to it, rename it, translate it and keep every locale in sync.
 
-Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-intl, ngx-translate, Transloco, Angular i18n (`$localize`), svelte-i18n, i18n-js, Paraglide JS, typesafe-i18n, Meteor universe:i18n and Laravel / Blade**, in JS, TS, JSX, TSX, Vue SFC, Svelte, Astro, Angular templates, PHP and Blade, with **JSON, JSON5, YAML, PO/POT, XLIFF, Laravel PHP arrays, Flutter ARB, Java `.properties`** and plain **TS/JS catalogues**. A setup wizard configures it on first launch, monorepo modules included.
+Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-intl, ngx-translate, Transloco, Angular i18n (`$localize`), svelte-i18n, i18n-js, Paraglide JS, typesafe-i18n, Meteor universe:i18n, Laravel / Blade and Symfony / Twig**, in JS, TS, JSX, TSX, Vue SFC, Svelte, Astro, Angular templates, PHP, Blade and Twig, with **JSON, JSON5, YAML, PO/POT, XLIFF, Laravel PHP arrays, Flutter ARB, Java `.properties`** and plain **TS/JS catalogues**. A setup wizard configures it on first launch, monorepo modules included.
 
 - **See** — gutter status per key (all / some / no locale), inline value hints, folding and hover in a preview locale, completion of real keys, namespaces included
 - **Edit safely** — extract hard-coded strings (variables and plural forms included), rename a key or a whole level across every locale and call site (`Shift+F6`), move a key to another namespace; one Ctrl+Z undoes the files and the code
@@ -99,8 +99,8 @@ whether a key exists, in which namespace, and whether it's translated everywhere
   empty, duplicate or inconsistent values.
 
 Works with **i18next / react-i18next, vue-i18n, next-intl, lingui, react-intl, ngx-translate, Transloco, Angular i18n,
-svelte-i18n, i18n-js, Paraglide JS, typesafe-i18n, Meteor universe:i18n and Laravel / Blade**, across JS/TS/JSX/TSX, Vue SFC,
-Svelte, Astro, Angular templates, PHP and Blade, with JSON, JSON5, YAML, PO/POT, XLIFF, Laravel PHP arrays, Flutter ARB, Java `.properties` and
+svelte-i18n, i18n-js, Paraglide JS, typesafe-i18n, Meteor universe:i18n, Laravel / Blade and Symfony / Twig**, across JS/TS/JSX/TSX, Vue SFC,
+Svelte, Astro, Angular templates, PHP, Blade and Twig, with JSON, JSON5, YAML, PO/POT, XLIFF, Laravel PHP arrays, Flutter ARB, Java `.properties` and
 TS/JS catalogues.
 A setup wizard auto-configures it on first launch, a module per application in a monorepo.
 
@@ -170,8 +170,9 @@ Details: [Setup and configuration](docs/configuration.md).
 | typesafe-i18n | `LL.home.title()` |
 | Meteor universe:i18n | `const t = useTranslator('Home')`, then `t('title')` |
 | Laravel / Blade | `__('key')`, `trans_choice('key', 2)`, `@lang('key')` |
+| Symfony / Twig | `$translator->trans('key', [], 'admin')`, `{{ 'key'\|trans }}`, `{% trans %}key{% endtrans %}` |
 
-The keys are read in JS, TS, JSX, TSX, Vue SFC, Svelte, Astro, Angular templates, PHP and Blade, and the translations in JSON, JSON5, YAML, PO/POT, XLIFF, Laravel PHP arrays, Flutter ARB, Java `.properties` and TS/JS catalogues. Every syntax, language and format: [Frameworks, languages and file formats](docs/frameworks.md).
+The keys are read in JS, TS, JSX, TSX, Vue SFC, Svelte, Astro, Angular templates, PHP, Blade and Twig, and the translations in JSON, JSON5, YAML, PO/POT, XLIFF, Laravel PHP arrays, Symfony catalogues, Flutter ARB, Java `.properties` and TS/JS catalogues. Every syntax, language and format: [Frameworks, languages and file formats](docs/frameworks.md).
 
 ## Requirements
 
@@ -190,6 +191,7 @@ The keys are read in JS, TS, JSX, TSX, Vue SFC, Svelte, Astro, Angular templates
 | Localization | No | PO/POT gettext files |
 | Angular | No | Translation pipes and Transloco directives in Angular templates (`.html`) |
 | Blade | No | Keys in Blade views (`{{ __('key') }}`, `@lang`) |
+| Twig | No | Keys in Twig templates of a Symfony project (`{{ 'key'\|trans }}`, `{% trans %}`) |
 | Svelte | No | Keys in `.svelte` components |
 | Astro | No | Keys in `.astro` components |
 | Git | No | *Compare with Branch* (translation changes of a branch) |

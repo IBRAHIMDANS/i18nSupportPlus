@@ -1,0 +1,4 @@
+home:
+  title: Bienvenue
+  greeting: Bonjour %name% !
+footer.copyright: Tous droits réservés

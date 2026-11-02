@@ -75,6 +75,8 @@ dependencies {
         // Astro is not bundled in IntelliJ Ultimate either: without it a .astro file is PLAIN_TEXT.
         // Only for the tests and runIde (AstroCallsTest): the plugin declares no dependency on it.
         plugin("org.jetbrains.plugins.astro:253.32098.37")
+        // Twig is bundled in PhpStorm only: Symfony's `'key'|trans` and `{% trans %}`, declared in twigConfig.xml.
+        plugin("com.jetbrains.twig:253.28294.322")
 
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
