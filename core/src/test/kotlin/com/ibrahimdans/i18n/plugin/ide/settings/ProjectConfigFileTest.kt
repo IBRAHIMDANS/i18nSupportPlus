@@ -10,6 +10,19 @@ import org.junit.jupiter.api.assertThrows
 class ProjectConfigFileTest {
 
     @Test
+    fun `the code roots of a module - read as a string or an array, and exported`() {
+        val fromArray = ProjectConfigFile.parse("""{ "modules": [{ "name": "i18n", "codeRoots": ["apps/web", "apps/admin"] }] }""")
+        val fromString = ProjectConfigFile.parse("""{ "modules": [{ "name": "i18n", "codeRoots": "apps/web, apps/admin" }] }""")
+
+        assertEquals("apps/web, apps/admin", fromArray.modules!!.single().codeRoots)
+        assertEquals("apps/web, apps/admin", fromString.modules!!.single().codeRoots)
+        assertTrue(ProjectConfigFile.export(Config(modules = fromArray.modules)).contains("\"codeRoots\": \"apps/web, apps/admin\""))
+        assertThrows<IllegalArgumentException> {
+            ProjectConfigFile.parse("""{ "modules": [{ "name": "i18n", "codeRoots": [{ "path": "apps/web" }] }] }""")
+        }
+    }
+
+    @Test
     fun `the settings a file names are laid over the base, the others kept`() {
         val content = ProjectConfigFile.parse("""{ "keySeparator": "/", "flatKeys": true, "translationsRoot": "src/locales" }""")
         val base = Config(nsSeparator = "::", foldingEnabled = true)

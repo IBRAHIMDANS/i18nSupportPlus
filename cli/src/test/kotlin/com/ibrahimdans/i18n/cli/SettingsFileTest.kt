@@ -54,4 +54,13 @@ class SettingsFileTest {
         val error = assertThrows<IllegalArgumentException> { SettingsFile.read(project) }
         assertTrue(error.message!!.startsWith("i18n-check.json: "), error.message)
     }
+
+    @Test
+    fun `the code roots of a module are read from i18n-check json`(@TempDir project: Path) {
+        Files.writeString(
+            project.resolve(SettingsFile.JSON_PATH),
+            """{ "modules": [{ "name": "i18n", "rootDirectory": "packages/i18n", "codeRoots": ["apps/web", "apps/admin"] }] }""",
+        )
+        assertEquals("apps/web, apps/admin", SettingsFile.read(project).modules.single().codeRoots)
+    }
 }

@@ -21,6 +21,10 @@ package com.ibrahimdans.i18n.plugin.ide.settings
  * [enabled] false puts the module aside: its translation files are no source, and the code under its
  * root directory resolves no key — what *Excluded directories* did by hand for the other applications
  * of a monorepo. True by default, so a state persisted before the field existed keeps every module.
+ *
+ * [codeRoots] lists, comma-separated and relative to the project directory, the folders whose code
+ * uses the module's keys: `apps/web, apps/admin` for a shared `packages/i18n`. Empty, the default, is
+ * the module's own [rootDirectory].
  */
 data class ModuleConfig(
     var name: String = "",
@@ -32,8 +36,9 @@ data class ModuleConfig(
     var referenceLocale: String = "",
     var callTemplate: String = "",
     var writeDefaultValue: Boolean = false,
-    var enabled: Boolean = true
+    var enabled: Boolean = true,
+    var codeRoots: String = ""
 ) {
     // Explicit no-arg constructor required by XmlSerializerUtil for List<T> serialization
-    constructor() : this("", "", "", "", "", "", "", "", false, true)
+    constructor() : this("", "", "", "", "", "", "", "", false, true, "")
 }

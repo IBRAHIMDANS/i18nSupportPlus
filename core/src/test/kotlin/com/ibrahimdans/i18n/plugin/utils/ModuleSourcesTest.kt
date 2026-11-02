@@ -105,6 +105,23 @@ class ModuleSourcesTest {
         assertTrue(ModuleSources.contains(module("/apps/web/"), ModuleSources.FilePath("/apps/web/en.json", true)))
     }
 
+    /** A shared `packages/i18n` names the applications whose code uses its keys; without, its own root. */
+    @Test
+    fun codeRootsDecideWhereTheKeysOfAModuleAreUsed() {
+        val shared = module("packages/i18n").copy(codeRoots = " apps/web/ , apps/admin,")
+        fun holds(module: ModuleConfig, path: String) = ModuleSources.holdsCode(module, ModuleSources.FilePath(path, anchored = true))
+
+        assertEquals(listOf("apps/web", "apps/admin"), ModuleSources.codeRootsOf(shared))
+        assertTrue(holds(shared, "apps/web/src/App.tsx"))
+        assertTrue(holds(shared, "apps/admin/src/Menu.tsx"))
+        assertFalse(holds(shared, "packages/i18n/index.ts"), "listed roots replace the module's own")
+        assertFalse(holds(shared, "apps/mobile/src/App.tsx"))
+
+        assertEquals(listOf("apps/web"), ModuleSources.codeRootsOf(module("apps/web")))
+        assertTrue(holds(module("apps/web"), "apps/web/src/App.tsx"))
+        assertEquals(emptyList<String>(), ModuleSources.codeRootsOf(module("")))
+    }
+
     @Test
     fun theLoneModuleIsTheOnlyOneWithARoot() {
         val web = module("apps/web")

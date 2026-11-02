@@ -23,17 +23,18 @@ fun ModuleSources.ownerOf(project: Project, file: VirtualFile?): ModuleConfig? {
 }
 
 /**
- * Where the code using a key is searched: the project's search scope, narrowed to [module]'s root
- * directory — a key of `apps/web`'s files is used by `apps/web`'s code, not `apps/admin`'s. The whole
- * search scope for no module. Matched on paths as [owner] matches them, so the two never disagree.
+ * Where the code using a key is searched: the project's search scope, narrowed to [module]'s code
+ * roots ([ModuleSources.codeRootsOf]) — a key of `apps/web`'s files is used by `apps/web`'s code, not
+ * `apps/admin`'s, and a shared `packages/i18n` names the applications that use it. The whole search
+ * scope for no module. Matched on paths as [owner] matches them, so the two never disagree.
  */
 fun ModuleSources.searchScope(project: Project, module: ModuleConfig?): GlobalSearchScope {
     val projectScope = Settings.getInstance(project).config().searchScope(project)
-    if (module == null || module.rootDirectory.isBlank()) return projectScope
+    if (module == null || codeRootsOf(module).isEmpty()) return projectScope
     val basePath = project.basePath ?: ""
     return object : DelegatingGlobalSearchScope(projectScope, module) {
         override fun contains(file: VirtualFile): Boolean =
-            super.contains(file) && ModuleSources.contains(module, ModuleSources.FilePath.of(file, basePath))
+            super.contains(file) && ModuleSources.holdsCode(module, ModuleSources.FilePath.of(file, basePath))
     }
 }
 

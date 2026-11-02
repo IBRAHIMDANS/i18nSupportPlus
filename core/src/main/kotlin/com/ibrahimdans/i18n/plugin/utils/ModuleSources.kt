@@ -103,6 +103,15 @@ object ModuleSources {
 
     private fun rootOf(module: ModuleConfig) = module.rootDirectory.trim().trim('/')
 
+    /** The folders whose code uses [module]'s keys: its [ModuleConfig.codeRoots], else its root directory. */
+    fun codeRootsOf(module: ModuleConfig): List<String> =
+        module.codeRoots.split(",").map { it.trim().trim('/') }.filter { it.isNotEmpty() }
+            .ifEmpty { listOfNotNull(rootOf(module).ifEmpty { null }) }
+
+    /** Whether [file] is code that uses [module]'s keys: it lies under one of its [codeRootsOf]. */
+    fun holdsCode(module: ModuleConfig, file: FilePath): Boolean =
+        codeRootsOf(module).any { root -> contains(module.copy(rootDirectory = root), file) }
+
     /** Whether any module declares a usable template. */
     fun hasTemplates(modules: List<ModuleConfig>): Boolean = modules.any { patternOf(it, true) != null }
 
