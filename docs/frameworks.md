@@ -79,9 +79,9 @@ extraction and the rename. Not tested: folding and inlay hints. A ready-to-open 
 | Vue SFC | `.vue` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | PHP | `.php` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Blade | `.blade.php` | ✓ | — | ✓ | ✓ | ✓ |
-| Angular templates | `.html` | ✓ | ✓ | — | — | ✓ |
-| Svelte | `.svelte` | ✓ | — | ✓ | — | — |
-| Astro | `.astro` | ✓ | ✓ | ✓ | — | ✓ |
+| Angular templates | `.html` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Svelte | `.svelte` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Astro | `.astro` | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 **—** means no test covers it yet: it may work, it is not promised. A ✓ is backed by a test.
 
@@ -90,7 +90,7 @@ extraction and the rename. Not tested: folding and inlay hints. A ready-to-open 
 > Angular templates require the Angular plugin, and are read inside an Angular project only (see <sup>1</sup> above).
 > Svelte components require the [Svelte plugin](https://plugins.jetbrains.com/plugin/12375-svelte) (see <sup>2</sup> above).
 >
-> Astro components (`.astro`, with astro-i18next or i18next) are analysed provided the [Astro plugin](https://plugins.jetbrains.com/plugin/20959-astro) is installed — it is not bundled with IntelliJ Ultimate, and without it a `.astro` file is plain text to the IDE. With it, `t('key')` in the `---` frontmatter and in `{…}` template expressions is ordinary JavaScript: annotations, completion, folding and references work as in a `.ts` file.
+> Astro components (`.astro`, with astro-i18next or i18next) are analysed provided the [Astro plugin](https://plugins.jetbrains.com/plugin/20959-astro) is installed — it is not bundled with IntelliJ Ultimate, and without it a `.astro` file is plain text to the IDE. With it, `t('key')` in the `---` frontmatter and in `{…}` template expressions is ordinary JavaScript: annotations, completion, folding, inlay hints and references work as in a `.ts` file.
 >
 > In a Laravel project — a `composer.json` outside `vendor/` requiring `laravel/framework` or `illuminate/translation` — `__()`, `trans()` and `trans_choice()` are translation calls too, and extracting a string writes `__('…')`. Elsewhere `__()` is left alone: WordPress passes it a text, not a key. In Blade views (with the Blade plugin, bundled in PhpStorm), keys inside `{{ … }}` and `{!! … !!}` echoes are read like any PHP key, and so are those of the `@lang('key')` and `@choice('key', n)` directives. Laravel's translator called in PHP — `app('translator')->get('key')`, `->choice('key', n)`, the `Lang` facade — is recognised as well. Their values are folded in place and shown as inlay hints, in PHP and Blade; Shift+F6 renames a key in the PHP array of every locale; and a JSON phrase holding `.` or `:` — `__('Saved.')`, `__('Hello, :name')` — is looked up whole in `lang/<locale>.json`, as Laravel does.
 

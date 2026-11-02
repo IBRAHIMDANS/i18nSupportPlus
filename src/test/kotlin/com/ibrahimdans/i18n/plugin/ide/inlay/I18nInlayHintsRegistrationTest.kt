@@ -29,7 +29,8 @@ class I18nInlayHintsRegistrationTest : PlatformBaseTest() {
     fun `declared on JavaScript alone among its dialects, with a settings group`() {
         // The dialects inherit it: one declaration per dialect rendered a .tsx hint three times.
         // PHP and Blade (phpConfig.xml) are no dialect of JavaScript: a Laravel key's hint.
-        assertEquals(listOf("Blade", "JavaScript", "PHP"), ours.mapNotNull { it.language }.sorted())
+        // Nor are an Angular template (angularConfig.xml) and a Svelte component (svelteConfig.xml).
+        assertEquals(listOf("Angular2Html", "Blade", "JavaScript", "PHP", "SvelteHTML"), ours.mapNotNull { it.language }.sorted())
         ours.forEach { bean ->
             assertTrue(bean.isEnabledByDefault, "${bean.language}: on by default")
             // No message: with a String expected value the inherited junit.framework overload wins.
