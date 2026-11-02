@@ -28,6 +28,7 @@ Highlights i18n keys with visual feedback on resolution status:
 - Opens the **preview locale** (the project reference locale when none is set) rather than asking which file; when that locale lacks the key, every target is offered
 - Works with partially resolved keys (navigates to the deepest resolved node)
 - Bidirectional: navigate from translation files back to code usage
+- A key held by a constant is followed one step: `t(SAVE_KEY)`, `t(KEYS.save)` (an object of a `const`, `as const` or not) and `t(Keys.Save)` (a string `enum` member) are annotated, hinted and Ctrl+clicked at the call, imported or not; each branch of `const titleKey = cond ? 'a' : 'b'` is annotated where it is written. The constant's literal is the usage *Find Usages* lists and Shift+F6 rewrites, once. A parameter, a reassigned variable or a value computed by a function stays unread
 
 ![Navigation](img/navigation.png)
 
