@@ -414,6 +414,16 @@
             enabledByDefault="false"
             level="WEAK WARNING"
             implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedSvelteTextInspection"/>
+        <!-- Astro is no dependency of the plugin either: its language is a dialect of JavaScript, which
+             the inspection reads only in a .astro file the Astro plugin parses. -->
+        <localInspection
+            language="JavaScript"
+            groupName="i18n Support Plus"
+            key="inspection.hardcoded.astro.text.display.name"
+            shortName="I18nHardcodedAstroText"
+            enabledByDefault="false"
+            level="WEAK WARNING"
+            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedAstroTextInspection"/>
     </extensions>
     <actions>
         <!-- One family per section: configuration, keys, machine translation, exchange, generation;
