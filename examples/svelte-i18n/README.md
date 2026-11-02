@@ -77,8 +77,8 @@ README):
 cli/build/install/i18n-check/bin/i18n-check examples/svelte-i18n
 ```
 
-It reports `only_in_english` as missing from `fr` and exits with `1`. `--code` reads i18next calls only, so it says
-nothing about the unknown `does.not.exist` here.
+It reports `only_in_english` as missing from `fr` and exits with `1`. With `--code`, it also reports the unknown
+`does.not.exist` in `src/App.svelte`.
 
 ## Left out
 

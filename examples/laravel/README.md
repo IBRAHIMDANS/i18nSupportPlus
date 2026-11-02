@@ -80,15 +80,17 @@ Open this folder with `./gradlew runIde` and accept the setup wizard (it detects
 
 ### Command line
 
-`i18n-check` (root README, *Command Line Check*) reads JSON and YAML only. On this layout it checks the JSON phrases,
-and leaves the PHP files out:
+`i18n-check` ([*Command Line Check*](../../docs/checks.md#command-line-check)) reads the PHP files and the JSON phrases,
+and with `--code` the PHP calls and Blade views:
 
 ```bash
 ./gradlew :cli:installDist
-cli/build/install/i18n-check/bin/i18n-check examples/laravel --locales examples/laravel/lang
+cli/build/install/i18n-check/bin/i18n-check examples/laravel --code
 ```
 
-It reports `Free shipping` missing in `fr`, and exits with `1`.
+It reports `Free shipping`, `messages:only_in_english` and the package override, listed as `messages:sent`, missing
+in `fr`; the override as unused (see *Not covered*); the three unknown keys of the code (`messages.does_not_exist`,
+`messages.cart.lines`, `messages.not_in_any_file`) with their file and line; and exits with `1`.
 
 ## Not covered
 
@@ -97,4 +99,5 @@ What the plugin does not handle yet on Laravel, left out of the checks above:
 - **Parameters** (`:name`, `:count`) are not checked against the arguments passed: the key resolves, nothing more.
 - **Plural forms** are one string to the plugin: `messages.cart.items` resolves, its `|` variants are not checked
   per locale.
-- **`--code` of `i18n-check`**: it reads i18next calls in JavaScript and TypeScript, not PHP.
+- **Package keys in `i18n-check`**: the override under `lang/vendor/courier/` is listed as `messages:sent`, not
+  `courier::messages.sent`, and `--code` does not read `__('courier::…')`: the override's key is reported unused.

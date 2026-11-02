@@ -5,12 +5,16 @@ import com.ibrahimdans.i18n.ParsedFormat
 import com.ibrahimdans.i18n.SourceDiscovery
 import com.ibrahimdans.i18n.extract.CodeExtractors
 import com.ibrahimdans.i18n.extract.angular.AngularTemplate
+import com.ibrahimdans.i18n.extract.laravel.LaravelSource
+import com.ibrahimdans.i18n.extract.laravel.laravelExtractors
 import com.ibrahimdans.i18n.extract.nextintl.NextIntlKeyExtractor
+import com.ibrahimdans.i18n.extract.svelte.SvelteSfc
 import com.ibrahimdans.i18n.extract.vuei18n.VueSfc
 import com.ibrahimdans.i18n.index.TreeSitterKeyUsageIndex
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationLeaves
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
+import com.ibrahimdans.i18n.plugin.utils.unQuote
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -18,15 +22,17 @@ import java.nio.file.Path
 data class UnknownKey(val key: String, val file: String, val line: Int)
 
 /**
- * Where the code of a project uses its keys: every JavaScript, TypeScript and Vue file read into a
+ * Where the code of a project uses its keys: every JavaScript, TypeScript, Vue and Svelte file read into a
  * [TreeSitterKeyUsageIndex], the folders [NioWorkspace] prunes and those the settings exclude left out.
  * Keys are spelled as [ProjectSources] spells them.
  *
  * Each file is read with the extractors of its module's preset ([CodeExtractors]): i18next's, next-intl's,
- * vue-i18n's, Transloco's, ngx-translate's, react-intl's and Lingui's calls, all of them outside a module with a preset. A `.vue`
- * file is read through [VueSfc]: its scripts and its template's expressions. In an Angular project — a
- * `package.json` requiring `@angular/core` — the `.html` templates are read too, through [AngularTemplate]:
- * elsewhere a `.html` is no template of the plugin's.
+ * vue-i18n's, Transloco's, ngx-translate's, react-intl's, Lingui's and svelte-i18n's calls, all of them outside a module with a
+ * preset. A `.vue` file is read through [VueSfc], a `.svelte` one through [SvelteSfc]: their scripts and their markup's
+ * expressions. In an Angular project — a `package.json` requiring `@angular/core` — the `.html` templates are read too,
+ * through [AngularTemplate]: elsewhere a `.html` is no template of the plugin's. In a Laravel project — a `composer.json`
+ * requiring `laravel/framework` — the `.php` files and Blade views are read through [LaravelSource], with Laravel's calls
+ * alone: elsewhere `__('Hello', 'domain')` is WordPress, a text and not a key.
  */
 class CodeUsages(project: Path, config: Config) {
 
@@ -41,12 +47,20 @@ class CodeUsages(project: Path, config: Config) {
 
     init {
         val root = project.toAbsolutePath().normalize()
-        val extensions = if (ProjectPackages.requiresAny(root, listOf(ProjectPackages.ANGULAR))) EXTENSIONS + HTML else EXTENSIONS
+        val laravel = ProjectPackages.composerRequiresAny(root, ProjectPackages.LARAVEL)
+        val extensions = EXTENSIONS +
+            listOfNotNull(HTML.takeIf { ProjectPackages.requiresAny(root, listOf(ProjectPackages.ANGULAR)) }, PHP.takeIf { laravel })
         texts = NioWorkspace(root, SourceDiscovery.DEFAULT_EXCLUDED_DIRECTORIES + config.excludedDirectorySet())
             .files(extensions)
             .associate { root.relativize(it.file).joinToString("/") to Files.readString(it.file) }
         val modules = ModuleSources.active(config.modules)
-        indexes = texts.entries
+        val (php, scripts) = texts.entries.partition { (path, _) -> path.endsWith(".$PHP") }
+        val laravelIndex = php.takeIf { it.isNotEmpty() }?.let { files ->
+            TreeSitterKeyUsageIndex(config, extractors = laravelExtractors(config.nsSeparator, config.keySeparator)).apply {
+                files.forEach { (path, text) -> update(path, LaravelSource.codeOf(text)) }
+            }
+        }
+        indexes = listOfNotNull(laravelIndex) + scripts
             .groupBy { (path, _) -> ModuleSources.owner(modules, ModuleSources.FilePath(path, anchored = true))?.preset?.trim()?.ifEmpty { null } }
             .map { (preset, files) ->
                 TreeSitterKeyUsageIndex(config, extractors = CodeExtractors.forPreset(preset)).apply {
@@ -72,16 +86,21 @@ class CodeUsages(project: Path, config: Config) {
             .filterNot { call -> call.key in blockKeys[call.usage.path].orEmpty() || isExistenceCheck(call.usage.path, call.usage.span.start) }
             .map { call ->
                 val line = texts.getValue(call.usage.path).substring(0, call.usage.span.start).count { it == '\n' } + 1
-                UnknownKey(call.key, call.usage.path, line)
+                UnknownKey(writtenKey(call.key, call.usage.path, call.usage.span.start, call.usage.span.end), call.usage.path, line)
             }
             .sortedWith(compareBy({ it.file }, { it.line }))
 
     /** The code of the file at [path]: a component or a template read as the code it holds. */
     private fun codeOf(path: String, text: String): String = when {
         path.endsWith(VUE) -> VueSfc.codeOf(text)
+        path.endsWith(SVELTE) -> SvelteSfc.codeOf(text)
         path.endsWith(".$HTML") -> AngularTemplate.codeOf(text)
         else -> text
     }
+
+    /** [key] as [path] writes it between [start] and [end]: a Laravel key is read under its file's namespace, `messages:welcome`, and reported as written. */
+    private fun writtenKey(key: String, path: String, start: Int, end: Int): String =
+        if (path.endsWith(".$PHP")) texts.getValue(path).substring(start, end).unQuote() else key
 
     /** True when the literal at [offset] of [path] is the key of a `.has(` call. */
     private fun isExistenceCheck(path: String, offset: Int): Boolean =
@@ -89,8 +108,10 @@ class CodeUsages(project: Path, config: Config) {
 
     private companion object {
         const val VUE = ".vue"
-        val EXTENSIONS = listOf("js", "jsx", "ts", "tsx", "mjs", "cjs", "vue")
+        const val SVELTE = ".svelte"
+        val EXTENSIONS = listOf("js", "jsx", "ts", "tsx", "mjs", "cjs", "vue", "svelte")
         const val HTML = "html"
+        const val PHP = "php"
 
         val I18N_BLOCK = Regex("""<i18n\b([^>]*)>(.*?)</i18n>""", RegexOption.DOT_MATCHES_ALL)
         val YAML_LANG = Regex("""\blang\s*=\s*["']ya?ml["']""")
