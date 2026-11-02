@@ -103,6 +103,7 @@ extraction and the rename. Not tested: folding and inlay hints. A ready-to-open 
 | PO/POT (gettext) | `.po`, `.pot` | ✓ | ✓ |
 | Laravel PHP arrays | `lang/<locale>/<file>.php`, the file name as namespace | ✓ | ✓ |
 | Flutter ARB | `.arb` (`lib/l10n/app_<locale>.arb`), the locale from `@@locale` or the file name | — | ✓ |
+| Java resource bundles (requires the bundled **Properties** plugin) | `.properties` (`messages_<locale>.properties`), the locale from the file name | — | ✓ |
 | XLIFF 1.2 and 2.0 (Angular i18n) | `.xlf`, `.xliff`, the files `angular.json` lists (<sup>8</sup>) | ✓ | ✓ |
 | TS/JS catalogues (an object keyed by locale, as i18n-js writes) | `.ts`, `.js` | ✓ | ✓ |
 | i18next `resources` declared in a TS/JS configuration file | `.ts`, `.js` | ✓ | ✓ |
@@ -116,6 +117,15 @@ Flutter ARB catalogues feed the tool window, the statistics, the missing-key che
 and `@@locale` metadata is no key. A key created in a catalogue that describes its keys, the template, gets its
 `@key` block, with the `{placeholders}` of its value, and a key renamed or deleted takes its block along. Dart code is not read: `AppLocalizations.of(context)!.greeting` names its key as a
 getter of the generated class, which the Dart analyzer already checks, so an ARB key is never reported unused.
+
+Java resource bundles (`src/main/resources/messages.properties`, `messages_fr.properties`, `messages_pt_BR.properties`)
+feed the tool window, the statistics, the missing-key and placeholder checks (`{0}`, `{0,number}` compared as `{name}`),
+*Sync Keys* and *Fill Missing Translations*. A file is a bundle file when its base name has at least one localized
+file beside it, so `application.properties` stays configuration; `messages.properties` holds the reference locale,
+unless `messages_en.properties` exists. A folder of several bundles (`messages`, `errors`) gets one namespace per base
+name. A dotted key (`user.name`) resolves level by level like any other, a new key is written next to its siblings,
+and values are escaped and unescaped (`\uXXXX`, line continuations) as Java reads them. Java code is not read yet:
+`getString("key")` and Spring's `getMessage("key", …)` are no usages, so a bundle key is never reported unused.
 
 Keys are resolved as nested properties by default (`app.header.title` walks three levels).
 Projects storing **flat ids** — one property per key, as react-intl / FormatJS usually do —

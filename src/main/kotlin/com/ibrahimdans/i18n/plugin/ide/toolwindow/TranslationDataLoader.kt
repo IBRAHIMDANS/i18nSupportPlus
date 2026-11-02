@@ -213,6 +213,8 @@ object TranslationDataLoader {
         if (TranslationPsi.isYaml(psi)) return TranslationPsi.readValue(psi) ?: ""
         // An XLIFF unit's text, its entities decoded (`Terms &amp; conditions`), for the same reason.
         if (XliffTranslationPsi.isXliff(psi)) return TranslationPsi.readValue(psi) ?: ""
+        // A `.properties` value, its escapes and line continuations read, for the same reason.
+        if (TranslationPsi.isProperties(psi)) return TranslationPsi.readValue(psi) ?: ""
         return psi.text?.removeSurrounding("\"")?.removeSurrounding("'") ?: ""
     }
 }

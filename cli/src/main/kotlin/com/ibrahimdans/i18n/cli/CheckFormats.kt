@@ -6,12 +6,14 @@ import com.ibrahimdans.i18n.plugin.format.ArbCatalogue
 import com.ibrahimdans.i18n.plugin.format.JsonTranslationTree
 import com.ibrahimdans.i18n.plugin.format.PhpArrayTranslationTree
 import com.ibrahimdans.i18n.plugin.format.PoTranslationTree
+import com.ibrahimdans.i18n.plugin.format.PropertiesBundle
+import com.ibrahimdans.i18n.plugin.format.PropertiesTranslationTree
 import java.nio.file.Files
 import java.nio.file.Path
 
 /**
  * The formats `i18n-check` reads: those `core` builds in, the gettext catalogues, Laravel's PHP
- * arrays, Flutter's ARB catalogues, and the TypeScript / JavaScript catalogues, which need
+ * arrays, Flutter's ARB catalogues, Java's resource bundles (`.properties`), and the TypeScript / JavaScript catalogues, which need
  * tree-sitter. Their ids are the plugin's localizations', so its per-format settings apply: an ARB
  * catalogue is a JSON file there.
  */
@@ -28,7 +30,12 @@ internal object CheckFormats {
         JsonTranslationTree.parse(text, arb = true)
     }
 
-    val ALL: List<ParsedFormat> = ParsedFormat.entries + listOf(TS, PO, PHP, ARB)
+    /** Not scanned by name: [PropertiesSources] declares the bundle files, with the locale each one holds. */
+    val PROPERTIES = ParsedFormat("Properties", "properties", listOf(PropertiesBundle.EXTENSION), scannedByName = false) { text, _ ->
+        PropertiesTranslationTree.parse(text)
+    }
+
+    val ALL: List<ParsedFormat> = ParsedFormat.entries + listOf(TS, PO, PHP, ARB, PROPERTIES)
 
     /**
      * Why [file], of [format], gave no tree: null for a TS, JS or PHP file holding code rather than a

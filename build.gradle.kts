@@ -55,6 +55,8 @@ dependencies {
         intellijIdeaUltimate(effectivePlatformVersion)
         bundledPlugin("JavaScript")
         bundledPlugin("org.jetbrains.plugins.yaml")
+        // Java resource bundles (.properties), declared in propertiesConfig.xml only
+        bundledPlugin("com.intellij.properties")
         // PHP plugin is not bundled in IntelliJ Ultimate 2025.3.3 (build 253.31033)
         plugin("com.jetbrains.php:253.31033.19")
         bundledPlugin("org.jetbrains.plugins.vue")

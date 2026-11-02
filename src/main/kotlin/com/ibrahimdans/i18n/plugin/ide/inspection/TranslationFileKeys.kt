@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
 import com.ibrahimdans.i18n.extensions.localization.json.JsonElementTree
+import com.ibrahimdans.i18n.extensions.localization.properties.PropertiesTranslationPsi
 import com.ibrahimdans.i18n.extensions.localization.yaml.YamlTranslationPsi
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.json.psi.JsonFile
@@ -64,6 +65,8 @@ internal object TranslationFileKeys {
             file is JsonFile -> PsiTreeUtil.getChildOfType(file, JsonObject::class.java)
                 ?.let { collectJsonProperties(it, emptyList(), result) }
             TranslationPsi.isYaml(file) -> YamlTranslationPsi.collectLeaves(file, result)
+            // A `.properties` key is flat, whole: `user.name` is one segment, spelled as the other formats join theirs.
+            TranslationPsi.isProperties(file) -> PropertiesTranslationPsi.collectLeaves(file, result)
         }
         return result
     }
@@ -74,6 +77,7 @@ internal object TranslationFileKeys {
      * literal, its name).
      */
     fun pathOf(element: PsiElement): List<String> {
+        if (TranslationPsi.isProperties(element)) return listOfNotNull(PropertiesTranslationPsi.keyOf(element))
         val parts = ArrayDeque<String>()
         var current: PsiElement? = element
         while (current != null && current !is PsiFile) {

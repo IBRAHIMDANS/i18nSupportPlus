@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.utils
 
 import com.ibrahimdans.i18n.extensions.localization.php.PhpTranslationPsi
+import com.ibrahimdans.i18n.extensions.localization.properties.PropertiesTranslationPsi
 import com.ibrahimdans.i18n.extensions.localization.xliff.XliffTranslationPsi
 import com.ibrahimdans.i18n.extensions.localization.yaml.YamlTranslationPsi
 import com.intellij.json.psi.JsonElementGenerator
@@ -51,6 +52,9 @@ object TranslationPsi {
 
     fun isPhp(element: PsiElement): Boolean = element.language.id == PHP_LANGUAGE
 
+    /** Whether [element] belongs to a `.properties` file, told by its language id: the Properties plugin is optional. */
+    fun isProperties(element: PsiElement): Boolean = element.language.id == PropertiesTranslationPsi.LANGUAGE
+
     /**
      * [element] read as a key-value of a translation file, or null when it is none.
      *
@@ -65,6 +69,7 @@ object TranslationPsi {
             TranslationEntry(element, element.name, element.nameElement, literal, literal?.value)
         }
         isYaml(element) -> YamlTranslationPsi.entryOf(element)
+        isProperties(element) -> PropertiesTranslationPsi.entryOf(element)
         else -> null
     }
 
@@ -144,6 +149,8 @@ object TranslationPsi {
         element is JsonStringLiteral -> element.value
         isYaml(element) -> YamlTranslationPsi.readValue(element) ?: element.text
         isPhp(element) -> PhpTranslationPsi.readValue(element) ?: element.text
+        // A key's value, its `\uXXXX` escapes and line continuations read.
+        isProperties(element) -> PropertiesTranslationPsi.readValue(element) ?: element.text
         // An XLIFF unit's text, its entities decoded.
         else -> XliffTranslationPsi.readValue(element) ?: element.text
     }
@@ -155,6 +162,7 @@ object TranslationPsi {
             isYaml(element) -> YamlTranslationPsi.replaceValue(element, newValue, project)
             // A Laravel translation file's value: edited from the tool window like any other.
             isPhp(element) -> PhpTranslationPsi.replaceValue(element, newValue, project)
+            isProperties(element) -> PropertiesTranslationPsi.replaceValue(element, newValue)
             else -> XliffTranslationPsi.replaceValue(element, newValue)
         }
     }
