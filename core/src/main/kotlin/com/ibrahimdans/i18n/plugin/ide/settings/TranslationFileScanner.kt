@@ -58,6 +58,11 @@ object TranslationFileScanner {
      * Project-relative paths of every translation file found under [base], in [FOLDER_NAMES] and
      * [extraFolderNames] (see [folderNamesFor]).
      *
+     * Below [base], a folder whose `package.json` declares one of these frameworks adds its folders
+     * for its own subtree: a monorepo's root manifest seldom names next-intl, `apps/web/package.json`
+     * does, and its `messages/` was never offered. [base]'s own manifest is left to the caller, which
+     * lets the user untick what it declares.
+     *
      * [checkCanceled] is called as the walk goes, and is expected to throw when the user cancels —
      * it is `ProgressManager::checkCanceled` at runtime, and nothing in tests. The scanner takes
      * it as a lambda rather than reaching for `ProgressManager` itself so it stays headless.
@@ -79,14 +84,21 @@ object TranslationFileScanner {
         if (depth > MAX_SCAN_DEPTH) return
         checkCanceled()
         val children = dir.listFiles() ?: return
+        val names = if (depth == 0) folderNames else folderNames + manifestFolderNames(dir)
         for (child in children) {
             if (!child.isDirectory) continue
-            if (child.name in folderNames) {
+            if (child.name in names) {
                 collectAll(base, child, found, checkCanceled)
             } else if (!child.name.startsWith(".") && child.name !in SKIPPED_DIRECTORIES) {
-                collect(base, child, depth + 1, folderNames, found, checkCanceled)
+                collect(base, child, depth + 1, names, found, checkCanceled)
             }
         }
+    }
+
+    /** The extra folders the `package.json` of [dir], if any, makes catalogue folders. */
+    private fun manifestFolderNames(dir: File): Set<String> {
+        val manifest = File(dir, "package.json")
+        return if (manifest.isFile) folderNamesFor(FrameworkDetector.detect(manifest.readText())) else emptySet()
     }
 
     private fun collectAll(base: File, folder: File, found: MutableList<String>, checkCanceled: () -> Unit) {

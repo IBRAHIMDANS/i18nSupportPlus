@@ -103,6 +103,51 @@ class TranslationFileScannerTest {
         }
     }
 
+    /**
+     * In a monorepo the root manifest seldom names next-intl: the application's does, and its
+     * `messages/` must be offered all the same — and only its own.
+     */
+    @Test
+    fun `messages of an application whose package json declares next-intl is read`() {
+        withTempProject { base ->
+            File(base, "package.json").writeText("""{ "devDependencies": { "turbo": "2.0.0" } }""")
+            manifest(base, "apps/web", """{ "dependencies": { "next-intl": "4.0.0" } }""")
+            translationFile(base, "apps/web/messages/en.json")
+            translationFile(base, "apps/web/messages/fr.json")
+            manifest(base, "apps/api", """{ "dependencies": { "express": "5.0.0" } }""")
+            translationFile(base, "apps/api/messages/en.json")
+            manifest(base, "node_modules/pkg", """{ "dependencies": { "next-intl": "4.0.0" } }""")
+            translationFile(base, "node_modules/pkg/messages/en.json")
+
+            val found = TranslationFileScanner.scan(base).map { it.replace(File.separatorChar, '/') }.sorted()
+
+            assertEquals(listOf("apps/web/messages/en.json", "apps/web/messages/fr.json"), found)
+        }
+    }
+
+    @Test
+    fun `messages of a paraglide application is read`() {
+        withTempProject { base ->
+            manifest(base, "apps/site", """{ "dependencies": { "@inlang/paraglide-js": "2.0.0" } }""")
+            translationFile(base, "apps/site/messages/en.json")
+
+            val found = TranslationFileScanner.scan(base).map { it.replace(File.separatorChar, '/') }
+
+            assertEquals(listOf("apps/site/messages/en.json"), found)
+        }
+    }
+
+    /** The root manifest stays the caller's to read: the wizard lets the user untick what it declares. */
+    @Test
+    fun `the root manifest alone does not add messages`() {
+        withTempProject { base ->
+            File(base, "package.json").writeText("""{ "dependencies": { "next-intl": "4.0.0" } }""")
+            translationFile(base, "messages/en.json")
+
+            assertEquals(emptyList<String>(), TranslationFileScanner.scan(base))
+        }
+    }
+
     @Test
     fun `folderNamesFor adds messages for next-intl and paraglide only`() {
         assertEquals(setOf("messages"), TranslationFileScanner.folderNamesFor(setOf("next-intl")))
@@ -117,6 +162,12 @@ class TranslationFileScannerTest {
         val file = File(base, relativePath)
         file.parentFile.mkdirs()
         file.writeText("{}")
+    }
+
+    private fun manifest(base: File, folder: String, json: String) {
+        val file = File(base, "$folder/package.json")
+        file.parentFile.mkdirs()
+        file.writeText(json)
     }
 
     private fun withTempProject(block: (File) -> Unit) {
