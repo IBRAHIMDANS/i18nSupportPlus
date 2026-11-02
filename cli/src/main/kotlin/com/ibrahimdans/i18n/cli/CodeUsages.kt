@@ -33,7 +33,9 @@ data class UnknownKey(val key: String, val file: String, val line: Int)
  * expressions. In an Angular project — a `package.json` requiring `@angular/core` — the `.html` templates are read too,
  * through [AngularTemplate]: elsewhere a `.html` is no template of the plugin's. In a Laravel project — a `composer.json`
  * requiring `laravel/framework` — the `.php` files and Blade views are read through [LaravelSource], with Laravel's calls
- * alone: elsewhere `__('Hello', 'domain')` is WordPress, a text and not a key.
+ * alone: elsewhere `__('Hello', 'domain')` is WordPress, a text and not a key. A package's key, `__('courier::messages.sent')`,
+ * is read under its package's namespace when the project overrides that file (`lang/vendor/courier/en/messages.php`), as
+ * the plugin reads it; a package without an override keeps its keys unread and unreported.
  *
  * A key passed through a constant, `t(KEYS.save)`, is read as the IDE reads it ([ConstantKeys]): the constant
  * declared in the file, or imported from another script of the project by a relative path.
@@ -60,8 +62,9 @@ class CodeUsages(project: Path, config: Config) {
         val modules = ModuleSources.active(config.modules)
         val (php, scripts) = texts.entries.partition { (path, _) -> path.endsWith(".$PHP") }
         val laravelIndex = php.takeIf { it.isNotEmpty() }?.let { files ->
-            TreeSitterKeyUsageIndex(config, extractors = laravelExtractors(config.nsSeparator, config.keySeparator)).apply {
-                files.forEach { (path, text) -> update(path, LaravelSource.codeOf(text)) }
+            val packageScopes = files.mapNotNullTo(mutableSetOf()) { (path, _) -> packageScopeOf(path) }
+            TreeSitterKeyUsageIndex(config, extractors = laravelExtractors(config.nsSeparator, config.keySeparator), keyScopes = packageScopes).apply {
+                files.forEach { (path, text) -> update(path, LaravelSource.codeOf(text, packageScopes)) }
             }
         }
         val code = scripts.associate { (path, text) -> path to codeOf(path, text) }
@@ -118,6 +121,13 @@ class CodeUsages(project: Path, config: Config) {
         val EXTENSIONS = listOf("js", "jsx", "ts", "tsx", "mjs", "cjs", "vue", "svelte")
         const val HTML = "html"
         const val PHP = "php"
+
+        /** A Laravel package's override, `lang/vendor/<package>/<locale>/<file>.php`. */
+        val PACKAGE_OVERRIDE = Regex("""(?:^|/)lang/vendor/([^/]+)/[^/]+/([^/]+)\.php$""")
+
+        /** The scope the override at [path] declares, `courier::messages` for `lang/vendor/courier/en/messages.php`; null for any other file. */
+        fun packageScopeOf(path: String): String? =
+            PACKAGE_OVERRIDE.find(path)?.let { "${it.groupValues[1]}::${it.groupValues[2]}" }
 
         val I18N_BLOCK = Regex("""<i18n\b([^>]*)>(.*?)</i18n>""", RegexOption.DOT_MATCHES_ALL)
         val YAML_LANG = Regex("""\blang\s*=\s*["']ya?ml["']""")

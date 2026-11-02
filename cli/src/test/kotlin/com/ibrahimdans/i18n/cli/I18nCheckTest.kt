@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.cli
 
 import com.google.gson.JsonParser
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -570,14 +571,16 @@ class I18nCheckTest {
 
     /**
      * What the plugin underlines in the Laravel example: helpers, the translator and Blade's directives,
-     * a file's key under its file's namespace, a JSON phrase whole. The package override is loaded under
-     * its package's namespace, `courier::messages:sent`, but stays unused: `--code` reads no package key yet.
+     * a file's key under its file's namespace, a JSON phrase whole. The package override, `courier::messages:sent`,
+     * is used by `__('courier::messages.sent')` and, overridden in `en` only, is not missing in `fr`; the key of a
+     * package without an override, `courier::tracking.link`, is neither read nor reported.
      */
     @Test
     fun `code - laravel example, PHP calls and Blade views read`() {
         val project = "../examples/laravel"
         val run = check(project, "--code")
-        assertTrue(run.out.contains("Unused keys: 1\n  courier::messages:sent\n"), run.out)
+        assertTrue(run.out.contains("Unused keys: none"), run.out)
+        assertFalse(run.out.contains("courier::"), run.out)
         assertTrue(
             run.out.contains(
                 """
@@ -589,6 +592,31 @@ class I18nCheckTest {
             ),
             run.out,
         )
+    }
+
+    /**
+     * A package's key is read under the namespace of its override, an unknown one reported as written; its keys are
+     * missing only in a locale overriding the package file without them, not in one overriding nothing of the package.
+     */
+    @Test
+    fun `code - Laravel package override keys read, missing only where the package file is overridden`(@TempDir project: Path) {
+        fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }
+        write("composer.json", """{"require": {"laravel/framework": "^13.0"}}""")
+        write("lang/en/messages.php", "<?php\nreturn ['sent' => 'Sent'];\n")
+        write("lang/fr/messages.php", "<?php\nreturn ['sent' => 'Envoyé'];\n")
+        write("lang/de/messages.php", "<?php\nreturn ['sent' => 'Gesendet'];\n")
+        write("lang/vendor/courier/en/messages.php", "<?php\nreturn ['sent' => 'On its way', 'late' => 'Late'];\n")
+        write("lang/vendor/courier/fr/messages.php", "<?php\nreturn ['sent' => 'En route'];\n")
+        write("app/page.php", "<?php\necho __('messages.sent') . __('courier::messages.sent') . __('courier::messages.late');\necho __('courier::messages.unknown') . __('mailer::messages.sent');\n")
+
+        val report = JsonParser.parseString(check(project.toString(), "--code", "--format", "json").out).asJsonObject
+        assertEquals(emptyList<String>(), report["unused"].asJsonArray.map { it.asString })
+        assertEquals(listOf("courier::messages.unknown"), report["unknown"].asJsonArray.map { it.asJsonObject["key"].asString })
+        val missing = report["locales"].asJsonArray.associate { locale ->
+            locale.asJsonObject["locale"].asString to locale.asJsonObject["missing"].asJsonArray.map { it.asString }
+        }
+        // `fr` overrides the file without `late`; `de` overrides nothing of `courier` and keeps the package's own.
+        assertEquals(mapOf("de" to emptyList(), "en" to emptyList(), "fr" to listOf("courier::messages:late")), missing)
     }
 
     @Test

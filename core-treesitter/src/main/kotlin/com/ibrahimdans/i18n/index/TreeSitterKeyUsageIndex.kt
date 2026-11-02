@@ -36,6 +36,8 @@ import com.ibrahimdans.i18n.plugin.utils.unQuote
  * @param fallbackNamespaces i18next's `fallbackNS`, in order
  * @param extractors what the files are read with: i18next's calls by default
  * @param imports where a constant imported from another file is read, none by default
+ * @param keyScopes the scopes a key may lead with, as the plugin's technologies declare them: a Laravel
+ * package's override, `courier::messages`, reads `courier::messages.sent` under that namespace. None by default.
  */
 class TreeSitterKeyUsageIndex(
     private val config: Config = Config(),
@@ -43,9 +45,10 @@ class TreeSitterKeyUsageIndex(
     functionNames: Set<String> = I18NEXT_FUNCTIONS,
     private val extractors: List<CodeKeyExtractor> = i18nextExtractors(functionNames),
     private val imports: ConstantKeys.Imports = ConstantKeys.Imports.NONE,
+    keyScopes: Set<String> = emptySet(),
 ) : KeyUsageIndex {
 
-    private val context = KeyContext(config, fallbackNamespaces = { fallbackNamespaces })
+    private val context = KeyContext(config, keyScopes = { keyScopes }, fallbackNamespaces = { fallbackNamespaces })
     private val defaultNamespaces = config.defaultNamespaces()
 
     /** The call sites of each indexed file. */

@@ -10,8 +10,12 @@ package com.ibrahimdans.i18n.extract.laravel
  * `trans_choice()`, the translator's `get` and `choice` on the `Lang` facade or `app('translator')`,
  * and Blade's `@lang()` and `@choice()`. `$request->get('page')` is none: the object called is part
  * of the match. Left out: a key built at runtime (a double-quoted string interpolating a variable),
- * a package's key (`courier::messages.sent`), and calls in a comment — Blade's `{{-- --}}`, PHP's
- * `/* */`, and `//` or `#` opening a line.
+ * a package's key (`courier::messages.sent`) unless the project overrides that package's file, and
+ * calls in a comment — Blade's `{{-- --}}`, PHP's `/* */`, and `//` or `#` opening a line.
+ *
+ * A package's key is kept for the scopes the project holds an override of, `courier::messages` for
+ * `lang/vendor/courier/en/messages.php`: as in the plugin, a package without one ships its translations
+ * under Composer's `vendor/`, and its keys are neither read nor reported.
  */
 object LaravelSource {
 
@@ -29,8 +33,11 @@ object LaravelSource {
     private val COMMENT = Regex("""\{\{--.*?--}}|/\*.*?\*/|(?m)^[ \t]*(?://|#(?!\[))[^\n]*""", RegexOption.DOT_MATCHES_ALL)
     private const val PACKAGE_SEPARATOR = "::"
 
-    /** The code of [text], as long as [text]. */
-    fun codeOf(text: String): String {
+    /** Laravel's separator between a file and its key: `courier::messages.sent`. */
+    private const val KEY_SEPARATOR = "."
+
+    /** The code of [text], as long as [text]; a package's key is kept for one of [packageScopes] only. */
+    fun codeOf(text: String, packageScopes: Set<String> = emptySet()): String {
         val code = CharArray(text.length) { if (text[it] == '\n' || text[it] == '\r') text[it] else ' ' }
         val comments = COMMENT.findAll(text).map { it.range }.toList()
         for (head in CALL_HEAD.findAll(text)) {
@@ -38,7 +45,8 @@ object LaravelSource {
             val open = head.range.last + 1
             val close = closingQuote(text, open) ?: continue
             val literal = text.substring(open + 1, close)
-            if (text[open] == '"' && '$' in literal || PACKAGE_SEPARATOR in literal) continue
+            if (text[open] == '"' && '$' in literal) continue
+            if (PACKAGE_SEPARATOR in literal && packageScopes.none { literal.startsWith(it + KEY_SEPARATOR) }) continue
             // The head is at least as long as `__(`: the call opens over its last characters.
             "$CALL(".forEachIndexed { index, c -> code[open - CALL.length - 1 + index] = c }
             (open..close).forEach { code[it] = text[it] }
