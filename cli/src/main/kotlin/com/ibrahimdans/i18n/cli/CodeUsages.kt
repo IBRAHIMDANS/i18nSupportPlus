@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.cli
 import com.ibrahimdans.i18n.NioWorkspace
 import com.ibrahimdans.i18n.ParsedFormat
 import com.ibrahimdans.i18n.SourceDiscovery
+import com.ibrahimdans.i18n.extract.ConstantKeys
 import com.ibrahimdans.i18n.extract.CodeExtractors
 import com.ibrahimdans.i18n.extract.angular.AngularTemplate
 import com.ibrahimdans.i18n.extract.laravel.LaravelSource
@@ -33,6 +34,9 @@ data class UnknownKey(val key: String, val file: String, val line: Int)
  * through [AngularTemplate]: elsewhere a `.html` is no template of the plugin's. In a Laravel project — a `composer.json`
  * requiring `laravel/framework` — the `.php` files and Blade views are read through [LaravelSource], with Laravel's calls
  * alone: elsewhere `__('Hello', 'domain')` is WordPress, a text and not a key.
+ *
+ * A key passed through a constant, `t(KEYS.save)`, is read as the IDE reads it ([ConstantKeys]): the constant
+ * declared in the file, or imported from another script of the project by a relative path.
  */
 class CodeUsages(project: Path, config: Config) {
 
@@ -60,11 +64,13 @@ class CodeUsages(project: Path, config: Config) {
                 files.forEach { (path, text) -> update(path, LaravelSource.codeOf(text)) }
             }
         }
-        indexes = listOfNotNull(laravelIndex) + scripts
+        val code = scripts.associate { (path, text) -> path to codeOf(path, text) }
+        val imports = ConstantKeys.ProjectFiles(code)
+        indexes = listOfNotNull(laravelIndex) + code.entries
             .groupBy { (path, _) -> ModuleSources.owner(modules, ModuleSources.FilePath(path, anchored = true))?.preset?.trim()?.ifEmpty { null } }
             .map { (preset, files) ->
-                TreeSitterKeyUsageIndex(config, extractors = CodeExtractors.forPreset(preset)).apply {
-                    files.forEach { (path, text) -> update(path, codeOf(path, text)) }
+                TreeSitterKeyUsageIndex(config, extractors = CodeExtractors.forPreset(preset), imports = imports).apply {
+                    files.forEach { (path, text) -> update(path, text) }
                 }
             }
         blockKeys = texts.filterKeys { it.endsWith(VUE) }.mapValues { (_, text) -> blockKeysOf(text, config) }.filterValues { it.isNotEmpty() }

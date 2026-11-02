@@ -32,6 +32,7 @@
 - [Inspections] **A Blade text with an echo is reported too**: `<p>Hello {{ $user->name }}!</p>` is now one hard-coded text, and the quick fix writes `{{ __('key', ['name' => $user->name]) }}` with the message `Hello :name!`. A text split by a raw echo, a directive or an echo of a call stays unreported.
 - [Rename] **Rename a namespace everywhere**: Shift+F6 on `locales/en/common.json` (or on a namespace's folder) renames it in every locale, rewrites `common:` key prefixes, `useTranslation('common')`, the `ns` option and your i18next setup's `defaultNS`, and updates the default namespace of the settings, all in one undo. *Preview* lists the call sites first; untick *Rename namespace in every locale and call site* to rename the file alone.
 - [Editor] **Keys kept in constants are read**: `t(SAVE_KEY)`, `t(KEYS.save)` on an object of keys (`as const` or not, imported or not) and `t(Keys.Save)` on a string `enum` are now checked, hinted and Ctrl+clickable like a written key, and each branch of `const titleKey = cond ? 'a' : 'b'` too. *Find Usages* lists the constant, and Shift+F6 on the key rewrites its value once. See the [documentation](docs/editor.md#navigation)
+- [CLI] **`i18n-check --code` follows keys kept in constants, as the IDE does**: `t(SAVE_KEY)`, `t(KEYS.save)` and `t(Keys.Save)`, declared in the file or imported from another one by a relative path, now count as usages, so centralised keys no longer fail the CI as unused, and an unknown one is reported at the call. See the [documentation](docs/checks.md#command-line-check)
 
 ### Fixes
 
