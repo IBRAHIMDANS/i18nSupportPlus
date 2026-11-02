@@ -340,28 +340,32 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
                     codeRootFields[box]?.let { field ->
                         row("") {
                             label(PluginBundle.message("settings.modules.codeRoots"))
-                            cell(field)
-                        }.rowComment(
-                            PluginBundle.message(
-                                "wizard.summary.codeRoots.origin",
-                                workspacePackages[module.rootDirectory]?.let(WizardPlan::packageNameOf).orEmpty()
+                            cell(field).comment(
+                                PluginBundle.message(
+                                    "wizard.summary.codeRoots.origin",
+                                    workspacePackages[module.rootDirectory]?.let(WizardPlan::packageNameOf).orEmpty()
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
             plan.template?.let { template ->
-                row("") { cell(templateBox) }.rowComment(
-                    template.origin?.let { PluginBundle.message("wizard.summary.origin.file", it) }
-                        ?: PluginBundle.message("wizard.summary.template.deduced")
-                )
+                row("") {
+                    cell(templateBox).comment(
+                        template.origin?.let { PluginBundle.message("wizard.summary.origin.file", it) }
+                            ?: PluginBundle.message("wizard.summary.template.deduced")
+                    )
+                }
             }
 
             for (deduction in plan.deductions) {
+                // Under its field, as the translations root's: a row comment starts at the empty label's margin.
                 row("") {
-                    cell(applyBoxes.getValue(deduction.field))
-                    valueFields[deduction.field]?.let { cell(it) }
-                }.rowComment(originOf(deduction))
+                    val box = cell(applyBoxes.getValue(deduction.field))
+                    val origin = originOf(deduction)
+                    valueFields[deduction.field]?.let { cell(it).comment(origin) } ?: box.comment(origin)
+                }
             }
 
             row(PluginBundle.message("wizard.summary.field.keySeparator")) {
