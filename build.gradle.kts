@@ -119,7 +119,7 @@ dependencies {
     uiTestRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.13.4")
     uiTestRuntimeOnly("org.junit.platform:junit-platform-launcher")
     uiTestImplementation("org.kodein.di:kodein-di-jvm:7.26.1")
-    uiTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.1")
+    uiTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.11.0")
     // junit-vintage-engine removed: all tests use JUnit 5 engine exclusively
 }
 
