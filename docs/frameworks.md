@@ -147,8 +147,11 @@ feed the tool window, the statistics, the missing-key and placeholder checks (`{
 file beside it, so `application.properties` stays configuration; `messages.properties` holds the reference locale,
 unless `messages_en.properties` exists. A folder of several bundles (`messages`, `errors`) gets one namespace per base
 name. A dotted key (`user.name`) resolves level by level like any other, a new key is written next to its siblings,
-and values are escaped and unescaped (`\uXXXX`, line continuations) as Java reads them. Java code is not read yet:
-`getString("key")` and Spring's `getMessage("key", …)` are no usages, so a bundle key is never reported unused.
+and values are escaped and unescaped (`\uXXXX`, line continuations) as Java reads them. The calls are IntelliJ IDEA's
+own: with its Java and Properties plugins, `bundle.getString("key")` and Spring's `messageSource.getMessage("key", …)`
+already offer Ctrl+click, completion, *Find Usages*, rename and the *Unused property* inspection, which the plugin
+does not duplicate. The plugin's own usage count does not see them yet, so it never reports a bundle key unused. The
+setup wizard ticks *Spring* for a `pom.xml` or a `build.gradle(.kts)` naming `org.springframework`.
 
 Keys are resolved as nested properties by default (`app.header.title` walks three levels).
 Projects storing **flat ids** — one property per key, as react-intl / FormatJS usually do —

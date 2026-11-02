@@ -632,10 +632,10 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
 
         /**
          * Manifests whose dependencies give the frameworks away: `package.json` for the JS
-         * libraries, `composer.json` for Laravel. [FrameworkDetector] holds one table for both, and
-         * reads Angular's own i18n from an `angular.json` listing its translations.
+         * libraries, `composer.json` for Laravel, a Maven or Gradle build for Spring. [FrameworkDetector]
+         * holds one table for all, and reads Angular's own i18n from an `angular.json` listing its translations.
          */
-        private val MANIFESTS = listOf("package.json", "composer.json", "angular.json")
+        private val MANIFESTS = listOf("package.json", "composer.json", "angular.json", "pom.xml", "build.gradle", "build.gradle.kts")
 
         /**
          * Frameworks declared by the manifests found directly in [base]. Kept out of the dialog

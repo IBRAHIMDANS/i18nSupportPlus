@@ -1,9 +1,9 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
 /**
- * Maps the dependencies of a manifest — `package.json`, or `composer.json` for Laravel and Symfony — to the i18n
- * frameworks the setup wizard knows about, and an `angular.json` listing its translations to Angular's
- * own i18n.
+ * Maps the dependencies of a manifest — `package.json`, `composer.json` for Laravel and Symfony, a Maven or Gradle
+ * build for Spring — to the i18n frameworks the setup wizard knows about, and an `angular.json` listing its
+ * translations to Angular's own i18n.
  *
  * Deliberately free of any UI dependency: the wizard itself cannot be instantiated in a
  * headless test, so keeping the detection here is what makes it directly testable.
@@ -19,6 +19,19 @@ object FrameworkDetector {
      * object (`{ "code": "en", "baseHref": "" }`), hence one level of braces allowed before `locales`.
      */
     private val ANGULAR_I18N_LOCALES = Regex(""""i18n"\s*:\s*\{(?:[^{}]|\{[^{}]*\})*"locales"\s*:""")
+
+    /**
+     * Spring and its resource bundles (`messages_fr.properties`), read by `MessageSource.getMessage`. IDEA resolves
+     * those calls itself; the preset only names the framework and documents no layout, a bundle being placed by its name.
+     */
+    const val SPRING = "spring"
+
+    /**
+     * A Maven or Gradle build naming a Spring artifact: `<groupId>org.springframework.boot</groupId>`,
+     * `id("org.springframework.boot")`, `implementation 'org.springframework:spring-context:6.1.0'`. Every Spring
+     * application has `spring-context`, the `MessageSource` with it. No dependency is quoted alone in a `pom.xml`.
+     */
+    private val SPRING_BUILD = Regex("""\borg\.springframework\b""")
 
     /**
      * Framework id to the dependency names that give it away.
@@ -51,7 +64,8 @@ object FrameworkDetector {
         "paraglide" to listOf("@inlang/paraglide-js", "@inlang/paraglide-sveltekit", "@inlang/paraglide-next", "@inlang/paraglide-astro"),
         "laravel" to listOf("laravel/framework"),
         "symfony" to listOf("symfony/translation"),
-        ANGULAR_I18N to listOf("@angular/localize")
+        ANGULAR_I18N to listOf("@angular/localize"),
+        SPRING to listOf("org.springframework.boot", "org.springframework")
     )
 
     /** Framework id to the label shown on the wizard's checkbox. */
@@ -68,13 +82,14 @@ object FrameworkDetector {
         "paraglide" to "Paraglide JS (inlang)",
         "laravel" to "Laravel (PHP)",
         "symfony" to "Symfony (PHP, Twig)",
-        ANGULAR_I18N to "Angular i18n (native, XLIFF)"
+        ANGULAR_I18N to "Angular i18n (native, XLIFF)",
+        SPRING to "Spring (Java resource bundles)"
     )
 
     /**
      * Returns the frameworks whose dependencies appear in [packageJsonContent], the text of a
      * `package.json` or of a `composer.json` — and Angular's own i18n for an `angular.json` listing
-     * translations.
+     * translations, and Spring for a `pom.xml` or a `build.gradle(.kts)` naming a Spring artifact.
      *
      * Matching is textual on the *quoted* dependency name, so a longer package sharing a
      * prefix — `react-intl-universal` against `react-intl` — never counts as a match.
@@ -83,6 +98,8 @@ object FrameworkDetector {
         val byDependency = FRAMEWORK_KEYS
             .filterValues { deps -> deps.any { packageJsonContent.contains("\"$it\"") } }
             .keys
-        return if (ANGULAR_I18N_LOCALES.containsMatchIn(packageJsonContent)) byDependency + ANGULAR_I18N else byDependency
+        val angular = if (ANGULAR_I18N_LOCALES.containsMatchIn(packageJsonContent)) setOf(ANGULAR_I18N) else emptySet()
+        val spring = if (SPRING_BUILD.containsMatchIn(packageJsonContent)) setOf(SPRING) else emptySet()
+        return byDependency + angular + spring
     }
 }

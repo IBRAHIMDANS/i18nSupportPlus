@@ -315,6 +315,19 @@ class SetupWizardDialogTest : PlatformBaseTest() {
     }
 
     @org.junit.jupiter.api.Test
+    fun `detectFrameworksIn ticks spring from a pom xml or a Gradle build`() {
+        val fromMaven = detectInProject(
+            "pom.xml" to "<project><parent><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-parent</artifactId></parent></project>"
+        )
+        val fromGradle = detectInProject(
+            "build.gradle.kts" to """plugins { id("org.springframework.boot") version "3.3.0" }"""
+        )
+
+        assertEquals(setOf(FrameworkDetector.SPRING), fromMaven)
+        assertEquals(setOf(FrameworkDetector.SPRING), fromGradle)
+    }
+
+    @org.junit.jupiter.api.Test
     fun `detectFrameworksIn ticks laravel and vue-i18n in a mixed project`() {
         val detected = detectInProject(
             "composer.json" to """{"require": {"laravel/framework": "^11.0"}}""",

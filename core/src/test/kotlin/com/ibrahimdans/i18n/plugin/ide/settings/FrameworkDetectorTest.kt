@@ -97,6 +97,32 @@ class FrameworkDetectorTest {
         assertTrue("laravel" in FrameworkDetector.LABELS, "offered by the wizard and by the module presets")
     }
 
+    /** Spring is given away by its group in a Maven or Gradle build, whatever the artifact or the DSL. */
+    @Test
+    fun `a Maven or Gradle build naming a Spring artifact is a Spring project`() {
+        val pom = """
+            <project><dependencies><dependency>
+              <groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId>
+            </dependency></dependencies></project>
+        """.trimIndent()
+        assertEquals(setOf(FrameworkDetector.SPRING), FrameworkDetector.detect(pom))
+        assertEquals(setOf(FrameworkDetector.SPRING), FrameworkDetector.detect("""plugins { id("org.springframework.boot") version "3.3.0" }"""))
+        assertEquals(setOf(FrameworkDetector.SPRING), FrameworkDetector.detect("dependencies { implementation 'org.springframework:spring-context:6.1.0' }"))
+    }
+
+    @Test
+    fun `a build naming no Spring artifact detects nothing`() {
+        assertTrue(FrameworkDetector.detect("<project><groupId>com.example</groupId><artifactId>springfield</artifactId></project>").isEmpty())
+        assertTrue(FrameworkDetector.detect("dependencies { implementation 'com.google.guava:guava:33.0.0-jre' }").isEmpty())
+    }
+
+    /** A bundle is placed by its name (`messages_fr.properties`): the Spring preset names the framework, no layout. */
+    @Test
+    fun `the Spring preset is offered and documents no layout`() {
+        assertTrue(FrameworkDetector.SPRING in FrameworkDetector.LABELS, "offered by the wizard and by the module presets")
+        assertEquals(null, LayoutPresets.of(FrameworkDetector.SPRING))
+    }
+
     /** Angular's own i18n: the projects of an `angular.json` listing their translations, `sourceLocale` an object or not. */
     @Test
     fun `an angular json listing translations is Angular's own i18n`() {
