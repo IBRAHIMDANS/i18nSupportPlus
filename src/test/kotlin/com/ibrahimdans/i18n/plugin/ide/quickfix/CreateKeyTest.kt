@@ -30,7 +30,7 @@ class CreateKeyTest: PlatformBaseTest() {
      * dialog's OK runs. What these cases pin is the write into each file format.
      */
     private fun cancelTranslationValueDialog() {
-        CreateKeyDialogQuickFix.opener = { project, key, caller ->
+        CreateKeyDialogQuickFix.opener = { project, key, caller, _ ->
             val viewModel = DialogViewModel(project)
             viewModel.sourcesFor(key.allNamespaces(), caller).forEach { viewModel.saveTranslation(it, key, key.source) }
         }
@@ -38,7 +38,7 @@ class CreateKeyTest: PlatformBaseTest() {
 
     @AfterEach
     fun restoreDialog() {
-        CreateKeyDialogQuickFix.opener = { project, key, caller -> TranslationDialog(project, key, Mode.CREATE, caller).show() }
+        CreateKeyDialogQuickFix.opener = { project, key, caller, _ -> TranslationDialog(project, key, Mode.CREATE, caller).show() }
     }
 
     @ParameterizedTest

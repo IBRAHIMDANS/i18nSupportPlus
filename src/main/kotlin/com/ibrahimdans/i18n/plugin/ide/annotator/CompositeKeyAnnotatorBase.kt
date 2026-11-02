@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.annotator
 
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.Lang
+import com.ibrahimdans.i18n.extensions.lang.js.extractors.OptionsExtractor
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
@@ -70,6 +71,7 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
         val files = sourceService.findReadSources(fullKey, element)
         val ns = fullKey.ns
         if (files.isEmpty()) {
+            if (anotherKeyResolves(element, config)) return
             if (ns == null) {
                 annotationHelper.unresolvedDefaultNs(fullKey)
             } else {
@@ -80,7 +82,7 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
             if (ns != null) {
                 val nsFiles = sourceService.findNamespaceFiles(fullKey.allNamespaces(), element.project)
                 if (nsFiles.isEmpty()) {
-                    annotationHelper.unresolvedNs(fullKey, ns)
+                    if (!anotherKeyResolves(element, config)) annotationHelper.unresolvedNs(fullKey, ns)
                     return
                 }
             }
@@ -101,11 +103,13 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
                 } else {
                     if (mostResolvedReference.element?.isLeaf() ?: false) {
                         annotationHelper.annotateResolved(fullKey)
-                    } else if (PluralGroup.isPluralGroup(mostResolvedReference.element) || lang.allowsObjectValue(element)) {
+                    } else if (PluralGroup.isPluralGroup(mostResolvedReference.element) || lang.allowsObjectValue(element) ||
+                        OptionsExtractor.returnsObjects(element)) {
                         // i18n-js and friends pluralize into a nested object rather than through
                         // the flat `key_one` suffixes the resolver expands: the key legitimately
                         // points at that object, so it is resolved, not a reference to an object —
-                        // as is a call reading the object itself (next-intl's `t.raw`).
+                        // as is a call reading the object itself (next-intl's `t.raw`, i18next's
+                        // `returnObjects: true`).
                         annotationHelper.annotateResolved(fullKey)
                     } else if (mostResolvedReference.path.lastOrNull()?.text != "*") {
                         // A terminal wildcard (e.g. a dynamic `${expr}` segment) legitimately
@@ -124,10 +128,28 @@ abstract class CompositeKeyAnnotatorBase(private val lang: Lang): Annotator, Com
                 // Once resolution has passed through it, the remaining static segments depend on
                 // the runtime value and cannot be verified statically — so don't report them.
                 val resolvedViaDynamicWildcard = mostResolvedReference.path.any { it.text == "*" }
-                if (!onlyTemplateUnresolved && !resolvedViaDynamicWildcard) {
-                    annotationHelper.unresolvedKey(fullKey, mostResolvedReference)
+                if (!onlyTemplateUnresolved && !resolvedViaDynamicWildcard && !anotherKeyResolves(element, config)) {
+                    // i18next shows a default value while the key is missing: not a broken screen,
+                    // a key still to create — with that text.
+                    annotationHelper.unresolvedKey(fullKey, mostResolvedReference, OptionsExtractor.defaultValue(element))
                 }
             }
+        }
+    }
+
+    /**
+     * `t(['specific', 'generic'])`: i18next shows the first key that exists, so a missing one is
+     * not reported while another key of the array resolves in full.
+     */
+    private fun anotherKeyResolves(element: PsiElement, config: Config): Boolean {
+        val fallbacks = OptionsExtractor.fallbackKeys(element)
+        if (fallbacks.isEmpty()) return false
+        val sourceService = element.project.service<LocalizationSourceService>()
+        return fallbacks.any { fallback ->
+            val fullKey = lang.extractRawKey(fallback)?.let { RawKeyParser(element.project).parse(it, fallback) } ?: return@any false
+            sourceService.findReadSources(fullKey, fallback)
+                .flatMap { resolve(fullKey, it, config.pluralSeparator) }
+                .any { it.unresolved.isEmpty() }
         }
     }
 }

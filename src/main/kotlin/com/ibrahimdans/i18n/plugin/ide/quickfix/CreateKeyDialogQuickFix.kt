@@ -22,8 +22,13 @@ import com.intellij.psi.PsiFile
  * where the value is the extracted text; *Extract i18n key* has its own dialog.
  *
  * The dialog is scoped to the module of the file the key is written in, like the writes were.
+ * A [defaultValue] — the text i18next shows while the key is missing — fills the reference locale.
  */
-class CreateKeyDialogQuickFix(private val fullKey: FullKey, private val text: String) : QuickFix() {
+class CreateKeyDialogQuickFix(
+    private val fullKey: FullKey,
+    private val text: String,
+    private val defaultValue: String? = null,
+) : QuickFix() {
 
     override fun getText(): String = text
 
@@ -33,7 +38,7 @@ class CreateKeyDialogQuickFix(private val fullKey: FullKey, private val text: St
         val caller = PsiDocumentManager.getInstance(project).getPsiFile(editor.document)
         // A modal dialog cannot open from inside the intention's action; the next EDT turn can.
         ApplicationManager.getApplication().invokeLater {
-            if (!project.isDisposed) opener(project, fullKey.keyToCreate(), caller)
+            if (!project.isDisposed) opener(project, fullKey.keyToCreate(), caller, defaultValue)
         }
     }
 
@@ -43,8 +48,8 @@ class CreateKeyDialogQuickFix(private val fullKey: FullKey, private val text: St
          * be shown in a test container — and drives the same [com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel]
          * writes the dialog's OK runs.
          */
-        internal var opener: (Project, FullKey, PsiFile?) -> Unit = { project, key, caller ->
-            TranslationDialog(project, key, Mode.CREATE, caller).show()
+        internal var opener: (Project, FullKey, PsiFile?, String?) -> Unit = { project, key, caller, defaultValue ->
+            TranslationDialog(project, key, Mode.CREATE, caller, initialValue = defaultValue).show()
         }
     }
 }

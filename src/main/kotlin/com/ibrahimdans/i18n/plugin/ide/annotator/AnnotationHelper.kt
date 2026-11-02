@@ -94,19 +94,21 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
     }
 
     /**
-     * Annotates unresolved composite key
+     * Annotates unresolved composite key. With the [defaultValue] the call shows meanwhile
+     * (i18next's `t('key', 'Text')`), a weak warning: the screen reads that text, the key is still
+     * to create — and *Create key* proposes the text for the reference locale.
      */
-    fun unresolvedKey(fullKey: FullKey, mostResolvedReference: PropertyReference<PsiElement>) {
-        val message = PluginBundle.getMessage("annotator.unresolved.key")
+    fun unresolvedKey(fullKey: FullKey, mostResolvedReference: PropertyReference<PsiElement>, defaultValue: String? = null) {
+        val message = PluginBundle.getMessage(if (defaultValue == null) "annotator.unresolved.key" else "annotator.unresolved.key.default.value")
         val builder = holder
-            .newAnnotation(errorSeverity, message)
+            .newAnnotation(if (defaultValue == null) errorSeverity else HighlightSeverity.WEAK_WARNING, message)
             .range(rangesCalculator.unresolvedKey(fullKey, mostResolvedReference.path).toTextRange())
             .explained(message, fullKey, mostResolvedReference)
         // A key with a runtime segment names no property to create: the fix would write the
         // `${…}` text as a property name. One fix, one dialog: it shows every locale, so a
         // second "in all files" entry has nothing left to add.
         if (!fullKey.isDynamic) {
-            builder.withFix(CreateKeyDialogQuickFix(fullKey, PluginBundle.getMessage("quickfix.create.key")))
+            builder.withFix(CreateKeyDialogQuickFix(fullKey, PluginBundle.getMessage("quickfix.create.key"), defaultValue))
         }
         builder.create()
     }
