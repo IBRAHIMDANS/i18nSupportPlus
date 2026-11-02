@@ -655,6 +655,84 @@ class I18nCheckTest {
         assertEquals(listOf("a"), unused.map { it.asString })
     }
 
+    /** The `--code` JSON report of a monorepo with `apps/web` and `apps/admin`, and the [extra] modules, written by [files]. */
+    private fun monorepo(project: Path, extra: String = "", files: (write: (String, String) -> Unit) -> Unit): com.google.gson.JsonObject {
+        fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }
+        write(
+            "i18n-check.json",
+            """{"modules": [{"name": "web", "rootDirectory": "apps/web"}, {"name": "admin", "rootDirectory": "apps/admin"}$extra]}""",
+        )
+        files(::write)
+        return JsonParser.parseString(check(project.toString(), "--code", "--format", "json").out).asJsonObject
+    }
+
+    private fun com.google.gson.JsonObject.unusedOf(module: String): List<String> =
+        this["modules"].asJsonArray.map { it.asJsonObject }.single { it["module"].asString == module }["unused"].asJsonArray.map { it.asString }
+
+    @Test
+    fun `code - in a monorepo, a module's key used by another module's code only is unused`(@TempDir project: Path) {
+        val report = monorepo(project) { write ->
+            write("apps/web/locales/en.json", """{"title": "Web", "home": "Home"}""")
+            write("apps/web/src/App.tsx", "t('home');\n")
+            write("apps/admin/locales/en.json", """{"title": "Admin"}""")
+            write("apps/admin/src/App.tsx", "t('title');\n")
+        }
+        assertEquals(listOf("title"), report.unusedOf("web"))
+        assertEquals(emptyList<String>(), report.unusedOf("admin"))
+        assertEquals(0, report["unknown"].asJsonArray.size())
+    }
+
+    @Test
+    fun `code - in a monorepo, a call to a key of another module only is unknown, with its file and line`(@TempDir project: Path) {
+        val report = monorepo(project) { write ->
+            write("apps/web/locales/en.json", """{"billing": {"total": "Total"}}""")
+            write("apps/web/src/App.tsx", "t('billing.total');\n")
+            write("apps/admin/locales/en.json", """{"title": "Admin"}""")
+            write("apps/admin/src/App.tsx", "t('title');\nt('billing.total');\n")
+        }
+        val unknown = report["unknown"].asJsonArray.single().asJsonObject
+        assertEquals("billing.total", unknown["key"].asString)
+        assertEquals("apps/admin/src/App.tsx", unknown["file"].asString)
+        assertEquals(2, unknown["line"].asInt)
+    }
+
+    @Test
+    fun `code - in a monorepo, a key built at runtime only reaches the keys of its own module`(@TempDir project: Path) {
+        val report = monorepo(project) { write ->
+            write("apps/web/locales/en.json", """{"status": {"open": "Open"}}""")
+            write("apps/admin/locales/en.json", """{"status": {"open": "Open"}}""")
+            write("apps/admin/src/App.tsx", "t(`status.\${state}`);\n")
+        }
+        assertEquals(listOf("status.open"), report.unusedOf("web"))
+        assertEquals(emptyList<String>(), report.unusedOf("admin"))
+    }
+
+    @Test
+    fun `code - a shared package's keys are used by the code of its codeRoots`(@TempDir project: Path) {
+        val shared = """, {"name": "i18n", "rootDirectory": "packages/i18n", "codeRoots": "apps/web"}"""
+        val report = monorepo(project, shared) { write ->
+            write("apps/web/locales/en.json", """{"home": "Home"}""")
+            write("apps/web/src/App.tsx", "t('home');\nt('save');\n")
+            write("apps/admin/locales/en.json", """{"title": "Admin"}""")
+            write("apps/admin/src/App.tsx", "t('title');\nt('cancel');\n")
+            write("packages/i18n/locales/en.json", """{"save": "Save", "cancel": "Cancel"}""")
+        }
+        assertEquals(listOf("cancel"), report.unusedOf("i18n"))
+        // `cancel` is no key of admin's: its code is not the shared package's.
+        assertEquals(listOf("cancel"), report["unknown"].asJsonArray.map { it.asJsonObject["key"].asString })
+    }
+
+    @Test
+    fun `code - a file outside every module is checked against every key`(@TempDir project: Path) {
+        val report = monorepo(project) { write ->
+            write("apps/web/locales/en.json", """{"home": "Home"}""")
+            write("apps/admin/locales/en.json", """{"title": "Admin"}""")
+            write("scripts/seed.ts", "t('home');\nt('title');\nt('gone');\n")
+        }
+        assertEquals(listOf("home"), report.unusedOf("web"))
+        assertEquals(listOf("gone"), report["unknown"].asJsonArray.map { it.asJsonObject["key"].asString })
+    }
+
     @Test
     fun `code - a key kept in a constant counts, imported or not, and an unknown one is reported at the call`(@TempDir project: Path) {
         fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }
