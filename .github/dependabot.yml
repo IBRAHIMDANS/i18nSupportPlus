@@ -9,6 +9,12 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
+    # One pull request a week for the minor and patch updates, so the suite runs once for them
+    # instead of once per library (five runs on 2026-11-02). A major stays a pull request of its
+    # own: it can break the build and is read on its own.
+    groups:
+      gradle-minor-and-patch:
+        update-types: ["minor", "patch"]
     # `core` compiles these compileOnly against the versions the IDE provides at runtime
     # (Gson 2.13.x, snakeyaml-engine 2.9 from 2025.2 to 2026.2): a newer version could bring APIs
     # the IDE lacks. jackson-core is not listed: the CLI ships its own and takes its security fixes.
@@ -34,3 +40,7 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+    # The actions move together: one pull request, one run.
+    groups:
+      github-actions:
+        patterns: ["*"]

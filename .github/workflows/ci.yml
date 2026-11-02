@@ -1,20 +1,41 @@
 name: CI
 
+# The pages under docs/, the issue templates and the contributor guides reach no build: a change
+# to them alone runs nothing, on the pull request or on main (8 of the last 150 commits, two runs
+# each). README.md and CHANGELOG.md stay in: the descriptor is rendered from them. docs/img is the
+# baseline of the UI screenshots, which no workflow takes. The `main-1` ruleset requires no status
+# check, so a pull request with no run still merges.
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'BUILDING.md'
+      - 'CONTRIBUTING.md'
+      - 'RELEASING.md'
+      - 'LICENSE'
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'BUILDING.md'
+      - 'CONTRIBUTING.md'
+      - 'RELEASING.md'
+      - 'LICENSE'
 
 # A push onto a pull request makes the run already in flight obsolete. Cancelling it there frees
 # the runner instead of queueing a second full IntelliJ suite behind the first. On main every
-# commit is a candidate release point, so runs on main are always allowed to finish.
+# commit is a candidate release point, so each push to main runs in a group of its own: a group
+# shared by all of main holds one run pending behind the one in progress, and the next push
+# cancels that pending run (3a90c5e7 never got its run on main that way).
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # The plugin's suite, split across three runners. In one job it took 8½ of the job's 11½
+  # The plugin's suite, split across four runners. In one job it took 8½ of the job's 11½
   # minutes; the fixture cannot fork (--max-workers=1), so the split is by machine. Gradle assigns
   # each test class to a shard by a stable hash of its name (`-PtestShard`, build.gradle.kts):
   # a new class always lands in exactly one shard. Shard 1 also runs the `core`, `cli` and
@@ -24,16 +45,22 @@ jobs:
   # only, on the commit of main the suite has just passed, and nothing is merged until it is. The
   # `descriptor` job still checks what the release ships. A job skipped by `if:` reads as passed,
   # and the run still exists, which is what #805 needed.
+  #
+  # Four shards, not three: a shard costs 2 fixed minutes (cache, daemon, compilation) and the
+  # suite spreads about 14 minutes of tests, so the fourth takes about 1½ minutes off the run
+  # for one more runner. A shard takes 8 minutes at most; a fixture that hangs would otherwise
+  # hold its runner for the 6-hour default.
   test-shard:
     if: ${{ !startsWith(github.head_ref, 'release/v') }}
-    name: test shard ${{ matrix.shard }}/3
+    name: test shard ${{ matrix.shard }}/4
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
     # setup-gradle keys its cache by job id. A job id with no entry yet falls back to the most
     # recent entry of any job — Plugin Compatibility's `verify`, 25 GB of IDEs, restored in 4 min
     # instead of the 3 GB the suite needs in 30 s. The shards run the build the former `test` job
@@ -59,7 +86,7 @@ jobs:
           tasks=":test"
           if [ "${{ matrix.shard }}" = "1" ]; then tasks="test"; fi
           ./gradlew cleanTest $tasks \
-            -PtestShard=${{ matrix.shard }}/3 \
+            -PtestShard=${{ matrix.shard }}/4 \
             --no-configuration-cache \
             --stacktrace \
             --max-workers=1
@@ -103,6 +130,7 @@ jobs:
     needs: test-shard
     if: ${{ always() && !startsWith(github.head_ref, 'release/v') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: write
@@ -208,6 +236,7 @@ jobs:
   # reproduces exactly what `Prepare Release` does, on every pull request.
   descriptor:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
@@ -220,7 +249,9 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6.4.1
 
+      # Two builds, not one: `changeNotes` reads the changelog when the build is configured, so
+      # the patch has to be a build of its own. The daemon the first one starts serves the second.
       - name: Verify the descriptor the next release would ship
         run: |
-          ./gradlew patchChangelog -PpluginVersion=9.9.9 --no-daemon
-          ./gradlew verifyPluginStructure -PpluginVersion=9.9.9 --no-daemon --stacktrace
+          ./gradlew patchChangelog -PpluginVersion=9.9.9
+          ./gradlew verifyPluginStructure -PpluginVersion=9.9.9 --stacktrace
