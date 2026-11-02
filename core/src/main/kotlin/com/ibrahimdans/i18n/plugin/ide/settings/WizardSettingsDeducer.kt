@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.ibrahimdans.i18n.plugin.format.PropertiesBundle
 import com.ibrahimdans.i18n.plugin.utils.LocaleNames
 import java.io.File
 
@@ -38,7 +39,8 @@ object WizardSettingsDeducer {
         "json" to "json",
         "json5" to "json",
         "yaml" to "yaml",
-        "yml" to "yaml"
+        "yml" to "yaml",
+        "properties" to "properties"
     )
 
     /**
@@ -66,8 +68,8 @@ object WizardSettingsDeducer {
      * such keys resolve through the whole-scan fallback anyway.
      */
     private fun deduceDefaultNamespace(relativeFilePaths: List<String>): String? {
-        val counts = relativeFilePaths
-            .map { it.stem() }
+        val (bundles, others) = relativeFilePaths.partition { it.extension() == PropertiesBundle.EXTENSION }
+        val counts = (others.map { it.stem() } + bundleNamespaces(bundles))
             .filterNot { LocaleNames.looksLikeLocale(it) }
             .groupingBy { it }
             .eachCount()
@@ -78,6 +80,22 @@ object WizardSettingsDeducer {
         // depends on the order the file system happened to return.
         return PREFERRED_NAMESPACES.firstOrNull { it in contenders } ?: contenders.min()
     }
+
+    /**
+     * The namespace of each resource bundle file, as [PropertiesBundle.placementsIn] gives it: the
+     * base name (`messages` for `messages_fr.properties`), and only in a folder holding several
+     * bundles — a folder of a single bundle holds the default namespace, so it names none.
+     */
+    private fun bundleNamespaces(relativeFilePaths: List<String>): List<String> =
+        relativeFilePaths
+            .groupBy { File(it).parent.orEmpty() }
+            .values
+            .flatMap { files ->
+                val bundles = files.map { PropertiesBundle.nameOf(it.stem()) }
+                    .groupBy { it.base }
+                    .filterValues { names -> names.any { it.locale != null } }
+                if (bundles.size > 1) bundles.flatMap { (base, names) -> names.map { base } } else emptyList()
+            }
 
     /**
      * Written only when the current value is still the one [Settings] auto-picked — the first
