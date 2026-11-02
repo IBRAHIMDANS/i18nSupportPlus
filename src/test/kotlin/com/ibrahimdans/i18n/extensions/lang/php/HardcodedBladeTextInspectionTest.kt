@@ -4,13 +4,15 @@ import com.ibrahimdans.i18n.plugin.ide.actions.ExtractionTestBase
 import com.ibrahimdans.i18n.plugin.ide.launchActionAndWait
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.intellij.lang.annotation.HighlightSeverity
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.ui.TestDialogManager.setTestInputDialog
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 
 /**
- * Hard-coded text in the HTML of a Blade view is reported — never an echo, a directive nor a text
- * one of them splits — and its quick fix writes Laravel's `{{ __('key') }}`.
+ * Hard-coded text in the HTML of a Blade view is reported — an echo of a plain value as one of its
+ * variables, never a raw echo, a directive nor a text one of them splits — and its quick fix writes
+ * Laravel's `{{ __('key') }}`, with `['name' => $value]` and a `:name` message for an echo.
  *
  * Assertions are qualified: `BasePlatformTestCase` inherits JUnit 3's reversed `assertEquals(message, …)`.
  */
@@ -38,12 +40,27 @@ class HardcodedBladeTextInspectionTest : ExtractionTestBase() {
     }
 
     @Test
+    fun aTextAnEchoOfAValueSplitsIsReportedOnce() {
+        Assertions.assertEquals(listOf("Hello {{ ${'$'}user->name }}!"), reportedIn("<p>Hello {{ ${'$'}user->name }}!</p>"))
+        Assertions.assertEquals(listOf("{{ ${'$'}count }} items in {{ ${'$'}cart }}"), reportedIn("<p>{{ ${'$'}count }} items in {{ ${'$'}cart }}</p>"))
+    }
+
+    @Test
     fun translatedTextEchoesDirectivesAndCodeAreIgnored() {
         val reported = reportedIn(
             """
             <p>{{ __('messages.save') }}</p>
             <p>@lang('messages.save')</p>
-            <p>Hello {{ ${'$'}user->name }}!</p>
+            <p>{{ ${'$'}user->name }}</p>
+            <p>{{ ${'$'}count }} —</p>
+            <p>— {{ ${'$'}name }}</p>
+            <p>Hi {!! ${'$'}html !!} there</p>
+            <p>Hello {{ ${'$'}user->fullName() }}!</p>
+            <p>Hello {{ ${'$'}name ?? 'guest' }}!</p>
+            <p>Hello {{-- the name --}} there</p>
+            <p>Hello {{ ${'$'}user->name }} and {{ ${'$'}admin->name }}</p>
+            <p>A @if(${'$'}x) B @endif C</p>
+            <p>Hello {{ ${'$'}name }}, @lang('messages.welcome')</p>
             <input title="{{ __('messages.name') }}" placeholder="@lang('messages.name')">
             @if(${'$'}admin)<b>{{ trans('messages.admin') }}</b>@endif
             <code>php artisan migrate</code>
@@ -66,7 +83,15 @@ class HardcodedBladeTextInspectionTest : ExtractionTestBase() {
         myFixture.checkResult("""<input placeholder="{{ __('test:ref.name') }}">""")
     }
 
-    private fun extract(view: String, key: String) {
+    @Test
+    fun theQuickFixPassesTheEchoesAsReplacements() {
+        val written = extract("<p>Hel<caret>lo {{ ${'$'}user->name }}, {{ ${'$'}count }} new</p>", "test:ref.greeting")
+        myFixture.checkResult("<p>{{ __('test:ref.greeting', ['name' => ${'$'}user->name, 'count' => ${'$'}count]) }}</p>")
+        Assertions.assertTrue(written.contains("\"Hello :name, :count new\""), written)
+    }
+
+    private fun extract(view: String, key: String): String {
+        var written = ""
         myFixture.runWithConfig(config("json")) {
             myFixture.enableInspections(HardcodedBladeTextInspection::class.java)
             myFixture.configureByText("welcome.blade.php", view)
@@ -74,6 +99,8 @@ class HardcodedBladeTextInspectionTest : ExtractionTestBase() {
             val fix = myFixture.getAllQuickFixes().single { it.text == hint }
             setTestInputDialog(predefinedTextInputDialog(key))
             myFixture.launchActionAndWait(fix)
+            written = FileDocumentManager.getInstance().getDocument(myFixture.findFileInTempDir("assets/test.json"))!!.text
         }
+        return written
     }
 }

@@ -40,6 +40,20 @@ internal interface MarkupDialect {
 
     /** Whether [attribute] of [tag] is translated by another tool already. */
     fun translatesAttribute(tag: XmlTag, attribute: XmlAttribute): Boolean = false
+
+    /**
+     * An interpolation the markup holds inside a text rather than beside it: a Blade echo
+     * `{{ $name }}`, which the view's HTML keeps as a template element of its [XmlText]: a variable of
+     * the message, like an interpolation beside the text.
+     */
+    fun isInnerInterpolation(element: PsiElement): Boolean = false
+
+    /** The expression the interpolation [element] holds, trimmed: its JavaScript expression by default. */
+    fun expressionOf(element: PsiElement): String? = PsiTreeUtil.findChildOfType(element, JSExpression::class.java)?.text?.trim()
+
+    /** The variable a message names [expression] by: the last segment of a plain path (`name` for `user.name`), else null. */
+    fun variableNameOf(expression: String): String? =
+        if (MarkupTexts.PLAIN_PATH.matches(expression)) expression.substringAfterLast('.') else null
 }
 
 /**
@@ -74,7 +88,7 @@ internal sealed class MarkupText {
  */
 internal object MarkupTexts {
 
-    private val PLAIN_PATH = Regex("""[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*""")
+    internal val PLAIN_PATH = Regex("""[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*""")
     private val WHITESPACE = Regex("\\s+")
 
     /** The text [element] — an [XmlText] or an [XmlAttributeValue] — stands for, when [dialect] reports it; else null. */
@@ -112,19 +126,39 @@ internal object MarkupTexts {
         if (parts.firstOrNull { it is XmlText } !== text) return null
         val variables = linkedMapOf<String, String>()
         val message = StringBuilder()
+        // The texts alone, without the interpolations: what tells a message from punctuation around a value.
+        val bare = StringBuilder()
+        var holdsVariables = false
         for (part in parts) {
-            if (part is XmlText) { message.append(part.text); continue }
-            val expression = PsiTreeUtil.findChildOfType(part, JSExpression::class.java)?.text?.trim() ?: return null
-            if (!PLAIN_PATH.matches(expression)) return null
-            val name = expression.substringAfterLast('.')
-            val previous = variables.putIfAbsent(name, expression)
-            if (previous != null && previous != expression) return null
+            if (part is XmlText) {
+                if (part.children.none(dialect::isInnerInterpolation)) { message.append(part.text); bare.append(part.text); continue }
+                holdsVariables = true
+                for (child in part.children) {
+                    if (!dialect.isInnerInterpolation(child)) { message.append(child.text); bare.append(child.text); continue }
+                    val name = variable(child, dialect, variables) ?: return null
+                    // The blanks after an echo belong to its element: `{{ $count }} items`.
+                    message.append(dialect.placeholder(name)).append(child.text.substring(child.text.trimEnd().length))
+                }
+                continue
+            }
+            val name = variable(part, dialect, variables) ?: return null
+            holdsVariables = true
             message.append(dialect.placeholder(name))
         }
         val value = StringUtil.unescapeXmlEntities(message.toString()).replace(WHITESPACE, " ").trim()
         if (!HardcodedTextRules.isTranslatable(value)) return null
+        // A placeholder no rule strips, Laravel's `:name`, holds letters of its own.
+        if (holdsVariables && !HardcodedTextRules.isTranslatable(StringUtil.unescapeXmlEntities(bare.toString()))) return null
         val range = trimmed(TextRange(first!!.textRange.startOffset, last!!.textRange.endOffset), text.containingFile.text)
         return MarkupText.Content(text, value, range, variables.map { (name, expression) -> MessageVariable(name, expression, dialect.placeholder(name)) })
+    }
+
+    /** The variable the interpolation [element] stands for, recorded in [variables]; null when it is no plain value, or a name two expressions share. */
+    private fun variable(element: PsiElement, dialect: MarkupDialect, variables: MutableMap<String, String>): String? {
+        val expression = dialect.expressionOf(element) ?: return null
+        val name = dialect.variableNameOf(expression) ?: return null
+        val previous = variables.putIfAbsent(name, expression)
+        return if (previous != null && previous != expression) null else name
     }
 
     private fun attribute(value: XmlAttributeValue, dialect: MarkupDialect): MarkupText.Attribute? {
