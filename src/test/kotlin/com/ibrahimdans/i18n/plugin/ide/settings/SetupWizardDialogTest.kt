@@ -476,4 +476,61 @@ class SetupWizardDialogTest : PlatformBaseTest() {
             base.deleteRecursively()
         }
     }
+
+    // -- The workspace a shared translations package is suggested its code directories from
+
+    /** `apps/web` and `apps/admin` depend on `@acme/i18n`; `apps/web/node_modules` must not count. */
+    private fun sharedPackageWorkspace(declare: (File) -> Unit): File {
+        val base = createTempDir("wizard-workspace")
+        declare(base)
+        File(base, "packages/i18n/locales/en").mkdirs()
+        File(base, "packages/i18n/package.json").writeText("""{"name": "@acme/i18n"}""")
+        for (app in listOf("web", "admin")) {
+            File(base, "apps/$app/locales/en").mkdirs()
+            File(base, "apps/$app/package.json")
+                .writeText("""{"name": "$app", "dependencies": {"@acme/i18n": "workspace:*"}}""")
+        }
+        File(base, "apps/web/node_modules/@acme/i18n").mkdirs()
+        File(base, "apps/web/node_modules/@acme/i18n/package.json").writeText("""{"name": "@acme/i18n"}""")
+        return base
+    }
+
+    private fun suggestedCodeRoots(base: File): String =
+        WizardPlan.codeRootsOf("packages/i18n", SetupWizardDialog.workspacePackagesIn(base))
+
+    @org.junit.jupiter.api.Test
+    fun `a pnpm workspace suggests the packages depending on the shared one`() {
+        val base = sharedPackageWorkspace {
+            File(it, "pnpm-workspace.yaml").writeText("packages:\n  - 'apps/*'\n  - \"packages/*\"\n  - '!**/test/**'\n")
+        }
+        try {
+            assertEquals(setOf("apps/web", "apps/admin", "packages/i18n"), SetupWizardDialog.workspacePackagesIn(base).keys)
+            assertEquals("apps/admin, apps/web", suggestedCodeRoots(base))
+        } finally {
+            base.deleteRecursively()
+        }
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `npm and Yarn workspaces of package json give the same suggestion`() {
+        for (workspaces in listOf("""["apps/*", "packages/*"]""", """{"packages": ["apps/*", "packages/*"]}""")) {
+            val base = sharedPackageWorkspace { File(it, "package.json").writeText("""{"workspaces": $workspaces}""") }
+            try {
+                org.junit.jupiter.api.Assertions.assertEquals("apps/admin, apps/web", suggestedCodeRoots(base), workspaces)
+            } finally {
+                base.deleteRecursively()
+            }
+        }
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `a project without a workspace suggests nothing`() {
+        val base = sharedPackageWorkspace { File(it, "package.json").writeText("""{"name": "monorepo"}""") }
+        try {
+            assertEquals(emptyMap<String, String>(), SetupWizardDialog.workspacePackagesIn(base))
+            assertEquals("", suggestedCodeRoots(base))
+        } finally {
+            base.deleteRecursively()
+        }
+    }
 }

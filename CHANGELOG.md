@@ -4,6 +4,7 @@
 
 ### Features
 
+- [Setup wizard] **A shared translations package is set up with the code that uses it**: in a pnpm, npm or Yarn workspace, the summary fills the *Code directories* of a module like `packages/i18n` with the packages that depend on it (`apps/web, apps/admin`), so its keys no longer all look unused. Edit or clear them before you apply.
 - [CLI] **`i18n-check --code` follows constants imported through a path alias**: `import { KEYS } from '@/i18n/keys'`, the alias of `create-next-app` and Vite's templates, is resolved with the `paths` and `baseUrl` of your `tsconfig.json` (or `jsconfig.json`), so keys kept in such a file no longer fail the check as unused.
 - [Modules] **A shared translations package sees the code that uses it**: set *Code directories* on a module (`apps/web, apps/admin`, or `codeRoots` in `i18n-check.json`) and its keys' usages are searched there, so the keys of a `packages/i18n` used by your applications no longer all look unused. See the [documentation](docs/configuration.md#modules)
 - [Setup wizard] **One folder per namespace is set up for you**: when your catalogues are laid out as `locales/common/en.json`, read from an i18next `loadPath` or seen in the files, the summary proposes a module with the template `locales/{ns}/{lang}.json`, so `t('common:save')` resolves without editing the modules by hand.
