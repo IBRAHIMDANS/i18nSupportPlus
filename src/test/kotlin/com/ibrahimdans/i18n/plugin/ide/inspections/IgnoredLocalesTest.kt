@@ -103,4 +103,22 @@ class IgnoredLocalesTest : PlatformBaseTest() {
         assertFalse(config.ignoresLocale("en"))
         assertFalse(Config().ignoresLocale("de"))
     }
+
+    @Test
+    fun aRegionalLocaleInheritsFromItsLanguage() {
+        myFixture.addFileToProject("locales/en/common.json", """{"color": "color", "bye": "Bye"}""")
+        assertTrue(missingKeyWarnings("locales/en-GB/common.json", """{"color": "colour"}""").isEmpty())
+    }
+
+    @Test
+    fun aRegionalLocaleWithoutItsLanguageIsCheckedInFull() = myFixture.runWithConfig(Config(foldingPreferredLanguage = "en")) {
+        myFixture.addFileToProject("locales/en/common.json", """{"color": "color", "bye": "Bye"}""")
+        assertEquals(1, missingKeyWarnings("locales/pt-BR/common.json", """{"color": "cor"}""").size)
+    }
+
+    @Test
+    fun aRegionalLocaleIsCheckedInFullWithTheOptionOff() = myFixture.runWithConfig(Config(regionalFallback = false)) {
+        myFixture.addFileToProject("locales/en/common.json", """{"color": "color", "bye": "Bye"}""")
+        assertEquals(1, missingKeyWarnings("locales/en-GB/common.json", """{"color": "colour"}""").size)
+    }
 }

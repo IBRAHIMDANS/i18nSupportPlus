@@ -664,6 +664,20 @@ class TableViewModelTest {
     }
 
     @Test
+    fun `an inherited value is neither missing nor read from a blank language`() {
+        val inherits = TranslationRow("color", mapOf("en" to "color"))
+        val blank = TranslationRow("bye", mapOf("en" to " "))
+        val parent = { locale: String -> "en".takeIf { locale == "en-GB" } }
+
+        assertEquals("en", viewModel.inheritedFrom(inherits, "en-GB", parent))
+        assertEquals(null, viewModel.inheritedFrom(blank, "en-GB", parent))
+        assertEquals(
+            listOf("bye"),
+            viewModel.filterByStatus(StatusFilter.MISSING, listOf(inherits, blank), listOf("en-GB"), parentLocale = parent).map { it.key },
+        )
+    }
+
+    @Test
     fun `filterByStatus MISSING keeps rows lacking an entry in a shown locale`() {
         val kept = viewModel.filterByStatus(StatusFilter.MISSING, statusRows, allLocales).map { it.key }
 

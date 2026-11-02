@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
 import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
+import com.ibrahimdans.i18n.plugin.utils.LocaleParent
 import com.ibrahimdans.i18n.plugin.ide.settings.rules.EditorRuleState
 import com.ibrahimdans.i18n.plugin.utils.default
 import com.ibrahimdans.i18n.plugin.utils.whenMatches
@@ -35,6 +36,7 @@ data class Config (
     val excludedFileExtensions: String = "",
     val keptKeys: String = "",
     val ignoredLocales: String = "",
+    val regionalFallback: Boolean = true,
     val localeAliases: String = "",
     val gutterIconsEnabled: Boolean = true,
     val setupWizardEnabled: Boolean = true,
@@ -93,6 +95,10 @@ data class Config (
     fun ignoresLocale(locale: String): Boolean =
         ignoredLocales.split("[;|,\\s]".toRegex()).filter { it.isNotBlank() }
             .any { LocaleMatching.pick(it, listOf(locale)) != null }
+
+    /** The locale [label] inherits the keys it lacks from — `en` for `en-GB` — or null with [regionalFallback] off. */
+    fun parentLocale(label: String): String? =
+        if (regionalFallback) LocaleParent.of(aliasedLocale(label)) else null
 
     /**
      * [localeAliases] — `gb=en-GB, cn=zh-CN` — as alias -> locale: a folder or a file named after an

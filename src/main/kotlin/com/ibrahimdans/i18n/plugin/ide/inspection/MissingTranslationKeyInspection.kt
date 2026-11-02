@@ -36,6 +36,9 @@ import com.intellij.psi.util.PsiTreeUtil
  *
  * Plural forms are compared as a group ([PluralKey.groupForms]), as *Sync Keys* does: `ja` holding
  * only `item_other` has the plural that `en` spells `item_one` / `item_other`.
+ *
+ * A regional file inherits from its language's ([com.ibrahimdans.i18n.plugin.ide.settings.Config.parentLocale]):
+ * `en-GB/common.json` lacks nothing `en/common.json` holds.
  */
 class MissingTranslationKeyInspection : LocalInspectionTool() {
 
@@ -59,10 +62,16 @@ class MissingTranslationKeyInspection : LocalInspectionTool() {
         if (referenceLeaves.isEmpty()) return
         val root = TranslationPsi.rootOf(file) ?: return
         val source = TranslationFileScope.sourceOf(file) ?: return
-        if (Settings.getInstance(file.project).config().ignoresLocale(source.localeLabel())) return
+        val config = Settings.getInstance(file.project).config()
+        if (config.ignoresLocale(source.localeLabel())) return
         val referenceLocale = TranslationFileScope.referenceLocaleFor(file, source)
+        val inherited = config.parentLocale(source.localeLabel())
+            ?.let { TranslationFileScope.counterpartOf(file, source, it) }
+            ?.tree?.value()?.containingFile
+            ?.let { TranslationFileKeys.translationLeaves(it).keys }
+            .orEmpty()
 
-        for (path in missingPaths(referenceLeaves, TranslationFileKeys.translationLeaves(file).keys)) {
+        for (path in missingPaths(referenceLeaves, TranslationFileKeys.translationLeaves(file).keys + inherited)) {
             val anchor = anchorOf(root, path) ?: continue
             val key = path.joinToString(".")
             val message = PluginBundle.message("inspection.missing.key.message", key, referenceLocale)

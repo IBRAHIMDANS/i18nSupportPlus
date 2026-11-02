@@ -115,7 +115,7 @@ class KeyMaintenanceTools(private val project: Project) {
             val locales = TranslationDataLoader.discoverLocales(project, module)
             val reference = referenceOf(module, locales) ?: return@mapNotNull null
             val translations = TranslationDataLoader.loadAllTranslations(project, module)
-            val problems = LocaleCheck.run(translations, reference, config::aliasedLocale)
+            val problems = LocaleCheck.run(translations, reference, config::aliasedLocale, config::parentLocale)
                 .filter { it.locale == reference || !config.ignoresLocale(it.locale) }
             ModuleCheck(name, reference, problems.sumOf { it.count }, problems, null)
         }

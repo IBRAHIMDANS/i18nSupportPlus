@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.cli
 import com.ibrahimdans.i18n.plugin.check.LocaleCheck
 import com.ibrahimdans.i18n.plugin.check.ValueCheck
 import com.ibrahimdans.i18n.plugin.check.ValueProblem
+import com.ibrahimdans.i18n.plugin.utils.LocaleParent
 
 /** What one locale gets wrong compared to the reference: [LocaleCheck] compares, in `core`, for the IDE as well. */
 typealias LocaleProblems = com.ibrahimdans.i18n.plugin.check.LocaleProblems
@@ -37,17 +38,19 @@ data class ProjectResult(val modules: List<CheckResult>, val unknown: List<Unkno
 object TranslationCheck {
 
     /**
-     * [pluralLocale] gives the locale whose plural forms a label needs: an alias's target
-     * (`gb` -> `en-GB`); [values] also checks the placeholders, tags and ICU of each value.
+     * [pluralLocale] gives the locale whose plural forms a label needs: an alias's target (`gb` -> `en-GB`).
+     * [parentLocale] gives the locale a label inherits the keys it lacks from, null for none.
+     * [values] also checks the placeholders, tags and ICU of each value.
      */
     fun run(
         translations: Map<String, Map<String, String>>,
         reference: String,
         pluralLocale: (String) -> String = { it },
+        parentLocale: (String) -> String? = LocaleParent::of,
         values: Boolean = true,
     ): CheckResult = CheckResult(
         reference,
-        LocaleCheck.run(translations, reference, pluralLocale),
+        LocaleCheck.run(translations, reference, pluralLocale, parentLocale),
         values = if (values) ValueCheck.run(translations, reference, pluralLocale) else null,
     )
 }

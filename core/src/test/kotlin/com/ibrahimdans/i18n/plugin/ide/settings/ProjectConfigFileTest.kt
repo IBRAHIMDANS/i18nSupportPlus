@@ -101,6 +101,7 @@ class ProjectConfigFileTest {
             keySeparator = "/",
             flatKeys = true,
             ignoredLocales = "de",
+            regionalFallback = false,
             foldingPreferredLanguage = "fr",
             modules = listOf(ModuleConfig(name = "web", rootDirectory = "apps/web", pathTemplate = "public/locales/{lang}/{ns}.json", referenceLocale = "fr")),
         )

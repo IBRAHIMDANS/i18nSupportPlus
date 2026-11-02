@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.check
 
 import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
+import com.ibrahimdans.i18n.plugin.utils.LocaleParent
 
 /**
  * What one locale gets wrong compared to the reference, each list sorted:
@@ -26,14 +27,23 @@ data class LocaleProblems(
  * own language needs ([PluralCategories]), not the reference's — `ja` writes `item_other` only,
  * `ru` adds `item_few` and `item_many`. Each form it lacks is a missing key, the one to add —
  * unless the locale holds the bare key `item`, i18next's fallback for any form missing.
+ *
+ * A key a regional locale lacks is not missing when its language holds it ([LocaleParent]): an
+ * `en-GB` file only spells out what differs from `en`. Its orphan and empty keys stay reported.
  */
 object LocaleCheck {
 
     /**
      * The problems of every locale of [translations], sorted by locale, compared to [reference].
      * [pluralLocale] gives the locale whose plural forms a label needs: an alias's target (`gb` -> `en-GB`).
+     * [parentLocale] gives the locale a label inherits the keys it lacks from, null for none.
      */
-    fun run(translations: Map<String, Map<String, String>>, reference: String, pluralLocale: (String) -> String = { it }): List<LocaleProblems> {
+    fun run(
+        translations: Map<String, Map<String, String>>,
+        reference: String,
+        pluralLocale: (String) -> String = { it },
+        parentLocale: (String) -> String? = LocaleParent::of,
+    ): List<LocaleProblems> {
         val locales = translations.values.flatMap { it.keys }.distinct().sorted()
         // A key that is both plain and a group's base (`count` beside `count_one`) stays a plain key.
         val plurals = PluralKey.groupForms(translations.keys).filter { (base, forms) -> forms != listOf(base) }
@@ -43,13 +53,15 @@ object LocaleCheck {
         fun blank(key: String, locale: String) = translations[key]?.get(locale)?.isBlank() == true
 
         return locales.map { locale ->
+            val parent = parentLocale(locale)
+            fun held(key: String) = has(key, locale) || (parent != null && has(key, parent))
             val missing = mutableListOf<String>()
             val orphans = mutableListOf<String>()
             val empty = mutableListOf<String>()
             for (key in singles) {
                 when {
                     !has(key, reference) -> if (has(key, locale)) orphans += key
-                    !has(key, locale) -> missing += key
+                    !held(key) -> missing += key
                     blank(key, locale) -> empty += key
                 }
             }
@@ -59,8 +71,8 @@ object LocaleCheck {
                     continue
                 }
                 // The bare key stands in for every form missing ([PluralKey.bareKeyCoversForms]).
-                if (!has(base, locale)) {
-                    missing += PluralCategories.of(pluralLocale(locale)).map { "${base}_$it" }.filterNot { has(it, locale) }
+                if (!held(base)) {
+                    missing += PluralCategories.of(pluralLocale(locale)).map { "${base}_$it" }.filterNot(::held)
                 }
                 empty += forms.filter { blank(it, locale) }
             }

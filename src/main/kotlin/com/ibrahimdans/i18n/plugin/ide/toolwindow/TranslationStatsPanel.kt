@@ -155,8 +155,9 @@ class TranslationStatsPanel(private val project: Project, private val moduleConf
         override fun getToolTipText(e: MouseEvent): String? {
             val row = rowAtPoint(e.point)
             val cell = cellAt(row, columnAtPoint(e.point)) ?: return null
-            val coverage = if (cell.untranslated > 0) PluginBundle.message("toolwindow.stats.cell.tooltip.missing", cell.translated, cell.total, cell.missing, cell.empty)
+            val translated = if (cell.untranslated > 0) PluginBundle.message("toolwindow.stats.cell.tooltip.missing", cell.translated, cell.total, cell.missing, cell.empty)
             else PluginBundle.message("toolwindow.stats.cell.tooltip.complete", cell.total)
+            val coverage = if (cell.inherited > 0) "$translated — ${PluginBundle.message("toolwindow.stats.cell.tooltip.inherited", cell.inherited)}" else translated
             val review = report?.rows?.getOrNull(row)?.let { reviewCounts[it.group]?.get(cell.locale) } ?: return coverage
             return "<html>$coverage<br>${reviewTooltip(review)}</html>"
         }
