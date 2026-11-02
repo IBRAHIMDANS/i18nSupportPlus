@@ -106,7 +106,9 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
         val locale = LocaleMatching.pick(PreviewLocaleSwitcher.effective(config), sources.map { it.localeLabel() })
         return sources
             .filter { it.localeLabel() == locale }
-            .mapNotNull { resolveCompositeKey(fullKey.compositeKey, it) }
+            // As the inlay hints resolve, with the plural separator and the i18next `context`: a key
+            // held only as `count_one` / `count_other`, or as `friend_male`, had a hint and no fold.
+            .flatMap { resolve(fullKey, it, config.pluralSeparator) }
             // A nested plural group holds no value of its own but is displayed through its
             // representative branch, so `isLeaf` is not the test — PluralGroup is.
             .firstOrNull { it.unresolved.isEmpty() && PluralGroup.displayableValue(it.element) != null }
