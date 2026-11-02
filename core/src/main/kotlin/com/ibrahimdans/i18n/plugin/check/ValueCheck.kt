@@ -23,6 +23,8 @@ object ValueCheck {
     private val TAG = Regex("""<(/?)([A-Za-z0-9_.-]+)(?:\s[^<>]*?)?\s*(/?)>""")
     private val ICU_BLOCK = Regex("""\{\s*\w+\s*,\s*(plural|select)\s*,([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}""")
     private val ICU_FORM = Regex("""(\w+)\s*\{""")
+    private val ICU_ARGUMENT = Regex("""\{\s*\w+\s*,\s*(?:plural|select|selectordinal)\s*,""")
+    private val WORD = Regex("""\w+""")
 
     /** i18next's variable for the plural count: a form may well spell the number or leave it out. */
     private const val PLURAL_COUNT = "{count}"
@@ -42,7 +44,35 @@ object ValueCheck {
         return depth == 0
     }
 
-    private fun placeholdersOf(text: String): Set<String> = PLACEHOLDER.findAll(text).map { it.value }.toSet()
+    /**
+     * The placeholders of [text], without the body of an ICU form that is a single word: `none` of
+     * `{n, plural, =0 {none} other {# items}}` is text to translate, not a variable.
+     */
+    private fun placeholdersOf(text: String): Set<String> {
+        val wordForms = wordFormBodies(text)
+        return PLACEHOLDER.findAll(text).filter { it.range !in wordForms }.map { it.value }.toSet()
+    }
+
+    /** The ranges, braces included, of the one-word form bodies of each ICU block of [text]. */
+    private fun wordFormBodies(text: String): Set<IntRange> =
+        ICU_ARGUMENT.findAll(text).flatMap { wordFormBodies(text, it.range.last + 1) }.toSet()
+
+    /** The one-word form bodies of the ICU block whose forms start at [from], up to its closing brace. */
+    private fun wordFormBodies(text: String, from: Int): List<IntRange> {
+        val bodies = mutableListOf<IntRange>()
+        var depth = 0
+        var bodyStart = -1
+        for (i in from until text.length) {
+            when (text[i]) {
+                '{' -> if (depth++ == 0) bodyStart = i
+                '}' -> {
+                    if (depth == 0) break
+                    if (--depth == 0 && WORD.matches(text.substring(bodyStart + 1, i))) bodies += bodyStart..i
+                }
+            }
+        }
+        return bodies
+    }
 
     /**
      * The placeholders of [reference] that [value] lacks. A value with no placeholder at all is left

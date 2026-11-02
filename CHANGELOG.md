@@ -41,6 +41,7 @@
 
 ### Fixes
 
+- [Checks] **A one-word ICU form is no longer taken for a placeholder**: translating `{n, plural, =0 {none} other {# items}}` as `=0 {rien}`, or `{g, select, male {he} …}` as `male {il}`, no longer reports `{none}` missing and `{rien}` extra, in the *Placeholder consistency* inspection or in `i18n-check`.
 - [Setup wizard] **next-intl and Paraglide catalogues are found**: when the project uses next-intl or Paraglide JS, the setup wizard now offers the files of their `messages/` folder (`messages/en.json`, `messages/fr.json`), where it used to find nothing.
 - [CLI] **`i18n-check --code` checks each module of a monorepo against its own code**: a key of `apps/web` that only `apps/admin` calls is now reported unused, and a call in `apps/admin` to a key only `apps/web` has is reported unknown, as the IDE already did; a shared package's keys count the code of its *Code directories*. The check is stricter: a CI that passed may now report these keys.
 - [Editor] **Folded keys follow the preview locale and fold plurals too**: switching the preview locale from the status bar now updates the keys already folded in open editors, not only the inline hints, and a key held only as plural forms (`count_one` / `count_other`) or under an i18next `context` folds into the same value as its hint.
