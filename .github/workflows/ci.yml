@@ -1,16 +1,37 @@
 name: CI
 
+# The pages under docs/, the issue templates and the contributor guides reach no build: a change
+# to them alone runs nothing, on the pull request or on main (8 of the last 150 commits, two runs
+# each). README.md and CHANGELOG.md stay in: the descriptor is rendered from them. docs/img is the
+# baseline of the UI screenshots, which no workflow takes. The `main-1` ruleset requires no status
+# check, so a pull request with no run still merges.
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'BUILDING.md'
+      - 'CONTRIBUTING.md'
+      - 'RELEASING.md'
+      - 'LICENSE'
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'BUILDING.md'
+      - 'CONTRIBUTING.md'
+      - 'RELEASING.md'
+      - 'LICENSE'
 
 # A push onto a pull request makes the run already in flight obsolete. Cancelling it there frees
 # the runner instead of queueing a second full IntelliJ suite behind the first. On main every
-# commit is a candidate release point, so runs on main are always allowed to finish.
+# commit is a candidate release point, so each push to main runs in a group of its own: a group
+# shared by all of main holds one run pending behind the one in progress, and the next push
+# cancels that pending run (3a90c5e7 never got its run on main that way).
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -24,10 +45,14 @@ jobs:
   # only, on the commit of main the suite has just passed, and nothing is merged until it is. The
   # `descriptor` job still checks what the release ships. A job skipped by `if:` reads as passed,
   # and the run still exists, which is what #805 needed.
+  #
+  # A shard takes 8 minutes at most; a fixture that hangs would otherwise hold its runner for the
+  # 6-hour default.
   test-shard:
     if: ${{ !startsWith(github.head_ref, 'release/v') }}
     name: test shard ${{ matrix.shard }}/3
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       contents: read
     strategy:
@@ -103,6 +128,7 @@ jobs:
     needs: test-shard
     if: ${{ always() && !startsWith(github.head_ref, 'release/v') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: write
@@ -208,6 +234,7 @@ jobs:
   # reproduces exactly what `Prepare Release` does, on every pull request.
   descriptor:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
