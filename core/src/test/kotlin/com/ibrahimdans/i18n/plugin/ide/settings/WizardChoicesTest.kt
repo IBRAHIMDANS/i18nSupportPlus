@@ -137,4 +137,36 @@ class WizardChoicesTest {
         WizardChoices().applyTo(store)
         Assertions.assertEquals("fr", store.config().foldingPreferredLanguage, "null leaves it alone")
     }
+
+    // -- The template module
+
+    private val namespaceFolders = ModuleConfig(name = "locales", pathTemplate = "locales/{ns}/{lang}.json")
+
+    @Test
+    fun `the template module is added beside the root, not instead of it`() {
+        val store = InMemoryStore()
+
+        WizardChoices(translationsRoot = "locales", templateModule = namespaceFolders).applyTo(store)
+
+        Assertions.assertEquals("locales", store.config().translationsRoot)
+        Assertions.assertEquals(listOf(namespaceFolders), store.config().modules)
+    }
+
+    @Test
+    fun `an unticked template module leaves the settings as they were`() {
+        val store = InMemoryStore()
+
+        WizardChoices(translationsRoot = "locales", templateModule = null).applyTo(store)
+
+        Assertions.assertEquals(Config(translationsRoot = "locales"), store.config())
+    }
+
+    @Test
+    fun `reopening the wizard does not add the same template twice`() {
+        val store = InMemoryStore(Config(modules = listOf(namespaceFolders.copy(name = "mine"))))
+
+        WizardChoices(templateModule = namespaceFolders).applyTo(store)
+
+        Assertions.assertEquals(1, store.config().modules.size)
+    }
 }
