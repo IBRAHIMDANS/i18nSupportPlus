@@ -89,8 +89,8 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
         if (file.originalFile.virtualFile?.parent?.name == INLANG_PROJECT) return false
         // Flutter reads an ARB key as a getter of its generated class, which no search here sees.
         if (ArbCatalogues.isArb(file.originalFile.virtualFile)) return false
-        // A resource bundle's keys are read by `getString` / `getMessage`, which no search here sees yet;
-        // any other `.properties` file is configuration.
+        // A resource bundle's unused keys are reported by the platform's own *Unused property* inspection,
+        // which a second warning here would duplicate; any other `.properties` file is configuration.
         if (file.originalFile.virtualFile?.extension == PropertiesBundle.EXTENSION) return false
         if (TranslationFileScope.sourceOf(file) != null) return true
         if (TOOL_CONFIGURATION.matches(file.name)) return false

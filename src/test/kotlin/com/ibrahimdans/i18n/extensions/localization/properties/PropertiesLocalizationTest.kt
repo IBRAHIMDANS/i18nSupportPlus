@@ -12,7 +12,22 @@ import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
+import com.intellij.lang.properties.PropertiesImplUtil
+import com.intellij.lang.xml.XMLLanguage
+import com.intellij.openapi.extensions.DefaultPluginDescriptor
 import com.intellij.openapi.application.ReadAction
+import com.intellij.patterns.XmlPatterns
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiElementResolveResult
+import com.intellij.psi.PsiPolyVariantReferenceBase
+import com.intellij.psi.PsiReference
+import com.intellij.psi.PsiReferenceContributor
+import com.intellij.psi.PsiReferenceProvider
+import com.intellij.psi.PsiReferenceRegistrar
+import com.intellij.psi.ResolveResult
+import com.intellij.psi.impl.source.resolve.reference.PsiReferenceContributorEP
+import com.intellij.psi.xml.XmlAttributeValue
+import com.intellij.util.ProcessingContext
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileDocumentManager
@@ -142,16 +157,36 @@ class PropertiesLocalizationTest : PlatformBaseTest() {
         Assertions.assertEquals("a=b\nc", value)
     }
 
-    /** No Java call is read yet: a bundle key is never counted unused, nor offered by *Cleanup*. */
+    /**
+     * A bundle key is counted by the platform's references to its properties — what `getString`,
+     * `getMessage` or Thymeleaf's `#{key}` leave in IDEA. Here a reference of the test's own, from
+     * `<msg key="…"/>`, resolving to the key's property in every locale as they do.
+     */
     @Test
-    fun aBundleKeyIsNeverReportedUnused() {
+    fun aBundleKeyReadByTheCodeIsCountedAndOnlyAnUnreadOneIsOfferedByCleanup() {
         addBundle()
+        registerMessageKeyReferences()
+        myFixture.addFileToProject("src/main/resources/templates/page.xml", """<page><msg key="user.name"/><msg key="user.name"/></page>""")
         val viewModel = TableViewModel()
 
-        val counted = viewModel.countUsages(project, viewModel.loadRows(project))
+        val counted = viewModel.countUsages(project, viewModel.loadRows(project)).associate { it.key to it.usageCount }
 
-        Assertions.assertTrue(counted.all { it.usageCount == -1 }, "unscanned: $counted")
-        Assertions.assertEquals(emptyList<Any>(), CleanupUnusedKeysAction().orphans(project, viewModel))
+        Assertions.assertEquals(2, counted["user.name"], "two references, each resolving to three locales: $counted")
+        Assertions.assertEquals(0, counted["user.greeting"], "$counted")
+        Assertions.assertEquals(
+            listOf("cafe", "long", "other", "user.greeting"),
+            CleanupUnusedKeysAction().orphans(project, viewModel).map { it.second.key }.sorted(),
+        )
+    }
+
+    /** Registers [MessageKeyReferences] for the test only, as `plugin.xml` would declare it. */
+    private fun registerMessageKeyReferences() {
+        val bean = PsiReferenceContributorEP().apply {
+            language = XMLLanguage.INSTANCE.id
+            implementationClass = MessageKeyReferences::class.java.name
+            pluginDescriptor = DefaultPluginDescriptor("properties-native-usages-test")
+        }
+        PsiReferenceContributor.EP_NAME.point.registerExtension(bean, testRootDisposable)
     }
 
     @Test
@@ -181,5 +216,19 @@ class PropertiesLocalizationTest : PlatformBaseTest() {
 
         Assertions.assertTrue(errors.any { it.contains("{0}") }, "$errors")
         Assertions.assertTrue(messages.any { it.contains("{0}") } && messages.any { it.contains("{1}") }, "$messages")
+    }
+}
+
+/** `key="…"` of an XML attribute refers to the bundle properties of that key, in every locale, as `getString` does in IDEA. */
+internal class MessageKeyReferences : PsiReferenceContributor() {
+    override fun registerReferenceProviders(registrar: PsiReferenceRegistrar) {
+        registrar.registerReferenceProvider(XmlPatterns.xmlAttributeValue("key"), object : PsiReferenceProvider() {
+            override fun getReferencesByElement(element: PsiElement, context: ProcessingContext): Array<PsiReference> =
+                arrayOf(object : PsiPolyVariantReferenceBase<PsiElement>(element) {
+                    override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> =
+                        PropertiesImplUtil.findPropertiesByKey(element.project, (element as XmlAttributeValue).value)
+                            .map { PsiElementResolveResult(it.psiElement) }.toTypedArray()
+                })
+        })
     }
 }

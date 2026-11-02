@@ -419,10 +419,12 @@ class TableViewModel {
         val counts = index.usageCounts(rows.map { it.key })
         // Flutter reads an ARB key as a getter of its generated class, which no search here sees:
         // such a key stays unscanned rather than reported unused, and *Cleanup* never offers it.
-        // A resource bundle's keys likewise: `getString` / `getMessage` are not read yet.
-        val arbKeys = ArbCatalogues.keys(project) + PropertiesBundleKeys.keys(project)
+        val arbKeys = ArbCatalogues.keys(project)
+        // A resource bundle's key is read by `getString`, `getMessage` or `#{key}`, which the text scan
+        // does not see: the platform's references to its properties count it.
+        val bundleUsages = PropertiesBundleKeys.usageCounts(project)
         val withPrefixed = rows.map { row ->
-            val count = counts[row.key] ?: 0
+            val count = maxOf(counts[row.key] ?: 0, bundleUsages[row.key] ?: 0)
             row.copy(usageCount = if (count == 0 && row.key in arbKeys) NOT_SCANNED else count)
         }
 
