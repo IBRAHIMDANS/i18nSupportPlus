@@ -48,6 +48,72 @@ class WizardSettingsDeducerTest {
         Assertions.assertNull(deduce(listOf("locales/fr.json", "locales/en.json")).defaultNs)
     }
 
+    /** A folder of a single bundle holds the default namespace: `messages_fr` used to be offered as one. */
+    @Test
+    fun aSingleResourceBundleInfersNoNamespace() {
+        val deduced = deduce(
+            listOf(
+                "src/main/resources/messages.properties",
+                "src/main/resources/messages_fr.properties",
+                "src/main/resources/messages_pt_BR.properties"
+            )
+        )
+
+        Assertions.assertNull(deduced.defaultNs)
+    }
+
+    /** Several bundles in a folder are namespaces, named by their base name, never by a localized file. */
+    @Test
+    fun severalResourceBundlesGiveTheirBaseName() {
+        val deduced = deduce(
+            listOf(
+                "src/main/resources/messages.properties",
+                "src/main/resources/messages_fr.properties",
+                "src/main/resources/messages_de.properties",
+                "src/main/resources/errors.properties",
+                "src/main/resources/errors_fr.properties"
+            )
+        )
+
+        Assertions.assertEquals("messages", deduced.defaultNs)
+    }
+
+    @Test
+    fun resourceBundlesTieOnTheirBaseNamesOnly() {
+        val deduced = deduce(
+            listOf(
+                "i18n/messages.properties",
+                "i18n/messages_fr.properties",
+                "i18n/errors.properties",
+                "i18n/errors_fr.properties"
+            )
+        )
+
+        Assertions.assertEquals("errors", deduced.defaultNs)
+    }
+
+    /** One bundle per folder, in two modules: still the default namespace of each. */
+    @Test
+    fun singleBundlesInSeveralFoldersInferNoNamespace() {
+        val deduced = deduce(
+            listOf(
+                "web/src/main/resources/messages.properties",
+                "web/src/main/resources/messages_fr.properties",
+                "admin/src/main/resources/labels.properties",
+                "admin/src/main/resources/labels_fr.properties"
+            )
+        )
+
+        Assertions.assertNull(deduced.defaultNs)
+    }
+
+    @Test
+    fun resourceBundlesGiveThePropertiesFormat() {
+        val deduced = deduce(listOf("src/main/resources/messages.properties", "src/main/resources/messages_fr.properties"))
+
+        Assertions.assertEquals("properties", deduced.preferredLocalization)
+    }
+
     @Test
     fun poFilesTurnGetTextOn() {
         val deduced = deduce(listOf("locales/fr/LC_MESSAGES/messages.po"))
