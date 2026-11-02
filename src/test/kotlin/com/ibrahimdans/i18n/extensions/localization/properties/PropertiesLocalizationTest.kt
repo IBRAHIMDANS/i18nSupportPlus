@@ -6,7 +6,9 @@ import com.ibrahimdans.i18n.plugin.ide.actions.CleanupUnusedKeysAction
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
 import com.ibrahimdans.i18n.plugin.ide.inspection.PlaceholderConsistencyInspection
+import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
@@ -57,6 +59,28 @@ class PropertiesLocalizationTest : PlatformBaseTest() {
             sources.associate { it.name to it.locale },
         )
         Assertions.assertTrue(sources.all { it.namespace == null }, "one bundle, the default namespace: $sources")
+    }
+
+    @Test
+    fun theFileWithoutASuffixTakesTheReferenceLocaleOfItsModule() {
+        for (app in listOf("web", "admin")) {
+            myFixture.addFileToProject("apps/$app/$DIR/messages.properties", "user.name=Name\n")
+            myFixture.addFileToProject("apps/$app/$DIR/messages_de.properties", "user.name=Name\n")
+        }
+        val config = Config(
+            modules = listOf(
+                ModuleConfig(name = "web", rootDirectory = "apps/web", referenceLocale = "fr"),
+                ModuleConfig(name = "admin", rootDirectory = "apps/admin", referenceLocale = "en"),
+            ),
+        )
+
+        var locales = emptyMap<String, String?>()
+        myFixture.runWithConfig(config) {
+            locales = bundleSources().filter { it.name == "messages.properties" }
+                .associate { source -> listOf("web", "admin").single { "apps/$it/" in source.displayPath } to source.locale }
+        }
+
+        Assertions.assertEquals(mapOf("web" to "fr", "admin" to "en"), locales)
     }
 
     @Test
