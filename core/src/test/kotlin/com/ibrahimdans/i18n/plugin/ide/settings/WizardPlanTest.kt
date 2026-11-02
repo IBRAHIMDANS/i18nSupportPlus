@@ -342,4 +342,51 @@ class WizardPlanTest {
 
         Assertions.assertEquals("i18next.config.ts", plan.root.origin)
     }
+
+    // -- The template the catalogues follow, when the reading by default would miss it
+
+    @Test
+    fun `a loadPath with a folder per namespace proposes a module carrying its template`() {
+        val loadPath = I18nextCliConfig("src/i18n.ts", output = "public/locales/{{ns}}/{{lng}}.json", fromProjectRoot = true)
+
+        val plan = WizardPlan.of(emptyList(), emptySet(), loadPath)
+
+        val template = plan.template
+        Assertions.assertNotNull(template)
+        Assertions.assertEquals("public/locales/{ns}/{lang}.json", template!!.module.pathTemplate)
+        Assertions.assertEquals("", template.module.rootDirectory, "a template, not an application")
+        Assertions.assertEquals("src/i18n.ts", template.origin)
+        Assertions.assertEquals(
+            ModuleSources.Match("en", "common"),
+            ModuleSources.match(listOf(template.module), "public/locales/common/en.json", anchored = true),
+            "the proposed module must resolve the files it was proposed for",
+        )
+    }
+
+    @Test
+    fun `a folder per namespace on disk proposes the same module, deduced from the files`() {
+        val files = listOf("locales/common/en.json", "locales/common/fr.json", "locales/auth/en.json", "locales/auth/fr.json")
+
+        val plan = WizardPlan.of(files, emptySet())
+
+        Assertions.assertEquals("locales", plan.root.detected)
+        Assertions.assertFalse(plan.root.widened, "namespace folders are one catalogue, not one application each")
+        Assertions.assertEquals("locales/{ns}/{lang}.json", plan.template?.module?.pathTemplate)
+        Assertions.assertNull(plan.template?.origin, "deduced, not read from a file")
+    }
+
+    @Test
+    fun `the usual layouts propose no template`() {
+        Assertions.assertNull(WizardPlan.of(nested, emptySet()).template)
+        Assertions.assertNull(WizardPlan.of(listOf("locales/en.json", "locales/fr.json"), emptySet()).template)
+        Assertions.assertNull(WizardPlan.of(emptyList(), emptySet(), cliConfig).template, "{lang}/{ns}.json is the reading by default")
+    }
+
+    @Test
+    fun `folders named after locales outside a translations folder stay applications`() {
+        val plan = WizardPlan.of(listOf("packages/web/en.json", "packages/api/en.json"), emptySet())
+
+        Assertions.assertNull(plan.template)
+        Assertions.assertTrue(plan.root.widened)
+    }
 }

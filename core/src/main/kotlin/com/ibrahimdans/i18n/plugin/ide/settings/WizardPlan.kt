@@ -58,7 +58,28 @@ object WizardPlan {
      */
     data class Separators(val key: String?, val ns: String?, val origin: String)
 
-    data class Plan(val root: RootPlan, val deductions: List<Deduction>, val separators: Separators? = null)
+    /**
+     * A module proposed for its template alone: the layout of the catalogues, when the reading by
+     * default — a locale folder holding namespace files, `{lang}/{ns}.json` — would miss it. The
+     * case is a folder per namespace above files named after their locale (`locales/common/en.json`):
+     * without a template, `en.json` is read as the locale `en` in no namespace, and `t('common:save')`
+     * finds no file.
+     *
+     * The module has no root directory: it adds a template, it does not cut the project into
+     * applications, so the code keeps resolving against every file as before. Its [ModuleConfig.pathTemplate]
+     * is project-relative, the translations root included.
+     *
+     * [origin] is the configuration file the template was read from, null when it was deduced from
+     * the files.
+     */
+    data class TemplatePlan(val module: ModuleConfig, val origin: String?)
+
+    data class Plan(
+        val root: RootPlan,
+        val deductions: List<Deduction>,
+        val separators: Separators? = null,
+        val template: TemplatePlan? = null,
+    )
 
     /**
      * What the wizard would propose for [relativeFilePaths] and the ticked [frameworks].
@@ -75,11 +96,22 @@ object WizardPlan {
     ): Plan {
         val configRoot = cliConfig?.translationsRoot?.let { it to cliConfig.file }
             ?: vueConfig?.translationsRoot?.let { it to vueConfig.file }
-        val root = if (configRoot != null) RootPlan(configRoot.first, listOf(configRoot.first), configRoot.second)
-            else RootPlan(
+        val namespaceFolders = if (configRoot == null) namespaceFoldersOf(relativeFilePaths) else null
+        val root = when {
+            configRoot != null -> RootPlan(configRoot.first, listOf(configRoot.first), configRoot.second)
+            // One folder per namespace is one catalogue, not one application per folder: the
+            // detector, which strips locale levels only, would see `locales/common` and
+            // `locales/auth` as two roots and offer to split them into modules.
+            namespaceFolders != null -> RootPlan(namespaceFolders.first, listOf(namespaceFolders.first))
+            else -> RootPlan(
                 detected = TranslationRootDetector.detect(relativeFilePaths),
                 candidates = TranslationRootDetector.candidates(relativeFilePaths)
             )
+        }
+        val template = when {
+            namespaceFolders != null -> TemplatePlan(templateModule(namespaceFolders.first, namespaceFolders.second), null)
+            else -> statedTemplate(cliConfig)
+        }
         val stated = listOfNotNull(
             cliConfig?.defaultNs?.let { Deduction(Field.DEFAULT_NS, it, cliConfig.file) },
             cliConfig?.referenceLocale?.let { Deduction(Field.REFERENCE_LOCALE, it, cliConfig.file) },
@@ -94,7 +126,45 @@ object WizardPlan {
         val separators = cliConfig
             ?.takeIf { it.keySeparator != null || it.nsSeparator != null }
             ?.let { Separators(it.keySeparator, it.nsSeparator, it.file) }
-        return Plan(root, deductions, separators)
+        return Plan(root, deductions, separators, template)
+    }
+
+    /**
+     * The template an i18next-type configuration states, when it is one the reading by default
+     * would miss: a namespace placeholder anywhere but in the file name below a locale folder.
+     * `{lang}/{ns}.json` and `{lang}.json` change nothing, and are left out.
+     */
+    private fun statedTemplate(config: I18nextCliConfig?): TemplatePlan? {
+        val root = config?.translationsRoot ?: return null
+        val template = config.pathTemplate ?: return null
+        if (NS !in template || template.substringBeforeLast('.') == "$LANG/$NS") return null
+        return TemplatePlan(templateModule(root, template), config.file)
+    }
+
+    private fun templateModule(root: String, template: String) =
+        ModuleConfig(name = moduleNameOf(root), pathTemplate = "$root/$template")
+
+    /**
+     * The translations root and template of a folder-per-namespace layout, or null when the files
+     * do not all follow it: every file `<root>/<namespace>/<locale>.<ext>`, one root that is a
+     * translations folder (`locales`, `i18n`…), at least two namespace folders and one extension.
+     *
+     * The translations folder is what tells a namespace from an application: `packages/web/en.json`
+     * and `packages/api/en.json` have the same shape, and are two applications.
+     */
+    private fun namespaceFoldersOf(paths: List<String>): Pair<String, String>? {
+        if (paths.isEmpty()) return null
+        val files = paths.map { path -> path.normalizeSeparators().split('/').filter { it.isNotEmpty() } }
+        if (files.any { it.size < 3 }) return null
+        val stems = files.map { it.last().substringBeforeLast('.', it.last()) }
+        val namespaces = files.map { it[it.size - 2] }
+        if (stems.any { !LocaleNames.looksLikeLocale(it) } || namespaces.any { LocaleNames.looksLikeLocale(it) }) return null
+        val root = files.map { it.dropLast(2).joinToString("/") }.distinct().singleOrNull() ?: return null
+        if (root.substringAfterLast('/') !in TranslationFileScanner.FOLDER_NAMES) return null
+        if (namespaces.distinct().size < 2) return null
+        val extension = files.map { it.last().substringAfterLast('.', "") }.distinct().singleOrNull() ?: return null
+        val file = if (extension.isEmpty()) LANG else "$LANG.$extension"
+        return root to "$NS/$file"
     }
 
     private fun deductionsOf(paths: List<String>, frameworks: Set<String>): List<Deduction> {

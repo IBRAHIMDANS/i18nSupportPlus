@@ -182,6 +182,9 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
          * ([ModuleConfig.enabled]), so its files stay out instead of joining the others' pool.
          */
         private val moduleBoxes = mutableListOf<Pair<ModuleConfig, JBCheckBox>>()
+
+        /** The template module of [WizardPlan.Plan.template], ticked: unticked, the settings stay as they were. */
+        private val templateBox = JBCheckBox()
         private val keySeparatorField = JBTextField(6)
         private val nsSeparatorField = JBTextField(6)
         private val applyBoxes = mutableMapOf<WizardPlan.Field, JBCheckBox>()
@@ -243,6 +246,10 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
                 WizardPlan.modulesFor(plan.root, foundFiles, selectedFrameworks(), appManifests).mapTo(moduleBoxes) { module ->
                     module to JBCheckBox(PluginBundle.message("wizard.summary.module", module.name, module.rootDirectory), true)
                 }
+            }
+            plan.template?.let { template ->
+                templateBox.text = PluginBundle.message("wizard.summary.template", template.module.pathTemplate)
+                templateBox.isSelected = true
             }
             // A previous plan may have left the root field disabled behind a split that no longer
             // applies; the two must be reset together or the root becomes uneditable.
@@ -317,6 +324,12 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
                 for ((_, box) in moduleBoxes) {
                     row("") { cell(box) }
                 }
+            }
+            plan.template?.let { template ->
+                row("") { cell(templateBox) }.rowComment(
+                    template.origin?.let { PluginBundle.message("wizard.summary.origin.file", it) }
+                        ?: PluginBundle.message("wizard.summary.template.deduced")
+                )
             }
 
             for (deduction in plan.deductions) {
@@ -408,7 +421,8 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
                 preferredLocalization = chosenValue(WizardPlan.Field.PREFERRED_LOCALIZATION),
                 referenceLocale = chosenValue(WizardPlan.Field.REFERENCE_LOCALE),
                 keySeparator = keySeparatorField.text,
-                nsSeparator = nsSeparatorField.text
+                nsSeparator = nsSeparatorField.text,
+                templateModule = plan.template?.module?.takeIf { templateBox.isSelected }
             )
         }
 

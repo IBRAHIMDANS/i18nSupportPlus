@@ -25,7 +25,9 @@ data class WizardChoices(
     /** The project's reference locale, stored as `foldingPreferredLanguage`: see `ReferenceLocale.wanted`. */
     val referenceLocale: String? = null,
     val keySeparator: String? = null,
-    val nsSeparator: String? = null
+    val nsSeparator: String? = null,
+    /** The module carrying the catalogues' template ([WizardPlan.TemplatePlan]), added beside the root. */
+    val templateModule: ModuleConfig? = null
 ) {
 
     /**
@@ -37,13 +39,20 @@ data class WizardChoices(
      *
      * A module whose root directory is already configured is skipped: the wizard can be reopened
      * at any time, and running it twice must not leave two entries pointing at one folder.
+     *
+     * [templateModule] is no alternative to the root: it has no root directory and only tells how
+     * the files under the root are laid out. It is skipped when a module already resolves the same
+     * template.
      */
     fun applyTo(store: ConfigStore) {
         val config = store.config()
         val configured = config.modules.map { it.rootDirectory.trim().trim('/') }.toSet()
+        val templates = config.modules.map { ModuleTemplateResolver.combine(it) }.toSet()
+        val added = modules.filterNot { it.rootDirectory.trim().trim('/') in configured } +
+            listOfNotNull(templateModule?.takeUnless { ModuleTemplateResolver.combine(it) in templates })
         store.setConfig(
             config.copy(
-                modules = config.modules + modules.filterNot { it.rootDirectory.trim().trim('/') in configured },
+                modules = config.modules + added,
                 translationsRoot = translationsRoot.takeIf { modules.isEmpty() }.nonBlank() ?: config.translationsRoot,
                 defaultNs = defaultNs.nonBlank() ?: config.defaultNs,
                 gettext = gettext ?: config.gettext,
