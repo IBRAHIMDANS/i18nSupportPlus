@@ -99,6 +99,30 @@ class PlaceholderConsistencyInspectionTest : PlatformBaseTest() {
     }
 
     @Test
+    fun testOneWordIcuFormsNoWarning() {
+        val warnings = placeholderWarnings(
+            """{"items": "{n, plural, =0 {none} other {# items}}", "pronoun": "{g, select, male {he} other {they}}"}""",
+            """{"items": "{n, plural, =0 {rien} other {# éléments}}", "pronoun": "{g, select, male {il} other {iel}}"}"""
+        )
+        assertTrue(warnings.isEmpty(), warnings.toString())
+    }
+
+    @Test
+    fun testPlaceholderOutsideIcuBlockStillReported() {
+        val warnings = placeholderWarnings(
+            """{"items": "{user}: {n, plural, =0 {none} other {# items}}"}""",
+            """{"items": "{x} : {n, plural, =0 {rien} other {# éléments}}"}"""
+        )
+        assertEquals(
+            setOf(
+                "Placeholder '{user}' present in reference locale is missing here",
+                "Placeholder '{x}' is not in the reference locale",
+            ),
+            warnings.toSet()
+        )
+    }
+
+    @Test
     fun testUnbalancedOpenBrace() {
         val warnings = placeholderWarnings(
             """{"greeting": "Hello {name}!"}""",

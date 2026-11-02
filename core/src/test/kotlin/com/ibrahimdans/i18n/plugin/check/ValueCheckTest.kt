@@ -23,6 +23,29 @@ class ValueCheckTest {
     }
 
     @Test
+    fun `a one-word ICU form is text, not a placeholder`() {
+        val en = "{n, plural, =0 {none} other {# items}}"
+        val fr = "{n, plural, =0 {rien} other {# éléments}}"
+        assertEquals(emptySet<String>(), ValueCheck.missingPlaceholders(fr, en))
+        assertEquals(emptySet<String>(), ValueCheck.extraPlaceholders(fr, en))
+        assertEquals(emptySet<String>(), ValueCheck.extraPlaceholders("{g, select, male {il} other {iel}}", "{g, select, male {he} other {they}}"))
+        assertEquals(emptySet<String>(), ValueCheck.extraPlaceholders("{p, selectordinal, one {premier} other {#e}}", "{p, selectordinal, one {first} other {#th}}"))
+    }
+
+    @Test
+    fun `a placeholder inside a longer ICU form or outside the block is still compared`() {
+        assertEquals(setOf("{name}"), ValueCheck.missingPlaceholders("{n, plural, other {# éléments pour {nom}}}", "{n, plural, other {# items for {name}}}"))
+        assertEquals(setOf("{user}"), ValueCheck.missingPlaceholders("{n, plural, =0 {rien} other {#}} {x}", "{n, plural, =0 {none} other {#}} {user}"))
+        assertEquals(setOf("{name}"), ValueCheck.missingPlaceholders("{g, select, other {{nom}}}", "{g, select, other {{name}}}"))
+    }
+
+    @Test
+    fun `run accepts translated one-word ICU forms`() {
+        val problems = ValueCheck.run(mapOf("a" to mapOf("en" to "{n, plural, =0 {none} other {# items}}", "fr" to "{n, plural, =0 {rien} other {# éléments}}")), "en")
+        assertEquals(emptyList<ValueProblem>(), problems["fr"])
+    }
+
+    @Test
     fun `tags are compared as a multiset, in any order`() {
         assertEquals(emptySet<String>(), ValueCheck.missingTags("<b>a</b> <1>b</1>", "<1>b</1> <b>a</b>"))
         assertEquals(setOf("<br/>"), ValueCheck.missingTags("a <br/>", "a <br/> b <br/>"))
