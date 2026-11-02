@@ -609,6 +609,20 @@ class I18nCheckTest {
     }
 
     @Test
+    fun `code - a key kept in a constant counts, imported or not, and an unknown one is reported at the call`(@TempDir project: Path) {
+        fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }
+        write("locales/en/common.json", """{"actions": {"save": "Save"}, "page": {"home": "Home"}, "unused": "Unused"}""")
+        write("src/keys.ts", "export const KEYS = { save: 'actions.save', gone: 'actions.gone' } as const;\n")
+        write("src/App.tsx", "import { KEYS } from './keys';\nenum Titles { Home = 'page.home' }\nconst { t } = useTranslation('common');\nt(KEYS.save);\nt(Titles.Home);\nt(KEYS.gone);\n")
+
+        val report = JsonParser.parseString(check(project.toString(), "--code", "--format", "json").out).asJsonObject
+        assertEquals(listOf("common:unused"), report["unused"].asJsonArray.map { it.asString })
+        val unknown = report["unknown"].asJsonArray.single().asJsonObject
+        assertEquals("actions.gone", unknown["key"].asString)
+        assertEquals(6, unknown["line"].asInt)
+    }
+
+    @Test
     fun `code - next-intl's has asks whether a key exists, it is never unknown`(@TempDir project: Path) {
         Files.writeString(project.resolve("en.json"), """{"Nav": {"home": "Home"}}""")
         Files.writeString(project.resolve("Nav.tsx"), "export function Nav() { const t = useTranslations('Nav'); return t.has('beta') ? t('beta') : t('home'); }")
