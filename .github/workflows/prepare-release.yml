@@ -53,7 +53,9 @@ jobs:
 
       - name: Open PR into main
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # A PR opened with GITHUB_TOKEN triggers no workflow: its CI run is created with no job
+          # and ends as a failure when the PR is merged. The PAT makes the CI run on the release PR.
+          GH_TOKEN: ${{ secrets.GH_PAT }}
           VERSION: ${{ inputs.version }}
         run: |
           gh pr create \
