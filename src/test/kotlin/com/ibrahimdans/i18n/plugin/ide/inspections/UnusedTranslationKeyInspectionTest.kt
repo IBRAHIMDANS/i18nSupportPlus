@@ -256,6 +256,23 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
         assertEquals(listOf("home", "about"), unusedIn("locales/en/common.json"))
     }
 
+    /**
+     * `t([`common:errors.${code}`, 'common:fallback.unknown'])`: the fallback key is used though no call
+     * names it first, and the template's head reaches `errors.*`; only `spare` is unused.
+     */
+    @Test
+    fun testKeysOfAKeyArrayNotFlagged() {
+        myFixture.addFileToProject(
+            "locales/en/common.json",
+            """{"errors": {"timeout": "Timeout"}, "fallback": {"unknown": "Unknown error", "spare": "Spare"}}"""
+        )
+        myFixture.addFileToProject(
+            "src/Error.js",
+            "export const message = (t, code) => t([`common:errors.\${code}`, 'common:fallback.unknown']);"
+        )
+        assertEquals(listOf("spare"), unusedIn("locales/en/common.json"))
+    }
+
     @Test
     fun testSameNamedPropertyOfAnUnrelatedJsonFileIsNotAUsage() {
         myFixture.addFileToProject("locales/en/common.json", """{"title": "Title", "home": "Home"}""")
