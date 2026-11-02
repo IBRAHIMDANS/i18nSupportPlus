@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.diagnostic
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.diagnostic.ErrorReportSubmitter
 import com.intellij.openapi.diagnostic.IdeaLoggingEvent
 import com.intellij.openapi.diagnostic.SubmittedReportInfo
@@ -187,25 +188,26 @@ class GitHubErrorReportSubmitterTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `the texts and the plugin are the Marketplace's`() {
+    fun `the texts are the plugin's own and the plugin is passed on to the Marketplace`() {
         val marketplace = Marketplace(SubmissionStatus.NEW_ISSUE)
         val submitter = submitter(marketplace)
         val plugin = mockk<PluginDescriptor>(relaxed = true)
 
         submitter.pluginDescriptor = plugin
 
-        assertEquals("Report to JetBrains Marketplace", submitter.reportActionText)
-        assertEquals("Marketplace privacy notice", submitter.privacyNoticeText)
+        assertEquals(PluginBundle.message("error.report.marketplace.action"), submitter.reportActionText)
+        assertTrue(submitter.privacyNoticeText.contains("exception_analyzer.html"), "the Marketplace agreement is linked")
         assertSame(plugin, marketplace.pluginDescriptor, "the Marketplace report is filed under this plugin")
     }
 
     @Test
-    fun `the plugin's own submitter delegates to the JetBrains Marketplace`() {
-        val submitter = GitHubErrorReportSubmitter()
+    fun `the issue names the version of the plugin's descriptor`() {
+        val submitter = submitter(Marketplace(SubmissionStatus.NEW_ISSUE))
+        submitter.pluginDescriptor = mockk<PluginDescriptor>(relaxed = true) { io.mockk.every { version } returns "9.8.7" }
 
-        assertEquals(
-            com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter().reportActionText,
-            submitter.reportActionText
-        )
+        submit(submitter)
+
+        val body = URLDecoder.decode(offers.single().url.substringAfter("&body="), StandardCharsets.UTF_8)
+        assertTrue(body.contains("| Plugin version | 9.8.7 |"))
     }
 }

@@ -44,13 +44,21 @@ class GitHubErrorReportSubmitter internal constructor(
 
     constructor() : this(JetBrainsMarketplaceErrorReportSubmitter(), ::offerIssue)
 
-    override fun getReportActionText(): String = marketplace.reportActionText
+    /**
+     * The plugin's own texts: reading the Marketplace submitter's, or this one's descriptor through
+     * `getPluginDescriptor`, calls override-only methods, which the Plugin Verifier rejects.
+     */
+    override fun getReportActionText(): String = PluginBundle.message("error.report.marketplace.action")
 
-    override fun getPrivacyNoticeText(): String? = marketplace.privacyNoticeText
+    override fun getPrivacyNoticeText(): String = PluginBundle.message("error.report.marketplace.privacy")
+
+    /** Kept for the issue's plugin version. */
+    private var descriptor: PluginDescriptor? = null
 
     /** Passed on, so that the Marketplace report is filed under this plugin. */
     override fun setPluginDescriptor(plugin: PluginDescriptor) {
         super.setPluginDescriptor(plugin)
+        descriptor = plugin
         marketplace.setPluginDescriptor(plugin)
     }
 
@@ -77,7 +85,7 @@ class GitHubErrorReportSubmitter internal constructor(
     }
 
     private fun environment() = ErrorIssue.Environment(
-        pluginVersion = pluginDescriptor?.version ?: PluginVersion.current.orEmpty(),
+        pluginVersion = descriptor?.version ?: PluginVersion.current.orEmpty(),
         ide = ApplicationInfo.getInstance().let { "${it.fullApplicationName} (${it.build.asString()})" },
         os = "${SystemInfo.OS_NAME} ${SystemInfo.OS_VERSION} (${SystemInfo.OS_ARCH})",
     )
