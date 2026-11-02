@@ -165,4 +165,21 @@ class PropertiesLocalizationTest : PlatformBaseTest() {
         Assertions.assertTrue(messages.any { it.contains("{0}") }, "$messages")
         Assertions.assertTrue(messages.any { it.contains("{1}") }, "$messages")
     }
+
+    /** Two bundles in one folder: `errors_fr` is compared to `errors`, not to nothing nor to `messages`. */
+    @Test
+    fun eachBundleOfAFolderIsComparedToItsOwnReference() {
+        addBundle()
+        myFixture.addFileToProject("$DIR/errors.properties", "error.missing=Missing {0}\n")
+        myFixture.addFileToProject("$DIR/errors_fr.properties", "error.missing=Manquant {1}\n")
+        myFixture.enableInspections(PlaceholderConsistencyInspection())
+
+        myFixture.configureFromTempProjectFile("$DIR/errors_fr.properties")
+        val errors = myFixture.doHighlighting().mapNotNull { it.description }
+        myFixture.configureFromTempProjectFile("$DIR/messages_fr.properties")
+        val messages = myFixture.doHighlighting().mapNotNull { it.description }
+
+        Assertions.assertTrue(errors.any { it.contains("{0}") }, "$errors")
+        Assertions.assertTrue(messages.any { it.contains("{0}") } && messages.any { it.contains("{1}") }, "$messages")
+    }
 }

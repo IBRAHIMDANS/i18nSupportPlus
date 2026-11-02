@@ -85,10 +85,21 @@ internal object TranslationFileScope {
         return ReferenceLocale.of(module, config, labels) ?: ReferenceLocale.wanted(module, config)
     }
 
-    /** [source]'s path with its locale replaced by a placeholder. */
+    /**
+     * [source]'s path with its locale replaced by a placeholder.
+     *
+     * A source whose format declares both its locale and its namespace (`errors_fr.properties` beside
+     * `messages_fr.properties`, a module template's `locales/{ns}/{lang}.json`) is shaped by its folder
+     * and namespace: its file name spells the locale its own way, which the placeholder cannot replace.
+     */
     private fun shapeOf(source: LocalizationSource): String {
         val locale = source.localeLabel()
         val segments = source.displayPath.split('/').toMutableList()
+        val namespace = source.namespace
+        if (source.locale != null && namespace != null) {
+            val folder = segments.dropLast(1).map { if (it == locale) LOCALE_PLACEHOLDER else it }
+            return (folder + "#$namespace").joinToString("/")
+        }
         if (source.isLocaleNamedFile()) {
             segments[segments.lastIndex] = LOCALE_PLACEHOLDER + "." + segments.last().substringAfterLast('.')
         } else {
