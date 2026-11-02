@@ -1,9 +1,11 @@
 package com.ibrahimdans.i18n.extensions.lang.js
 
+import com.ibrahimdans.i18n.extensions.technology.angulari18n.AngularI18nMarkers
 import com.ibrahimdans.i18n.extensions.technology.transloco.TranslocoScopes
 import com.ibrahimdans.i18n.plugin.factory.MessageVariable
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.utils.ModulePresets
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.openapi.util.TextRange
@@ -60,7 +62,9 @@ internal object AngularMarkup : MarkupDialect {
  *  - `placeholder="Name"` becomes `[placeholder]="'name' | translate"`.
  *
  * The library is the module's preset; without one, Transloco when the project depends on it
- * ([TranslocoScopes.isTransloco]), ngx-translate otherwise.
+ * ([TranslocoScopes.isTransloco]), ngx-translate otherwise. With Angular's own i18n — its preset, or an
+ * `angular.json` listing translations — the text is marked instead, `<p i18n="@@save">Save</p>`
+ * ([AngularI18nMarkers]).
  */
 internal class AngularTemplateTextExtractor : TranslationExtractor {
 
@@ -70,7 +74,14 @@ internal class AngularTemplateTextExtractor : TranslationExtractor {
 
     override fun text(element: PsiElement): String = MarkupTexts.of(element, AngularMarkup)?.text.orEmpty()
 
-    override fun textRange(element: PsiElement): TextRange = MarkupTexts.of(element, AngularMarkup)?.range ?: element.textRange
+    override fun textRange(element: PsiElement): TextRange {
+        val text = MarkupTexts.of(element, AngularMarkup) ?: return element.textRange
+        return if (marksNatively(element)) AngularI18nMarkers.of(text).range else text.range
+    }
+
+    /** Angular's own i18n leaves the interpolations in the template: `ng extract-i18n` writes their placeholders. */
+    override fun refusal(element: PsiElement): String? =
+        PluginBundle.message("extract.angular.i18n.interpolation").takeIf { variables(element).isNotEmpty() && marksNatively(element) }
 
     override fun variables(element: PsiElement): List<MessageVariable> =
         (MarkupTexts.of(element, AngularMarkup) as? MarkupText.Content)?.variables.orEmpty()
@@ -84,6 +95,10 @@ internal class AngularTemplateTextExtractor : TranslationExtractor {
     override fun call(element: PsiElement): (argument: String, variables: List<MessageVariable>) -> String {
         val pipe = pipeOf(element)
         val escape = hostEscaper(element)
+        if (marksNatively(element)) {
+            val marking = MarkupTexts.of(element, AngularMarkup)?.let(AngularI18nMarkers::of)
+            if (marking != null) return { argument, _ -> marking.write(AngularI18nMarkers.idOf(argument), escape) }
+        }
         val attribute = (MarkupTexts.of(element, AngularMarkup) as? MarkupText.Attribute)?.attribute
         if (attribute != null) return { argument, _ -> escape("[${attribute.name}]=\"$argument | $pipe\"") }
         return { argument, variables ->
@@ -102,6 +117,8 @@ internal class AngularTemplateTextExtractor : TranslationExtractor {
         val quote = host?.text?.firstOrNull()?.takeIf { it == '\'' || it == '"' } ?: return { it }
         return { call -> call.replace("\\", "\\\\").replace("$quote", "\\$quote") }
     }
+
+    private fun marksNatively(element: PsiElement): Boolean = AngularI18nMarkers.applies(element, ModulePresets.presetOf(element))
 
     private fun pipeOf(element: PsiElement): String = when (ModulePresets.presetOf(element)) {
         TRANSLOCO -> TRANSLOCO

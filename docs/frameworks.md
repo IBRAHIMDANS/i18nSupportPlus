@@ -56,9 +56,16 @@ message file, in the frontmatter and in template expressions. A ready-to-open pr
 A locale's file reads each unit's `<target>`, the reference its `<source>`: a unit without a target is missing in that
 locale, and *Fill Missing Translations…*, *Sync Keys* and the translation dialog write it after the unit's source, or
 create the unit with the reference's source. An XLIFF file `angular.json` does not list, such as an export, is no
-source. Tested: annotation of both markers, completion in a template's marker, Ctrl+click from either marker to its
-units and from a unit's `id` to the code, the tool window and the missing-key checks. Not tested: folding and inlay
-hints. Not done: extracting a text into a new id, renaming an id. A ready-to-open project:
+source. Extracting a template's text marks it with its id and adds the unit: `<p>Save</p>` becomes
+`<p i18n="@@save">Save</p>`, an attribute gains `i18n-placeholder="@@id"`, a text outside any tag is wrapped in
+`<ng-container i18n="@@id">`; a text holding interpolations is left to `ng extract-i18n`, which writes their
+placeholders. This is the extraction's form in a module whose preset is *Angular i18n*, and without a preset in a project
+whose `angular.json` lists translations and that does not use Transloco. Shift+F6 on an id — in a marker, a
+`$localize` or a unit's `id` — renames it whole, dots included, in every marker and every XLIFF file; an id another
+unit has is refused. The setup wizard proposes the *Angular i18n* preset for an `angular.json` listing translations or a
+dependency on `@angular/localize`. Tested: annotation of both markers, completion in a template's marker, Ctrl+click
+from either marker to its units and from a unit's `id` to the code, the tool window, the missing-key checks, the
+extraction and the rename. Not tested: folding and inlay hints. A ready-to-open project:
 [examples/angular-native-i18n](../examples/angular-native-i18n/README.md).
 
 ## Supported Languages
