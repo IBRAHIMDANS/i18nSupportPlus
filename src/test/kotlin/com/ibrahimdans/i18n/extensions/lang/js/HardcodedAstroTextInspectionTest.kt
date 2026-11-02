@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.extensions.lang.js
 import com.ibrahimdans.i18n.plugin.ide.actions.ExtractionTestBase
 import com.ibrahimdans.i18n.plugin.ide.launchActionAndWait
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.ui.TestDialogManager.setTestInputDialog
@@ -93,9 +94,41 @@ class HardcodedAstroTextInspectionTest : ExtractionTestBase() {
         Assertions.assertEquals("t", AstroMarkupTextExtractor.functionOf("import { useTranslations } from '../i18n/utils';"))
     }
 
-    private fun extract(component: String, key: String): String {
+    /** Without a preset, a component importing Paraglide's message object gets its calls and its `{name}` placeholders. */
+    @Test
+    fun aComponentImportingParaglideGetsMessageCalls() {
+        val written = extract(paraglideImport + "<p>Hel<caret>lo {user.name}!</p>", "test:ref.greeting")
+        myFixture.checkResult(paraglideImport + "<p>{m[\"test:ref.greeting\"]({ name: user.name })}</p>")
+        Assertions.assertTrue(written.contains("\"Hello {name}!\""), written)
+    }
+
+    @Test
+    fun aComponentImportingParaglideBindsAnAttributeToAMessageCall() {
+        extract(paraglideImport + """<input placeholder="Your na<caret>me">""", "test:ref.name")
+        myFixture.checkResult(paraglideImport + """<input placeholder={m["test:ref.name"]()}>""")
+    }
+
+    private val paraglideImport = "---\nimport { m } from '../paraglide/messages.js';\nconst user = { name: 'x' };\n---\n"
+
+    /** Under the `paraglide` preset, the message object is imported in the frontmatter when the component lacks it. */
+    @Test
+    fun theParaglidePresetImportsTheMessageObject() {
+        extract("---\nconst title = 'x';\n---\n<button>Sa<caret>ve</button>", "save", preset = "paraglide")
+        myFixture.checkResult("---\nimport { m } from './paraglide/messages.js';\nconst title = 'x';\n---\n<button>{m.save()}</button>")
+    }
+
+    /** A preset naming a library Astro has no binding for falls back to i18next's `t` and `{{name}}`. */
+    @Test
+    fun aPresetWithoutAstroBindingKeepsI18next() {
+        val written = extract(frontmatter + "<p>Hel<caret>lo {user.name}!</p>", "test:ref.greeting", preset = "vue-i18n")
+        myFixture.checkResult(frontmatter + "<p>{t('test:ref.greeting', { name: user.name })}</p>")
+        Assertions.assertTrue(written.contains("\"Hello {{name}}!\""), written)
+    }
+
+    private fun extract(component: String, key: String, preset: String? = null): String {
         var written = ""
-        myFixture.runWithConfig(config("json")) {
+        val modules = listOfNotNull(preset?.let { ModuleConfig(name = "app", rootDirectory = "src", preset = it) })
+        myFixture.runWithConfig(config("json").copy(modules = modules)) {
             myFixture.enableInspections(HardcodedAstroTextInspection::class.java)
             myFixture.configureByText("Page.astro", component)
             myFixture.addFileToProject("assets/test.json", """{"ref": {}}""")
