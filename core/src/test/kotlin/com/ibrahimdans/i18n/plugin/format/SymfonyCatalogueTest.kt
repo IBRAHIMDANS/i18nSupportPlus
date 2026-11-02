@@ -1,4 +1,4 @@
-package com.ibrahimdans.i18n.extensions.technology.symfony
+package com.ibrahimdans.i18n.plugin.format
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
