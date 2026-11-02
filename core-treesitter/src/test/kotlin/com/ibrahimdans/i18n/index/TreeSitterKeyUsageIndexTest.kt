@@ -1,5 +1,7 @@
 package com.ibrahimdans.i18n.index
 
+import com.ibrahimdans.i18n.extract.laravel.LaravelSource
+import com.ibrahimdans.i18n.extract.laravel.laravelExtractors
 import com.ibrahimdans.i18n.plugin.KeyUsage
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.utils.TextSpan
@@ -203,6 +205,18 @@ class TreeSitterKeyUsageIndexTest {
         val index = TreeSitterKeyUsageIndex()
         val millis = measureTimeMillis { files.forEach { (path, text) -> index.update(path, text) } }
         println("Indexed ${files.size} files, ${files.sumOf { it.second.length }} chars, in $millis ms")
+    }
+
+    @Test
+    fun `a phrase with an empty level, read unsplit, is used and known as written`() {
+        val index = TreeSitterKeyUsageIndex(extractors = laravelExtractors(":", ".")).apply {
+            update("page.php", LaravelSource.codeOf("<?php echo __('Saved.') . __('Gone.') . __('messages.welcome');"))
+        }
+        val keys = listOf("Saved.", "messages:welcome")
+
+        assertEquals(1, index.usages("Saved.").size)
+        assertEquals(1, index.usages("messages:welcome").size)
+        assertEquals(listOf("Gone."), index.unknownUsages(keys).map { it.key })
     }
 
     private companion object {

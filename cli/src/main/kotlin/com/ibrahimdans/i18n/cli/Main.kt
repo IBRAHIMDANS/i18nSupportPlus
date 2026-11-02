@@ -85,7 +85,7 @@ object I18nCheck {
 
           project              the project checked, where .idea/i18nSettings.xml is read from (default: the current directory)
           --locales <dir>      only check the directory holding <locale>.json|yml or <locale>/<namespace>.json|yml
-          --code               also report the keys the code (i18next, next-intl, vue-i18n, Transloco, ngx-translate, react-intl, Lingui) never uses, and those it uses but the reference lacks
+          --code               also report the keys the code (i18next, next-intl, vue-i18n, Transloco, ngx-translate, react-intl, Lingui, svelte-i18n, Laravel) never uses, and those it uses but the reference lacks
           --reference <locale> the locale the others are compared to (default: the module's or the settings', then en)
           --format text|json|github
                                the report's format (default: text); github prints GitHub Actions annotations

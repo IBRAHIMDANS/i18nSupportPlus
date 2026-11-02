@@ -14,3 +14,6 @@ fun reactIntlExtractors(): List<CodeKeyExtractor> = listOf(ruleExtractor(Framewo
 
 /** Lingui: `msg`, `i18n._` from its preset, and the source-text `<Trans>` the macro catalogues under its own msgid. */
 fun linguiExtractors(): List<CodeKeyExtractor> = listOf(ruleExtractor(FrameworkPresets.LINGUI), LinguiTransMsgidExtractor())
+
+/** svelte-i18n: `$_('key')`, its aliases `$t` and `$format`, `$_({ id })` and `$json('key')`, from its preset; `_` and `$t` once the file imports `svelte-i18n`. */
+fun svelteI18nExtractors(): List<CodeKeyExtractor> = listOf(ruleExtractor(FrameworkPresets.SVELTE_I18N))

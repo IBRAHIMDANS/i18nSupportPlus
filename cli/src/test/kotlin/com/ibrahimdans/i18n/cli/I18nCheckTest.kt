@@ -536,6 +536,54 @@ class I18nCheckTest {
         assertTrue(run.out.contains("Unknown keys: 1\n  src/app/app.component.html:18  home.doesNotExist"), run.out)
     }
 
+    /** What the plugin underlines in the svelte-i18n example: `$_`, `$t`, `$format` and `$json` in scripts and markup, `$_` unwrapped in a `.ts`. */
+    @Test
+    fun `code - svelte-i18n example, components' scripts and markup read`() {
+        val project = "../examples/svelte-i18n"
+        val run = check(project, "--code")
+        assertTrue(run.out.contains("missing  only_in_english"), run.out)
+        assertTrue(run.out.contains("Unused keys: none"), run.out)
+        assertTrue(
+            run.out.contains("Unknown keys: 1\n  src/App.svelte:${lineOf(project, "src/App.svelte", "\"does.not.exist\"")}  does.not.exist"),
+            run.out,
+        )
+    }
+
+    /**
+     * What the plugin underlines in the Laravel example: helpers, the translator and Blade's directives,
+     * a file's key under its file's namespace, a JSON phrase whole. The package override stays unused:
+     * the call names it `courier::messages.sent`, the loaded files `messages:sent`.
+     */
+    @Test
+    fun `code - laravel example, PHP calls and Blade views read`() {
+        val project = "../examples/laravel"
+        val run = check(project, "--code")
+        assertTrue(run.out.contains("Unused keys: 1\n  messages:sent\n"), run.out)
+        assertTrue(
+            run.out.contains(
+                """
+                Unknown keys: 3
+                  app/Http/Controllers/HomeController.php:${lineOf(project, "app/Http/Controllers/HomeController.php", "'messages.does_not_exist'")}  messages.does_not_exist
+                  resources/views/cart.blade.php:${lineOf(project, "resources/views/cart.blade.php", "'messages.cart.lines'")}  messages.cart.lines
+                  resources/views/welcome.blade.php:${lineOf(project, "resources/views/welcome.blade.php", "'messages.not_in_any_file'")}  messages.not_in_any_file
+                """.trimIndent(),
+            ),
+            run.out,
+        )
+    }
+
+    @Test
+    fun `code - php files are read in a Laravel project only`(@TempDir project: Path) {
+        fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }
+        write("lang/en.json", """{"Hello": "Hello"}""")
+        write("app/page.php", "<?php echo __('Hello');")
+        fun unused() = JsonParser.parseString(check(project.toString(), "--code", "--format", "json").out).asJsonObject["unused"].asJsonArray.map { it.asString }
+
+        assertEquals(listOf("Hello"), unused())
+        write("composer.json", """{"require": {"laravel/framework": "^13.0"}}""")
+        assertEquals(emptyList<String>(), unused())
+    }
+
     @Test
     fun `code - a html file is read as a template in an Angular project only`(@TempDir project: Path) {
         fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }

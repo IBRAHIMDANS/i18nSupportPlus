@@ -95,7 +95,7 @@ class TreeSitterKeyUsageIndex(
     override fun usages(key: String): List<KeyUsage> {
         val namespace = KeySpelling.namespaceOf(key)
         val path = pathOf(key)
-        val own = byPath[path].orEmpty()
+        val own = pathsOf(key).flatMap { byPath[it].orEmpty() }
         val variantOf = variantOf(path)?.let { (basePath, context) ->
             byPath[basePath].orEmpty().filter { it.path == basePath && ContextKey.reads(it.context, context) }
         }.orEmpty()
@@ -105,6 +105,17 @@ class TreeSitterKeyUsageIndex(
     /** The segments of [key], plural suffix stripped: the path a call writes for it. */
     private fun pathOf(key: String): List<String> =
         KeySpelling.segmentsOf(PluralKey.stripSuffix(key, config.pluralSeparator), config)
+
+    /**
+     * The paths a call may write for [key]: its [pathOf], and for a key with an empty level — a
+     * Laravel JSON phrase ending with the separator, `Saved.` — the whole key as one level too,
+     * the one a call reading it unsplit writes.
+     */
+    private fun pathsOf(key: String): List<List<String>> {
+        val path = pathOf(key)
+        if (path.size < 2 || path.none { it.isEmpty() }) return listOf(path)
+        return listOf(path, listOf(KeySpelling.pathOf(PluralKey.stripSuffix(key, config.pluralSeparator))))
+    }
 
     /**
      * The base path and context of a [path] spelled as a context variant, `friend_male` → `friend`
@@ -142,7 +153,7 @@ class TreeSitterKeyUsageIndex(
         for (key in keys) {
             val path = pathOf(key)
             val namespace = KeySpelling.namespaceOf(key)
-            for (depth in 1..path.size) known.getOrPut(path.subList(0, depth)) { mutableSetOf() } += namespace
+            for (written in pathsOf(key)) for (depth in 1..written.size) known.getOrPut(written.subList(0, depth)) { mutableSetOf() } += namespace
             variantOf(path)?.let { (basePath, context) -> variants.getOrPut(basePath) { mutableSetOf() } += context to namespace }
         }
         return files.values.flatten()
