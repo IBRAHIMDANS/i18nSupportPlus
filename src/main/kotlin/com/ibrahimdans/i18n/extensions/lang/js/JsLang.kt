@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.*
 import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
+import com.ibrahimdans.i18n.plugin.ide.settings.FrameworkDetector
 import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
@@ -206,6 +207,7 @@ private fun frameworkOf(extractor: KeyExtractor): String? = when (extractor) {
     is ParaglideMessageExtractor -> "paraglide"
     is TypesafeI18nExtractor -> "typesafe-i18n"
     is NextIntlMethodExtractor -> "next-intl"
+    is AngularI18nAttributeExtractor, is LocalizeTaggedTemplateExtractor -> FrameworkDetector.ANGULAR_I18N
     is XmlAttributeKeyExtractor -> "i18next"
     else -> null
 }

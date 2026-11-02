@@ -81,4 +81,23 @@ class FrameworkDetectorTest {
         assertEquals("{ns}.{key}", layout.keyTemplate)
         assertTrue("laravel" in FrameworkDetector.LABELS, "offered by the wizard and by the module presets")
     }
+
+    /** Angular's own i18n: the projects of an `angular.json` listing their translations, `sourceLocale` an object or not. */
+    @Test
+    fun `an angular json listing translations is Angular's own i18n`() {
+        val angularJson = """
+            { "projects": { "shop": {
+              "i18n": { "sourceLocale": { "code": "en-US", "baseHref": "" }, "locales": { "fr": "src/locale/messages.fr.xlf" } },
+              "architect": { "build": { "options": { "localize": true } } } } } }
+        """.trimIndent()
+        assertEquals(setOf(FrameworkDetector.ANGULAR_I18N), FrameworkDetector.detect(angularJson))
+        assertTrue(FrameworkDetector.ANGULAR_I18N in FrameworkDetector.LABELS, "offered by the wizard and by the module presets")
+    }
+
+    /** `sourceLocale` alone sets the locale data of an app another library translates, ngx-translate's here. */
+    @Test
+    fun `an angular json setting only its source locale is not Angular's own i18n`() {
+        assertTrue(FrameworkDetector.detect("""{ "projects": { "shop": { "i18n": { "sourceLocale": "fr" } } } }""").isEmpty())
+        assertTrue(FrameworkDetector.detect(packageJson("@angular/core", "@angular/common")).isEmpty())
+    }
 }

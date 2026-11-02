@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.extensions.technology.angulari18n.AngularI18nIdRename
 import com.ibrahimdans.i18n.extensions.localization.plain.`object`.PlainObjectTextTree
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
 import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
@@ -70,10 +71,12 @@ class RenameI18nKeyHandler : RenameHandler {
         val editor = CommonDataKeys.EDITOR.getData(dataContext) ?: return false
         val psiFile = CommonDataKeys.PSI_FILE.getData(dataContext) ?: return false
         return findI18nReference(editor, psiFile) != null || paraglideMessage(editor, psiFile) != null ||
-            levelInTranslationFile(editor, psiFile) != null
+            levelInTranslationFile(editor, psiFile) != null || AngularI18nIdRename.idAt(editor, psiFile) != null
     }
 
     override fun invoke(project: Project, editor: Editor, file: PsiFile, dataContext: DataContext) {
+        // An Angular message id is one key, renamed whole in the markers and the XLIFF units.
+        AngularI18nIdRename.idAt(editor, file)?.let { return AngularI18nIdRename.rename(project, it) }
         // Paraglide's `m.hello` holds no I18nReference: its key is renamed as the leaf it names.
         paraglideMessage(editor, file)?.let { return renameLevel(project, it, leaf = true) }
         val config = Settings.getInstance(project).config()

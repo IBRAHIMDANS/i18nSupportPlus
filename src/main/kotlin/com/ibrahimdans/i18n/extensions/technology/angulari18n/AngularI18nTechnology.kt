@@ -8,6 +8,7 @@ import com.ibrahimdans.i18n.extensions.localization.xliff.XliffFileType
 import com.ibrahimdans.i18n.extensions.localization.xliff.XliffLocalization
 import com.ibrahimdans.i18n.extensions.localization.xliff.XliffRole
 import com.ibrahimdans.i18n.extensions.localization.xliff.XliffTree
+import com.ibrahimdans.i18n.plugin.ide.settings.FrameworkDetector
 import com.ibrahimdans.i18n.plugin.utils.pathToRoot
 import com.ibrahimdans.i18n.plugin.utils.project
 import com.intellij.openapi.application.runReadAction
@@ -38,6 +39,8 @@ import com.intellij.psi.util.CachedValuesManager
 class AngularI18nTechnology : Technology {
 
     override fun translationFunctionNames(): List<String> = emptyList()
+
+    override fun frameworkId(): String = FrameworkDetector.ANGULAR_I18N
 
     override fun initialize(workspace: Workspace) {}
 
