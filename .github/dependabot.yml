@@ -17,6 +17,13 @@ updates:
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "org.snakeyaml:snakeyaml-engine"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # The `uiTest` source set pins these to the dependencies of IDE Starter (`uiTestStarterVersion`
+      # in build.gradle.kts): they move with it, by hand. JUnit's are shared with the unit tests,
+      # which then take JUnit updates by hand too.
+      - dependency-name: "org.kodein.di:kodein-di-jvm"
+      - dependency-name: "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm"
+      - dependency-name: "org.junit.jupiter:junit-jupiter-api"
+      - dependency-name: "org.junit.jupiter:junit-jupiter-engine"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
