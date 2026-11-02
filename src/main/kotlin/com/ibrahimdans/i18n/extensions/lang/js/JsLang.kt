@@ -108,6 +108,8 @@ open class JsLang : Lang {
         // A module preset keeps its framework's calls only; a rule including a call still wins.
         val preset = ModulePresets.presetOf(element)
         if (activeExtractors(preset).any { it.canExtract(element) }) return true
+        // A branch of `const titleKey = cond ? 'a' : 'b'` passed as `t(titleKey)`: the call stands for two keys.
+        if (ConstantKeyResolver.declarationArgument(element, annotatedOnly = true) != null) return true
         // Claiming `id` is not enough: the descriptor's other properties would still reach
         // the generic path below, which matches any string literal of a first-argument
         // object — reporting `defaultMessage` as an unresolved key.
@@ -164,6 +166,9 @@ open class JsLang : Lang {
 
     override fun extractRawKey(element: PsiElement): RawKey? {
         activeExtractors(ModulePresets.presetOf(element)).firstOrNull { it.canExtract(element) }?.let { return it.extract(element) }
+        // `t(SAVE_KEY)`, `t(KEYS.save)`, `t(Keys.Save)`; before the literal extractors, which would read a
+        // conditional's branch without its call.
+        (ConstantKeyResolver.callKey(element) ?: ConstantKeyResolver.declarationKey(element, annotatedOnly = true))?.let { return it }
         return listOf(
                     ReactUseTranslationHookExtractor(),
                     TemplateKeyExtractor(),

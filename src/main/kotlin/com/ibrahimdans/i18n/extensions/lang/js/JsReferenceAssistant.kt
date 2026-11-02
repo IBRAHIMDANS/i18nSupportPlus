@@ -114,13 +114,13 @@ internal class JsReferenceAssistant: ReferenceAssistant {
             override fun accepts(o: Any?): Boolean {
                 return JSPatterns.jsLiteralExpression().accepts(o) && isAlias(o as JSLiteralExpression)
                     || (v.accepts(o) && (o !is PsiElement || isDirectOrConfiguredCall(o)))
-                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o) || isReactIntlId(o) || isNextIntlMethodKey(o) || isSvelteI18nKey(o) || isTranslocoKey(o)))
+                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o) || isReactIntlId(o) || isNextIntlMethodKey(o) || isSvelteI18nKey(o) || isTranslocoKey(o) || isConstantKey(o)))
             }
 
             override fun accepts(o: Any?, context: ProcessingContext?): Boolean {
                 return JSPatterns.jsLiteralExpression().accepts(o) && isAlias(o as JSLiteralExpression)
                     || (v.accepts(o, context) && (o !is PsiElement || isDirectOrConfiguredCall(o)))
-                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o) || isReactIntlId(o) || isNextIntlMethodKey(o) || isSvelteI18nKey(o) || isTranslocoKey(o)))
+                    || (o is PsiElement && (isLiteralInTernaryArg(o) || isRuleIncludedArgument(o) || isReactIntlId(o) || isNextIntlMethodKey(o) || isSvelteI18nKey(o) || isTranslocoKey(o) || isConstantKey(o)))
             }
 
             override fun getCondition(): ElementPatternCondition<PsiElement>? {
@@ -137,8 +137,17 @@ internal class JsReferenceAssistant: ReferenceAssistant {
 
     private fun isTranslocoKey(element: PsiElement): Boolean = activeExtractorOf(TRANSLOCO, element) != null
 
+    /**
+     * The literal of `const SAVE_KEY = 'common:save'`, `{ save: '…' } as const` or `enum { Save = '…' }`
+     * once a translation call is passed the constant: *Find Usages* finds it, Shift+F6 rewrites it once.
+     * The call itself holds no reference — Shift+F6 there would rewrite `KEYS.save`.
+     */
+    private fun isConstantKey(element: PsiElement): Boolean = ConstantKeyResolver.declarationArgument(element) != null
+
     /** Parsed like the annotator parses it — a module's key template included — so both agree on the key. */
     override fun extractKey(element: PsiElement): FullKey? {
+        // Read at the call passing the constant, under its hook's namespace.
+        ConstantKeyResolver.declarationKey(element)?.let { return RawKeyParser(element.project).parse(it, element) }
         val extractor = activeExtractorOf(REACT_INTL_EXTRACTORS + NEXT_INTL_METHODS + SVELTE_I18N + TRANSLOCO, element)
             ?: listOf(
                 ReactUseTranslationHookExtractor(),
