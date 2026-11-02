@@ -213,7 +213,7 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
                     } else if (element != null) {
                         // Key partially resolved — generate missing chain
                         if (generator.isSuitable(element.value())) {
-                            generator.generate(element.value(), fullKey, ref.unresolved, value)
+                            generator.generate(element.value(), fullKey, element.pathToCreate(ref.unresolved), value)
                         }
                     }
                 }

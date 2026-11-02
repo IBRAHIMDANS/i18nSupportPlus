@@ -153,7 +153,7 @@ class CreateKeyQuickFix(
     private fun createPropertyInFile(target: LocalizationSource, translationValue: String): Boolean {
         val ref = resolveCompositeKey(fullKey.compositeKey, target) ?: return false
         val element = ref.element ?: return false
-        createPropertiesChain(element.value(), ref.unresolved, target.localization.contentGenerator(), translationValue)
+        createPropertiesChain(element.value(), element.pathToCreate(ref.unresolved), target.localization.contentGenerator(), translationValue)
         return true
     }
 

@@ -34,7 +34,7 @@ class CreateMissingKeysQuickFix(
             CommandProcessor.getInstance().executeCommand(
                 project,
                 {ApplicationManager.getApplication().runWriteAction {
-                    localization.contentGenerator().generate(element.value(), fullKey, ref.unresolved, fullKey.source) }
+                    localization.contentGenerator().generate(element.value(), fullKey, element.pathToCreate(ref.unresolved), fullKey.source) }
                 },
                 commandCaption,
                 UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION
