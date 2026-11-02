@@ -12,8 +12,8 @@ class LaravelSourceTest {
     private val root = File("..").canonicalFile
 
     /** `line: key` for each key of [text], read as `i18n-check` reads a PHP file or a Blade view, under the default separators. */
-    private fun keysOf(text: String): List<String> {
-        val code = LaravelSource.codeOf(text)
+    private fun keysOf(text: String, packageScopes: Set<String> = emptySet()): List<String> {
+        val code = LaravelSource.codeOf(text, packageScopes)
         assertEquals(text.length, code.length, "the code keeps the file's offsets")
         val tree = TreeSitterCodeNode.parseTsx(code)
         assertFalse(tree.hasError, "the code parses: $code")
@@ -68,6 +68,17 @@ class LaravelSourceTest {
         """.trimIndent()
 
         assertEquals(emptyList<String>(), keysOf(php))
+    }
+
+    /** A package's key is kept, as written, for a file the project overrides: the other packages' keys stay out. */
+    @Test
+    fun `package keys kept for an overridden file only`() {
+        val php = """
+            <?php
+            __('courier::messages.sent'); trans('courier::tracking.link'); __('mailer::messages.sent'); __('courier::messagesx.a');
+        """.trimIndent()
+
+        assertEquals(listOf("2: courier::messages.sent"), keysOf(php, setOf("courier::messages")))
     }
 
     @Test
