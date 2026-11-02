@@ -98,6 +98,8 @@ Rename i18n keys across all translation files and source code references with **
 
 With the caret on an intermediate level of a key (`button` in `common:button.save`), or on a property holding other keys in a translation file, **Shift+F6** renames the whole level: `button.*` becomes `actions.*` in every locale and at every call site, a hook's `keyPrefix` included. A level that already exists is refused rather than merged, and keys built at runtime (`` t(`button.${action}`) ``) are listed in the confirmation, not rewritten.
 
+**Shift+F6** on a namespace file (`locales/en/common.json`), or on the folder of a namespace when a module keeps one folder per namespace (`locales/{ns}/{lang}.json`), renames the namespace, with *Rename namespace in every locale and call site* ticked in the rename dialog: the file in every locale, the `common:` prefix of the keys, `useTranslation('common')` and its arrays, `withTranslation`, `getFixedT`, the `ns` option and prop, the `defaultNS` and `fallbackNS` of your i18next setup, and the default and fallback namespaces of the settings — in one undo. *Preview* lists the call sites before anything changes. Untick the box to rename the file alone; a locale-named file (`en.json`) and a file the plugin does not read as translations keep the IDE's own rename. In a monorepo, the code of another module is left alone.
+
 ## Wildcard Traversal
 
 Intermediate `*` wildcards in composite key resolution allow matching any segment at a given position. For example, `a.*.b` matches `a.foo.b`, `a.bar.b`, etc. Useful with dynamic keys where the middle segment varies.
