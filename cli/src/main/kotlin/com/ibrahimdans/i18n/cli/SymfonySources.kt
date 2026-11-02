@@ -17,7 +17,7 @@ import java.nio.file.Path
  * Symfony's catalogues as sources of a project check, as the plugin's `SymfonyTranslations` declares
  * them: in a project whose `composer.json` requires `symfony/translation`, every file of a
  * `translations/` folder named `<domain>[+intl-icu].<locale>.<format>` ([SymfonyCatalogue]), with that
- * locale and the domain as namespace. YAML, XLIFF 1.2 and 2.0, PHP and JSON are read.
+ * locale and the domain as namespace. YAML, XLIFF 1.2 and 2.0, PHP, JSON and PO are read.
  *
  * Keys are spelled whole, so a key nested under `user:` and one written `user.name` in a flat
  * catalogue — `translation:extract`'s default — are the same key, as Symfony reads them.
@@ -56,11 +56,12 @@ internal class SymfonySources(private val config: Config) : TranslationTechnolog
     private companion object {
         const val TRANSLATION_PACKAGE = "symfony/translation"
 
-        /** The formats of Symfony's loaders the check reads, by extension: `.po`, `.csv` and `.ini` are left out. */
+        /** The formats of Symfony's loaders the check reads, by extension: `.csv` and `.ini` are left out. */
         val FORMATS: Map<String, ParsedFormat> = mapOf(
             "yaml" to ParsedFormat.YAML, "yml" to ParsedFormat.YAML,
             "xlf" to CheckFormats.XLIFF, "xliff" to CheckFormats.XLIFF,
             "php" to CheckFormats.PHP, "json" to ParsedFormat.JSON,
+            "po" to CheckFormats.PO,
         )
     }
 }

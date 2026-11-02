@@ -86,11 +86,36 @@ class SymfonyCheckTest {
     }
 
     @Test
+    fun `PO - a msgid missing from a locale is reported in its domain`(@TempDir project: Path) {
+        project.symfony()
+        project.write("translations/messages.en.po", "msgid \"title\"\nmsgstr \"Title\"\n\nmsgid \"subtitle\"\nmsgstr \"Subtitle\"\n")
+        project.write("translations/messages.fr.po", "msgid \"title\"\nmsgstr \"Titre\"\n")
+
+        val run = check(project.toString(), "--format", "json")
+
+        Assertions.assertEquals(I18nCheck.PROBLEMS, run.exit, run.err)
+        Assertions.assertEquals("[\"messages:subtitle\"]", locales(run).getValue("fr")["missing"].toString())
+    }
+
+    @Test
     fun `an ICU catalogue is read in its domain`(@TempDir project: Path) {
         project.symfony()
         project.write("translations/messages.en.yaml", "title: Title\n")
         project.write("translations/messages+intl-icu.en.yaml", "cart.items: '{count, plural, one {# item} other {# items}}'\n")
         project.write("translations/messages.fr.yaml", "title: Titre\n")
+
+        val run = check(project.toString(), "--format", "json")
+
+        Assertions.assertEquals(I18nCheck.PROBLEMS, run.exit, run.err)
+        Assertions.assertEquals("[\"messages:cart.items\"]", locales(run).getValue("fr")["missing"].toString())
+    }
+
+    @Test
+    fun `an ICU PO catalogue is read in its domain`(@TempDir project: Path) {
+        project.symfony()
+        project.write("translations/messages.en.po", "msgid \"title\"\nmsgstr \"Title\"\n")
+        project.write("translations/messages+intl-icu.en.po", "msgid \"cart.items\"\nmsgstr \"{count, plural, one {# item} other {# items}}\"\n")
+        project.write("translations/messages.fr.po", "msgid \"title\"\nmsgstr \"Titre\"\n")
 
         val run = check(project.toString(), "--format", "json")
 
