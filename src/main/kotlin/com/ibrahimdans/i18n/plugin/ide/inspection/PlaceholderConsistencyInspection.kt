@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
+import com.ibrahimdans.i18n.plugin.check.ValueCheck
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.codeInspection.LocalInspectionTool
@@ -7,16 +8,6 @@ import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.openapi.project.DumbService
-
-private val PLACEHOLDER_REGEX = Regex("""\{[\w\d_]+\}|%[0-9]*\$?[sd]""")
-private val UNCLOSED_BRACE_REGEX = Regex("""\{[^}]*$""", RegexOption.MULTILINE)
-private val UNOPENED_BRACE_REGEX = Regex("""^[^{]*\}""", RegexOption.MULTILINE)
-
-private fun extractPlaceholders(text: String): Set<String> =
-    PLACEHOLDER_REGEX.findAll(text).map { it.value }.toSet()
-
-private fun isSyntacticallyValid(text: String): Boolean =
-    !UNCLOSED_BRACE_REGEX.containsMatchIn(text) && !UNOPENED_BRACE_REGEX.containsMatchIn(text)
 
 class PlaceholderConsistencyInspection : LocalInspectionTool() {
 
@@ -44,16 +35,12 @@ class PlaceholderConsistencyInspection : LocalInspectionTool() {
         holder: ProblemsHolder,
         refTranslations: Map<String, String>
     ) {
-        if (!isSyntacticallyValid(value)) {
+        if (!ValueCheck.balanced(value)) {
             holder.registerProblem(literal, PluginBundle.message("inspection.placeholder.unbalanced"))
             return
         }
-        val currentPlaceholders = extractPlaceholders(value)
-        if (currentPlaceholders.isEmpty()) return
-        val key = TranslationFileKeys.keyOf(literal)
-        val refValue = refTranslations[key] ?: return
-        val refPlaceholders = extractPlaceholders(refValue)
-        for (missing in refPlaceholders - currentPlaceholders) {
+        val refValue = refTranslations[TranslationFileKeys.keyOf(literal)] ?: return
+        for (missing in ValueCheck.missingPlaceholders(value, refValue)) {
             holder.registerProblem(literal, PluginBundle.message("inspection.placeholder.missing", missing))
         }
     }

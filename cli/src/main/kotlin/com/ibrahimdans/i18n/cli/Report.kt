@@ -25,8 +25,9 @@ object Report {
      * For each module, one line per locale with its counts, its keys listed under it, and the unused
      * keys when the code was checked; then the unknown keys, and the total against the problems allowed:
      * ```
-     * fr: 2 missing, 1 empty
+     * fr: 2 missing, 1 empty, 1 bad value
      *   missing  common:actions.save
+     *   value    common:greeting  Placeholder '{name}' of the reference locale is missing
      * ```
      * A project of several modules heads each with its name.
      */
@@ -44,12 +45,16 @@ object Report {
             for (locale in module.locales) {
                 val counts = listOf("missing" to locale.missing, "orphan" to locale.orphans, "empty" to locale.empty)
                     .filter { (_, keys) -> keys.isNotEmpty() }
-                if (counts.isEmpty()) {
+                val values = module.values?.get(locale.locale).orEmpty()
+                if (counts.isEmpty() && values.isEmpty()) {
                     appendLine("${locale.locale}: no problem")
                     continue
                 }
-                appendLine("${locale.locale}: " + counts.joinToString { (label, keys) -> countOf(keys.size, label) })
+                val tally = counts.map { (label, keys) -> countOf(keys.size, label) } +
+                    listOfNotNull(values.size.takeIf { it > 0 }?.let { plural(it, "bad value") })
+                appendLine("${locale.locale}: " + tally.joinToString())
                 for ((label, keys) in counts) keys.forEach { appendLine("  ${label.padEnd(LABEL_WIDTH)}$it") }
+                values.forEach { appendLine("  ${"value".padEnd(LABEL_WIDTH)}${it.key}  ${it.message}") }
             }
             module.unused?.let { unused ->
                 appendLine()
@@ -68,8 +73,8 @@ object Report {
 
     /**
      * The shape documented in the README, stable for the tools reading it:
-     * `{"reference", "problems", "locales": [{"locale", "missing", "orphans", "empty"}]}`, with
-     * `"unused"` and `"unknown": [{"key", "file", "line"}]` when the code was checked. A project of
+     * `{"reference", "problems", "locales": [{"locale", "missing", "orphans", "empty", "values"}]}`, with
+     * `"values": [{"key", "message"}]` unless `--no-values` turned them off, `"unused"` and `"unknown": [{"key", "file", "line"}]` when the code was checked. A project of
      * several modules lists them instead: `{"problems", "modules": [{"module", "reference", "problems",
      * "locales", "unused"}], "unknown"}`.
      */
@@ -103,6 +108,16 @@ object Report {
                     add("missing", array(locale.missing))
                     add("orphans", array(locale.orphans))
                     add("empty", array(locale.empty))
+                    module.values?.let { values ->
+                        add("values", JsonArray().apply {
+                            values[locale.locale].orEmpty().forEach {
+                                add(JsonObject().apply {
+                                    addProperty("key", it.key)
+                                    addProperty("message", it.message)
+                                })
+                            }
+                        })
+                    }
                 })
             }
         })
