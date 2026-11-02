@@ -1,0 +1,20 @@
+<idea-plugin>
+    <!--
+      A .svelte component is a SvelteHTML file, no dialect of JavaScript: its <script> and its `{…}`
+      expressions are SvelteJS elements of the file's own tree, not an injected fragment. Annotator,
+      references and completion apply to them through their JavaScript registrations; folding
+      builders and inlay providers are looked up on the file's language, so the ones declared on
+      JavaScript never ran here.
+    -->
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Folds what JsFoldingProvider knows (Paraglide's m.hello(), `t`/`$t` calls); svelte-i18n's
+             `$_('key')` is none of them yet. -->
+        <lang.foldingBuilder language="SvelteHTML" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder"/>
+        <codeInsight.declarativeInlayProvider language="SvelteHTML"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"
+            providerId="i18n.translations.inlay"
+            group="OTHER_GROUP"
+            bundle="messages.I18nBundle"
+            nameKey="inlay.hints.name"/>
+    </extensions>
+</idea-plugin>

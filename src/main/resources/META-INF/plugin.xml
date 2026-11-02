@@ -158,6 +158,7 @@
     <depends optional="true" config-file="phpConfig.xml">com.jetbrains.php</depends>
     <depends optional="true" config-file="vueConfig.xml">org.jetbrains.plugins.vue</depends>
     <depends optional="true" config-file="angularConfig.xml">AngularJS</depends>
+    <depends optional="true" config-file="svelteConfig.xml">dev.blachut.svelte.lang</depends>
     <depends optional="true" config-file="plainObjectConfig.xml">org.jetbrains.plugins.localization</depends>
     <depends optional="true" config-file="gitConfig.xml">Git4Idea</depends>
     <depends optional="true" config-file="mcpConfig.xml">com.intellij.mcpServer</depends>

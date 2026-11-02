@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.inlay
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.PluralGroup
@@ -45,6 +46,12 @@ open class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<Psi
      */
     protected open fun readsInjectedFragments(): Boolean = false
 
+    /**
+     * The languages the keys are read with. An Angular template reads its own: the `| translate`
+     * pipe is no call, and the registered languages know only calls.
+     */
+    protected open fun langs(): List<Lang> = Extensions.LANG.extensionList
+
     override fun createCollector(file: PsiFile, editor: Editor): InlayHintsCollector {
         // One collector per file and pass, asked of every PSI element: what does not depend on the
         // element is read here once. Per element, it allocated a Config and rebuilt the name list
@@ -52,7 +59,7 @@ open class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<Psi
         // profile of `HighlightingPerformanceTest`.
         val config = Settings.getInstance(file.project).config()
         val translationFunctionNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
-        val langs = Extensions.LANG.extensionList
+        val langs = langs()
         val injections = InjectedLanguageManager.getInstance(file.project)
         // One fragment may span several hosts — Blade injects all of a view's PHP as one file —
         // and is read once per pass, not once per host holding a part of it.

@@ -22,7 +22,18 @@
         <annotator language="Angular2Html" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.AngularCompositeKeyAnnotator"/>
         <psi.referenceContributor language="Angular2Html" implementation="com.ibrahimdans.i18n.extensions.lang.js.AngularDirectiveReferenceContributor"/>
         <completion.contributor language="Angular2Html" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.AngularCompletionContributor"/>
-        <lang.foldingBuilder language="Angular2" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder"/>
+        <!-- A .html template is an Angular17Html file whose expressions sit in its own tree: the
+             builder and the hints are declared on Angular2Html, the base of every template dialect.
+             Angular2 stays for the expressions injected elsewhere. AngularFoldingBuilder, not
+             JsFoldingBuilder: the latter carries JsLang, which folds calls and knows no pipe. -->
+        <lang.foldingBuilder language="Angular2" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.AngularFoldingBuilder"/>
+        <lang.foldingBuilder language="Angular2Html" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.AngularFoldingBuilder"/>
+        <codeInsight.declarativeInlayProvider language="Angular2Html"
+            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.AngularInlayHintsProvider"
+            providerId="i18n.translations.inlay"
+            group="OTHER_GROUP"
+            bundle="messages.I18nBundle"
+            nameKey="inlay.hints.name"/>
         <lang.documentationProvider language="Angular2" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
         <localInspection
             language="Angular2Html"
