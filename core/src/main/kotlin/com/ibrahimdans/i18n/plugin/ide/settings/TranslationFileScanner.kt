@@ -19,7 +19,21 @@ object TranslationFileScanner {
      */
     val FOLDER_NAMES = setOf("locales", "locale", "i18n", "translations", "lang", "langs")
 
+    /**
+     * Folders only some libraries use for their catalogues: next-intl and Paraglide keep theirs in
+     * `messages/{lang}.json`. Too common a name (mail templates, logs) to be read in every project,
+     * so the wizard passes them to [scan] only when one of these frameworks is detected.
+     */
+    private val FRAMEWORK_FOLDER_NAMES = mapOf(
+        "next-intl" to setOf("messages"),
+        "paraglide" to setOf("messages")
+    )
+
     val EXTENSIONS = setOf("json", "yaml", "yml", "po", "pot")
+
+    /** The folders, beyond [FOLDER_NAMES], that the detected [frameworks] keep their catalogues in. */
+    fun folderNamesFor(frameworks: Set<String>): Set<String> =
+        frameworks.flatMapTo(mutableSetOf()) { FRAMEWORK_FOLDER_NAMES[it].orEmpty() }
 
     /**
      * Bounds both halves of the walk: how deep a translation folder is looked for, and how deep
@@ -41,28 +55,36 @@ object TranslationFileScanner {
         setOf("node_modules", "build", "dist", "out", "target", "vendor", "coverage")
 
     /**
-     * Project-relative paths of every translation file found under [base].
+     * Project-relative paths of every translation file found under [base], in [FOLDER_NAMES] and
+     * [extraFolderNames] (see [folderNamesFor]).
      *
      * [checkCanceled] is called as the walk goes, and is expected to throw when the user cancels —
      * it is `ProgressManager::checkCanceled` at runtime, and nothing in tests. The scanner takes
      * it as a lambda rather than reaching for `ProgressManager` itself so it stays headless.
      */
-    fun scan(base: File, checkCanceled: () -> Unit = {}): List<String> {
+    fun scan(base: File, extraFolderNames: Set<String> = emptySet(), checkCanceled: () -> Unit = {}): List<String> {
         val found = mutableListOf<String>()
-        collect(base, base, 0, found, checkCanceled)
+        collect(base, base, 0, FOLDER_NAMES + extraFolderNames, found, checkCanceled)
         return found
     }
 
-    private fun collect(base: File, dir: File, depth: Int, found: MutableList<String>, checkCanceled: () -> Unit) {
+    private fun collect(
+        base: File,
+        dir: File,
+        depth: Int,
+        folderNames: Set<String>,
+        found: MutableList<String>,
+        checkCanceled: () -> Unit
+    ) {
         if (depth > MAX_SCAN_DEPTH) return
         checkCanceled()
         val children = dir.listFiles() ?: return
         for (child in children) {
             if (!child.isDirectory) continue
-            if (child.name in FOLDER_NAMES) {
+            if (child.name in folderNames) {
                 collectAll(base, child, found, checkCanceled)
             } else if (!child.name.startsWith(".") && child.name !in SKIPPED_DIRECTORIES) {
-                collect(base, child, depth + 1, found, checkCanceled)
+                collect(base, child, depth + 1, folderNames, found, checkCanceled)
             }
         }
     }

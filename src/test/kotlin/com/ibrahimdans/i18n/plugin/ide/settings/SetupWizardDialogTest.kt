@@ -348,6 +348,42 @@ class SetupWizardDialogTest : PlatformBaseTest() {
     }
 
     // -----------------------------------------------------------------------
+    // messages/: next-intl and Paraglide catalogues, read only with their framework
+    // -----------------------------------------------------------------------
+
+    /** The scan the wizard runs on [example]: frameworks from its manifests, their folders added. */
+    private fun scanExample(example: String, withFrameworks: Boolean): List<String> {
+        val base = File("examples/$example")
+        assertTrue(base.isDirectory, "missing example project ${base.absolutePath}")
+        val frameworks = if (withFrameworks) SetupWizardDialog.detectFrameworksIn(base) else emptySet()
+        return TranslationFileScanner.scan(base, TranslationFileScanner.folderNamesFor(frameworks))
+            .map { it.replace(File.separatorChar, '/') }
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `next-intl example offers its messages folder`() {
+        val found = scanExample("next-intl", withFrameworks = true)
+
+        assertTrue(found.containsAll(listOf("messages/en.json", "messages/fr.json")), "got: $found")
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `paraglide example offers its messages folder`() {
+        val found = scanExample("paraglide-js", withFrameworks = true)
+
+        assertTrue(found.containsAll(listOf("messages/en.json", "messages/fr.json")), "got: $found")
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `messages folder is ignored without next-intl or paraglide`() {
+        for (example in listOf("next-intl", "paraglide-js")) {
+            val found = scanExample(example, withFrameworks = false)
+
+            assertTrue(found.none { it.startsWith("messages/") }, "$example: got $found")
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // Frameworks shipped since #151 but missing from the wizard
     // -----------------------------------------------------------------------
 

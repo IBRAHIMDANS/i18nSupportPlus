@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -83,6 +84,30 @@ class TranslationFileScannerTest {
                 TranslationFileScanner.scan(base) { throw CancelledScan() }
             }
         }
+    }
+
+    /**
+     * next-intl and Paraglide keep their catalogues in `messages/`, a name too common to be read
+     * in every project: only the folders the caller passes are added to the conventional ones.
+     */
+    @Test
+    fun `messages is read only when passed as an extra folder`() {
+        withTempProject { base ->
+            translationFile(base, "messages/en.json")
+            translationFile(base, "node_modules/pkg/messages/en.json")
+
+            val withExtra = TranslationFileScanner.scan(base, setOf("messages")).map { it.replace(File.separatorChar, '/') }
+
+            assertEquals(emptyList<String>(), TranslationFileScanner.scan(base), "messages must not be read by default")
+            assertEquals(listOf("messages/en.json"), withExtra, "node_modules must still be skipped")
+        }
+    }
+
+    @Test
+    fun `folderNamesFor adds messages for next-intl and paraglide only`() {
+        assertEquals(setOf("messages"), TranslationFileScanner.folderNamesFor(setOf("next-intl")))
+        assertEquals(setOf("messages"), TranslationFileScanner.folderNamesFor(setOf("paraglide", "i18next")))
+        assertEquals(emptySet<String>(), TranslationFileScanner.folderNamesFor(setOf("i18next", "vue-i18n")))
     }
 
     /** Stands in for the platform's `ProcessCanceledException`, which needs an application. */

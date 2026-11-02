@@ -41,6 +41,7 @@
 
 ### Fixes
 
+- [Setup wizard] **next-intl and Paraglide catalogues are found**: when the project uses next-intl or Paraglide JS, the setup wizard now offers the files of their `messages/` folder (`messages/en.json`, `messages/fr.json`), where it used to find nothing.
 - [Editor] **Folded keys follow the preview locale and fold plurals too**: switching the preview locale from the status bar now updates the keys already folded in open editors, not only the inline hints, and a key held only as plural forms (`count_one` / `count_other`) or under an i18next `context` folds into the same value as its hint.
 - [CLI] **Laravel package overrides no longer reported unused or missing**: `i18n-check --code` reads `__('courier::messages.sent')` under the override of `lang/vendor/courier/`, and a locale that overrides nothing of a package is no longer told its keys are missing, since it keeps the package's own translation.
 - [Cleanup] **Keys reached by `` t(`errors.${code}`) `` are no longer reported unused**: a key built at runtime from one segment of the default namespace, the usual message per error code, now counts as a use of every `errors.*` key there, so neither the *Unused translation key* inspection nor *Clean Up Keys with No Reference* offers them for deletion.
