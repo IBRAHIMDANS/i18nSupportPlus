@@ -76,6 +76,22 @@ class ConstantKeyResolverTest : PlatformBaseTest() {
     }
 
     @Test
+    fun `a constant re-exported by a barrel is read at the call`() {
+        translations()
+        addFileToProject("keys.ts", "export const KEYS = { save: 'common:button.save', missing: 'common:button.absent' } as const;")
+        addFileToProject("index.ts", "export { KEYS } from './keys';")
+        myFixture.configureByText(
+            "Form.ts",
+            """
+            import { KEYS } from './index';
+            export const a = (t) => [t(KEYS.save), t(KEYS.missing)];
+            """.trimIndent()
+        )
+
+        Assertions.assertEquals(listOf("KEYS.missing"), unresolved())
+    }
+
+    @Test
     fun `an enum member is read at the call`() {
         translations()
         myFixture.configureByText(
