@@ -67,6 +67,29 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
 
     private val icu = PluginBundle.message("action.fill.icu")
 
+    /** `en-GB` inherits from `en` (#767): a key it has no entry for is not filled, a key it holds blank is. */
+    @Test
+    fun `a regional target does not receive the keys its language holds`() {
+        val regional = mapOf(
+            "common:save" to mapOf("en-US" to "Save", "en" to "Save"),
+            "common:colour" to mapOf("en-US" to "Color", "en" to "Color", "en-GB" to ""),
+            "common:only" to mapOf("en-US" to "Only US"),
+            "common:item_one" to mapOf("en-US" to "{{count}} item", "en" to "{{count}} item"),
+            "common:item_other" to mapOf("en-US" to "{{count}} items", "en" to "{{count}} items"),
+        )
+
+        Assertions.assertEquals(
+            listOf("common:colour", "common:only"),
+            MachineFill.itemsOf(regional, "en-US", "en-GB", ".", parent = "en").map { it.key },
+            "save and the item plural are inherited from en; colour is blank in en-GB, only is absent from en",
+        )
+        Assertions.assertEquals(
+            listOf("common:colour", "common:item_one", "common:item_other", "common:only", "common:save"),
+            MachineFill.itemsOf(regional, "en-US", "en-GB", ".").map { it.key },
+            "without a parent, every key en-GB lacks goes",
+        )
+    }
+
     @Test
     fun `only the keys the target lacks go, plural forms by the target's own`() {
         val items = MachineFill.itemsOf(translations, "en", "fr", ".")

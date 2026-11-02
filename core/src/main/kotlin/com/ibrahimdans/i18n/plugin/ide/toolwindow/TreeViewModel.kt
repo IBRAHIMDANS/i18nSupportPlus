@@ -171,10 +171,18 @@ class TreeViewModel {
      * One pass rather than one call per node: the renderer asks for a node's status on
      * every repaint, and recomputing a branch's completeness from its subtree each time
      * would be quadratic on a large translation set.
+     *
+     * [parentLocale] gives the locale a label inherits the keys it lacks from (`en` for `en-GB`,
+     * see [Config.parentLocale]): a key a regional locale has no entry for while its language
+     * holds a value is not missing there, as the *Stats* view counts it.
      */
-    fun describeTree(root: TranslationNode, allLocales: List<String>): Map<String, NodeStatus> {
+    fun describeTree(
+        root: TranslationNode,
+        allLocales: List<String>,
+        parentLocale: (String) -> String? = { null },
+    ): Map<String, NodeStatus> {
         val result = mutableMapOf<String, NodeStatus>()
-        describeNode(root, allLocales, result)
+        describeNode(root, allLocales, parentLocale, result)
         return result
     }
 
@@ -185,13 +193,19 @@ class TreeViewModel {
      * Per-locale state of a leaf key, in the order of [allLocales].
      * Locales the key carries but that were not discovered in the project are appended,
      * so a stale value is never silently hidden. Returns an empty map for a branch node.
+     * A locale with no entry inheriting a non-blank value from its [parentLocale] reads as present.
      */
-    fun localeStates(node: TranslationNode, allLocales: List<String>): Map<String, LocaleState> {
+    fun localeStates(
+        node: TranslationNode,
+        allLocales: List<String>,
+        parentLocale: (String) -> String? = { null },
+    ): Map<String, LocaleState> {
         if (!node.isLeaf) return emptyMap()
         val locales = (allLocales + node.values.keys.sorted()).distinct()
         return locales.associateWith { locale ->
             val value = node.values[locale]
             when {
+                value == null && inherits(node, locale, parentLocale) -> LocaleState.PRESENT
                 value == null -> LocaleState.MISSING
                 value.isBlank() -> LocaleState.EMPTY
                 else -> LocaleState.PRESENT
@@ -199,21 +213,26 @@ class TreeViewModel {
         }
     }
 
+    /** Whether [locale], with no entry of its own for [node], reads a non-blank value from its parent. */
+    private fun inherits(node: TranslationNode, locale: String, parentLocale: (String) -> String?): Boolean =
+        parentLocale(locale)?.let { !node.values[it].isNullOrBlank() } == true
+
     private fun describeNode(
         node: TranslationNode,
         allLocales: List<String>,
+        parentLocale: (String) -> String?,
         out: MutableMap<String, NodeStatus>,
     ): Described {
         // Children first: a branch's own status and completeness are aggregates of theirs.
-        val children = node.children.values.map { describeNode(it, allLocales, out) }
+        val children = node.children.values.map { describeNode(it, allLocales, parentLocale, out) }
 
-        val localeStates = localeStates(node, allLocales)
+        val localeStates = localeStates(node, allLocales, parentLocale)
         // A node can be both a leaf and a branch (a key that also has sub-keys):
         // its own status counts alongside its children's.
         val ownStatus = if (node.isLeaf) worstStatus(localeStates.values) else null
 
         val status = worstOf(listOfNotNull(ownStatus) + children.map { it.status.status })
-        val below = children.fold(leafChildrenCompleteness(node, allLocales)) { acc, child -> acc + child.below }
+        val below = children.fold(leafChildrenCompleteness(node, allLocales, parentLocale)) { acc, child -> acc + child.below }
         val completeness = below + ownCompleteness(node.isLeaf, ownStatus)
 
         val nodeStatus = NodeStatus(status, localeStates, completeness)
@@ -225,20 +244,32 @@ class TreeViewModel {
      * The keys among [node]'s children, counted the way [TranslationCoverage] counts them: one per
      * plural group ([PluralKey.groupForms]), complete when every locale holds a non-blank form of
      * it — `ru` and `en` do not share their categories. The forms of a group are siblings, so the
-     * group is counted here, at their parent, and never by the forms themselves.
+     * group is counted here, at their parent, and never by the forms themselves. A group a
+     * regional locale holds no form of is complete there when its [parentLocale] holds one.
      */
-    private fun leafChildrenCompleteness(node: TranslationNode, allLocales: List<String>): NodeCompleteness {
+    private fun leafChildrenCompleteness(
+        node: TranslationNode,
+        allLocales: List<String>,
+        parentLocale: (String) -> String?,
+    ): NodeCompleteness {
         val leaves = node.children.values.filter { it.isLeaf }.associateBy { it.fullPath }
         return PluralKey.groupForms(leaves.keys).values
             .map { paths -> paths.mapNotNull { leaves[it] } }
             .fold(NodeCompleteness(0, 0)) { acc, forms ->
-                acc + NodeCompleteness(complete = if (isTranslatedEverywhere(forms, allLocales)) 1 else 0, total = 1)
+                acc + NodeCompleteness(complete = if (isTranslatedEverywhere(forms, allLocales, parentLocale)) 1 else 0, total = 1)
             }
     }
 
-    private fun isTranslatedEverywhere(forms: List<TranslationNode>, allLocales: List<String>): Boolean {
+    private fun isTranslatedEverywhere(
+        forms: List<TranslationNode>,
+        allLocales: List<String>,
+        parentLocale: (String) -> String?,
+    ): Boolean {
         val locales = (allLocales + forms.flatMap { it.values.keys }).distinct()
-        return locales.all { locale -> forms.any { !it.values[locale].isNullOrBlank() } }
+        return locales.all { locale ->
+            forms.any { !it.values[locale].isNullOrBlank() } ||
+                (forms.none { locale in it.values } && forms.any { inherits(it, locale, parentLocale) })
+        }
     }
 
     private fun ownCompleteness(isLeaf: Boolean, ownStatus: KeyStatus?): NodeCompleteness =

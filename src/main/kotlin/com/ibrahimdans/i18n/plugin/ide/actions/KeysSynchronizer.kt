@@ -92,7 +92,8 @@ class KeysSynchronizer {
                 sources.map(TranslationDataLoader::extractLocale).distinct().sorted(),
                 sources,
                 config.defaultNamespaces(),
-                config::ignoresLocale,
+                parentLocale = config::parentLocale,
+                ignoresLocale = config::ignoresLocale,
             )
         }.sortedWith(compareBy({ it.locale }, { it.key }))
 
@@ -110,12 +111,16 @@ class KeysSynchronizer {
      *
      * A locale [ignoresLocale] names — not checked for missing keys — is left out on both sides: it
      * receives nothing, and a key only it holds is proposed to no other locale.
+     *
+     * A regional locale inherits the keys its language holds ([parentLocale]: `en` for `en-GB`): a
+     * key `en` holds is not proposed to `en-GB`, where an empty value would hide the inherited one.
      */
     internal fun findMissingEntries(
         allTranslations: Map<String, Map<String, String>>,
         allLocales: List<String>,
         allSources: List<LocalizationSource>,
         defaultNamespaces: List<String> = Config().defaultNamespaces(),
+        parentLocale: (String) -> String? = { null },
         ignoresLocale: (String) -> Boolean = { false },
     ): List<MissingEntry> {
         val missing = mutableListOf<MissingEntry>()
@@ -124,7 +129,7 @@ class KeysSynchronizer {
         for ((key, forms) in PluralKey.groupForms(allTranslations.keys)) {
             val presentLocales = forms.flatMapTo(mutableSetOf()) { allTranslations[it].orEmpty().keys }
             if (presentLocales.all(ignoresLocale)) continue
-            val absentLocales = checkedLocales - presentLocales
+            val absentLocales = (checkedLocales - presentLocales).filterNot { parentLocale(it)?.let(presentLocales::contains) == true }
             val keyToCreate = if (forms.size == 1 && forms.single() == key) key else PluralKey.defaultForm(key)
 
             for (targetLocale in absentLocales) {

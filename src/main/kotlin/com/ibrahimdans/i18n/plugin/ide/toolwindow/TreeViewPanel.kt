@@ -144,7 +144,7 @@ class TreeViewPanel(private val project: Project, private val moduleConfig: Modu
             try {
                 val translationRoot = viewModel.loadTranslations(project, moduleConfig)
                 allLocales = TranslationDataLoader.discoverLocales(project, moduleConfig)
-                nodeStatuses = viewModel.describeTree(translationRoot, allLocales)
+                nodeStatuses = viewModel.describeTree(translationRoot, allLocales, Settings.getInstance(project).config()::parentLocale)
                 lastTranslationRoot = translationRoot
 
                 ApplicationManager.getApplication().invokeLater {
