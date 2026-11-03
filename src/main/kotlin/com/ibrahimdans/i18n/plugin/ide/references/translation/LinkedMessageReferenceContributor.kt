@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
+import com.ibrahimdans.i18n.plugin.tree.PropertyReference
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModulePresets
@@ -189,20 +190,34 @@ object LinkedMessages : CompositeKeyResolver<PsiElement> {
      * same module, the ones of [element]'s own locale first.
      */
     fun targetsOf(element: PsiElement, key: String): List<PsiElement> {
-        val project = element.project
-        val fullKey = RawKeyParser(project).parse(RawKey(listOf(KeyElement.literal(key))), element) ?: return emptyList()
-        if (fullKey.compositeKey.isEmpty()) return emptyList()
-        val pluralSeparator = Settings.getInstance(project).config().pluralSeparator
-        val resolved = project.service<LocalizationSourceService>().findReadSources(fullKey, element)
-            .flatMap { source -> resolve(fullKey, source, pluralSeparator) }
-            .filter { it.unresolved.isEmpty() && it.path.isNotEmpty() && it.element != null }
+        val resolved = resolvedLinks(element, key)
         val locale = element.containingFile?.let(TranslationFileScope::sourceOf)?.localeLabel()
         val preferred = resolved.filter { it.localizationSource.localeLabel() == locale }.ifEmpty { resolved }
-        return preferred.mapNotNull { reference ->
+        return elementsOf(preferred)
+    }
+
+    /**
+     * The translations [key], linked from [element], names in every locale: what a usage count asks.
+     * The link of `fr.json` uses the key of `en.json` too — it is the same key, which *Clean Up* would
+     * delete from both — while [targetsOf], for navigation, keeps to the locale holding the link.
+     */
+    fun allTargetsOf(element: PsiElement, key: String): List<PsiElement> = elementsOf(resolvedLinks(element, key))
+
+    private fun resolvedLinks(element: PsiElement, key: String) = run {
+        val project = element.project
+        val fullKey = RawKeyParser(project).parse(RawKey(listOf(KeyElement.literal(key))), element) ?: return@run emptyList()
+        if (fullKey.compositeKey.isEmpty()) return@run emptyList()
+        val pluralSeparator = Settings.getInstance(project).config().pluralSeparator
+        project.service<LocalizationSourceService>().findReadSources(fullKey, element)
+            .flatMap { source -> resolve(fullKey, source, pluralSeparator) }
+            .filter { it.unresolved.isEmpty() && it.path.isNotEmpty() && it.element != null }
+    }
+
+    private fun elementsOf(references: List<PropertyReference<PsiElement>>): List<PsiElement> =
+        references.mapNotNull { reference ->
             val tree = reference.element!!
             if (tree.isTree()) TranslationPsi.propertyOf(tree.value(), strict = false) ?: tree.value() else tree.value()
         }.distinct()
-    }
 
     /**
      * The keys [key], named from [element] and being typed, may complete to: the names under its

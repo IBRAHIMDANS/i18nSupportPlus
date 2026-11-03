@@ -1,8 +1,18 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages
+import com.ibrahimdans.i18n.plugin.ide.runWithConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.utils.generator.code.TsxCodeGenerator
+import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.search.UsageSearchContext
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /**
@@ -196,5 +206,77 @@ class UsageScanTest : PlatformBaseTest() {
         )
 
         assertEquals(1, usagesOf("common:menu.home"))
+    }
+
+    /**
+     * A key no code names but a translation value links to — vue-i18n's `@:key` from another locale,
+     * i18next's `$t(ns:key)` from another namespace — is used: the *Usage* column and *Clean Up*
+     * agree with Code Vision.
+     */
+    @Test
+    fun `a key only linked from another translation file is counted`() {
+        val vue = Config(modules = listOf(ModuleConfig(name = "vue", rootDirectory = "", preset = "vue-i18n")))
+        myFixture.runWithConfig(vue) {
+            myFixture.addFileToProject("locales/en.json", """{"common": {"save": "Save", "orphan": "Orphan"}}""")
+            myFixture.addFileToProject("locales/fr.json", """{"common": {"save": "Enregistrer"}, "button": "Cliquer @:common.save"}""")
+            assertEquals(1, usagesOf("common.save"))
+            assertEquals(0, usagesOf("common.orphan"))
+        }
+    }
+
+    @Test
+    fun `a key only nested from another namespace is counted`() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        myFixture.addFileToProject("locales/en/common.json", """{"save": "Save", "orphan": "Orphan"}""")
+        myFixture.addFileToProject("locales/en/translation.json", """{"button": "${'$'}t(common:save) now"}""")
+        assertEquals(1, usagesOf("common:save"))
+        assertEquals(0, usagesOf("common:orphan"))
+    }
+
+    @Test
+    fun `a key only linked from its own file is counted`() = myFixture.runWithConfig(
+        Config(modules = listOf(ModuleConfig(name = "vue", rootDirectory = "", preset = "vue-i18n")))
+    ) {
+        myFixture.addFileToProject("locales/en.json", """{"common": {"save": "Save", "orphan": "Orphan"}, "button": "Click @:common.save"}""")
+        assertEquals(1, usagesOf("common.save"))
+        assertEquals(0, usagesOf("common.orphan"))
+    }
+
+    // ── Identifiers are searched only where the code names keys as members ──────────
+
+    private fun searchesIdentifiers(): Boolean = ReadAction.compute<Boolean, RuntimeException> {
+        IndirectKeyUsages.keySearchContext(project).toInt() and UsageSearchContext.IN_CODE.toInt() != 0
+    }
+
+    @Test
+    fun `a project naming Paraglide only in a comment keeps the search to strings`() {
+        myFixture.addFileToProject("src/App.tsx", "// we may move to paraglide later\nexport const a = (t: any) => t('menu.home');")
+        assertFalse(searchesIdentifiers())
+    }
+
+    @Test
+    fun `a component importing Paraglide's messages makes identifiers searched`() {
+        myFixture.addFileToProject("src/Greeting.tsx", "import { m } from '../paraglide/messages.js';\nexport const g = () => m.hello();")
+        assertTrue(searchesIdentifiers())
+    }
+
+    @Test
+    fun `an import typed into a component is seen at once`() {
+        val file = myFixture.addFileToProject("src/Greeting.tsx", "export const g = () => 1;\n")
+        assertFalse(searchesIdentifiers())
+        val document = PsiDocumentManager.getInstance(project).getDocument(file)!!
+        WriteCommandAction.runWriteCommandAction(project) { document.insertString(0, "import * as m from '${'$'}lib/paraglide/messages';\n") }
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+        assertTrue(searchesIdentifiers())
+    }
+
+    @Test
+    fun `an import is told from a word`() {
+        assertTrue(IndirectKeyUsages.importsIdentifierKeyLibrary("import { m } from \"${'$'}lib/paraglide/messages\";"))
+        assertTrue(IndirectKeyUsages.importsIdentifierKeyLibrary("const m = await import('./paraglide/messages.js')"))
+        assertTrue(IndirectKeyUsages.importsIdentifierKeyLibrary("export * from 'typesafe-i18n/react'"))
+        assertTrue(IndirectKeyUsages.importsIdentifierKeyLibrary("const { i18n } = require('typesafe-i18n')"))
+        assertFalse(IndirectKeyUsages.importsIdentifierKeyLibrary("// paraglide, maybe one day"))
+        assertFalse(IndirectKeyUsages.importsIdentifierKeyLibrary("const label = 'paraglide';"))
+        assertFalse(IndirectKeyUsages.importsIdentifierKeyLibrary("import { t } from 'i18next';"))
     }
 }
