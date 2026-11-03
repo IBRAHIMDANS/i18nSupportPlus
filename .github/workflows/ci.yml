@@ -81,15 +81,35 @@ jobs:
 
       # cleanTest, so an up-to-date `test` is never skipped and the coverage data always
       # reflects this commit.
+      #
+      # A hung fixture leaves no trace: the job is cancelled at its timeout, before any XML
+      # report of the running class is written (#817). A shard past 15 minutes is hung, not
+      # slow, so a watchdog then dumps the threads of every JVM (daemon and test worker), and
+      # again 3 minutes later to tell a deadlock from a slow loop; the dumps are uploaded below.
       - name: Run tests
         run: |
           tasks=":test"
           if [ "${{ matrix.shard }}" = "1" ]; then tasks="test"; fi
+          (
+            sleep 900
+            mkdir -p build/thread-dumps
+            for round in 1 2; do
+              echo "::warning::Shard ${{ matrix.shard }} still running after $((15 + 3 * (round - 1))) minutes: dumping threads ($round/2)."
+              for pid in $(jps -q); do
+                jcmd "$pid" Thread.print -l > "build/thread-dumps/$pid-$round.txt" 2>&1 || true
+              done
+              [ "$round" = 1 ] && sleep 180
+            done
+          ) &
+          watchdog=$!
+          status=0
           ./gradlew cleanTest $tasks \
             -PtestShard=${{ matrix.shard }}/4 \
             --no-configuration-cache \
             --stacktrace \
-            --max-workers=1
+            --max-workers=1 || status=$?
+          kill "$watchdog" 2>/dev/null || true
+          exit "$status"
 
       - name: Upload coverage data
         if: always()
@@ -121,6 +141,14 @@ jobs:
         with:
           name: test-report-${{ matrix.shard }}
           path: build/reports/tests/test/
+
+      - name: Upload thread dumps
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: thread-dumps-${{ matrix.shard }}
+          path: build/thread-dumps/
+          if-no-files-found: ignore
 
   # Named `test`, the check the pull request waits on. It merges the shards' coverage and
   # comments it. `if: always()` and the first step matter: a job that `needs` a failed shard is
