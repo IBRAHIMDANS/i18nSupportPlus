@@ -168,7 +168,8 @@ internal class JsFoldingProvider: FoldingProvider {
         }
         val sourceElement = callExpr ?: psiElement
 
-        // Check if element is in an injected fragment
+        // A fragment's range is given in its host, the file shown, as the host's pass needs it;
+        // FoldingBuilderBase maps it back on the fragment's own pass.
         val manager = InjectedLanguageManager.getInstance(container.project)
         val topLevelFile = manager.getTopLevelFile(container)
         if (topLevelFile !== container.containingFile) {

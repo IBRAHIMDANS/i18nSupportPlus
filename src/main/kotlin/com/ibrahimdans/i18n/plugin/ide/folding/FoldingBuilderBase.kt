@@ -27,6 +27,7 @@ import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.service
+import com.intellij.injected.editor.DocumentWindow
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.EditorFactory
@@ -57,6 +58,15 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
     private fun keyDescriptors(root: PsiElement, config: Config): Array<FoldingDescriptor> {
         val foldingProvider = lang.foldingProvider()
         val injectionManager = InjectedLanguageManager.getInstance(root.project)
+        val rootFile = root.containingFile
+
+        // The platform folds an injected fragment on a pass of its own too, with the fragment as
+        // [root]: a descriptor must then belong to the fragment, with the fragment's offsets. The
+        // providers give a fragment's ranges in the file shown, as the host's pass needs them, so
+        // they are mapped back through the fragment's window. They used to be placed on the host
+        // whatever the root: the platform refused them, an error logged per key, and that pass
+        // folded nothing — the inline template of an Angular component, a Vue `<template>`.
+        val fragmentWindow = rootFile.viewProvider.document as? DocumentWindow
 
         // Local to this call on purpose. A set shared across calls on the document, invalidated
         // only when it was edited, emptied every pass replayed without an edit (daemon restart,
@@ -78,15 +88,16 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
                     RawKeyParser(literal.project).parse(rawKey, literal)
                         ?.let { key -> resolve(container, literal, config, key) }
                         ?.let { resolved ->
-                            val foldRange = foldingProvider.getFoldingRange(container, offset, resolved.psiElement)
+                            val shownRange = foldingProvider.getFoldingRange(container, offset, resolved.psiElement)
+                            val (node, foldRange) = when {
+                                // Reached from its host (JS inside a Vue <template>): the region sits on the host's node
+                                container.containingFile !== rootFile ->
+                                    (injectionManager.getInjectionHost(container)?.node ?: root.node) to shownRange
+                                fragmentWindow != null -> container.node to fragmentWindow.hostToInjected(shownRange)
+                                else -> container.node to shownRange
+                            }
                             // The same call can meet a range twice (e.g. through an injection host)
                             if (!processedRanges.add(foldRange)) return@mapNotNull null
-                            // For injected elements (e.g. JS inside Vue <template>), use the injection host's node
-                            val node = if (injectionManager.getTopLevelFile(container) !== container.containingFile) {
-                                injectionManager.getInjectionHost(container)?.node ?: root.node
-                            } else {
-                                container.node
-                            }
                             FoldingDescriptor(node, foldRange, null,
                                 PluralGroup.displayableValue(resolved.reference.element)
                                     ?.value()?.text?.let(InlangMessageRenderer::preview)
@@ -117,6 +128,10 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
     }
 
     override fun isCollapsedByDefault(node: ASTNode): Boolean = true
+
+    /** [hostRange], given in this window's host, as the window's own offsets. */
+    private fun DocumentWindow.hostToInjected(hostRange: TextRange): TextRange =
+        TextRange(hostToInjected(hostRange.startOffset), hostToInjected(hostRange.endOffset))
 
     companion object {
 

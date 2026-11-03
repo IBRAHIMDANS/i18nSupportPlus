@@ -8,10 +8,8 @@ import com.ibrahimdans.i18n.extensions.lang.js.extractors.TranslocoPipeExtractor
 import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
 import com.ibrahimdans.i18n.plugin.ide.folding.FoldingBuilderBase
 import com.intellij.lang.Language
-import com.intellij.lang.folding.FoldingDescriptor
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.lang.javascript.psi.JSLiteralExpression
-import com.intellij.openapi.editor.Document
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiLanguageInjectionHost
@@ -28,27 +26,13 @@ import com.intellij.psi.xml.XmlText
  * no key to fold. A `.html` template is also an `Angular17Html` file whose expressions sit in its
  * own tree, not in an injected `Angular2` fragment, so the builder declared on `Angular2` alone
  * never ran on it.
+ *
+ * The platform also hands this builder a component's inline template, the fragment injected into its
+ * literal: the base class then places the regions on the fragment, where that pass wants them. The
+ * same keys are folded from the component by [AngularInlineTemplateFoldingBuilder]; the editor keeps
+ * one region per range.
  */
-class AngularFoldingBuilder : FoldingBuilderBase(AngularFoldingLang(AngularFoldingProvider())) {
-
-    /**
-     * Nothing on a component's inline template: [AngularInlineTemplateFoldingBuilder] folds it from the
-     * component. The platform also hands the template's fragment to this builder, but the base class
-     * places a fragment's regions on its host, which the platform refuses during a fragment's own pass:
-     * it logged an error per key, the inline template's `{{ t('key') }}` included, and folded nothing.
-     */
-    override fun buildFoldRegions(root: PsiElement, document: Document, quick: Boolean): Array<FoldingDescriptor> =
-        if (isInlineTemplate(root)) arrayOf() else super.buildFoldRegions(root, document, quick)
-
-    /**
-     * Whether [root] — the template or one of its expressions — sits in a fragment injected into a file that is
-     * no Angular template: a component's literal. An expression injected into a `.html` template stays here.
-     */
-    private fun isInlineTemplate(root: PsiElement): Boolean {
-        val host = InjectedLanguageManager.getInstance(root.project).getTopLevelFile(root) ?: return false
-        return host !== root.containingFile && !isAngularTemplate(host.language)
-    }
-}
+class AngularFoldingBuilder : FoldingBuilderBase(AngularFoldingLang(AngularFoldingProvider()))
 
 /**
  * Folding of the pipes and directives of a component's inline `template: '…'`, declared on TypeScript.
