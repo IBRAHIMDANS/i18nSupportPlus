@@ -13,9 +13,6 @@ import com.intellij.openapi.editor.FoldRegion
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.util.Key
-import com.intellij.psi.PsiDocumentManager
-import com.intellij.psi.PsiFileFactory
-import com.intellij.psi.impl.PsiDocumentManagerBase
 import com.intellij.testFramework.EditorTestUtil
 import com.intellij.testFramework.LoggedErrorProcessor
 import com.intellij.testFramework.PlatformTestUtil
@@ -153,24 +150,18 @@ internal class FoldingToggleTest : PlatformBaseTest() {
     }
 
     /**
-     * Two editors of the project on a document that has a PSI file but no virtual file (a
-     * non-physical code fragment, as some popups show), one of them already folded: the platform's
-     * folding update then reads the document's file, null, and threw — reported by the IDE as
-     * « IDE error occurred » right after switching the preview locale or *Show Translations Inline*.
-     * The throw is in the 2026.2 platform (`DocumentFoldingInfo.computeExpandRanges`); the 2025.3
-     * platform the tests run on has no such step, so here it guards the skip, not the throw itself.
+     * Editors of the project on a document with no file behind it (as some popups show), one of them
+     * marked as already folded: in the 2026.2 platform the folding update then reads the document's
+     * file, null, and threw — reported as « IDE error occurred » right after switching the preview
+     * locale or *Show Translations Inline*. The 2025.3 platform the tests run on has no such step, so
+     * this guards the skip, not the throw itself.
      */
     @Test
     fun `an editor of a document without a file is left alone`() = myFixture.runWithConfig(off) {
         open(code)
-        val fragment = PsiFileFactory.getInstance(project)
-            .createFileFromText("fragment.tsx", myFixture.file.language, code, false, false)
-        val document = EditorFactory.getInstance().createDocument(code)
-        (PsiDocumentManager.getInstance(project) as PsiDocumentManagerBase).associatePsi(document, fragment)
-        // Keep the PSI, drop the file: the document of a non-physical fragment.
-        document.putUserData(Key.findKeyByName("FILE_KEY") as Key<Any>, null)
-        Assertions.assertNull(FileDocumentManager.getInstance().getFile(document), "precondition: no file behind the document")
         val factory = EditorFactory.getInstance()
+        val document = factory.createDocument(code)
+        Assertions.assertNull(FileDocumentManager.getInstance().getFile(document), "precondition: no file behind the document")
         val first = factory.createEditor(document, project)
         val second = factory.createEditor(document, project)
         // The platform's own marker of an editor whose folding is built.
