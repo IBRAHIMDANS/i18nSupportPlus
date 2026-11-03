@@ -10,6 +10,7 @@ import com.intellij.icons.AllIcons
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
+import java.awt.Color
 import java.awt.Component
 import java.awt.Font
 import java.time.Instant
@@ -142,8 +143,15 @@ private val BLANK_TOOLTIP = PluginBundle.message("toolwindow.table.value.blank.t
 // The IDE's own file-colour tints rather than six invented RGB values: they are the palette
 // themes already redefine, so the table follows a dark or high-contrast theme instead of
 // fighting it. They only ever *reinforce* a state the cell also spells out in words.
-private val MISSING_BACKGROUND = JBColor.namedColor("FileColor.Rose", JBColor.PINK)
-private val BLANK_BACKGROUND = JBColor.namedColor("FileColor.Yellow", JBColor.YELLOW)
+//
+// Not every theme defines them: classic Darcula has no FileColor key at all. The fallbacks are
+// the platform's own values for each side — IntelliJ Light (intellijlaf.theme.json) for the
+// light one, the New UI Dark palette (expUI_dark.theme.json: Red2, Yellow1) for the dark one —
+// so a dark theme without the key gets a dark tint, not a light pink the text barely shows on.
+internal val MISSING_BACKGROUND_FALLBACK = JBColor(Color(0xF2DCDA), Color(0x472B2B))
+internal val BLANK_BACKGROUND_FALLBACK = JBColor(Color(0xFFFFE4), Color(0x3D3223))
+internal val MISSING_BACKGROUND = JBColor.namedColor("FileColor.Rose", MISSING_BACKGROUND_FALLBACK)
+internal val BLANK_BACKGROUND = JBColor.namedColor("FileColor.Yellow", BLANK_BACKGROUND_FALLBACK)
 private val ORPHAN_FOREGROUND = JBColor.namedColor("Label.errorForeground", JBColor.RED)
 private val NOT_SCANNED_FOREGROUND = JBColor.namedColor("Label.infoForeground", JBColor.GRAY)
 
