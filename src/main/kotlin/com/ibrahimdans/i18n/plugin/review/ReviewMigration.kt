@@ -15,8 +15,13 @@ import com.intellij.psi.PsiElement
 /** Where the review of a translation node lives: [root]'s reviews folder, [locale]'s file, under [key]. */
 data class ReviewSpot(val root: VirtualFile, val locale: String, val key: ReviewKey)
 
-/** The reviews at [from] — the key's own and every key below it — to be filed under [to]. */
-data class ReviewMove(val from: ReviewSpot, val to: ReviewKey)
+/**
+ * The reviews at [from] — the key's own and every key below it — to be filed under [to].
+ *
+ * [flat] for a key whose dots are part of its name, an Angular `@@id`: only its own review moves,
+ * `home.title` stays when `home` is renamed, whatever the module's key separator.
+ */
+data class ReviewMove(val from: ReviewSpot, val to: ReviewKey, val flat: Boolean = false)
 
 /**
  * Keeps the reviews of a key with the key when it is renamed, moved to another namespace or deleted.
@@ -42,10 +47,14 @@ object ReviewMigration {
      * the rest of its path kept: `button.save` follows `button` → `actions` to `actions.save`. All
      * moves read the reviews as they were, so a chain (`a` → `b`, `b` → `c`) cannot move a review twice.
      */
-    fun moved(reviews: Map<ReviewKey, Review>, moves: List<Pair<ReviewKey, ReviewKey>>, levelSeparator: String?): Map<ReviewKey, Review> {
+    fun moved(reviews: Map<ReviewKey, Review>, moves: List<Pair<ReviewKey, ReviewKey>>, levelSeparator: String?): Map<ReviewKey, Review> =
+        movedEach(reviews, moves.map { (from, to) -> Triple(from, to, levelSeparator) })
+
+    /** [moved], each move with its own level separator (null for a flat key). */
+    private fun movedEach(reviews: Map<ReviewKey, Review>, moves: List<Triple<ReviewKey, ReviewKey, String?>>): Map<ReviewKey, Review> {
         val result = reviews.toMutableMap()
         val arrived = mutableMapOf<ReviewKey, Review>()
-        for ((from, to) in moves) {
+        for ((from, to, levelSeparator) in moves) {
             if (from == to) continue
             reviews.filterKeys { covers(from, it, levelSeparator) }.forEach { (key, review) ->
                 result.remove(key)
@@ -115,13 +124,18 @@ object ReviewMigration {
 
     // ── Writes (write action, inside the caller's command) ─────────────────────
 
-    /** Files the reviews of [moves] under their new keys. Returns false when a review file could not be written. */
+    /**
+     * Files the reviews of [moves] under their new keys, those below them following unless a move is
+     * [ReviewMove.flat]. Returns false when a review file could not be written.
+     */
     fun move(project: Project, moves: Collection<ReviewMove>): Boolean {
         if (moves.isEmpty()) return true
         val separator = levelSeparator(Settings.getInstance(project).config())
         val store = ReviewStore.getInstance(project)
         return moves.distinct().groupBy { it.from.root to it.from.locale }.map { (place, inFile) ->
-            store.update(place.first, place.second) { moved(it, inFile.map { move -> move.from.key to move.to }, separator) }
+            store.update(place.first, place.second) { reviews ->
+                movedEach(reviews, inFile.map { move -> Triple(move.from.key, move.to, separator.takeUnless { move.flat }) })
+            }
         }.all { it }
     }
 

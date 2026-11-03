@@ -90,7 +90,8 @@ internal object AngularI18nIdRename {
             val root = ReviewLocation.rootOf(project, module)?.takeIf { store.isEnabled(it) } ?: return@mapNotNull null
             val namespace = TranslationDataLoader.extractNamespace(source, defaults.first())
             fun keyOf(path: String) = ReviewKey.fromSpelling(ReviewKey(namespace, path).spelling(defaults), defaults.first())
-            ReviewMove(ReviewSpot(root, source.localeLabel(), keyOf(id)), keyOf(newId))
+            // An id is flat: renaming `home` leaves the review of `home.title`, another unit, where it is.
+            ReviewMove(ReviewSpot(root, source.localeLabel(), keyOf(id)), keyOf(newId), flat = true)
         }.distinct()
     }
 

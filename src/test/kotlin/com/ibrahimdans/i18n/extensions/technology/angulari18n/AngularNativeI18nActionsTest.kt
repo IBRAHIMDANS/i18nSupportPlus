@@ -207,6 +207,33 @@ class AngularNativeI18nActionsTest : ExtractionTestBase() {
     }
 
     @Test
+    fun renamingAnIdLeavesTheReviewsOfTheIdsThatExtendItAfterADot() = myFixture.runWithConfig(Config()) {
+        addWorkspace()
+        openTemplate("""<h1 i18n="@@home.ti<caret>tle">Welcome</h1>""")
+        val store = approveInFrench("home.title", "Bienvenue")
+        val root = ReviewLocation.rootOf(project, null)!!
+        WriteCommandAction.runWriteCommandAction(project) {
+            store.decide(root, "fr", ReviewKey("translation", "home.title.short"), ReviewState.APPROVED, "Salut")
+        }
+
+        renameAtCaret("home.heading")
+
+        // An id is flat: `home.title.short` is another unit, not a child of `home.title`.
+        Assertions.assertEquals(
+            setOf(ReviewKey("translation", "home.heading"), ReviewKey("translation", "home.title.short")),
+            store.reviews(root, "fr").keys,
+        )
+
+        UndoManager.getInstance(project).undo(null)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+
+        Assertions.assertEquals(
+            setOf(ReviewKey("translation", "home.title"), ReviewKey("translation", "home.title.short")),
+            store.reviews(root, "fr").keys,
+        )
+    }
+
+    @Test
     fun anIdAnotherUnitHasIsRefused() = myFixture.runWithConfig(Config()) {
         addWorkspace()
         val edits = ReadAction.compute<List<RenameI18nKeyHandler.Edit>?, RuntimeException> {
