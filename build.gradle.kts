@@ -430,6 +430,11 @@ tasks {
         // caller of that ping, and a system property overrides its registry key.
         systemProperty("trace.data.collection.enabled", "false")
 
+        // -Pi18nBenchmark=true runs UsageCountBenchmarkTest at full size: it prints its timings and
+        // writes them to build/reports/usage-benchmark.txt. Without it the test only checks its counts.
+        systemProperty("i18n.benchmark", providers.gradleProperty("i18nBenchmark").getOrElse("false"))
+        systemProperty("i18n.benchmark.output", layout.buildDirectory.file("reports/usage-benchmark.txt").get().asFile.absolutePath)
+
         // CI splits the plugin's suite across runners: -PtestShard=2/3 runs the second third. The
         // fixture cannot fork, so shards are separate machines, not parallel workers. A test class
         // goes to a shard by a stable hash of its top-level name (nested classes follow it), so
