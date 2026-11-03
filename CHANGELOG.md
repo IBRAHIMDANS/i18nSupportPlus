@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.18.0 - 2026-11-03
+
 ### Features
 
 - [Angular] **A text with interpolations is extracted into Angular's own i18n**: `<p>Hello {{ user.name }}!</p>` becomes `<p i18n="@@id">Hello {{ user.name }}!</p>`, and `messages.xlf` receives the unit with the `INTERPOLATION` placeholders `ng extract-i18n` would write, in XLIFF 1.2 and 2.0, instead of being sent to `ng extract-i18n`. A text spread over several lines is still left to `ng extract-i18n`.
