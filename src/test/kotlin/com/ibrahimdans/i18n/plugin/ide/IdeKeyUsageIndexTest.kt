@@ -124,4 +124,34 @@ class IdeKeyUsageIndexTest : PlatformBaseTest() {
         assertEquals(listOf(others, titles), batches)
         assertEquals(others + titles, batches.flatten())
     }
+
+    /**
+     * `processElementsWithWord` hands the files holding a word to several threads at once, and
+     * every hit of the key-prefix scan went into a plain map and set: with enough files, two hits
+     * written at the same moment lost one of them, and a key in use read one usage short — or none.
+     * The race is one of timing, so the count is taken several times over many files.
+     */
+    @Test
+    fun `the hits of a parallel word search are all collected`() {
+        val files = 150
+        repeat(files) { i ->
+            myFixture.addFileToProject(
+                "src/Section$i.tsx",
+                """
+                import { useTranslation } from 'react-i18next';
+                const name = $i; const title = 'x';
+                export const Section$i = () => {
+                    const { t } = useTranslation('common', { keyPrefix: 'section' });
+                    return <p title={title} aria-label={name}>{t('name')}{t('title')}</p>;
+                };
+                """.trimIndent()
+            )
+        }
+        myFixture.addFileToProject("locales/en/common.json", """{"section": {"name": "Name", "title": "Title"}}""")
+        val keys = listOf("common:section.name", "common:section.title")
+
+        repeat(3) { round ->
+            assertEquals(keys.associateWith { files }, index.usageCounts(keys), "round $round")
+        }
+    }
 }

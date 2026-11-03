@@ -19,6 +19,7 @@
 - [Angular] **Directive keys and inline templates show their value**: `<p translate>key</p>`, `<p translate="key">`, `<span transloco="key">` and `[transloco]="'key'"` fold into their translation like the pipes do, and the keys of a component's inline `` template: `…` `` get folding and inline hints like a `.html` template.
 - [Angular] **Renaming an Angular message id keeps its reviews**: after *Rename* on an `@@id`, its approvals and review threads follow the new id in every locale instead of staying behind on the old one, and one undo takes both back.
 - [CLI] **A locale whose file holds no translation is reported**: `i18n-check` used to leave out a locale whose files were empty (`fr.json` holding `{}`, an Angular XLIFF copied without any `<target>`) and pass; it now reports every key as missing there.
+- [Tool window] ***Count Key Usages* no longer misses usages under a hook's `keyPrefix` on a large project**: the hits of the search, which runs over several files at once, were collected without synchronization, so a key in use could read one usage short — or none, and be offered by *Clean Up Keys…*. The dynamic keys and the linked messages (`@:key`) were collected the same way.
 
 ## 1.17.1 - 2026-11-02
 
