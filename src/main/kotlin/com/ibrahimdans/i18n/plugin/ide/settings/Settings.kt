@@ -12,6 +12,7 @@ import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.guessProjectDir
@@ -94,6 +95,11 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
     @Volatile
     private var configFileState: ConfigFileState? = null
 
+    /** The stamp of the `i18n-check.json` last reported as not reading, so that it is reported once. */
+    @field:Transient
+    @Volatile
+    private var notifiedStamp: Long = -1
+
     /**
      * Returns plugin configuration: the stored settings, with those `i18n-check.json` sets laid over
      * them, and those still blank filled from the project's i18next initialisation ([codeDefaults]).
@@ -158,10 +164,15 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
         val file = runReadAction { project.guessProjectDir()?.findChild(ProjectConfigFile.PATH) }
             ?.takeIf { it.isValid && !it.isDirectory } ?: return ConfigFileState.NONE
         val stamp = file.modificationStamp
+        val documentStamp = ConfigFileState.documentStampOf(file)
+        unsavedContent(file)?.let { return ConfigFileState(file, stamp, it, documentStamp) }
         return try {
-            ConfigFileState(file, stamp, ProjectConfigFile.parse(VfsUtilCore.loadText(file)))
+            ConfigFileState(file, stamp, ProjectConfigFile.parse(VfsUtilCore.loadText(file)), documentStamp)
         } catch (e: Exception) {
             LOG.info("${ProjectConfigFile.PATH} is not read: ${e.message}")
+            // Read again at each keystroke of an unsaved document: the file itself is reported once.
+            if (notifiedStamp == stamp) return ConfigFileState(file, stamp, null, documentStamp)
+            notifiedStamp = stamp
             PluginNotifications.notify(
                 project,
                 PluginBundle.message("settings.config.file.error", ProjectConfigFile.PATH, e.message.orEmpty()),
@@ -171,7 +182,22 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
                     if (file.isValid) FileEditorManager.getInstance(project).openFile(file, true)
                 }
             )
-            ConfigFileState(file, stamp, null)
+            ConfigFileState(file, stamp, null, documentStamp)
+        }
+    }
+
+    /**
+     * What the open, unsaved document of [file] sets — after an undo, a refactoring that has not been
+     * saved yet — so that the settings follow the editor rather than the disk. Null without such a
+     * document, or while it does not read (a keystroke away from valid JSON): the file on disk then.
+     */
+    private fun unsavedContent(file: VirtualFile): ProjectConfigFile.Content? {
+        val documents = FileDocumentManager.getInstance()
+        val document = documents.getCachedDocument(file)?.takeIf { documents.isDocumentUnsaved(it) } ?: return null
+        return try {
+            ProjectConfigFile.parse(runReadAction { document.text })
+        } catch (e: Exception) {
+            null
         }
     }
 
@@ -179,11 +205,22 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
      * The [file] read, with its [stamp] then and what it set — null when it did not read. A file
      * deleted or saved since is read again; one created since is announced by [configFileChanged].
      */
-    private class ConfigFileState(val file: VirtualFile?, val stamp: Long, val content: ProjectConfigFile.Content?) {
-        fun isCurrent(): Boolean = file == null || (file.isValid && file.modificationStamp == stamp)
+    private class ConfigFileState(
+        val file: VirtualFile?,
+        val stamp: Long,
+        val content: ProjectConfigFile.Content?,
+        val documentStamp: Long = NO_DOCUMENT,
+    ) {
+        fun isCurrent(): Boolean =
+            file == null || (file.isValid && file.modificationStamp == stamp && documentStampOf(file) == documentStamp)
 
         companion object {
+            private const val NO_DOCUMENT = -1L
             val NONE = ConfigFileState(null, 0, null)
+
+            /** The stamp of [file]'s loaded document, which an undo changes without touching the file. */
+            fun documentStampOf(file: VirtualFile): Long =
+                FileDocumentManager.getInstance().getCachedDocument(file)?.modificationStamp ?: NO_DOCUMENT
         }
     }
 
