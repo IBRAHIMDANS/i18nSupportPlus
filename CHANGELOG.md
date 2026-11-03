@@ -27,6 +27,7 @@
 - [Refactoring] ***Delete Key* and renaming a key level no longer miss call sites on a large project**: the search behind them runs over several files at once and collected its hits without synchronization, so *Delete Key* could list fewer usages than there are, and renaming a level such as `button` in `button.save` could leave some calls unchanged.
 - [vue-i18n] **A key linked only from another locale is no longer reported unused**: with `"@:common.save"` in `fr.json` alone, the key read 0 in the *Usage* column and *no usages* above it in `en.json`, and *Clean Up Keys…* offered to delete it from every locale, breaking the French message. A link now counts for the key in every locale.
 - [Inspections] **A file named after its locale is checked on the keys the code writes**: in `messages/en.json` (next-intl, vue-i18n, Paraglide), a key reached only through `` t(`common.status.${kind}`) `` or kept by *Keys used outside the code* was reported as unused — with a *Delete* quick fix — and read "no usages" above it, while the table counted it. Both now read the key as the table does.
+- [Tool window] **Missing and blank cells stay readable on a dark theme**: on a dark theme that defines no file colours, such as classic Darcula, the *Table* tab now tints a missing or blank cell with a dark rose or amber instead of a light pink or yellow the text barely showed on.
 
 ## 1.17.1 - 2026-11-02
 
