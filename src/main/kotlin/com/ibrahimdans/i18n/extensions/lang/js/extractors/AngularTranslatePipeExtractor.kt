@@ -30,6 +30,20 @@ class AngularTranslatePipeExtractor : KeyExtractor {
             .any { it.text.contains("|") && it.text.contains("translate") }
     }
 
-    override fun extract(element: PsiElement): RawKey =
-        RawKey(listOf(KeyElement.literal(element.text.trim().removeSurrounding("\"").removeSurrounding("'"))))
+    override fun extract(element: PsiElement): RawKey = RawKey(listOf(KeyElement.literal(pipeKeyOf(element))))
+}
+
+/**
+ * The key of a pipe's string literal, its quotes removed. In an inline `template: '…'` quoted with
+ * apostrophes, the injected fragment keeps the JavaScript escapes, so the literal reads `\'key\'` —
+ * the form the extraction quick fix writes there, double quotes being taken by the attribute.
+ */
+internal fun pipeKeyOf(element: PsiElement): String {
+    val text = element.text.trim()
+    for (quote in listOf("\\'", "\\\"", "'", "\"")) {
+        if (text.length >= 2 * quote.length && text.startsWith(quote) && text.endsWith(quote)) {
+            return text.substring(quote.length, text.length - quote.length)
+        }
+    }
+    return text
 }

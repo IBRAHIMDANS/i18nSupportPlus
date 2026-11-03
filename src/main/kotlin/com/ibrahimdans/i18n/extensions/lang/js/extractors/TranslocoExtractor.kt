@@ -70,8 +70,7 @@ class TranslocoPipeExtractor : KeyExtractor {
             .any { PIPE.containsMatchIn(it.text) }
     }
 
-    override fun extract(element: PsiElement): RawKey =
-        RawKey(listOf(KeyElement.literal(element.text.trim().removeSurrounding("\"").removeSurrounding("'"))))
+    override fun extract(element: PsiElement): RawKey = RawKey(listOf(KeyElement.literal(pipeKeyOf(element))))
 
     private companion object {
         val PIPE = Regex("""\|\s*transloco\b""")
