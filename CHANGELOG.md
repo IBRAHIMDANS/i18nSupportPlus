@@ -11,6 +11,7 @@
 
 ### Fixes
 
+- [Code vision] **The usage counts above the keys of a translation file no longer hold the editor**: each key ran the platform's reference search before the plugin's own, which found nothing on a translation key and took most of the time (19 s for a file of 100 keys on a cold index). The calls are now counted by the text search alone, and `useTranslation('common')` + `t('menu.home')` counts along with `t('common:menu.home')` instead of being left out when the latter exists.
 - [Settings] **Regional fallback works when the language is written under an alias**: with `uk=en` in *Locale aliases*, an `en-GB` file now inherits the keys of the `uk` folder instead of being reported as missing them all.
 - [CLI] **`i18n-check --code` follows the path aliases of a monorepo**: a constant imported through an alias declared in a `tsconfig.base.json` reached by `extends`, or in a package's own `tsconfig.json`, now counts its key as used, as TypeScript resolves it.
 - [Settings] **Undoing a namespace rename restores the settings at once**: the plugin now reads `i18n-check.json` as it stands in the editor, so the old namespace name comes back on undo instead of waiting for the file to be saved.
