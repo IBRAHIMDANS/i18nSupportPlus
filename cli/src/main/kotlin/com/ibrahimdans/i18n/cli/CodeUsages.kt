@@ -17,6 +17,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationLeaves
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.unQuote
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import java.nio.file.Files
 import java.nio.file.Path
@@ -41,7 +42,7 @@ data class UnknownKey(val key: String, val file: String, val line: Int)
  *
  * A key passed through a constant, `t(KEYS.save)`, is read as the IDE reads it ([ConstantKeys]): the constant
  * declared in the file, or imported from another script of the project by a relative path or by a path alias of
- * the `tsconfig.json`, else `jsconfig.json`, at the project's root (`@/keys`, [pathAliasesOf]).
+ * the `tsconfig.json`, else `jsconfig.json`, nearest to the importing file, `extends` followed (`@/keys`, [pathAliasesOf]).
  */
 class CodeUsages(project: Path, private val config: Config) {
 
@@ -83,7 +84,7 @@ class CodeUsages(project: Path, private val config: Config) {
         php = phpFiles.associate { it.toPair() }
         packageScopes = php.keys.mapNotNullTo(mutableSetOf(), ::packageScopeOf)
         code = scripts.associate { (path, text) -> path to codeOf(path, text) }
-        imports = ConstantKeys.ProjectFiles(code, pathAliasesOf(root))
+        imports = ConstantKeys.ProjectFiles(code, pathAliasesByImporter(root))
         indexes = indexesOf { true }
         blockKeys = texts.filterKeys { it.endsWith(VUE) }.mapValues { (_, text) -> blockKeysOf(text, config) }.filterValues { it.isNotEmpty() }
     }
@@ -182,20 +183,66 @@ class CodeUsages(project: Path, private val config: Config) {
         val COMPILER_CONFIGS = listOf("tsconfig.json", "jsconfig.json")
 
         /**
-         * The path aliases of the `tsconfig.json` at [root], else its `jsconfig.json`: `compilerOptions.paths`, read from
-         * `compilerOptions.baseUrl` (the file's folder when it names none). Comments and trailing commas are allowed, as
-         * TypeScript allows them. `extends`, and the configuration of a sub-package, are not read: no alias then.
+         * The path aliases of the files in [folder], an absolute folder of the project at [root]: those of the
+         * `tsconfig.json`, else `jsconfig.json`, nearest to it, from [folder] up to [root] — in a monorepo, a package's own.
          */
-        fun pathAliasesOf(root: Path): ConstantKeys.PathAliases {
-            val file = COMPILER_CONFIGS.map(root::resolve).firstOrNull(Files::isRegularFile) ?: return ConstantKeys.PathAliases.NONE
-            val options = runCatching { JsonParser.parseString(jsonOf(Files.readString(file))).asJsonObject["compilerOptions"] }
-                .getOrNull()?.takeIf { it.isJsonObject }?.asJsonObject ?: return ConstantKeys.PathAliases.NONE
-            val paths = options["paths"]?.takeIf { it.isJsonObject }?.asJsonObject ?: return ConstantKeys.PathAliases.NONE
-            val baseUrl = options["baseUrl"]?.takeIf { it.isJsonPrimitive }?.asString ?: "."
-            val targets = paths.entrySet().associate { (pattern, value) ->
+        fun pathAliasesOf(root: Path, folder: Path = root): ConstantKeys.PathAliases {
+            val config = generateSequence(folder) { it.parent?.takeIf { parent -> parent.startsWith(root) } }
+                .firstNotNullOfOrNull { dir -> COMPILER_CONFIGS.map(dir::resolve).firstOrNull(Files::isRegularFile) }
+                ?: return ConstantKeys.PathAliases.NONE
+            return pathAliasesOfConfig(root, config)
+        }
+
+        /**
+         * The path aliases [config] declares, as TypeScript reads them: `compilerOptions.paths` and `baseUrl` from the
+         * file itself, else from the files it `extends` (a relative path, or a list of them, the last one winning), each
+         * read from the folder of the file that declares it; `paths` without `baseUrl` resolve from their own file's
+         * folder. Comments and trailing commas are allowed, as TypeScript allows them. An `extends` naming a package
+         * (`@tsconfig/node20`) is not read.
+         */
+        private fun pathAliasesOfConfig(root: Path, config: Path): ConstantKeys.PathAliases {
+            var paths: Pair<Path, JsonObject>? = null
+            var baseUrl: Path? = null
+            for ((file, options) in compilerOptionsChain(config, mutableSetOf())) {
+                if (paths == null) options["paths"]?.takeIf { it.isJsonObject }?.let { paths = file.parent to it.asJsonObject }
+                if (baseUrl == null) options["baseUrl"]?.takeIf { it.isJsonPrimitive }?.let { baseUrl = file.parent.resolve(it.asString).normalize() }
+            }
+            val (declaringFolder, declared) = paths ?: return ConstantKeys.PathAliases.NONE
+            val base = baseUrl ?: declaringFolder
+            if (!base.startsWith(root)) return ConstantKeys.PathAliases.NONE
+            val targets = declared.entrySet().associate { (pattern, value) ->
                 pattern to (value.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { it.takeIf { e -> e.isJsonPrimitive }?.asString }.orEmpty())
             }
-            return ConstantKeys.PathAliases(baseUrl, targets)
+            return ConstantKeys.PathAliases(root.relativize(base).joinToString("/").ifEmpty { "." }, targets)
+        }
+
+        /** The `compilerOptions` of [config], then those of the files it extends, nearest first; a file already [seen] is read once. */
+        private fun compilerOptionsChain(config: Path, seen: MutableSet<Path>): List<Pair<Path, JsonObject>> {
+            val file = config.toAbsolutePath().normalize()
+            if (!seen.add(file)) return emptyList()
+            val json = runCatching { JsonParser.parseString(jsonOf(Files.readString(file))).asJsonObject }.getOrNull() ?: return emptyList()
+            val options = json["compilerOptions"]?.takeIf { it.isJsonObject }?.asJsonObject ?: JsonObject()
+            val extended = json["extends"]?.let { value ->
+                if (value.isJsonArray) value.asJsonArray.mapNotNull { it.takeIf { e -> e.isJsonPrimitive }?.asString }
+                else listOfNotNull(value.takeIf { it.isJsonPrimitive }?.asString)
+            }.orEmpty()
+            return listOf(file to options) +
+                extended.asReversed().mapNotNull { extendedFile(file.parent, it) }.flatMap { compilerOptionsChain(it, seen) }
+        }
+
+        /** The file [spec] names from [folder], `.json` added when left out; null for a package (`@tsconfig/node20`). */
+        private fun extendedFile(folder: Path, spec: String): Path? {
+            if (!spec.startsWith("./") && !spec.startsWith("../")) return null
+            return listOf(spec, "$spec.json").map(folder::resolve).firstOrNull(Files::isRegularFile)
+        }
+
+        /** The path aliases of each importing file, read once per folder ([pathAliasesOf]). */
+        private fun pathAliasesByImporter(root: Path): (String) -> ConstantKeys.PathAliases {
+            val byFolder = mutableMapOf<String, ConstantKeys.PathAliases>()
+            return { importer ->
+                val folder = importer.substringBeforeLast('/', "")
+                byFolder.getOrPut(folder) { pathAliasesOf(root, root.resolve(folder).normalize()) }
+            }
         }
 
         /** [jsonc] as JSON: its line and block comments and its trailing commas left out, strings kept as written. */

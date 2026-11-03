@@ -99,10 +99,14 @@ object ConstantKeys {
 
     /**
      * The files of a project, project-relative path → code, read as [Imports]: a relative import names one
-     * of them, and so does one its [aliases] map (`@/keys`); its extension and an `index` file are looked up
-     * as a bundler would. Each file is parsed once, the first time an import names it.
+     * of them, and so does one the path aliases of the importing file map (`@/keys`, [aliasesOf] — in a monorepo
+     * each package has its own); its extension and an `index` file are looked up as a bundler would. Each file is
+     * parsed once, the first time an import names it.
      */
-    class ProjectFiles(private val files: Map<String, String>, private val aliases: PathAliases = PathAliases.NONE) : Imports {
+    class ProjectFiles(private val files: Map<String, String>, private val aliasesOf: (importer: String) -> PathAliases) : Imports {
+
+        /** The same [aliases] for every file of the project. */
+        constructor(files: Map<String, String>, aliases: PathAliases = PathAliases.NONE) : this(files, { aliases })
 
         private val parsed = mutableMapOf<String, CodeNode?>()
 
@@ -111,7 +115,7 @@ object ConstantKeys {
             if (importer == null) return null
             val bases =
                 if (source.startsWith(".")) listOfNotNull(normalized(importer.substringBeforeLast('/', "") + "/" + source))
-                else aliases.pathsOf(source)
+                else aliasesOf(importer).pathsOf(source)
             val path = bases.asSequence().flatMap { candidatesOf(it) }.firstOrNull { it in files } ?: return null
             val root = parsed.getOrPut(path) { TreeSitterCodeNode.parseTsx(files.getValue(path), path) } ?: return null
             return exportedDeclaration(root, name)
