@@ -1,6 +1,6 @@
 # Coming from i18n Ally, Easy I18n, I18n Support or Sherlock?
 
-_Last verified: 2026-11-02. Re-check at every major release of any of the tools below._
+_Last verified: 2026-11-03. Re-check at every major release of any of the tools below._
 
 This page compares **I18n Support Plus** with the two tools people most often use for i18n keys in an editor:
 **i18n Ally** (by Lokalise, for VS Code and for JetBrains IDEs) and **Easy I18n** (for JetBrains IDEs). It also covers
@@ -11,13 +11,13 @@ code or its issue tracker at the version below. If one is wrong or out of date,
 
 | Tool | Version compared | Released | Source |
 |---|---|---|---|
-| I18n Support Plus | 1.17.0 | 2026-11-02 | [CHANGELOG](../CHANGELOG.md) |
+| I18n Support Plus | 1.18.0 | 2026-11-03 | [CHANGELOG](../CHANGELOG.md) |
 | Easy I18n | 5.0.2 | 2026-05-03 | [Marketplace](https://plugins.jetbrains.com/plugin/16316-easy-i18n), [docs](https://marhali.github.io/easy-i18n/), [GitHub](https://github.com/marhali/easy-i18n) |
 | i18n Ally for JetBrains | 1.4.3.2 | 2024-10-12 | [Marketplace](https://plugins.jetbrains.com/plugin/17212-i18n-ally) |
 | i18n Ally for VS Code | 2.13.1 | 2024-12-13 | [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=lokalise.i18n-ally), [wiki](https://github.com/lokalise/i18n-ally/wiki), [GitHub](https://github.com/lokalise/i18n-ally) |
 | I18n Support | 2.8.4 | 2023-03-28 | [Marketplace](https://plugins.jetbrains.com/plugin/12981-i18n-support/versions), [GitHub](https://github.com/nyavro/i18nPlugin) |
 | i18n Ally Next | 3.0.16 | 2026-11-01 | [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=lydanne.i18n-ally-next), [docs](https://lydanne.github.io/i18n-ally-next/), [GitHub](https://github.com/lydanne/i18n-ally-next) |
-| Sherlock | 2.5.1 | 2026-10-15 | [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=inlang.vs-code-extension), [GitHub](https://github.com/opral/sherlock) |
+| Sherlock | 2.5.2 | 2026-11-02 | [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=inlang.vs-code-extension), [GitHub](https://github.com/opral/sherlock) |
 
 In the tables, **—** means the tool's documentation says nothing about it at that version. It does not mean the
 feature is missing. <sup>next</sup> marks what the next release brings: it is on `main` and in the
@@ -88,7 +88,7 @@ a notification offers the setup wizard when the project opens.
 | next-intl `useTranslations` / `getTranslations` | Yes; `t.rich`, `t.markup`, `t.raw` and `t.has` too | — | — | next-intl listed in its [source](https://github.com/lokalise/i18n-ally/tree/main/src/frameworks) |
 | react-intl `<FormattedMessage id>`, `formatMessage({ id })` | Resolved; Ctrl+click, usages and Shift+F6; extracted as `<FormattedMessage>` or `intl.formatMessage` | — ([presets](https://marhali.github.io/easy-i18n/configuration/presets/)) | — | Ids read; extraction writes `t('key')` ([source](https://github.com/lokalise/i18n-ally/blob/main/src/frameworks/react-intl.ts)) |
 | Paraglide JS (inlang) `m.hello()` | Yes: resolved, completed, folded, navigable to the message, usages counted, renamed, extracted as `m.key()`; `project.inlang/settings.json` read | Open request ([#404](https://github.com/marhali/easy-i18n/issues/404)) | — | Open request ([#1330](https://github.com/lokalise/i18n-ally/issues/1330)) |
-| Transloco | Service, pipe, structural directive and its `read`, scopes | Preset: service and attribute directive | — | Yes |
+| Transloco | Service, pipe, structural and attribute directives, `read`, scopes; inline `template:` too | Preset: service and attribute directive | — | Yes |
 | Laravel `__()`, `trans()`, `trans_choice()`, `@lang` | Yes, `package::file.key` included | Preset: `__`, `trans`, `trans_choice` | Yes, Blade included | Yes |
 | Symfony `trans()`, Twig `\|trans` and `{% trans %}` | Yes, the domain as namespace; YAML, XLIFF, PHP, JSON and PO catalogues | — | Yes, Twig included | — |
 | Your own `translate()` wrapper | Key assistance rules, per-module call template, the extracted text as default value (`t({key}, {text})`) | Editor rules, flavor template | — | Custom framework, refactor templates |
@@ -127,7 +127,7 @@ a notification offers the setup wizard when the project opens.
 | CSV / XLIFF export and import | Yes, with preview | — | — | — |
 | Translation changes of a branch | Compare with a Git branch; the locales lagging behind the reference retranslated in one go | — | — | — |
 | Review: approve, request changes, comment | Per key and locale in the table, the key dialog and the gutter of a JSON or YAML translation file, stored in `.i18n-reviews/`; machine translations marked to review; reviews follow renamed, moved and deleted keys; a translation whose source changed since its review flagged in the table, the key dialog and an inspection, and retranslated in one go; a change request can carry a suggested value, applied in one click, and a thread takes replies and is resolved | — | — | Approve, request changes, comment, suggest a value, from the editor, side panel and Editor UI; stored in `.vscode/i18n-ally-reviews.yml` ([wiki](https://github.com/lokalise/i18n-ally/wiki/Review-&-Collaboration-System), [source](https://github.com/lokalise/i18n-ally/blob/main/src/core/types.ts)) |
-| Checks in CI | Inspections in Qodana or a headless IDE, ready-made configuration; `i18n-check` on the command line, as a Docker image and as a GitHub Action that annotates pull requests: missing, orphan and empty keys per locale, placeholders and ICU in values, unused and unknown keys in code ([documentation](checks.md#command-line-check)) | — | — | — |
+| Checks in CI | Inspections in Qodana or a headless IDE, ready-made configuration; `i18n-check` on the command line, as a Docker image and as a GitHub Action that annotates pull requests: missing, orphan and empty keys per locale (a locale whose file holds no value included), placeholders and ICU in values, unused and unknown keys in code, path aliases followed through `tsconfig` `extends`; Angular's XLIFF and `@@id`s read too ([documentation](checks.md#command-line-check)) | — | — | — |
 
 ### Machine translation
 
@@ -150,7 +150,7 @@ installed 1 201 times on 2026-10-25. **Sherlock** is the inlang extension for VS
 format ([README](https://github.com/opral/sherlock)), installed 52 005 times on 2026-10-25. Neither runs in JetBrains
 IDEs.
 
-| | I18n Support Plus | i18n Ally Next 3.0.16 | Sherlock 2.5.1 |
+| | I18n Support Plus | i18n Ally Next 3.0.16 | Sherlock 2.5.2 |
 |---|---|---|---|
 | Setup | Wizard and per-framework presets | Framework detected from `package.json` ([README](https://github.com/lydanne/i18n-ally-next)) | A `project.inlang/settings.json` and a Git repository; a module per file format, a matcher per call syntax ([README](https://github.com/opral/sherlock)) |
 | Value next to the key | Inlay hint, folding, Ctrl+hover | Inline annotation, hover | Inline annotation, hover |
