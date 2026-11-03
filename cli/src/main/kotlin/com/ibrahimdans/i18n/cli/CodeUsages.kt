@@ -5,6 +5,8 @@ import com.ibrahimdans.i18n.ParsedFormat
 import com.ibrahimdans.i18n.SourceDiscovery
 import com.ibrahimdans.i18n.extract.ConstantKeys
 import com.ibrahimdans.i18n.extract.CodeExtractors
+import com.ibrahimdans.i18n.extensions.technology.angulari18n.AngularI18nConfig
+import com.ibrahimdans.i18n.extract.angular.AngularMessageIds
 import com.ibrahimdans.i18n.extract.angular.AngularTemplate
 import com.ibrahimdans.i18n.extract.laravel.LaravelSource
 import com.ibrahimdans.i18n.extract.laravel.laravelExtractors
@@ -40,6 +42,12 @@ data class UnknownKey(val key: String, val file: String, val line: Int)
  * is read under its package's namespace when the project overrides that file (`lang/vendor/courier/en/messages.php`), as
  * the plugin reads it; a package without an override keeps its keys unread and unreported.
  *
+ * With Angular's own i18n — `angular.json` naming a source file `ng extract-i18n` has written — the messages the code
+ * marks are read through [AngularMessageIds]: the custom id of a template's `i18n="…@@id"` / `i18n-<attr>="…@@id"`, of a
+ * component's inline `template:`, and of a script's `` $localize`:…@@id:…` ``. While a message without a custom id
+ * remains, the ids `ng extract-i18n` computes ([AngularMessageIds.isComputedId]) are never reported unused: the code
+ * does not write them.
+ *
  * A key passed through a constant, `t(KEYS.save)`, is read as the IDE reads it ([ConstantKeys]): the constant
  * declared in the file, or imported from another script of the project by a relative path or by a path alias of
  * the `tsconfig.json`, else `jsconfig.json`, nearest to the importing file, `extends` followed (`@/keys`, [pathAliasesOf]).
@@ -71,11 +79,15 @@ class CodeUsages(project: Path, private val config: Config) {
     /** The keys of each component's `<i18n>` blocks, by project-relative path: known to its own calls. */
     private val blockKeys: Map<String, Set<String>>
 
+    /** The messages Angular's own i18n marks, by project-relative path: none without an extracted catalogue. */
+    private val angularMessages: Map<String, List<AngularMessageIds.Message>>
+
     init {
         val root = project.toAbsolutePath().normalize()
         val laravel = ProjectPackages.composerRequiresAny(root, ProjectPackages.LARAVEL)
-        val extensions = EXTENSIONS +
-            listOfNotNull(HTML.takeIf { ProjectPackages.requiresAny(root, listOf(ProjectPackages.ANGULAR)) }, PHP.takeIf { laravel })
+        val localize = hasAngularCatalogue(root)
+        val angular = localize || ProjectPackages.requiresAny(root, listOf(ProjectPackages.ANGULAR))
+        val extensions = EXTENSIONS + listOfNotNull(HTML.takeIf { angular }, PHP.takeIf { laravel })
         texts = NioWorkspace(root, SourceDiscovery.DEFAULT_EXCLUDED_DIRECTORIES + config.excludedDirectorySet())
             .files(extensions)
             .associate { root.relativize(it.file).joinToString("/") to Files.readString(it.file) }
@@ -87,6 +99,14 @@ class CodeUsages(project: Path, private val config: Config) {
         imports = ConstantKeys.ProjectFiles(code, pathAliasesByImporter(root))
         indexes = indexesOf { true }
         blockKeys = texts.filterKeys { it.endsWith(VUE) }.mapValues { (_, text) -> blockKeysOf(text, config) }.filterValues { it.isNotEmpty() }
+        angularMessages = if (!localize) emptyMap() else texts.mapNotNull { (path, text) ->
+            val messages = when {
+                path.endsWith(".$HTML") -> AngularMessageIds.ofTemplate(text)
+                SCRIPTS.any { path.endsWith(".$it") } -> AngularMessageIds.ofScript(text)
+                else -> emptyList()
+            }
+            messages.takeIf { it.isNotEmpty() }?.let { path to it }
+        }.toMap()
     }
 
     /**
@@ -95,7 +115,13 @@ class CodeUsages(project: Path, private val config: Config) {
      */
     fun unused(keys: Collection<String>, module: ModuleConfig? = null): List<String> {
         val indexes = indexesUsing(module)
-        val unseen = keys.filter { key -> indexes.all { it.usages(key).isEmpty() } }
+        val marked = angularMessages.filterKeys { path -> module == null || ModuleSources.holdsCode(module, ModuleSources.FilePath(path, anchored = true)) }
+            .values.flatten()
+        val markedIds = marked.mapNotNullTo(mutableSetOf()) { it.id }
+        val computedIds = marked.any { it.id == null }
+        val unseen = keys.filter { key ->
+            key !in markedIds && !(computedIds && AngularMessageIds.isComputedId(key)) && indexes.all { it.usages(key).isEmpty() }
+        }
         val reached = indexes.flatMapTo(mutableSetOf()) { it.dynamicallyReached(unseen) }
         return (unseen - reached).sorted()
     }
@@ -112,6 +138,10 @@ class CodeUsages(project: Path, private val config: Config) {
             val holders = keys.filter { (module, _) -> module != null && ModuleSources.holdsCode(module, file) }
             return if (holders.isEmpty()) everyKey else holders.flatMapTo(mutableSetOf()) { it.second }
         }
+        val unmarked = angularMessages.flatMap { (path, messages) ->
+            val known = keysOf(path)
+            messages.mapNotNull { message -> message.id?.takeIf { it !in known }?.let { UnknownKey(it, path, lineOf(path, message.offset)) } }
+        }
         return texts.keys.groupBy(::keysOf)
             .flatMap { (known, paths) ->
                 val files = paths.toSet()
@@ -119,9 +149,9 @@ class CodeUsages(project: Path, private val config: Config) {
             }
             .filterNot { call -> call.key in blockKeys[call.usage.path].orEmpty() || isExistenceCheck(call.usage.path, call.usage.span.start) }
             .map { call ->
-                val line = texts.getValue(call.usage.path).substring(0, call.usage.span.start).count { it == '\n' } + 1
-                UnknownKey(writtenKey(call.key, call.usage.path, call.usage.span.start, call.usage.span.end), call.usage.path, line)
+                UnknownKey(writtenKey(call.key, call.usage.path, call.usage.span.start, call.usage.span.end), call.usage.path, lineOf(call.usage.path, call.usage.span.start))
             }
+            .plus(unmarked)
             .sortedWith(compareBy({ it.file }, { it.line }))
     }
 
@@ -161,6 +191,9 @@ class CodeUsages(project: Path, private val config: Config) {
     private fun writtenKey(key: String, path: String, start: Int, end: Int): String =
         if (path.endsWith(".$PHP")) texts.getValue(path).substring(start, end).unQuote() else key
 
+    /** The 1-based line of [offset] in the file at [path]. */
+    private fun lineOf(path: String, offset: Int): Int = texts.getValue(path).substring(0, offset).count { it == '\n' } + 1
+
     /** True when the literal at [offset] of [path] is the key of a `.has(` call. */
     private fun isExistenceCheck(path: String, offset: Int): Boolean =
         texts.getValue(path).substring(0, offset).trimEnd().endsWith(".${NextIntlKeyExtractor.HAS}(")
@@ -171,6 +204,16 @@ class CodeUsages(project: Path, private val config: Config) {
         val EXTENSIONS = listOf("js", "jsx", "ts", "tsx", "mjs", "cjs", "vue", "svelte")
         const val HTML = "html"
         const val PHP = "php"
+
+        /** The scripts a `$localize` template is read in. */
+        val SCRIPTS = listOf("ts", "js", "mjs", "cjs")
+
+        /** True when `angular.json` names a source file `ng extract-i18n` has written: Angular's own i18n is in use. */
+        fun hasAngularCatalogue(root: Path): Boolean {
+            val config = root.resolve("angular.json").takeIf { Files.isRegularFile(it) } ?: return false
+            return AngularI18nConfig.parse(Files.readString(config))
+                .any { project -> project.referenceFiles.any { Files.isRegularFile(root.resolve(it)) } }
+        }
 
         /** A Laravel package's override, `lang/vendor/<package>/<locale>/<file>.php`. */
         val PACKAGE_OVERRIDE = Regex("""(?:^|/)lang/vendor/([^/]+)/[^/]+/([^/]+)\.php$""")

@@ -8,6 +8,7 @@
 - [Editor] **Gutter icons match the new UI and dark themes**: the missing, partial and translated markers in the gutter and in the Tree View now have New UI and dark variants, instead of the classic light icons everywhere.
 - [Translation files] **A translation file too large for the IDE is now reported**: above the IDE's code insight limit (2.5 MB by default), its keys used to show as missing with no reason given. A notification now names the file and opens *Edit Custom Properties*, where `idea.max.intellisense.filesize` is raised.
 - [CLI] **`i18n-check` reads Angular's own XLIFF files**: in a project using `@angular/localize`, the files `angular.json` names are checked, so an id a locale has not translated yet (missing, or copied without a `<target>`) is reported, as in the IDE.
+- [CLI] **`i18n-check --code` checks Angular's message ids**: the `@@id` of the templates' `i18n` markers and of `$localize` are read, so an id the code no longer marks is reported unused, and an id the code marks but no XLIFF file holds is reported unknown.
 
 ### Fixes
 
