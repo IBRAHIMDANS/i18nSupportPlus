@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.intellij.icons.AllIcons
 import com.intellij.lang.Language
 import com.intellij.openapi.fileTypes.FileType
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.patterns.ElementPattern
@@ -37,6 +38,32 @@ interface Localization <T: PsiElement> : TranslationFormat {
      * `courier::messages`, not `messages`, the namespace of the application's own file.
      */
     fun fileNamespace(file: VirtualFile): String? = null
+
+    /**
+     * How the shared code reads and writes the values of this format's files, or null when it does
+     * so itself ([com.ibrahimdans.i18n.plugin.utils.TranslationPsi]).
+     *
+     * A format of an optional plugin (PHP) sets it: the shared code is loaded in every IDE, and a
+     * reference to one of that plugin's classes from it is reported as a compatibility problem by
+     * the Marketplace verifier on the IDEs where the plugin is missing. The implementation is only
+     * named from the plugin's own descriptor, which the verifier skips there.
+     */
+    fun translationValues(): TranslationValues? = null
+}
+
+/** The reader and writer of the values of one translation file format: see [Localization.translationValues]. */
+interface TranslationValues {
+    /** Whether [element] belongs to a file of this format. */
+    fun handles(element: PsiElement): Boolean
+
+    /** The name element of the key whose value is [value] — what renaming the key rewrites — or null. */
+    fun keyOf(value: PsiElement): PsiElement?
+
+    /** The text of the value [element], its escapes read, or null for any other element. */
+    fun readValue(element: PsiElement): String?
+
+    /** Replaces the value [element] stands for with [newValue]; nothing for any other element. */
+    fun replaceValue(element: PsiElement, newValue: String, project: Project)
 }
 
 val SOURCE_ROOT = Key<Boolean>("i18n#sourceRoot")
