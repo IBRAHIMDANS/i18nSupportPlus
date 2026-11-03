@@ -26,7 +26,7 @@ import com.intellij.psi.PsiReference
 import com.intellij.psi.PsiReferenceBase
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.search.PsiSearchHelper
-import com.intellij.psi.search.UsageSearchContext
+import com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages
 import java.util.Collections.synchronizedList
 @Service
 internal class TranslationToCodeReferenceProvider : KeyComposer<PsiElement> {
@@ -194,7 +194,7 @@ class TranslationToCodeReference(
                     referencesAccumulator.process(),
                     ModuleSources.usageScope(project, element.containingFile?.virtualFile),
                     composedKey,
-                    UsageSearchContext.ANY,
+                    IndirectKeyUsages.keySearchContext(project),
                     true
                 )
                 referencesAccumulator.entries()

@@ -1,10 +1,10 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.PsiSearchHelper
-import com.intellij.psi.search.UsageSearchContext
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -128,7 +128,7 @@ object DynamicKeyUsages {
             },
             scope,
             word,
-            UsageSearchContext.ANY,
+            IndirectKeyUsages.keySearchContext(scope.project),
             true
         )
         return literals

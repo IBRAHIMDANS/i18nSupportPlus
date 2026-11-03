@@ -180,4 +180,21 @@ class UsageScanTest : PlatformBaseTest() {
         assertEquals(1, usagesOf("Home.title"))
         assertEquals(0, usagesOf("Other.title"), "the same tail under another prefix is not a usage")
     }
+
+    /**
+     * The words of a key are searched in strings, template text and embedded languages only
+     * ([com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages.KEY_SEARCH_CONTEXT]): a file
+     * writing them as identifiers or in a comment is no candidate, and the count is the same as
+     * when every file was.
+     */
+    @Test
+    fun `a file naming the key's words only as identifiers or in a comment does not change the count`() {
+        myFixture.addFileToProject("src/Menu.tsx", tsx.generate("'common:menu.home'"))
+        myFixture.addFileToProject(
+            "src/Shadow.tsx",
+            "// common:menu.home is read from the menu\nexport const menu = { home: 1 };\nexport const home = menu.home;",
+        )
+
+        assertEquals(1, usagesOf("common:menu.home"))
+    }
 }
