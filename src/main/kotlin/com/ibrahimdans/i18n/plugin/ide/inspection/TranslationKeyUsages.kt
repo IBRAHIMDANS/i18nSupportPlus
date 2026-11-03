@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.IdeI18nRegistry
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.DynamicKeyUsages
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.tree.KeyComposer
 import com.ibrahimdans.i18n.plugin.tree.Separators
 import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
@@ -157,7 +158,7 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
 
     /** The full key [element] declares, written the way the code would name it. */
     fun keyOf(element: PsiElement, config: Config): String {
-        val path = pathOf(element)
+        val path = pathOf(element, config)
         // A scope file (Transloco) is named after its locale: its keys are written `scope.key`.
         val scope = element.containingFile?.let(::keyScopeOf)
         return composeKey(
@@ -170,14 +171,23 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
     }
 
     /**
-     * The path of [element] in its file, outermost first, the file's namespace at the front — its
-     * own name, unless a technology states it ([TranslationFileScope.statedNamespaceOf]) — the shape
+     * The path of [element] in its file, outermost first, the file's namespace at the front — the shape
      * [composeKey] expects, and the one the reference assistants build.
+     *
+     * The namespace is the one the tool window reads the file under ([TranslationDataLoader.extractNamespace]):
+     * a technology's stated one, a format's (a Laravel package override), the default one for a file named after
+     * its locale, its own name otherwise. A file named after its locale (`messages/en.json`) once lent its name to
+     * every key, `en:common.save`: the table and the code read `common.save`, so a key reached only through
+     * `` t(`common.${'$'}{x}`) `` or kept as `common.*` was reported unused here while the table counted it.
      */
-    private fun pathOf(element: PsiElement): List<String> =
+    private fun pathOf(element: PsiElement, config: Config): List<String> =
         element.parents(true).mapNotNull {
-            TranslationPsi.nameOf(it) ?: (it as? PsiFile)?.let { file -> TranslationFileScope.statedNamespaceOf(file) ?: file.name.substringBeforeLast(".") }
+            TranslationPsi.nameOf(it) ?: (it as? PsiFile)?.let { file -> namespaceOf(file, config) }
         }.toList().reversed()
+
+    private fun namespaceOf(file: PsiFile, config: Config): String =
+        TranslationFileScope.sourceOf(file)?.let { TranslationDataLoader.extractNamespace(it, config.defaultNamespaces().first()) }
+            ?: file.name.substringBeforeLast(".")
 }
 
 /** True when [this] lies in a file [scope] holds: the prefix scan searches the whole project. */
