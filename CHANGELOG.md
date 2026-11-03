@@ -7,6 +7,7 @@
 - [Angular] **A text with interpolations is extracted into Angular's own i18n**: `<p>Hello {{ user.name }}!</p>` becomes `<p i18n="@@id">Hello {{ user.name }}!</p>`, and `messages.xlf` receives the unit with the `INTERPOLATION` placeholders `ng extract-i18n` would write, in XLIFF 1.2 and 2.0, instead of being sent to `ng extract-i18n`. A text spread over several lines is still left to `ng extract-i18n`.
 - [Editor] **Gutter icons match the new UI and dark themes**: the missing, partial and translated markers in the gutter and in the Tree View now have New UI and dark variants, instead of the classic light icons everywhere.
 - [Translation files] **A translation file too large for the IDE is now reported**: above the IDE's code insight limit (2.5 MB by default), its keys used to show as missing with no reason given. A notification now names the file and opens *Edit Custom Properties*, where `idea.max.intellisense.filesize` is raised.
+- [CLI] **`i18n-check` reads Angular's own XLIFF files**: in a project using `@angular/localize`, the files `angular.json` names are checked, so an id a locale has not translated yet (missing, or copied without a `<target>`) is reported, as in the IDE.
 
 ### Fixes
 
