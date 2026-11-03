@@ -3,6 +3,8 @@ package com.ibrahimdans.i18n.plugin.ide.settings
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.guessProjectDir
 import com.intellij.openapi.vfs.VfsUtil
@@ -78,6 +80,26 @@ class ProjectConfigFileSettingsTest : PlatformBaseTest() {
     }
 
     @Test
+    fun `an unsaved document is read before the file, as after an undo`() {
+        addFileToProject(ProjectConfigFile.PATH, """{ "keySeparator": "/" }""")
+        assertEquals("/", settings.config().keySeparator)
+
+        editUnsaved("""{ "keySeparator": "#" }""")
+
+        assertEquals("#", settings.config().keySeparator)
+    }
+
+    @Test
+    fun `an unsaved document that does not read leaves the file in charge`() {
+        addFileToProject(ProjectConfigFile.PATH, """{ "keySeparator": "/" }""")
+        assertEquals("/", settings.config().keySeparator)
+
+        editUnsaved("""{ "keySeparator": "#" """)
+
+        assertEquals("/", settings.config().keySeparator)
+    }
+
+    @Test
     fun `a file that does not read leaves the stored settings, without an exception`() {
         addFileToProject(ProjectConfigFile.PATH, """{ "keySeperator": "/" }""")
 
@@ -144,8 +166,18 @@ class ProjectConfigFileSettingsTest : PlatformBaseTest() {
         assertEquals(mapOf("keySeparator" to "/"), view.held)
     }
 
+    /** Changes the document of `i18n-check.json` without saving it, as an undo does. */
+    private fun editUnsaved(text: String) {
+        val file = settings.configFileOrNull()!!
+        val document = FileDocumentManager.getInstance().getDocument(file)!!
+        WriteCommandAction.runWriteCommandAction(project) { document.setText(text) }
+        assertTrue(FileDocumentManager.getInstance().isDocumentUnsaved(document))
+    }
+
     private fun deleteConfigFile() {
         val file = project.guessProjectDir()?.findChild(ProjectConfigFile.PATH) ?: return
+        val documents = FileDocumentManager.getInstance()
+        documents.getCachedDocument(file)?.let { ApplicationManager.getApplication().invokeAndWait { documents.reloadFromDisk(it) } }
         WriteAction.runAndWait<Exception> { file.delete(this) }
     }
 }
