@@ -7,8 +7,8 @@ import org.junit.jupiter.api.Test
 /** A Symfony XLIFF catalogue, keyed as Symfony keys it. */
 class SymfonyXliffTreeTest {
 
-    private fun values(text: String): List<Pair<String, String?>> =
-        SymfonyXliffTree.parse(text)!!.entries().map { (key, node) -> key to node.value().value }
+    private fun values(text: String, keying: XliffKeying = XliffKeying.SYMFONY): List<Pair<String, String?>> =
+        SymfonyXliffTree.parse(text, keying)!!.entries().map { (key, node) -> key to node.value().value }
 
     @Test
     fun `XLIFF 1·2 - keyed by resname, else by the source text, valued by the target, else the source`() {
@@ -60,6 +60,45 @@ class SymfonyXliffTreeTest {
             </xliff>
         """.trimIndent()
         assertEquals(listOf("user.name" to "Nom", "Hello" to "Hello"), values(text))
+    }
+
+    private val angular12 = """
+        <xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">
+          <file source-language="en-US" target-language="fr" datatype="plaintext" original="ng2.template">
+            <body>
+              <trans-unit id="home.title" datatype="html"><source>Welcome</source><target>Bienvenue</target></trans-unit>
+              <trans-unit id="cart.terms" datatype="html"><source>Terms apply.</source></trans-unit>
+              <trans-unit id="cart.saved" datatype="html"><source>Saved</source><target/></trans-unit>
+            </body>
+          </file>
+        </xliff>
+    """.trimIndent()
+
+    @Test
+    fun `Angular source file - keyed by id, valued by the source`() {
+        assertEquals(
+            listOf("home.title" to "Welcome", "cart.terms" to "Terms apply.", "cart.saved" to "Saved"),
+            values(angular12, XliffKeying.ANGULAR_SOURCE),
+        )
+    }
+
+    @Test
+    fun `Angular locale file - a unit with no target is no key, an empty target is an empty value`() {
+        assertEquals(listOf("home.title" to "Bienvenue", "cart.saved" to ""), values(angular12, XliffKeying.ANGULAR_TARGET))
+    }
+
+    @Test
+    fun `Angular XLIFF 2·0 - keyed by the unit id`() {
+        val text = """
+            <xliff xmlns="urn:oasis:names:tc:xliff:document:2.0" version="2.0" srcLang="en-US" trgLang="fr">
+              <file id="ngi18n" original="ng.template">
+                <unit id="home.title"><segment><source>Welcome</source><target>Bienvenue</target></segment></unit>
+                <unit id="home.intro"><segment><source>Hello</source></segment></unit>
+              </file>
+            </xliff>
+        """.trimIndent()
+        assertEquals(listOf("home.title" to "Bienvenue"), values(text, XliffKeying.ANGULAR_TARGET))
+        assertEquals(listOf("home.title" to "Welcome", "home.intro" to "Hello"), values(text, XliffKeying.ANGULAR_SOURCE))
     }
 
     @Test

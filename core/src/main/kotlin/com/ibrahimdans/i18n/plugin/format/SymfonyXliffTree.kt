@@ -16,6 +16,9 @@ import javax.xml.stream.XMLStreamReader
  *
  * The text of inline markup (`<x/>`, `<g>`) inside a `<source>` or `<target>` is kept. DTDs and
  * external entities are refused.
+ *
+ * Read with an Angular [XliffKeying], a unit is keyed by its `id` instead, as `ng extract-i18n` names it
+ * (`@@home.title` gives `home.title`) and as the plugin's `XliffTree` reads it in `XliffNaming.ID`.
  */
 class SymfonyXliffTree private constructor(node: ParsedNode, children: List<SymfonyXliffTree>?) : ParsedNodeTree(node, children) {
 
@@ -33,17 +36,17 @@ class SymfonyXliffTree private constructor(node: ParsedNode, children: List<Symf
         private const val SOURCE = "source"
         private const val TARGET = "target"
 
-        /** The tree of [text]; null when it is not well-formed XML or its root is no `<xliff>`. */
-        fun parse(text: String): SymfonyXliffTree? =
+        /** The tree of [text], its units keyed by [keying]; null when it is not well-formed XML or its root is no `<xliff>`. */
+        fun parse(text: String, keying: XliffKeying = XliffKeying.SYMFONY): SymfonyXliffTree? =
             try {
-                Reader(text, factory.createXMLStreamReader(StringReader(text))).read()
+                Reader(text, factory.createXMLStreamReader(StringReader(text)), keying).read()
             } catch (e: XMLStreamException) {
                 null
             }
     }
 
     /** One unit being read: its name attribute, and the text and span of its `<source>` and `<target>`. */
-    private class Unit(val name: String?, val start: Int) {
+    private class Unit(val name: String?, val id: String?, val start: Int) {
         var source: String? = null
         var target: String? = null
         var targetSpan: TextSpan? = null
@@ -54,7 +57,7 @@ class SymfonyXliffTree private constructor(node: ParsedNode, children: List<Symf
      * Walks the document once. StAX reports where an event ends by line and column; [lineStarts] turns
      * them into offsets, which locate a unit and its text closely enough: `i18n-check` keeps no line.
      */
-    private class Reader(private val text: String, private val xml: XMLStreamReader) {
+    private class Reader(private val text: String, private val xml: XMLStreamReader, private val keying: XliffKeying) {
         private val lineStarts: IntArray = buildList {
             add(0)
             text.forEachIndexed { index, c -> if (c == '\n') add(index + 1) }
@@ -74,7 +77,11 @@ class SymfonyXliffTree private constructor(node: ParsedNode, children: List<Symf
                         if (xml.localName == ROOT) rootSeen = true else return null
                     } else when (val name = xml.localName) {
                         TRANS_UNIT, UNIT -> {
-                            unit = Unit(xml.getAttributeValue(null, if (name == UNIT) "name" else "resname"), offset())
+                            unit = Unit(
+                                xml.getAttributeValue(null, if (name == UNIT) "name" else "resname"),
+                                xml.getAttributeValue(null, "id"),
+                                offset(),
+                            )
                             segments = 0
                         }
                         SEGMENT -> segments++
@@ -105,9 +112,17 @@ class SymfonyXliffTree private constructor(node: ParsedNode, children: List<Symf
         }
 
         private fun leafOf(unit: Unit): SymfonyXliffTree? {
-            val key = unit.name?.trim()?.takeIf { it.isNotEmpty() } ?: unit.source?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-            val value = unit.target ?: unit.source ?: return null
-            val span = (if (unit.target != null) unit.targetSpan else unit.sourceSpan) ?: return null
+            val key = when (keying) {
+                XliffKeying.SYMFONY -> unit.name?.trim()?.takeIf { it.isNotEmpty() } ?: unit.source?.trim()?.takeIf { it.isNotEmpty() }
+                else -> unit.id?.trim()?.takeIf { it.isNotEmpty() }
+            } ?: return null
+            val fromTarget = when (keying) {
+                XliffKeying.SYMFONY -> unit.target != null
+                XliffKeying.ANGULAR_SOURCE -> false
+                XliffKeying.ANGULAR_TARGET -> true
+            }
+            val value = (if (fromTarget) unit.target else unit.source) ?: return null
+            val span = (if (fromTarget) unit.targetSpan else unit.sourceSpan) ?: return null
             return SymfonyXliffTree(ParsedNode(key, value, TextSpan(unit.start, unit.start), span), null)
         }
 
@@ -118,4 +133,16 @@ class SymfonyXliffTree private constructor(node: ParsedNode, children: List<Symf
             return (lineStarts[line] + location.columnNumber - 1).coerceIn(0, text.length)
         }
     }
+}
+
+/** How [SymfonyXliffTree] keys and values the units of a catalogue. */
+enum class XliffKeying {
+    /** By `resname` (`name` in 2.0), else the source text; valued by the `<target>`, else the `<source>`. */
+    SYMFONY,
+
+    /** Angular's source-locale file, `messages.xlf`: by `id`, valued by the `<source>`. */
+    ANGULAR_SOURCE,
+
+    /** An Angular locale's file, `messages.fr.xlf`: by `id`, valued by the `<target>`; a unit with none is a missing translation. */
+    ANGULAR_TARGET,
 }

@@ -9,12 +9,13 @@ import com.ibrahimdans.i18n.plugin.format.PoTranslationTree
 import com.ibrahimdans.i18n.plugin.format.PropertiesBundle
 import com.ibrahimdans.i18n.plugin.format.PropertiesTranslationTree
 import com.ibrahimdans.i18n.plugin.format.SymfonyXliffTree
+import com.ibrahimdans.i18n.plugin.format.XliffKeying
 import java.nio.file.Files
 import java.nio.file.Path
 
 /**
  * The formats `i18n-check` reads: those `core` builds in, the gettext catalogues, Laravel's PHP
- * arrays, Flutter's ARB catalogues, Java's resource bundles (`.properties`), Symfony's XLIFF catalogues, and the TypeScript / JavaScript catalogues, which need
+ * arrays, Flutter's ARB catalogues, Java's resource bundles (`.properties`), Symfony's and Angular's XLIFF catalogues, and the TypeScript / JavaScript catalogues, which need
  * tree-sitter. Their ids are the plugin's localizations', so its per-format settings apply: an ARB
  * catalogue is a JSON file there.
  */
@@ -39,10 +40,21 @@ internal object CheckFormats {
     /** Not scanned by name: [SymfonySources] declares the catalogues of a Symfony project, keyed as Symfony keys them. */
     val XLIFF = ParsedFormat("XLIFF", "xliff", listOf("xlf", "xliff"), scannedByName = false) { text, _ -> SymfonyXliffTree.parse(text) }
 
-    val ALL: List<ParsedFormat> = ParsedFormat.entries + listOf(TS, PO, PHP, ARB, PROPERTIES, XLIFF)
+    /**
+     * Not scanned by name: [AngularSources] declares the files `angular.json` names, each read by its role
+     * (source-locale file or locale's file) — this parser reads a locale's file.
+     */
+    val ANGULAR_XLIFF = ParsedFormat("XLIFF", "xliff", listOf("xlf", "xliff"), scannedByName = false) { text, _ ->
+        SymfonyXliffTree.parse(text, XliffKeying.ANGULAR_TARGET)
+    }
 
-    /** Formats whose code `--code` does not read, Dart and Java: their keys are never reported unused. */
-    val CODE_UNREAD: Set<ParsedFormat> = setOf(ARB, PROPERTIES)
+    val ALL: List<ParsedFormat> = ParsedFormat.entries + listOf(TS, PO, PHP, ARB, PROPERTIES, XLIFF, ANGULAR_XLIFF)
+
+    /**
+     * Formats whose code `--code` does not read, Dart, Java and Angular's `i18n="@@id"` markers: their keys
+     * are never reported unused.
+     */
+    val CODE_UNREAD: Set<ParsedFormat> = setOf(ARB, PROPERTIES, ANGULAR_XLIFF)
 
     /**
      * Why [file], of [format], gave no tree: null for a TS, JS or PHP file holding code rather than a
