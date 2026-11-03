@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.UsageSearchContext
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Which keys are reached by a key the code builds at runtime.
@@ -115,7 +116,8 @@ object DynamicKeyUsages {
         scope: GlobalSearchScope,
         searchHelper: PsiSearchHelper,
     ): Set<String> {
-        val literals = mutableSetOf<String>()
+        // The search calls the processor from several threads at once: a plain set lost hits.
+        val literals: MutableSet<String> = ConcurrentHashMap.newKeySet()
         val languages = Extensions.LANG.extensionList
         searchHelper.processElementsWithWord(
             { element, _ ->

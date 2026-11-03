@@ -17,6 +17,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.UsageSearchContext
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * The usages of a key that leave no reference on it, found by searching the code for the key's
@@ -76,7 +77,8 @@ internal object IndirectKeyUsages {
         )
         val process = accumulator.process()
         // The same words find the translation values linking to the key (`"@:menu.profile"`).
-        val linked = mutableSetOf<PsiElement>()
+        // The search calls the processor from several threads at once: a plain set lost hits.
+        val linked: MutableSet<PsiElement> = ConcurrentHashMap.newKeySet()
         for (word in query.words) {
             searchHelper.processElementsWithWord(
                 { element, offset ->
@@ -116,7 +118,8 @@ internal object IndirectKeyUsages {
         val languages = Extensions.LANG.extensionList
         val parser = RawKeyParser(project)
         val keyScopes = keyScopesOf(project)
-        val found = mutableMapOf<String, MutableSet<PsiElement>>()
+        // Filled from the search's threads at once: a plain map and sets lost hits under load.
+        val found = ConcurrentHashMap<String, MutableSet<PsiElement>>()
 
         val byWord = keys.flatMap { key -> wantedPaths(key, config) }.groupBy { it.segments.last() }
         for ((word, wanted) in byWord) {
@@ -139,7 +142,7 @@ internal object IndirectKeyUsages {
                         val namespace = KeySpelling.namespaceOf(key)
                         val inNamespace = if (namespace == null) namespaces.isEmpty() || namespaces.any { it in defaultNamespaces }
                             else namespaces.isEmpty() || namespace in namespaces
-                        if (inNamespace) found.getOrPut(key) { mutableSetOf() } += literal
+                        if (inNamespace) found.getOrPut(key) { ConcurrentHashMap.newKeySet() } += literal
                     }
                     true
                 },
