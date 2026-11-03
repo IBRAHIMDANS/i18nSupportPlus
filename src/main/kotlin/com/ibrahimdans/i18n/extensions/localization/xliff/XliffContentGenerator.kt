@@ -21,6 +21,9 @@ import com.intellij.psi.xml.XmlTag
  * A locale's file usually holds the unit already, copied from the reference with its `<source>` and no
  * `<target>`: the target is added after the source. A unit the file lacks is created, its `<source>`
  * copied from the reference file next to it when there is one, as `ng extract-i18n` would have written it.
+ *
+ * A value written for a new key keeps the interpolations of the template it comes from — `Hello {{ user.name }}!`,
+ * an Angular text marked `i18n` — as the placeholders `ng extract-i18n` writes for them ([placeholdersXml]).
  */
 class XliffContentGenerator : ContentGenerator {
 
@@ -32,7 +35,7 @@ class XliffContentGenerator : ContentGenerator {
             |  <file source-language="en" datatype="plaintext" original="ng2.template">
             |    <body>
             |      <trans-unit id="$id" datatype="html">
-            |        <source>${escape(value)}</source>
+            |        <source>${placeholdersXml(value, version2 = false) ?: escape(value)}</source>
             |      </trans-unit>
             |    </body>
             |  </file>
@@ -60,23 +63,27 @@ class XliffContentGenerator : ContentGenerator {
         if (isSymfony(file)) return writeSymfony(file, idOf(fullKey.compositeKey), translationValue ?: "")
         // The id is one key: a dotted id resolves as a single segment, and an unresolved one is all of it.
         val id = idOf(unresolved.ifEmpty { fullKey.compositeKey })
-        write(file, id, translationValue ?: "")
+        write(file, id, translationValue ?: "", placeholders = true)
     }
 
-    /** Writes [value] as [id]'s text in [file], in the element the file's role reads. */
-    fun write(file: PsiFile, id: String, value: String) {
+    /**
+     * Writes [value] as [id]'s text in [file], in the element the file's role reads: as typed, or, with
+     * [placeholders], its interpolations as placeholders ([placeholdersXml]).
+     */
+    fun write(file: PsiFile, id: String, value: String, placeholders: Boolean = false) {
         if (isSymfony(file)) return writeSymfony(file, id, value)
         val role = XliffDocument.roleOf(file)
+        val version2 = XliffDocument.rootOf(file)?.let(XliffDocument::isVersion2) == true
+        val xml = (if (placeholders) placeholdersXml(value, version2) else null) ?: escape(value)
         val unit = XliffDocument.units(file)[id]
         if (unit != null) {
-            setText(unit, role, value)
+            setXml(unit, role, xml)
             return
         }
         val container = XliffDocument.unitContainer(file) ?: return
-        val version2 = XliffDocument.rootOf(file)?.let(XliffDocument::isVersion2) == true
         // The reference's source is copied as written, inline elements (`<x id="INTERPOLATION"/>`) included.
-        val sourceXml = if (role == XliffRole.SOURCE) escape(value) else referenceSourceOf(file, id).orEmpty()
-        val targetXml = if (role == XliffRole.TARGET) escape(value) else null
+        val sourceXml = if (role == XliffRole.SOURCE) xml else referenceSourceOf(file, id).orEmpty()
+        val targetXml = if (role == XliffRole.TARGET) xml else null
         appendUnit(container) { indent -> unitText(escape(id), sourceXml, targetXml, version2, indent) }
     }
 
@@ -95,7 +102,7 @@ class XliffContentGenerator : ContentGenerator {
      */
     private fun writeSymfony(file: PsiFile, key: String, value: String) {
         val unit = XliffDocument.namedUnits(file)[key]
-        if (unit != null) return setText(unit, XliffRole.TARGET, value)
+        if (unit != null) return setXml(unit, XliffRole.TARGET, escape(value))
         val container = XliffDocument.unitContainer(file) ?: return
         val version2 = XliffDocument.rootOf(file)?.let(XliffDocument::isVersion2) == true
         val nameAttribute = if (version2) "name" else "resname"
@@ -106,15 +113,15 @@ class XliffContentGenerator : ContentGenerator {
     private fun isSymfony(file: PsiFile): Boolean =
         file.virtualFile?.let { SymfonyTranslations.isCatalogue(file.project, it) } == true
 
-    /** Sets the text of [unit] that a file of [role] reads, creating its `<target>` after the `<source>` when missing. */
-    private fun setText(unit: XliffUnit, role: XliffRole, value: String) {
+    /** Sets the content of [unit] that a file of [role] reads to [xml], creating its `<target>` after the `<source>` when missing. */
+    private fun setXml(unit: XliffUnit, role: XliffRole, xml: String) {
         unit.valueTag(role)?.let {
-            XliffTranslationPsi.setContent(it, escape(value))
+            XliffTranslationPsi.setContent(it, xml)
             return
         }
         val source = unit.source ?: return
         val indent = XliffTranslationPsi.indentOf(source, "")
-        XliffTranslationPsi.insertAfter(source, "\n$indent<target>${escape(value)}</target>")
+        XliffTranslationPsi.insertAfter(source, "\n$indent<target>$xml</target>")
     }
 
     /** A new unit as text, its first line at [indent] and each level [STEP] deeper. */
@@ -154,10 +161,42 @@ class XliffContentGenerator : ContentGenerator {
 
     private fun idOf(literals: List<Literal>): String = literals.joinToString(".") { it.text }
 
-    private fun escape(text: String): String = StringUtil.escapeXmlEntities(text)
-
-    private companion object {
+    internal companion object {
         /** One level of indentation, as `ng extract-i18n` writes it. */
-        const val STEP = "  "
+        private const val STEP = "  "
+
+        /** An Angular interpolation with its default delimiters, the expression as written between them. */
+        private val INTERPOLATION = Regex("""\{\{(.*?)}}""")
+
+        /** A value read from an XLIFF file, its inline elements already written: never rewritten. */
+        private val INLINE_ELEMENT = Regex("""<(x|ph)\b""")
+
+        /**
+         * [value] as XLIFF content, each `{{ … }}` written as the placeholder `ng extract-i18n` writes for an
+         * interpolation; null when it holds none, or holds inline elements already:
+         *  - XLIFF 1.2: `Hello <x id="INTERPOLATION" equiv-text="{{ user.name }}"/>!`;
+         *  - XLIFF 2.0: `Hello <ph id="0" equiv="INTERPOLATION" disp="{{ user.name }}"/>!`.
+         *
+         * Named as Angular's compiler names them: `INTERPOLATION`, then `INTERPOLATION_1`, `INTERPOLATION_2`…
+         * one name per expression as written — blanks included — the same expression reusing its name; in
+         * 2.0 each placeholder is numbered in order from 0.
+         */
+        fun placeholdersXml(value: String, version2: Boolean): String? {
+            if (!INTERPOLATION.containsMatchIn(value) || INLINE_ELEMENT.containsMatchIn(value)) return null
+            val names = linkedMapOf<String, String>()
+            var next = 0
+            var start = 0
+            val xml = StringBuilder()
+            for (match in INTERPOLATION.findAll(value)) {
+                xml.append(escape(value.substring(start, match.range.first)))
+                val name = names.getOrPut(match.groupValues[1]) { if (names.isEmpty()) "INTERPOLATION" else "INTERPOLATION_${names.size}" }
+                val display = escape(match.value)
+                xml.append(if (version2) "<ph id=\"${next++}\" equiv=\"$name\" disp=\"$display\"/>" else "<x id=\"$name\" equiv-text=\"$display\"/>")
+                start = match.range.last + 1
+            }
+            return xml.append(escape(value.substring(start))).toString()
+        }
+
+        private fun escape(text: String): String = StringUtil.escapeXmlEntities(text)
     }
 }
