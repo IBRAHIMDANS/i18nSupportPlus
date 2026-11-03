@@ -34,6 +34,17 @@
             group="OTHER_GROUP"
             bundle="messages.I18nBundle"
             nameKey="inlay.hints.name"/>
+        <!-- A component's inline `template: '…'` is an Angular fragment injected into a TypeScript
+             literal: the platform folds and hints a file with the extensions of its own language, so
+             neither declaration above ran on it. These two read the injected fragments only — the
+             component's own keys stay with JsFoldingBuilder and the provider declared on JavaScript. -->
+        <lang.foldingBuilder language="TypeScript" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.AngularInlineTemplateFoldingBuilder"/>
+        <codeInsight.declarativeInlayProvider language="TypeScript"
+            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.AngularInlineTemplateInlayHintsProvider"
+            providerId="i18n.translations.inlay"
+            group="OTHER_GROUP"
+            bundle="messages.I18nBundle"
+            nameKey="inlay.hints.name"/>
         <lang.documentationProvider language="Angular2" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
         <localInspection
             language="Angular2Html"
