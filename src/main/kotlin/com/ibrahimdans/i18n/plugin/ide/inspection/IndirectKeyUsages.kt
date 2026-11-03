@@ -1,6 +1,9 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideOutdir
+import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideTechnology
+import com.ibrahimdans.i18n.extensions.technology.typesafei18n.TypesafeI18nTechnology
 import com.ibrahimdans.i18n.plugin.ide.references.translation.LinkedMessages
 import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumulator
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
@@ -12,11 +15,18 @@ import com.ibrahimdans.i18n.plugin.tree.ContextKey
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.tree.Separators
 import com.ibrahimdans.i18n.plugin.utils.keyScopesOf
+import com.intellij.json.JsonFileType
+import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
+import com.intellij.psi.impl.cache.CacheManager
+import com.intellij.psi.search.FilenameIndex
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.UsageSearchContext
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
+import com.intellij.psi.util.PsiModificationTracker
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -26,6 +36,63 @@ import java.util.concurrent.ConcurrentHashMap
  * usage count above each key, so that all of them agree on what "used" means.
  */
 internal object IndirectKeyUsages {
+
+    /**
+     * Where the code writes a key, as the word index classifies it: a string (`t('menu.title')`,
+     * `$localize`:@@id:…``, a YAML value), the text or an attribute of a template (`<p translate>menu.title</p>`,
+     * `i18n="@@id"`, `<Trans i18nKey="…">`), or a language embedded in another (the `{{ $t('…') }}` of
+     * a Vue template, the `__()` of a Blade view). Identifiers and comments are left out: the last
+     * segment of a key — `title`, `label`, `name` — is also an identifier of nearly every source
+     * file, and each candidate file of a word search is parsed to find the word in it.
+     *
+     * Two things the index files as code are read elsewhere: a Paraglide or typesafe-i18n key, which
+     * is a member name ([keySearchContext]), and a JSON value ([translationValues]).
+     */
+    val KEY_SEARCH_CONTEXT: Short =
+        (UsageSearchContext.IN_STRINGS.toInt() or UsageSearchContext.IN_PLAIN_TEXT.toInt() or UsageSearchContext.IN_FOREIGN_LANGUAGES.toInt()).toShort()
+
+    /**
+     * [KEY_SEARCH_CONTEXT], with identifiers back in a project where the code names a key as one:
+     * Paraglide's `m.hello()` and typesafe-i18n's `LL.hello()`. Everything, for a scope of no project.
+     */
+    fun keySearchContext(project: Project?): Short = when {
+        project == null -> UsageSearchContext.ANY
+        writesKeysAsIdentifiers(project) -> (KEY_SEARCH_CONTEXT.toInt() or UsageSearchContext.IN_CODE.toInt()).toShort()
+        else -> KEY_SEARCH_CONTEXT
+    }
+
+    /** The words a file reading its keys as identifiers holds: Paraglide's and typesafe-i18n's imports. */
+    private val IDENTIFIER_KEY_LIBRARIES = listOf("paraglide", "typesafe")
+
+    /**
+     * True when [project] holds an inlang project, a compiled Paraglide output folder ([ParaglideOutdir]),
+     * a typesafe-i18n output folder, or any file naming one of [IDENTIFIER_KEY_LIBRARIES] — the component
+     * importing `../paraglide/messages.js` is enough, the output folder may not be in the project.
+     * Erring on the side of a true answer costs identifiers back in the searches, never a usage.
+     * Index lookups only; kept until the PSI changes.
+     */
+    private fun writesKeysAsIdentifiers(project: Project): Boolean =
+        CachedValuesManager.getManager(project).getCachedValue(project) {
+            val scope = GlobalSearchScope.projectScope(project)
+            val cache = CacheManager.getInstance(project)
+            val found = ParaglideTechnology.projects(project).isNotEmpty() ||
+                TypesafeI18nTechnology.outputFolders(project).isNotEmpty() ||
+                FilenameIndex.getVirtualFilesByName("runtime.js", scope).any { "/node_modules/" !in it.path && ParaglideOutdir.contains(it) } ||
+                IDENTIFIER_KEY_LIBRARIES.any { word ->
+                    cache.getVirtualFilesWithWord(word, UsageSearchContext.ANY, scope, true).any { "/node_modules/" !in it.path }
+                }
+            CachedValueProvider.Result.create(found, PsiModificationTracker.MODIFICATION_COUNT)
+        }
+
+    /**
+     * The JSON and YAML files of [scope]: where a translation value linking to a key (`"@:menu.title"`)
+     * is found. The index files a JSON string as code, so the search of the code's strings never
+     * reaches it; these files are few, and they are the only ones such a value lives in.
+     */
+    private fun translationValues(scope: GlobalSearchScope): GlobalSearchScope {
+        val types = listOfNotNull(JsonFileType.INSTANCE, FileTypeManager.getInstance().findFileTypeByName("YAML"))
+        return GlobalSearchScope.getScopeRestrictedByFileTypes(scope, *types.toTypedArray())
+    }
 
     /**
      * How many call sites name [key] outright, found by a text search of the key rather than by
@@ -76,16 +143,20 @@ internal object IndirectKeyUsages {
             fallbacks,
         )
         val process = accumulator.process()
-        // The same words find the translation values linking to the key (`"@:menu.profile"`).
-        // The search calls the processor from several threads at once: a plain set lost hits.
+        val context = keySearchContext(searchScope.project)
+        // The same words find the translation values linking to the key (`"@:menu.profile"`), in
+        // the translation files alone, whatever the index files their strings as. The search calls
+        // the processor from several threads at once: a plain set lost hits.
         val linked: MutableSet<PsiElement> = ConcurrentHashMap.newKeySet()
+        val valueScope = translationValues(searchScope)
         for (word in query.words) {
+            searchHelper.processElementsWithWord(process, searchScope, word, context, true)
             searchHelper.processElementsWithWord(
-                { element, offset ->
+                { element, _ ->
                     if (element !in linked && linksTo(element, key, config)) linked += element
-                    process(element, offset)
+                    true
                 },
-                searchScope, word, UsageSearchContext.ANY, true
+                valueScope, word, UsageSearchContext.ANY, true
             )
         }
         return accumulator.entries() to linked
@@ -148,7 +219,7 @@ internal object IndirectKeyUsages {
                 },
                 config.searchScope(project),
                 word,
-                UsageSearchContext.ANY,
+                keySearchContext(project),
                 true
             )
         }
