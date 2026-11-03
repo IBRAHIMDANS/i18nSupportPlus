@@ -96,9 +96,16 @@ data class Config (
         ignoredLocales.split("[;|,\\s]".toRegex()).filter { it.isNotBlank() }
             .any { LocaleMatching.pick(it, listOf(locale)) != null }
 
-    /** The locale [label] inherits the keys it lacks from — `en` for `en-GB` — or null with [regionalFallback] off. */
-    fun parentLocale(label: String): String? =
-        if (regionalFallback) LocaleParent.of(aliasedLocale(label)) else null
+    /**
+     * The locale [label] inherits the keys it lacks from — `en` for `en-GB` — or null with [regionalFallback] off.
+     * Named as the project writes it: `uk` when [localeAliases] holds `uk=en`, since callers look it up among
+     * the labels of the translation files.
+     */
+    fun parentLocale(label: String): String? {
+        if (!regionalFallback) return null
+        val parent = LocaleParent.of(aliasedLocale(label)) ?: return null
+        return localeAliasMap().entries.firstOrNull { it.value.equals(parent, ignoreCase = true) }?.key ?: parent
+    }
 
     /**
      * [localeAliases] — `gb=en-GB, cn=zh-CN` — as alias -> locale: a folder or a file named after an

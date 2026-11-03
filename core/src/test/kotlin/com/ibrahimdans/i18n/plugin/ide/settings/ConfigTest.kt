@@ -69,6 +69,15 @@ class ConfigTest {
         assertEquals(emptyMap<String, String>(), Config().localeAliasMap())
     }
 
+    @Test
+    fun `the parent locale is named as the project writes it`() {
+        assertEquals("en", Config().parentLocale("en-GB"))
+        assertEquals("uk", Config(localeAliases = "uk=en").parentLocale("en-GB"))
+        assertEquals("uk", Config(localeAliases = "uk=en, gb=en-GB").parentLocale("gb"))
+        assertNull(Config().parentLocale("en"))
+        assertNull(Config(localeAliases = "uk=en", regionalFallback = false).parentLocale("en-GB"))
+    }
+
     private val code = CodeDefaults("src/i18n.ts", defaultNs = listOf("common", "shared"), referenceLocale = "fr")
 
     @Test
