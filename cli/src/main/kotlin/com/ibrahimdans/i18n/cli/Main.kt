@@ -137,13 +137,15 @@ object I18nCheck {
         }
         val scopes = scopesOf(options, config)
         val results = scopes.map { scope ->
-            val labels = scope.translations.values.flatMap { it.keys }.distinct().sorted()
+            // A locale whose files hold no value is a locale still: `fr.json` = `{}` has every key missing.
+            val fileLocales = scope.files.map { it.locale }
+            val labels = (scope.translations.values.flatMap { it.keys } + fileLocales).distinct().sorted()
             // `--reference en` finds `en-US` as the settings' locale does.
             val wanted = options.reference ?: ReferenceLocale.wanted(scope.module, config)
             val reference = LocaleMatching.pick(wanted, labels)
                 ?: throw CannotCheck("reference locale $wanted not found among ${labels.joinToString()}" + scope.module?.let { " in module ${it.name}" }.orEmpty())
             val result = TranslationCheck.run(
-                scope.translations, reference, config::aliasedLocale, config::parentLocale, options.values,
+                scope.translations, reference, config::aliasedLocale, config::parentLocale, options.values, fileLocales,
             )
             fun checked(locale: String) = locale == reference || !config.ignoresLocale(locale)
             result.copy(
