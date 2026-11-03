@@ -8,8 +8,14 @@ import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.FrameworkDetector
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
+import com.ibrahimdans.i18n.plugin.review.ReviewKey
+import com.ibrahimdans.i18n.plugin.review.ReviewLocation
+import com.ibrahimdans.i18n.plugin.review.ReviewState
+import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.TestDialogManager.setTestInputDialog
@@ -169,6 +175,35 @@ class AngularNativeI18nActionsTest : ExtractionTestBase() {
             val text = textOf(file)
             Assertions.assertTrue(text.contains("<trans-unit id=\"home.heading\"") && !text.contains("\"home.title\""), text)
         }
+    }
+
+    /** Reviews on for the project, [id] approved in French with its translation. */
+    private fun approveInFrench(id: String, value: String): ReviewStore {
+        val store = ReviewStore.getInstance(project).apply { reviewer = { "Alice <alice@example.com>" } }
+        val root = ReviewLocation.rootOf(project, null)!!
+        WriteCommandAction.runWriteCommandAction(project) {
+            store.enable(root)
+            store.decide(root, "fr", ReviewKey("translation", id), ReviewState.APPROVED, value)
+        }
+        return store
+    }
+
+    @Test
+    fun renamingAnIdMovesItsReviewAndOneUndoBringsItBack() = myFixture.runWithConfig(Config()) {
+        addWorkspace()
+        openTemplate("""<h1 i18n="@@home.ti<caret>tle">Welcome</h1>""")
+        val store = approveInFrench("home.title", "Bienvenue")
+        val root = ReviewLocation.rootOf(project, null)!!
+
+        renameAtCaret("home.heading")
+
+        Assertions.assertEquals(setOf(ReviewKey("translation", "home.heading")), store.reviews(root, "fr").keys)
+        Assertions.assertEquals(ReviewState.APPROVED, store.reviews(root, "fr").getValue(ReviewKey("translation", "home.heading")).state)
+
+        UndoManager.getInstance(project).undo(null)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+
+        Assertions.assertEquals(setOf(ReviewKey("translation", "home.title")), store.reviews(root, "fr").keys)
     }
 
     @Test
