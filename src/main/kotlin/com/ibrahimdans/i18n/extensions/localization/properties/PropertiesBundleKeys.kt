@@ -14,6 +14,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.util.Processor
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * How the code uses the keys of the project's resource bundles. The code reads them through
@@ -45,7 +46,8 @@ object PropertiesBundleKeys {
             val scope = ModuleSources.usageScope(project, file.virtualFile)
             for (property in file.properties) {
                 val key = property.unescapedKey ?: continue
-                val found = referring.getOrPut(prefix + key) { HashSet() }
+                // A concurrent set: the search calls the processor from several threads at once.
+                val found = referring.getOrPut(prefix + key) { ConcurrentHashMap.newKeySet() }
                 ReferencesSearch.search(property.psiElement, scope).forEach(Processor { found += it.element; true })
             }
         }

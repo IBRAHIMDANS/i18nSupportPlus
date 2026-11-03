@@ -24,6 +24,7 @@
 - [Angular] **Keys the extraction writes into an inline template are now read**: in a `template: '…'` quoted with apostrophes, a key written `\'key\'` (the form the quick fix uses there) now gets its value, folding, completion and navigation like any other key.
 - [Tool window] ***Count Key Usages*, the usage counts above each key and *Unused translation key* are faster**: a key's words are now searched in strings, template text and embedded languages only, no longer in identifiers and comments, so a file naming `title` or `label` as a variable is not parsed for nothing. About 40% less time on a 300-file project; Paraglide and typesafe-i18n, whose keys are identifiers, keep their searches.
 - [Editor] **No more "IDE error occurred" over a key in an injected fragment**: the folding pass the IDE runs on a fragment itself — an Angular component's inline template, a Vue `<template>` expression — placed the regions on the host, logged an error per key and folded nothing on that pass; the regions now belong to the fragment and the keys fold there too.
+- [Refactoring] ***Delete Key* and renaming a key level no longer miss call sites on a large project**: the search behind them runs over several files at once and collected its hits without synchronization, so *Delete Key* could list fewer usages than there are, and renaming a level such as `button` in `button.save` could leave some calls unchanged.
 
 ## 1.17.1 - 2026-11-02
 

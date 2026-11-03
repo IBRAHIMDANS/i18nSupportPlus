@@ -41,6 +41,7 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.UsageSearchContext
 import com.intellij.psi.util.PsiTreeUtil
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Renames an intermediate level of a key path — `button` in `button.save`, so that every key under
@@ -145,8 +146,9 @@ internal class KeyLevelRename(
      * every spelling of a key under the level writes it, as does a key prefix going through it.
      */
     private fun codeEdits(newName: String): Found {
-        val edits = linkedSetOf<Edit>()
-        val dynamic = linkedSetOf<String>()
+        // Concurrent sets: the search calls the processor from several threads at once.
+        val edits: MutableSet<Edit> = ConcurrentHashMap.newKeySet()
+        val dynamic: MutableSet<String> = ConcurrentHashMap.newKeySet()
         val languages = Extensions.LANG.extensionList
         val parser = RawKeyParser(project)
         PsiSearchHelper.getInstance(project).processElementsWithWord(
@@ -180,7 +182,7 @@ internal class KeyLevelRename(
             UsageSearchContext.ANY,
             true
         )
-        return Found(edits.toList(), dynamic.toList())
+        return Found(edits.toList(), dynamic.sorted())
     }
 
     /**

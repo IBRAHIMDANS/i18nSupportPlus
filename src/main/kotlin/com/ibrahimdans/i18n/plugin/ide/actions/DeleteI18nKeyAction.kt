@@ -29,6 +29,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.UsageSearchContext
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Deletes the i18n key under the caret from every locale of its module, from the code
@@ -223,7 +224,8 @@ class DeleteI18nKeyAction : AnAction() {
                 PluralKey.stripSuffix(last, config.pluralSeparator).split(NON_WORD).lastOrNull { it.isNotEmpty() }
             }.toSet()
             val languages = Extensions.LANG.extensionList
-            val found = linkedSetOf<PsiElement>()
+            // Kept in a concurrent set: the search calls the processor from several threads at once.
+            val found: MutableSet<PsiElement> = ConcurrentHashMap.newKeySet()
             for (word in words) {
                 PsiSearchHelper.getInstance(project).processElementsWithWord(
                     { element, _ ->
@@ -242,7 +244,7 @@ class DeleteI18nKeyAction : AnAction() {
                     true
                 )
             }
-            return found.map(::locationOf)
+            return found.map(::locationOf).sorted()
         }
 
         private fun locationOf(element: PsiElement): String {

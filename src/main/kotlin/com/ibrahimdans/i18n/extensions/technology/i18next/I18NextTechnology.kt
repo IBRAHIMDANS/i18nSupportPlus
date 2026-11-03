@@ -44,6 +44,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.containers.ContainerUtil
 import java.util.concurrent.ConcurrentHashMap
+import java.util.Collections
 
 class I18NextTechnology : Technology {
 
@@ -99,7 +100,8 @@ class I18NextTechnology : Technology {
             ReadAction.nonBlocking<List<String>> {
                 val config = Settings.getInstance(project).config()
                 val searchScope = config.searchScope(project)
-                val cfgFileNames = mutableListOf<String>()
+                // A synchronized list: the search calls the processor from several threads at once.
+                val cfgFileNames: MutableList<String> = Collections.synchronizedList(mutableListOf())
                 @Suppress("DEPRECATION")
                 if (PsiSearchHelper.SearchCostResult.FEW_OCCURRENCES == PsiSearchHelper.getInstance(project).isCheapEnoughToSearch("translation", searchScope, null)) {
                     val processor = object : TextOccurenceProcessor {
