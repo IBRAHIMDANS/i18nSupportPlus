@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -335,5 +336,35 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
         myFixture.addFileToProject("config/site.json", """{"title": "unrelated"}""")
         myFixture.addFileToProject("src/App.js", "export const a = (t) => t('common:home');")
         assertEquals(listOf("title"), unusedIn("locales/en/common.json"))
+    }
+
+    // A file named after its locale (`messages/en.json`: next-intl, vue-i18n, Paraglide) holds keys of the default
+    // namespace: the table reads `common.save`, and the inspection must decide on the same key, not on `en:common.save`.
+
+    private val localeNamedCatalog =
+        """{"common": {"save": "Save", "cancel": "Cancel", "dead": "Dead", "status": {"ok": "OK"}}, "errors": {"timeout": "Timed out"}}"""
+
+    /** The keys of `messages/en.json` the inspection reports, then those the table counts at zero, by last segment. */
+    private fun localeNamedVerdicts(): Pair<Set<String>, Set<String>> {
+        addFileToProject("messages/en.json", localeNamedCatalog)
+        addFileToProject("src/Save.ts", "export const save = (t: (k: string) => string) => t('common.save');")
+        addFileToProject("src/Status.ts", "export const status = (t: (k: string) => string, kind: string) => t(`common.status.${'$'}{kind}`);")
+        addFileToProject(
+            "src/Cancel.tsx",
+            "import { useTranslations } from 'next-intl';\n" +
+                "export default function Cancel() { const t = useTranslations('common'); return t('cancel'); }",
+        )
+        val reported = unusedIn("messages/en.json").toSet()
+        val viewModel = TableViewModel()
+        val counted = viewModel.countUsages(project, viewModel.loadRows(project))
+        val orphans = counted.filter { it.usageCount == 0 }.map { it.key.substringAfterLast('.') }.toSet()
+        return reported to orphans
+    }
+
+    @Test
+    fun testLocaleNamedFileIsDecidedOnTheKeyTheTableReads() = myFixture.runWithConfig(Config(keptKeys = "errors.*")) {
+        val (reported, orphans) = localeNamedVerdicts()
+        assertEquals(setOf("dead"), orphans, "the table")
+        assertEquals(orphans, reported, "the inspection agrees with the table")
     }
 }

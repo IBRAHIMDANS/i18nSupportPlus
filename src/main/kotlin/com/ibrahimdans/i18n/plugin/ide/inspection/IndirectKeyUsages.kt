@@ -14,7 +14,6 @@ import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.ContextKey
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.tree.Separators
-import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
 import com.ibrahimdans.i18n.plugin.utils.keyScopesOf
 import com.intellij.json.JsonFileType
 import com.intellij.openapi.Disposable
@@ -305,25 +304,12 @@ internal object IndirectKeyUsages {
      * and never in a module whose preset names another framework.
      *
      * Its targets are read in every locale ([LinkedMessages.allTargetsOf]): `fr.json`'s link uses the
-     * key of `en.json` too, which *Clean Up* deletes from every locale at once. A file named after its
-     * locale (`en.json`) holds the default namespace, which the table writes no namespace for
-     * (`common.save`), while [TranslationKeyUsages.keyOf] spells it with the file's name (`en:common.save`):
-     * either spelling matches.
+     * key of `en.json` too, which *Clean Up* deletes from every locale at once.
      */
     private fun linksTo(element: PsiElement, key: String, config: Config): Boolean =
         LinkedMessages.linksOf(element).any { link ->
-            LinkedMessages.allTargetsOf(element, link.key).any { target -> key in spellingsOf(target, config) }
+            LinkedMessages.allTargetsOf(element, link.key).any { target -> TranslationKeyUsages.keyOf(target, config) == key }
         }
-
-    /** The ways a usage count names the key [target] declares: [TranslationKeyUsages.keyOf], and the table's for a locale file. */
-    private fun spellingsOf(target: PsiElement, config: Config): Set<String> {
-        val spelled = TranslationKeyUsages.keyOf(target, config)
-        val file = target.containingFile ?: return setOf(spelled)
-        val localeNamed = TranslationFileScope.sourceOf(file)?.isLocaleNamedFile() == true
-        val fileName = file.name.substringBeforeLast(".") + config.nsSeparator
-        return if (localeNamed && config.nsSeparator.isNotEmpty() && spelled.startsWith(fileName)) setOf(spelled, spelled.removePrefix(fileName))
-            else setOf(spelled)
-    }
 
     /** What [textCount] searches the sources for, on behalf of one key. */
     data class UsageQuery(val bareKey: String, val words: List<String>, val namespace: String? = null)
