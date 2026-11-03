@@ -302,6 +302,10 @@ intellijPlatform {
         // is no source change that removes them, so the choice is to fail every release or to say
         // so here. Note that verifier-ignored-problems.txt cannot express this: it filters
         // compatibility problems, and an internal API usage is not one.
+        //
+        // Every other internal API usage still has to fail: the Marketplace refuses the upload
+        // (1.18.0, FileSizeLimit). The Plugin Compatibility workflow reads the reports after this
+        // task and fails on any internal API usage but those three.
         failureLevel.set(listOf(FailureLevel.COMPATIBILITY_PROBLEMS, FailureLevel.OVERRIDE_ONLY_API_USAGES))
         ides {
             recommended()
