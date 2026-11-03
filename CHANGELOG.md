@@ -12,6 +12,9 @@
 - [Settings] **Regional fallback works when the language is written under an alias**: with `uk=en` in *Locale aliases*, an `en-GB` file now inherits the keys of the `uk` folder instead of being reported as missing them all.
 - [CLI] **`i18n-check --code` follows the path aliases of a monorepo**: a constant imported through an alias declared in a `tsconfig.base.json` reached by `extends`, or in a package's own `tsconfig.json`, now counts its key as used, as TypeScript resolves it.
 - [Settings] **Undoing a namespace rename restores the settings at once**: the plugin now reads `i18n-check.json` as it stands in the editor, so the old namespace name comes back on undo instead of waiting for the file to be saved.
+### Features
+
+- [Translation files] **A translation file too large for the IDE is now reported**: above the IDE's code insight limit (2.5 MB by default), its keys used to show as missing with no reason given. A notification now names the file and opens *Edit Custom Properties*, where `idea.max.intellisense.filesize` is raised.
 
 ## 1.17.1 - 2026-11-02
 

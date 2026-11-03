@@ -272,6 +272,8 @@
         <postStartupActivity implementation="com.ibrahimdans.i18n.plugin.ide.settings.StartupAction"/>
         <postStartupActivity implementation="com.ibrahimdans.i18n.plugin.ide.settings.SetupWizardStartupActivity"/>
         <postStartupActivity implementation="com.ibrahimdans.i18n.plugin.ide.whatsnew.WhatsNewStartupActivity"/>
+        <!-- A translation file above the IDE's intellisense size limit: told why its keys are missing. -->
+        <postStartupActivity implementation="com.ibrahimdans.i18n.plugin.ide.notification.LargeTranslationFileNotifier"/>
         <toolWindow id="I18n" anchor="bottom" icon="AllIcons.Nodes.ResourceBundle"
                     factoryClass="com.ibrahimdans.i18n.plugin.ide.toolwindow.I18nToolWindowFactory"/>
         <searchEverywhereContributor
