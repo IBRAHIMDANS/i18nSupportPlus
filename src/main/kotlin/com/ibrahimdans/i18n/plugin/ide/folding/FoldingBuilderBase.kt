@@ -30,6 +30,7 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.EditorFactory
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
@@ -136,11 +137,16 @@ abstract class FoldingBuilderBase(private val lang: Lang) : FoldingBuilderEx(), 
          * on the editor until the file or its folding changes, and a settings change moves neither,
          * so an editor the daemon had already gone over got back the update computed before the
          * switch — no key region to fold. The fixture's highlighting re-creates the regions and hid it.
+         *
+         * An editor whose document has no file behind it (a non-physical fragment some popups show) is
+         * skipped: it holds no key of a translation file, and the platform's folding update needs the
+         * file — on 2026.2 it throws, reported as « IDE error occurred » after a preview locale switch.
          */
         fun refreshOpenEditors(project: Project, fold: Boolean) {
             val folding = CodeFoldingManager.getInstance(project)
+            val files = FileDocumentManager.getInstance()
             EditorFactory.getInstance().allEditors
-                .filter { it.project == project }
+                .filter { it.project == project && files.getFile(it.document) != null }
                 .forEach { editor ->
                     folding.scheduleAsyncFoldingUpdate(editor)
                     ReadAction.nonBlocking<Pair<Runnable?, Set<TextRange>>> {

@@ -5,11 +5,16 @@ import com.ibrahimdans.i18n.plugin.ide.actions.ToggleFoldingAction
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.intellij.codeInsight.folding.CodeFoldingManager
+import com.intellij.codeInsight.folding.impl.CodeFoldingManagerImpl
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.application.impl.NonBlockingReadActionImpl
+import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.FoldRegion
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.util.Key
 import com.intellij.testFramework.EditorTestUtil
+import com.intellij.testFramework.LoggedErrorProcessor
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.TestActionEvent
 import org.junit.jupiter.api.Assertions
@@ -142,5 +147,43 @@ internal class FoldingToggleTest : PlatformBaseTest() {
         toggle(false, daemon = false)
 
         Assertions.assertNull(keyRegion(), "folding off: no region for the key any more")
+    }
+
+    /**
+     * Editors of the project on a document with no file behind it (as some popups show), one of them
+     * marked as already folded: in the 2026.2 platform the folding update then reads the document's
+     * file, null, and threw — reported as « IDE error occurred » right after switching the preview
+     * locale or *Show Translations Inline*. The 2025.3 platform the tests run on has no such step, so
+     * this guards the skip, not the throw itself.
+     */
+    @Test
+    fun `an editor of a document without a file is left alone`() = myFixture.runWithConfig(off) {
+        open(code)
+        val factory = EditorFactory.getInstance()
+        val document = factory.createDocument(code)
+        Assertions.assertNull(FileDocumentManager.getInstance().getFile(document), "precondition: no file behind the document")
+        val first = factory.createEditor(document, project)
+        val second = factory.createEditor(document, project)
+        // The platform's own marker of an editor whose folding is built.
+        // Private, renamed between platform versions (FOLDING_STATE_KEY in 2025.3, FOLDINGS_INITIALIZED_KEY in 2026.2).
+        val initialized = CodeFoldingManagerImpl::class.java.declaredFields
+            .first { it.name == "FOLDING_STATE_KEY" || it.name == "FOLDINGS_INITIALIZED_KEY" }
+            .apply { isAccessible = true }.get(null) as Key<Boolean>
+        second.putUserData(initialized, true)
+        val errors = mutableListOf<Throwable>()
+        try {
+            LoggedErrorProcessor.executeWith<RuntimeException>(object : LoggedErrorProcessor() {
+                override fun processError(category: String, message: String, details: Array<String>, t: Throwable?): Set<Action> {
+                    errors += t ?: AssertionError(message)
+                    return Action.NONE
+                }
+            }) { toggle(true) }
+
+            Assertions.assertEquals(emptyList<Throwable>(), errors, "no error logged for the editors without a file")
+            Assertions.assertFalse(keyRegion()!!.isExpanded, "the file's editor is still folded")
+        } finally {
+            factory.releaseEditor(first)
+            factory.releaseEditor(second)
+        }
     }
 }
