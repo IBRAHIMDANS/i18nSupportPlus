@@ -789,6 +789,62 @@ class I18nCheckTest {
     }
 
     @Test
+    fun `code - a path alias inherited through extends counts, read from the folder of the file declaring it`(@TempDir project: Path) {
+        fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }
+        write("locales/en/common.json", """{"actions": {"save": "Save"}}""")
+        write("src/i18n/keys.ts", "export const KEYS = { save: 'actions.save' } as const;\n")
+        write("src/App.tsx", "import { KEYS } from '@/i18n/keys';\nconst { t } = useTranslation('common');\nt(KEYS.save);\n")
+        fun unused() = JsonParser.parseString(check(project.toString(), "--code", "--format", "json").out).asJsonObject["unused"].asJsonArray.map { it.asString }
+
+        // Simple: the root tsconfig.json only extends the base, which holds the paths (`.json` left out of `extends`).
+        write("config/tsconfig.base.json", """{"compilerOptions": {"baseUrl": "..", "paths": {"@/*": ["src/*"]}}}""")
+        write("tsconfig.json", """{"extends": "./config/tsconfig.base", "compilerOptions": {"strict": true}}""")
+        assertEquals(emptyList<String>(), unused())
+
+        // Chained, and `paths` without `baseUrl` resolve from the folder of the file declaring them.
+        write("config/tsconfig.paths.json", """{"compilerOptions": {"paths": {"@/*": ["../src/*"]}}}""")
+        write("config/tsconfig.base.json", """{"extends": ["@tsconfig/node20/tsconfig.json", "./tsconfig.paths.json"]}""")
+        assertEquals(emptyList<String>(), unused())
+
+        // The nearest file wins: an override of `paths` that names another folder leaves the constant unread.
+        write("tsconfig.json", """{"extends": "./config/tsconfig.base.json", "compilerOptions": {"paths": {"@/*": ["lib/*"]}}}""")
+        assertEquals(listOf("common:actions.save"), unused())
+    }
+
+    @Test
+    fun `code - a cycle of extends is read once, and an extends naming a package is left out`(@TempDir project: Path) {
+        fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }
+        write("locales/en/common.json", """{"actions": {"save": "Save"}}""")
+        write("src/keys.ts", "export const KEYS = { save: 'actions.save' } as const;\n")
+        write("src/App.tsx", "import { KEYS } from '@/keys';\nconst { t } = useTranslation('common');\nt(KEYS.save);\n")
+        write("tsconfig.json", """{"extends": "./tsconfig.base.json"}""")
+        write("tsconfig.base.json", """{"extends": ["@tsconfig/strictest", "./tsconfig.json"], "compilerOptions": {"paths": {"@/*": ["./src/*"]}}}""")
+
+        val report = JsonParser.parseString(check(project.toString(), "--code", "--format", "json").out).asJsonObject
+        assertEquals(emptyList<String>(), report["unused"].asJsonArray.map { it.asString })
+    }
+
+    @Test
+    fun `code - each package of a monorepo reads the path aliases of its own tsconfig`(@TempDir project: Path) {
+        fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }
+        write("locales/en/common.json", """{"actions": {"save": "Save", "open": "Open"}}""")
+        write("tsconfig.base.json", """{"compilerOptions": {"paths": {"#shared/*": ["./packages/shared/*"]}}}""")
+        write("tsconfig.json", """{"extends": "./tsconfig.base.json"}""")
+        write("packages/shared/keys.ts", "export const KEYS = { save: 'actions.save' } as const;\n")
+        write("packages/web/tsconfig.json", """{"extends": "../../tsconfig.base.json", "compilerOptions": {"baseUrl": ".", "paths": {"~/*": ["src/*"]}}}""")
+        write("packages/web/src/keys.ts", "export const OPEN = { open: 'actions.open' } as const;\n")
+        write(
+            "packages/web/src/App.tsx",
+            "import { OPEN } from '~/keys';\nconst { t } = useTranslation('common');\nt(OPEN.open);\n",
+        )
+        write("apps/admin/Admin.tsx", "import { KEYS } from '#shared/keys';\nconst { t } = useTranslation('common');\nt(KEYS.save);\n")
+
+        // `~/*` comes from the package's own file, `#shared/*` from the root's, read by `apps/admin` which has none.
+        val report = JsonParser.parseString(check(project.toString(), "--code", "--format", "json").out).asJsonObject
+        assertEquals(emptyList<String>(), report["unused"].asJsonArray.map { it.asString })
+    }
+
+    @Test
     fun `code - next-intl's has asks whether a key exists, it is never unknown`(@TempDir project: Path) {
         Files.writeString(project.resolve("en.json"), """{"Nav": {"home": "Home"}}""")
         Files.writeString(project.resolve("Nav.tsx"), "export function Nav() { const t = useTranslations('Nav'); return t.has('beta') ? t('beta') : t('home'); }")

@@ -82,6 +82,20 @@ class ConstantKeysTest {
     }
 
     @Test
+    fun `each importing file reads its own path aliases`() {
+        val keys = "export const KEYS = { save: 'actions.save' };\n"
+        val web = "import { KEYS } from '~/keys';\n${hook}t(KEYS.save);\n"
+        val api = "import { KEYS } from '~/keys';\n${hook}t(KEYS.save);\n"
+        val files = mapOf("packages/web/src/keys.ts" to keys, "packages/web/src/App.tsx" to web, "packages/api/src/App.tsx" to api)
+        val webAliases = ConstantKeys.PathAliases("packages/web", mapOf("~/*" to listOf("src/*")))
+        val imports = ConstantKeys.ProjectFiles(files) { importer ->
+            if (importer.startsWith("packages/web/")) webAliases else ConstantKeys.PathAliases.NONE
+        }
+        val index = TreeSitterKeyUsageIndex(imports = imports).apply { files.forEach { (path, text) -> update(path, text) } }
+        assertEquals(listOf(at("packages/web/src/App.tsx", web, "KEYS.save")), index.usages("common:actions.save"))
+    }
+
+    @Test
     fun `a path alias resolves from its base, the longest prefix first, and never above the project`() {
         val aliases = ConstantKeys.PathAliases("./src", mapOf("@/*" to listOf("*"), "@/i18n/*" to listOf("locale-keys/*"), "@up/*" to listOf("../../*")))
         assertEquals(listOf("src/components/Button"), aliases.pathsOf("@/components/Button"))
