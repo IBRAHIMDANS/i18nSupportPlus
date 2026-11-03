@@ -14,6 +14,7 @@
 - [CLI] **`i18n-check --code` follows the path aliases of a monorepo**: a constant imported through an alias declared in a `tsconfig.base.json` reached by `extends`, or in a package's own `tsconfig.json`, now counts its key as used, as TypeScript resolves it.
 - [Settings] **Undoing a namespace rename restores the settings at once**: the plugin now reads `i18n-check.json` as it stands in the editor, so the old namespace name comes back on undo instead of waiting for the file to be saved.
 - [Angular] **Directive keys and inline templates show their value**: `<p translate>key</p>`, `<p translate="key">`, `<span transloco="key">` and `[transloco]="'key'"` fold into their translation like the pipes do, and the keys of a component's inline `` template: `…` `` get folding and inline hints like a `.html` template.
+- [Angular] **Renaming an Angular message id keeps its reviews**: after *Rename* on an `@@id`, its approvals and review threads follow the new id in every locale instead of staying behind on the old one, and one undo takes both back.
 
 ## 1.17.1 - 2026-11-02
 

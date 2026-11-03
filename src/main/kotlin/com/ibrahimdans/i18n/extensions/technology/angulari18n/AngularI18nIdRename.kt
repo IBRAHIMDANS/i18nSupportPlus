@@ -4,8 +4,18 @@ import com.ibrahimdans.i18n.extensions.lang.js.extractors.AngularI18nMetadata
 import com.ibrahimdans.i18n.extensions.localization.xliff.XliffDocument
 import com.ibrahimdans.i18n.extensions.localization.xliff.XliffTree
 import com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler
+import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.review.ReviewKey
+import com.ibrahimdans.i18n.plugin.review.ReviewLocation
+import com.ibrahimdans.i18n.plugin.review.ReviewMove
+import com.ibrahimdans.i18n.plugin.review.ReviewSpot
+import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.localeLabel
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.service
@@ -28,7 +38,8 @@ import java.util.Collections
 /**
  * *Rename* (Shift+F6) of an Angular message id, from a template's marker (`i18n="@@home.title"`), a
  * `` $localize`:@@home.title:…` `` or a unit's `id` in an XLIFF file: every marker naming the id and its
- * unit in every XLIFF file `angular.json` lists are renamed, in one undo.
+ * unit in every XLIFF file `angular.json` lists are renamed, and the id's reviews follow it in each
+ * locale, in one undo.
  *
  * The id is one key, so the whole id is asked for, dots included — where an i18next key renames its last
  * segment. A new id another unit already has is refused: two messages would merge.
@@ -51,13 +62,36 @@ internal object AngularI18nIdRename {
         val newId = Messages.showInputDialog(project, PluginBundle.message("action.rename.key.prompt", id), title, Messages.getQuestionIcon(), id, null)
             ?.trim() ?: return
         if (newId == id || AngularI18nMetadata.idOf("$MARKER$newId") != newId) return
-        val edits = ProgressManager.getInstance().runProcessWithProgressSynchronously<List<RenameI18nKeyHandler.Edit>?, RuntimeException>(
-            { ReadAction.compute<List<RenameI18nKeyHandler.Edit>?, RuntimeException> { editsOf(project, id, newId) } },
+        val plan = ProgressManager.getInstance().runProcessWithProgressSynchronously<Pair<List<RenameI18nKeyHandler.Edit>, List<ReviewMove>>?, RuntimeException>(
+            {
+                ReadAction.compute<Pair<List<RenameI18nKeyHandler.Edit>, List<ReviewMove>>?, RuntimeException> {
+                    editsOf(project, id, newId)?.let { it to reviewMovesOf(project, id, newId) }
+                }
+            },
             title,
             true,
             project,
         ) ?: return Messages.showErrorDialog(project, PluginBundle.message("action.rename.angular.conflict", newId), title)
-        RenameI18nKeyHandler().apply(project, edits, title, emptyList())
+        RenameI18nKeyHandler().apply(project, plan.first, title, plan.second)
+    }
+
+    /**
+     * The moves of [id]'s reviews to [newId], one per XLIFF file whose module keeps reviews. The id is
+     * spelled as the table files its review — without a default namespace, then read back — since
+     * `ReviewMigration.moveOf` reads the keys of JSON and YAML files, not an XLIFF unit's id.
+     */
+    internal fun reviewMovesOf(project: Project, id: String, newId: String): List<ReviewMove> {
+        val config = Settings.getInstance(project).config()
+        val defaults = config.defaultNamespaces()
+        val store = ReviewStore.getInstance(project)
+        return xliffFiles(project).mapNotNull { file ->
+            val source = TranslationFileScope.sourceOf(file) ?: return@mapNotNull null
+            val module = ModuleSources.owner(config.modules, TranslationDataLoader.projectPathOf(source))
+            val root = ReviewLocation.rootOf(project, module)?.takeIf { store.isEnabled(it) } ?: return@mapNotNull null
+            val namespace = TranslationDataLoader.extractNamespace(source, defaults.first())
+            fun keyOf(path: String) = ReviewKey.fromSpelling(ReviewKey(namespace, path).spelling(defaults), defaults.first())
+            ReviewMove(ReviewSpot(root, source.localeLabel(), keyOf(id)), keyOf(newId))
+        }.distinct()
     }
 
     /** The edits renaming [id] to [newId], or null when a unit is already called [newId]. */
