@@ -36,21 +36,20 @@ import com.intellij.util.Processor
 internal object TranslationKeyUsages : KeyComposer<PsiElement> {
 
     /**
-     * How many places of the code use the key declared by [declaration], counting no further than
-     * [limit]: the references a search finds on [declaration], and the code elements the
-     * references held by [named] — the element carrying the key's name — resolve to.
+     * How many code elements the references held by [named] — the element carrying the key's
+     * name — resolve to, counting no further than [limit]: the plugin's own translation-to-code
+     * reference, one text search of the composed key, attached only to a key written in few files.
      *
-     * A reference held by a JSON property is not a use by the code: the JSON plugin gives every
-     * property a name reference that a search on [declaration] finds in *every* same-named
-     * property of *any* JSON file — the other locales of the key, or an unrelated `title`. Counted,
-     * no key of a project with two locales was ever unused.
+     * The platform's `ReferencesSearch` on the declaration used to run here first, for every key
+     * and before anything else. It found nothing: the code-to-translation reference resolves onto
+     * the tree node of the key, which is not the property the search compares against, and with
+     * two locales it resolves to two targets, so `isReferenceTo` is false whatever the node. It
+     * cost 50 to 190 ms per key — 19 s for a file of 100 keys on a cold index, 5 s warm, against
+     * 0.6 s for this reference — spent resolving every candidate of the key's last word (`title`)
+     * across the project. It now runs last, from [indirectCount], for a key nothing else finds.
      */
-    fun count(declaration: PsiElement, named: PsiElement, limit: Int = Int.MAX_VALUE): Int {
+    fun count(named: PsiElement, limit: Int = Int.MAX_VALUE): Int {
         val found = linkedSetOf<PsiElement>()
-        ReferencesSearch.search(declaration, scopeOf(declaration)).forEach(Processor {
-            if (it.element !is JsonProperty) found += it.element
-            found.size < limit
-        })
         for (reference in named.references) {
             if (found.size >= limit) break
             found += (reference as? PsiPolyVariantReference)?.multiResolve(false)?.mapNotNull { it.element }
@@ -88,13 +87,22 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
         }
 
     /**
-     * How many call sites use this key without leaving a reference on it: under a hook's key
-     * prefix (`useTranslation('common', { keyPrefix: 'profile' })` + `t('name')`) or with a
-     * `{ ns }` option (`t('label', { ns: 'other' })`). The orphan scan has always counted them;
-     * without this the inspection reported such keys, with a *Delete* quick fix one click away.
+     * How many call sites use this key, found by searching the code for its words rather than by
+     * its references: the calls naming it, with or without its namespace (`t('common:menu.home')`,
+     * `useTranslation('common')` + `t('menu.home')`), a constant holding it, a Paraglide `m.key`,
+     * a translation value linking to it; then the calls under a hook's key prefix
+     * (`useTranslation('common', { keyPrefix: 'profile' })` + `t('name')`) or with a `{ ns }`
+     * option (`t('label', { ns: 'other' })`). The orphan scan has always counted them this way, and
+     * every call site the plugin's reference of [count] resolves to is among them — so this is the
+     * count shown above a key, and the inspection asks it of a key [count] left at zero.
      *
-     * Two word searches and a prefix search per key: callers ask it only of a key [count] left
-     * at zero.
+     * Last, for a key none of these searches finds, the platform's reference search on the key's
+     * declaration: nothing of the plugin's resolves onto it (see [count]), but a reference another
+     * plugin contributes might. It is kept to the code: the same-named properties of the other
+     * locales, which the JSON plugin gives a name reference, were most of its candidates.
+     *
+     * Two word searches, then a prefix search, then the reference search, each only when the
+     * previous one found nothing.
      */
     fun indirectCount(element: PsiElement): Int =
         ReadAction.compute<Int, RuntimeException> {
@@ -107,8 +115,28 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
                 FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry),
             )
                 .takeIf { it > 0 }
-                ?: IndirectKeyUsages.prefixedUsages(project, listOf(key), config)[key].orEmpty().count { it.isIn(scope) }
+                ?: IndirectKeyUsages.prefixedUsages(project, listOf(key), config)[key].orEmpty().count { it.isIn(scope) }.takeIf { it > 0 }
+                ?: platformReferenceCount(element, scope)
         }
+
+    /**
+     * The references the platform finds on the declaration of [element] — the property or key-value
+     * carrying its name — outside the files of the declaration's own type. A reference held by a
+     * JSON property is not a use by the code: the JSON plugin gives every property a name reference
+     * that resolves to *every* same-named property of *any* JSON file.
+     */
+    private fun platformReferenceCount(element: PsiElement, scope: GlobalSearchScope): Int {
+        val declaration = element.parent ?: element
+        val fileType = element.containingFile?.fileType
+        val code = if (fileType == null) scope
+            else scope.intersectWith(GlobalSearchScope.notScope(GlobalSearchScope.getScopeRestrictedByFileTypes(GlobalSearchScope.allScope(element.project), fileType)))
+        var found = 0
+        ReferencesSearch.search(declaration, code).forEach(Processor {
+            if (it.element !is JsonProperty) found++
+            true
+        })
+        return found
+    }
 
     /**
      * True when the project's [KeepList] declares this key used: a key no code names — received

@@ -23,16 +23,16 @@ import com.intellij.psi.util.PsiTreeUtil
  * column of the table counted them, but in the file nothing said that a key served three times or
  * never. A click opens the usages, as *Find Usages* on the key does.
  *
- * Counted the way *Unused translation key* decides ([TranslationKeyUsages]): the references found
- * on the property, or the call sites naming it under a key prefix or an `ns` option, then — for a key nothing names — whether a key the code builds at runtime
- * (`t(`menu.${'$'}{id}`)`) may reach it, shown as "dynamic usage" rather than "no usages", or
- * whether the project's keep list declares it used, shown as "kept".
+ * Counted the way *Unused translation key* decides ([TranslationKeyUsages.indirectCount]): the
+ * call sites naming the key, with its namespace or under a hook declaring it, through a constant,
+ * under a key prefix or an `ns` option, then — for a key nothing names — whether a key the code
+ * builds at runtime (`t(`menu.${'$'}{id}`)`) may reach it, shown as "dynamic usage" rather than
+ * "no usages", or whether the project's keep list declares it used, shown as "kept".
  *
- * One reference search per key: past [MAX_KEYS] keys in a file nothing is shown, rather than
- * slowing the daemon down on a catalogue of thousands of keys. Each search stops past [MAX_USAGES]:
- * a key used everywhere reads "99+ usages", and the search does not walk every one of its usages
- * again after each edit of the file. JSON only — YAML is an optional
- * dependency, kept out of the code `plugin.xml` loads.
+ * Two word searches per key: past [MAX_KEYS] keys in a file nothing is shown, rather than slowing
+ * the daemon down on a catalogue of thousands of keys. A key used more than [MAX_USAGES] times
+ * reads "99+ usages". JSON only — YAML is an optional dependency, kept out of the code `plugin.xml`
+ * loads.
  */
 class TranslationUsagesCodeVisionProvider : DaemonBoundCodeVisionProvider {
 
@@ -47,9 +47,7 @@ class TranslationUsagesCodeVisionProvider : DaemonBoundCodeVisionProvider {
         if (leaves.size > MAX_KEYS) return emptyList()
         val heads = mutableMapOf<String, Set<String>>()
         return leaves.map { property ->
-            val count = TranslationKeyUsages.count(property, property.nameElement, MAX_USAGES + 1)
-                .takeIf { it > 0 }
-                ?: TranslationKeyUsages.indirectCount(property.nameElement)
+            val count = TranslationKeyUsages.indirectCount(property.nameElement)
             val text = when {
                 count > MAX_USAGES -> PluginBundle.message("codevision.usages.many", MAX_USAGES)
                 count > 0 -> PluginBundle.message("codevision.usages.count", count)
@@ -66,7 +64,8 @@ class TranslationUsagesCodeVisionProvider : DaemonBoundCodeVisionProvider {
 
     internal companion object {
         const val ID = "com.ibrahimdans.i18n.translationUsages"
-        // About 14 ms per key search on the benchmark: 500 keys held each pass of the file for 7 s.
+        // Set when each key ran the platform's reference search, about 14 ms per key on the benchmark:
+        // 500 keys held each pass of the file for 7 s. The text searches are cheaper; to be re-measured.
         const val MAX_KEYS = 100
         const val MAX_USAGES = 99
     }

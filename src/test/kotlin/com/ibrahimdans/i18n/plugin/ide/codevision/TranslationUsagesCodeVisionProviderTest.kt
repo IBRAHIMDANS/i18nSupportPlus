@@ -63,6 +63,30 @@ class TranslationUsagesCodeVisionProviderTest : PlatformBaseTest() {
         assertEquals("1 usage", labelsOf("locales/en/common.json")["name"])
     }
 
+    /** A call writing the namespace and one under a hook declaring it are the same key's two usages. */
+    @Test
+    fun aKeyCalledWithAndWithoutItsNamespaceCountsEveryCall() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        addFileToProject("locales/en/common.json", """{"menu": {"home": "Home"}}""")
+        addFileToProject("src/App.js", "export const a = (t) => t('common:menu.home');")
+        addFileToProject(
+            "src/Menu.tsx",
+            "import { useTranslation } from 'react-i18next';\n" +
+                "export const M = () => { const { t } = useTranslation('common'); return t('menu.home'); };"
+        )
+        assertEquals("2 usages", labelsOf("locales/en/common.json")["home"])
+    }
+
+    /** `t(KEYS.save)` writes the key in the constant, where its one usage is found. */
+    @Test
+    fun aKeyPassedThroughAConstantIsCounted() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        addFileToProject("locales/en/common.json", """{"menu": {"save": "Save", "far": "Far"}}""")
+        addFileToProject("src/Keys.ts", "export const KEYS = { save: 'common:menu.save' } as const;\nexport const FAR = 'common:menu.far';")
+        addFileToProject("src/Save.tsx", "import { KEYS, FAR } from './Keys';\nexport const S = (t) => [t(KEYS.save), t(FAR)];")
+        val labels = labelsOf("locales/en/common.json")
+        assertEquals("1 usage", labels["save"])
+        assertEquals("1 usage", labels["far"])
+    }
+
     /** A key the project keeps reads "kept", not "no usages": nothing in the code names it. */
     @Test
     fun aKeptKeyIsShownAsSuch() = myFixture.runWithConfig(Config(defaultNs = "translation", keptKeys = "errors.*")) {

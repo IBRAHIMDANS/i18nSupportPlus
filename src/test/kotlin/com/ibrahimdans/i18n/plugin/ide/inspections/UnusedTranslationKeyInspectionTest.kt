@@ -236,6 +236,15 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
         assertEquals(listOf("age"), unusedIn("locales/en/common.json"))
     }
 
+    /** `t(KEYS.save)` and `t(SAVE)` name the key in a constant: used, in the constant's file. */
+    @Test
+    fun testKeyPassedThroughAConstantNotFlagged() {
+        myFixture.addFileToProject("src/Keys.ts", "export const KEYS = { save: 'common:menu.save' } as const;\nexport const FAR = 'common:menu.far';")
+        myFixture.addFileToProject("src/Save.tsx", "import { KEYS, FAR } from './Keys';\nexport const S = (t) => [t(KEYS.save), t(FAR)];")
+        val warnings = unusedWarningsFromFile("""{"menu": {"save": "Save", "far": "Far", "unused": "x"}}""", "locales/en/common.json")
+        assertEquals(1, warnings.size)
+    }
+
     @Test
     fun testKeyUsedWithAnNsOptionNotFlagged() {
         myFixture.addFileToProject("locales/en/other.json", """{"label": "Label", "hint": "Hint"}""")
