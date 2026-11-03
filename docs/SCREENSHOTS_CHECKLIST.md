@@ -26,6 +26,10 @@
 `extraction.png`, `extraction-intent.png`, `extraction-add-namespace.png`, `gutter-icons.png`,
 `gutter-icons-tooltip.png`, `hover-hint.png`, `inlay-hints.png`, `navigation.png`.
 
+**Refaites le 2026-11-03** (icônes New UI de #826, visibles dans la gouttière) : `annotation-{resolved,unresolved}.png`,
+`completion.png`, `extraction-intent.png`, `folding-{before,after}.png`, `gutter-icons.png`, `hover-hint.png`.
+`gutter-icons-tooltip.png` montre encore l'ancienne icône : à refaire à la main.
+
 **Sans scénario : `gutter-icons-tooltip.png`** (recette manuelle). Sous Xvfb, aucun survol de l'icône de
 gouttière, ni `GutterUiComponent.hoverOverIcon` (ligne comptée à partir de 0), ni un mouvement `Robot` par
 petits pas, n'a ouvert l'infobulle (2026-11-01). Attendre « `i18n:` » ne prouve rien : la barre d'état
@@ -34,6 +38,9 @@ affiche `i18n: en · 100 %`.
 ## Captures de la fenêtre d'outil et des réglages — refaites le 2026-11-02
 
 Vues *Tree / Table / Stats* dans la barre d'outils (#669), libellés et sous-pages de #666 / #667, WebStorm 2025.3.4 (Starter).
+
+**Refaites le 2026-11-03** (icônes New UI de #826) : `toolwindow-tree.png`, `toolwindow-tree-namespaces.png`,
+`toolwindow-stats-popup.png`. Les vues *Table* n'ont pas changé.
 
 | Fichier | Contenu |
 |---|---|
