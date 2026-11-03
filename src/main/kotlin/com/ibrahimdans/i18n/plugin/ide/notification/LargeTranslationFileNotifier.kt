@@ -21,8 +21,8 @@ import com.intellij.openapi.application.readAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.startup.ProjectActivity
+import com.intellij.openapi.util.io.FileUtilRt
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.openapi.vfs.limits.FileSizeLimit
 import com.intellij.psi.PsiElement
 import com.intellij.psi.SingleRootFileViewProvider
 
@@ -50,6 +50,15 @@ class LargeTranslationFileNotifier : ProjectActivity {
         private const val EDIT_CUSTOM_PROPERTIES = "EditCustomProperties"
 
         /**
+         * The code insight limit in bytes: `idea.max.intellisense.filesize`, the property the
+         * notification tells the user to raise. Read through [FileUtilRt], public API on every
+         * supported IDE, and not through `FileSizeLimit`, which is internal API up to 2026.1 and
+         * had the Marketplace refuse 1.18.0. A format may raise its own limit through the
+         * `fileSizeLimit` extension point — none of the bundled translation formats does.
+         */
+        internal fun intellisenseLimit(): Int = FileUtilRt.getUserFileSizeLimit()
+
+        /**
          * The files of [project] that would be translation sources were they not too large for the
          * IDE. The file index leaves them out, so the project content is walked for files of a
          * translation format above the limit — almost always none — and [SourceDiscovery]'s rules
@@ -74,7 +83,7 @@ class LargeTranslationFileNotifier : ProjectActivity {
         }
 
         fun notify(project: Project, file: VirtualFile) {
-            val limitMb = FileSizeLimit.getIntellisenseLimit(file.extension) / (1024.0 * 1024.0)
+            val limitMb = intellisenseLimit() / (1024.0 * 1024.0)
             val notification = NotificationGroupManager.getInstance()
                 .getNotificationGroup(PluginNotifications.STICKY)
                 .createNotification(

@@ -1,7 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.notification
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
-import com.intellij.openapi.vfs.limits.FileSizeLimit
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -10,7 +9,7 @@ class LargeTranslationFileNotifierTest : PlatformBaseTest() {
 
     /** A JSON translation file a little above the IDE's intellisense limit. */
     private fun oversizedJson(): String {
-        val limit = FileSizeLimit.getIntellisenseLimit("json")
+        val limit = LargeTranslationFileNotifier.intellisenseLimit()
         val entry = "\"key%07d\": \"value\",\n"
         val count = limit / entry.format(0).length + 1_000
         return (0 until count).joinToString("", "{\n", "\"last\": \"value\"\n}") { entry.format(it) }
