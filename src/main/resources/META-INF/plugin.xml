@@ -180,6 +180,8 @@
                   topic="com.ibrahimdans.i18n.plugin.review.ReviewStore$Listener"/>
     </projectListeners>
     <extensions defaultExtensionNs="com.intellij">
+        <!-- New UI variants of the gutter icons (icons/expui/), applied by the platform when the new UI is on. -->
+        <iconMapper mappingFile="I18nIconMappings.json"/>
         <!-- Flutter's ARB catalogues are JSON: read as such, the type Flutter's own plugin gives them. -->
         <fileType name="JSON" extensions="arb"/>
         <!-- XLIFF files (Angular's messages.xlf) are XML; a type of their own keeps every other XML file
