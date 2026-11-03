@@ -293,6 +293,9 @@ if (webStormPath != null && File(webStormPath, "product-info.json").isFile) {
     intellijPlatformTesting.runIde.register("runWebStorm") {
         localPath = file(webStormPath)
     }
+} else if (webStormPath != null) {
+    // Given but unusable (often a path Toolbox moved): say so, instead of "Task 'runWebStorm' not found".
+    logger.warn("runWebStorm is not registered: webStormPath=$webStormPath holds no product-info.json")
 }
 
 // ── WebStorm UI tests: README screenshots and verified flows ─────────────────
