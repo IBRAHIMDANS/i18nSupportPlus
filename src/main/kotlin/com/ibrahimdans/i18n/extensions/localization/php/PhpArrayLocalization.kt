@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.LocalizationConfig
 import com.ibrahimdans.i18n.LocalizationConfigImpl
 import com.ibrahimdans.i18n.LocalizationFileType
 import com.ibrahimdans.i18n.TranslationReferenceAssistant
+import com.ibrahimdans.i18n.TranslationValues
 import com.ibrahimdans.i18n.WorkspaceFile
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
@@ -43,6 +44,8 @@ class PhpArrayLocalization : Localization<StringLiteralExpression> {
     override fun icon(): Icon = PhpFileType.INSTANCE.icon ?: super.icon()
     override fun config(): LocalizationConfig = LocalizationConfigImpl("php")
     override fun fileNamespace(file: VirtualFile): String? = namespaceOf(file)
+    // The only way into PhpTranslationPsi: see Localization.translationValues.
+    override fun translationValues(): TranslationValues = PhpTranslationPsi
 
     companion object {
         private const val PHP_EXTENSION = "php"

@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.utils
 
-import com.ibrahimdans.i18n.extensions.localization.php.PhpTranslationPsi
+import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.TranslationValues
 import com.ibrahimdans.i18n.extensions.localization.properties.PropertiesTranslationPsi
 import com.ibrahimdans.i18n.extensions.localization.xliff.XliffTranslationPsi
 import com.ibrahimdans.i18n.extensions.localization.yaml.YamlTranslationPsi
@@ -39,6 +40,12 @@ class TranslationEntry(
  * its first call — throws NoClassDefFoundError, on JSON files as well. So nothing here names a
  * YAML class: an element is told YAML by its language id, which loads nothing, and only then
  * handed to [YamlTranslationPsi], which holds every YAML access and is never loaded otherwise.
+ *
+ * PHP goes one step further: the Marketplace verifier reads the bytecode, not the guard, and
+ * reports every PHP class reachable from here as missing on the IDEs where the PHP plugin is not
+ * resolved (a release candidate before its PHP plugin ships) — a Critical that blocks the release.
+ * So PHP is not named at all, not even by a class this object would never load: its reader is
+ * found through [Localization.translationValues], declared by `phpConfig.xml` alone.
  */
 object TranslationPsi {
 
@@ -51,6 +58,10 @@ object TranslationPsi {
     fun isYaml(element: PsiElement): Boolean = element.language.id == YAML_LANGUAGE
 
     fun isPhp(element: PsiElement): Boolean = element.language.id == PHP_LANGUAGE
+
+    /** The reader of [element]'s format when a format of an optional plugin declares one, else null. */
+    private fun valuesOf(element: PsiElement): TranslationValues? =
+        Extensions.LOCALIZATION.extensionList.firstNotNullOfOrNull { it.translationValues()?.takeIf { values -> values.handles(element) } }
 
     /** Whether [element] belongs to a `.properties` file, told by its language id: the Properties plugin is optional. */
     fun isProperties(element: PsiElement): Boolean = element.language.id == PropertiesTranslationPsi.LANGUAGE
@@ -86,7 +97,7 @@ object TranslationPsi {
      * through it, and a Laravel array key is renamed, never checked like a JSON one.
      */
     fun keyElementOf(value: PsiElement): PsiElement? {
-        if (isPhp(value)) return PhpTranslationPsi.keyOf(value)
+        valuesOf(value)?.let { return it.keyOf(value) }
         val property = propertyOf(value, strict = false) ?: value.parent ?: return null
         return entryOf(property)?.keyElement
     }
@@ -145,25 +156,27 @@ object TranslationPsi {
      * The text of a value element — a JSON string literal, a YAML scalar or key-value — or the
      * element's raw text for anything else.
      */
-    fun readValue(element: PsiElement): String? = when {
-        element is JsonStringLiteral -> element.value
-        isYaml(element) -> YamlTranslationPsi.readValue(element) ?: element.text
-        isPhp(element) -> PhpTranslationPsi.readValue(element) ?: element.text
+    fun readValue(element: PsiElement): String? {
+        if (element is JsonStringLiteral) return element.value
+        if (isYaml(element)) return YamlTranslationPsi.readValue(element) ?: element.text
+        // A Laravel translation file's value, through the PHP format's own reader.
+        valuesOf(element)?.let { return it.readValue(element) ?: element.text }
         // A key's value, its `\uXXXX` escapes and line continuations read.
-        isProperties(element) -> PropertiesTranslationPsi.readValue(element) ?: element.text
+        if (isProperties(element)) return PropertiesTranslationPsi.readValue(element) ?: element.text
         // An XLIFF unit's text, its entities decoded.
-        else -> XliffTranslationPsi.readValue(element) ?: element.text
+        return XliffTranslationPsi.readValue(element) ?: element.text
     }
 
     /** Replaces the value [element] stands for with [newValue]; nothing for an unknown element. */
     fun replaceValue(element: PsiElement, newValue: String, project: Project) {
-        when {
-            element is JsonStringLiteral -> element.replace(JsonElementGenerator(project).createStringLiteral(newValue))
-            isYaml(element) -> YamlTranslationPsi.replaceValue(element, newValue, project)
-            // A Laravel translation file's value: edited from the tool window like any other.
-            isPhp(element) -> PhpTranslationPsi.replaceValue(element, newValue, project)
-            isProperties(element) -> PropertiesTranslationPsi.replaceValue(element, newValue)
-            else -> XliffTranslationPsi.replaceValue(element, newValue)
+        if (element is JsonStringLiteral) {
+            element.replace(JsonElementGenerator(project).createStringLiteral(newValue))
+            return
         }
+        if (isYaml(element)) return YamlTranslationPsi.replaceValue(element, newValue, project)
+        // A Laravel translation file's value: edited from the tool window like any other.
+        valuesOf(element)?.let { return it.replaceValue(element, newValue, project) }
+        if (isProperties(element)) return PropertiesTranslationPsi.replaceValue(element, newValue)
+        XliffTranslationPsi.replaceValue(element, newValue)
     }
 }
