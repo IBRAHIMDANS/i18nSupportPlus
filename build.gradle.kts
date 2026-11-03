@@ -14,6 +14,33 @@ val effectivePlatformVersion: String
     get() = providers.gradleProperty("platformVersion").orNull
         ?: properties("platformVersion").get()
 
+// The platform branch of that version: 2025.3.4 -> 253, 2026.2.4 -> 262. The plugins IntelliJ Ultimate does not
+// bundle are published once per branch, and 2026.2 moved a few platform classes out of the core classpath.
+val platformBranch: Int = effectivePlatformVersion.split('.').let { (year, release) -> "${year.takeLast(2)}$release".toInt() }
+
+// Non-bundled plugins, by branch. A branch absent from the map takes the 253 builds (the default platform's),
+// which is what an older -PplatformVersion has always got.
+val unbundledPlugins: Map<String, String> = mapOf(
+    253 to mapOf(
+        "com.jetbrains.php" to "253.31033.19",
+        "org.jetbrains.plugins.localization" to "253.28294.218",
+        "dev.blachut.svelte.lang" to "253.31033.19",
+        "com.jetbrains.php.blade" to "253.28294.325",
+        "org.jetbrains.plugins.astro" to "253.32098.37",
+        "com.jetbrains.twig" to "253.28294.322",
+    ),
+    262 to mapOf(
+        "com.jetbrains.php" to "262.11879.100",
+        "org.jetbrains.plugins.localization" to "262.8665.173",
+        "dev.blachut.svelte.lang" to "262.10968.63",
+        "com.jetbrains.php.blade" to "262.8665.176",
+        "org.jetbrains.plugins.astro" to "262.10968.63",
+        "com.jetbrains.twig" to "262.8665.173",
+    ),
+).let { byBranch -> byBranch[platformBranch] ?: byBranch.getValue(253) }
+
+fun unbundled(id: String) = "$id:${unbundledPlugins.getValue(id)}"
+
 // Kept independent from the compilation platform: screenshots must come from one pinned product
 // build, otherwise font and UI changes make the README images churn on every IDE update.
 val uiTestWebStormVersion = "2025.3.4"
@@ -58,25 +85,38 @@ dependencies {
         // Java resource bundles (.properties), declared in propertiesConfig.xml only
         bundledPlugin("com.intellij.properties")
         // PHP plugin is not bundled in IntelliJ Ultimate 2025.3.3 (build 253.31033)
-        plugin("com.jetbrains.php:253.31033.19")
+        plugin(unbundled("com.jetbrains.php"))
         bundledPlugin("org.jetbrains.plugins.vue")
         // Git: Compare Translations with Branch, declared in gitConfig.xml only
         bundledPlugin("Git4Idea")
+        if (platformBranch >= 262) {
+            // 2026.2 moved these out of the core classpath: the supertypes of GitRepository and
+            // GitRepositoryManager into two product modules, JBCefApp into the JCEF plugin's UI module.
+            bundledModule("intellij.platform.vcs.dvcs")
+            bundledModule("intellij.platform.vcs.dvcs.impl")
+            bundledPlugin("com.intellij.modules.jcef")
+            bundledModule("intellij.platform.ui.jcef")
+            // Without it every test fails on "Cannot create extension (class=…) [Plugin: com.intellij.modules.ultimate]":
+            // an interface of product-backend.jar shadows the Ultimate plugin's post-startup activity of the same
+            // obfuscated name on the shared test classpath. The workaround JetBrains gives in
+            // intellij-platform-gradle-plugin#2261, until a fix ships.
+            testBundledPlugins("com.intellij.modules.ultimate")
+        }
         // MCP server: the translation tools for AI agents, declared in mcpConfig.xml only
         bundledPlugin("com.intellij.mcpServer")
         // GNU GetText support — available from build 251.x onwards
-        plugin("org.jetbrains.plugins.localization:253.28294.218")
+        plugin(unbundled("org.jetbrains.plugins.localization"))
         // Svelte is not bundled in IntelliJ Ultimate; without it a .svelte file is PLAIN_TEXT,
         // so no key inside one can be seen. Published by JetBrains, versioned on the platform.
-        plugin("dev.blachut.svelte.lang:253.31033.19")
+        plugin(unbundled("dev.blachut.svelte.lang"))
         // Blade is not bundled in IntelliJ Ultimate either. Only for the tests and runIde: the plugin
         // declares no dependency on it, a Blade echo being PHP the Blade plugin injects.
-        plugin("com.jetbrains.php.blade:253.28294.325")
+        plugin(unbundled("com.jetbrains.php.blade"))
         // Astro is not bundled in IntelliJ Ultimate either: without it a .astro file is PLAIN_TEXT.
         // Only for the tests and runIde (AstroCallsTest): the plugin declares no dependency on it.
-        plugin("org.jetbrains.plugins.astro:253.32098.37")
+        plugin(unbundled("org.jetbrains.plugins.astro"))
         // Twig is bundled in PhpStorm only: Symfony's `'key'|trans` and `{% trans %}`, declared in twigConfig.xml.
-        plugin("com.jetbrains.twig:253.28294.322")
+        plugin(unbundled("com.jetbrains.twig"))
 
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }

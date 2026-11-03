@@ -18,6 +18,9 @@ import java.io.File
  */
 class SetupWizardDialogTest : PlatformBaseTest() {
 
+    // Shadows kotlin.io.createTempDir, whose deprecation is an error with the stdlib bundled from 2026.2 on.
+    private fun createTempDir(prefix: String): File = kotlin.io.path.createTempDirectory(prefix).toFile()
+
     // -----------------------------------------------------------------------
     // Framework detection logic (pure logic, extracted from detectFrameworks)
     // -----------------------------------------------------------------------
