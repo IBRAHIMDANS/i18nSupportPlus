@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin.ide.codevision
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.intellij.codeInsight.codeVision.ui.model.ClickableTextCodeVisionEntry
 import com.intellij.openapi.application.ReadAction
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -109,6 +110,39 @@ class TranslationUsagesCodeVisionProviderTest : PlatformBaseTest() {
         val labels = labelsOf("locales/en/common.json")
         assertEquals("1 usage", labels["home"])
         assertEquals("no usages", labels["about"])
+    }
+
+    /** vue-i18n: a key only linked from the other locale's file (`"@:common.save"`) is used, not "no usages". */
+    @Test
+    fun aKeyLinkedOnlyFromAnotherLocaleIsCounted() = myFixture.runWithConfig(
+        Config(modules = listOf(ModuleConfig(name = "vue", rootDirectory = "", preset = "vue-i18n")))
+    ) {
+        addFileToProject("locales/en.json", """{"common": {"save": "Save", "orphan": "Orphan"}, "button": "Save"}""")
+        addFileToProject("locales/fr.json", """{"common": {"save": "Enregistrer", "orphan": "Orphelin"}, "button": "Cliquer @:common.save"}""")
+        val labels = labelsOf("locales/en.json")
+        assertEquals("1 usage", labels["save"])
+        assertEquals("no usages", labels["orphan"])
+    }
+
+    /** vue-i18n: a key only linked from another key of the same file is used. */
+    @Test
+    fun aKeyLinkedOnlyFromTheSameFileIsCounted() = myFixture.runWithConfig(
+        Config(modules = listOf(ModuleConfig(name = "vue", rootDirectory = "", preset = "vue-i18n")))
+    ) {
+        addFileToProject("locales/en.json", """{"common": {"save": "Save", "orphan": "Orphan"}, "button": "Click @:common.save"}""")
+        val labels = labelsOf("locales/en.json")
+        assertEquals("1 usage", labels["save"])
+        assertEquals("no usages", labels["orphan"])
+    }
+
+    /** i18next: a key only nested from another namespace's file (`"$t(common:save) now"`) is used. */
+    @Test
+    fun aKeyNestedOnlyFromAnotherNamespaceIsCounted() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        addFileToProject("locales/en/common.json", """{"save": "Save", "orphan": "Orphan"}""")
+        addFileToProject("locales/en/translation.json", """{"button": "${'$'}t(common:save) now"}""")
+        val labels = labelsOf("locales/en/common.json")
+        assertEquals("1 usage", labels["save"])
+        assertEquals("no usages", labels["orphan"])
     }
 
     @Test
