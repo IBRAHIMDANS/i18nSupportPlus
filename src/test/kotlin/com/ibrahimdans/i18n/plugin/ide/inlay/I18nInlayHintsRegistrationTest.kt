@@ -31,7 +31,13 @@ class I18nInlayHintsRegistrationTest : PlatformBaseTest() {
         // PHP and Blade (phpConfig.xml) are no dialect of JavaScript: a Laravel key's hint.
         // Nor are an Angular template (angularConfig.xml), a Svelte component (svelteConfig.xml) and a
         // Twig template (twigConfig.xml).
-        assertEquals(listOf("Angular2Html", "Blade", "JavaScript", "PHP", "SvelteHTML", "Twig"), ours.mapNotNull { it.language }.sorted())
+        // TypeScript is the one dialect declared on its own, by the provider of Angular's inline templates
+        // (angularConfig.xml): it reads the injected fragments only, which the JavaScript one never visits.
+        assertEquals(listOf("Angular2Html", "Blade", "JavaScript", "PHP", "SvelteHTML", "Twig", "TypeScript"), ours.mapNotNull { it.language }.sorted())
+        assertEquals(
+            listOf("com.ibrahimdans.i18n.extensions.lang.js.AngularInlineTemplateInlayHintsProvider"),
+            ours.filter { it.language == "TypeScript" }.map { it.implementationClass },
+        )
         ours.forEach { bean ->
             assertTrue(bean.isEnabledByDefault, "${bean.language}: on by default")
             // No message: with a String expected value the inherited junit.framework overload wins.
