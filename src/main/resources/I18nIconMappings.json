@@ -1,0 +1,9 @@
+{
+  "icons": {
+    "expui": {
+      "gutter_missing.svg": "icons/gutter_missing.svg",
+      "gutter_partial.svg": "icons/gutter_partial.svg",
+      "gutter_resolved.svg": "icons/gutter_resolved.svg"
+    }
+  }
+}
