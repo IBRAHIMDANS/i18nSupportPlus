@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- [Settings] **Regional fallback works when the language is written under an alias**: with `uk=en` in *Locale aliases*, an `en-GB` file now inherits the keys of the `uk` folder instead of being reported as missing them all.
+
 ## 1.17.1 - 2026-11-02
 
 ### Fixes
