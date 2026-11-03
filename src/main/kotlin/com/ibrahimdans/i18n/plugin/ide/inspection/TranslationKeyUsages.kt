@@ -23,6 +23,7 @@ import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.parents
 import com.intellij.util.Processor
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Where the code uses a key of a translation file: the references found on its declaration, the
@@ -130,12 +131,13 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
         val fileType = element.containingFile?.fileType
         val code = if (fileType == null) scope
             else scope.intersectWith(GlobalSearchScope.notScope(GlobalSearchScope.getScopeRestrictedByFileTypes(GlobalSearchScope.allScope(element.project), fileType)))
-        var found = 0
+        // Counted atomically: the search calls the processor from several threads at once.
+        val found = AtomicInteger()
         ReferencesSearch.search(declaration, code).forEach(Processor {
-            if (it.element !is JsonProperty) found++
+            if (it.element !is JsonProperty) found.incrementAndGet()
             true
         })
-        return found
+        return found.get()
     }
 
     /**

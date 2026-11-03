@@ -9,6 +9,9 @@ import com.intellij.openapi.ui.TestDialog
 import com.intellij.openapi.ui.TestDialogManager
 import com.intellij.openapi.ui.TestInputDialog
 import com.intellij.psi.PsiManager
+import com.intellij.psi.PsiElement
+import com.intellij.json.psi.JsonObject
+import com.intellij.json.psi.JsonFile
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -165,5 +168,27 @@ class RenameKeyLevelTest : PlatformBaseTest() {
 
         assertTrue(text("locales/en/common.yml").startsWith("actions:\n  save: Save"), text("locales/en/common.yml"))
         assertTrue(text("src/Explicit.js").contains("t('common:actions.cancel')"), text("src/Explicit.js"))
+    }
+
+    /**
+     * The word search hands its files to several threads at once: on a project large enough for it to,
+     * every call site is rewritten, whatever the run. Planned three times, as the loss came and went.
+     */
+    @Test
+    fun everyCallSiteIsPlannedOnALargeProject() {
+        addFileToProject("locales/en/common.json", """{"button": {"save": "Save"}}""")
+        repeat(FILES) { i -> addFileToProject("src/C$i.tsx", "const button = $i;\nexport const s$i = (t) => t('common:button.save');") }
+        val property = ReadAction.compute<PsiElement, RuntimeException> {
+            val file = PsiManager.getInstance(project).findFile(myFixture.findFileInTempDir("locales/en/common.json")) as JsonFile
+            (file.topLevelValue as JsonObject).findProperty("button")!!
+        }
+        repeat(3) { round ->
+            val plan = ReadAction.compute<KeyLevelRename.Plan, RuntimeException> { KeyLevelRename.inTranslationFile(property)!!.plan("actions") }
+            assertEquals(FILES, plan.callSites, "round $round")
+        }
+    }
+
+    private companion object {
+        const val FILES = 150
     }
 }

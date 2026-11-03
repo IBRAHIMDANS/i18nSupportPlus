@@ -97,4 +97,22 @@ class DeleteI18nKeyActionTest : PlatformBaseTest() {
         assertNull(valueAt("locales/fr/common.json", "menu", "home"))
         assertEquals("À propos", valueAt("locales/fr/common.json", "menu", "about"))
     }
+
+    /**
+     * The word search hands its files to several threads at once: on a project large enough for it to,
+     * every usage is listed, whatever the run. Counted three times, as the loss came and went.
+     */
+    @Test
+    fun everyUsageIsListedOnALargeProject() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", """{"menu": {"home": "Home"}}""")
+        repeat(FILES) { i -> addFileToProject("src/C$i.tsx", "const home = $i;\nexport const l$i = (t) => t('common:menu.home');") }
+        repeat(3) { round ->
+            val plan = ReadAction.compute<DeleteI18nKeyAction.Plan, RuntimeException> { DeleteI18nKeyAction.planOf(project, "common:menu.home", null) }
+            assertEquals(FILES, plan.usages.size, "round $round")
+        }
+    }
+
+    private companion object {
+        const val FILES = 150
+    }
 }
