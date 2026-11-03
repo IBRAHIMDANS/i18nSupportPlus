@@ -21,6 +21,7 @@
 - [CLI] **A locale whose file holds no translation is reported**: `i18n-check` used to leave out a locale whose files were empty (`fr.json` holding `{}`, an Angular XLIFF copied without any `<target>`) and pass; it now reports every key as missing there.
 - [Tool window] ***Count Key Usages* no longer misses usages under a hook's `keyPrefix` on a large project**: the hits of the search, which runs over several files at once, were collected without synchronization, so a key in use could read one usage short — or none, and be offered by *Clean Up Keys…*. The dynamic keys and the linked messages (`@:key`) were collected the same way.
 
+- [Angular] **Keys the extraction writes into an inline template are now read**: in a `template: '…'` quoted with apostrophes, a key written `\'key\'` (the form the quick fix uses there) now gets its value, folding, completion and navigation like any other key.
 ## 1.17.1 - 2026-11-02
 
 ### Fixes
