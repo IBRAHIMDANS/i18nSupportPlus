@@ -6,6 +6,7 @@ import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiRecursiveElementWalkingVisitor
 
 /**
  * Gets element's type string
@@ -52,6 +53,18 @@ private fun deleteWithSeparator(property: PsiElement) {
             prev?.text == "," -> prev.delete()
             next?.text == "," -> next.delete()
         }
+        parseWhileAttached(property)
     }
     property.delete()
+}
+
+/**
+ * Parses every lazily parsed part of [property] while it still belongs to its JSON file. From 2026.2
+ * a JSON object is parsed only when first read; once deleted, the platform walks the detached
+ * subtree, parses it there with no JSON around it and logs « No syntax definition found for language
+ * TEXT » — an « IDE error occurred » balloon on deleting an ARB key with its `@key` block, or any key
+ * whose value is an object. Walking it first leaves nothing to parse after the deletion.
+ */
+private fun parseWhileAttached(property: PsiElement) {
+    property.accept(object : PsiRecursiveElementWalkingVisitor() {})
 }
