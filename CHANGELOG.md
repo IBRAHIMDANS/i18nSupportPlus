@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.19.0 - 2026-11-04
+
 ### Fixes
 
 - [Translation files] **A key without a namespace prefix is written to the default namespace's file**: the CSV/XLIFF import, the table's in-place edit and the automatic fills (*Fill Missing*, *Retranslate Stale*, *Internationalize…*) wrote it to whichever file of the locale came first, while *Sync Keys* already used the default namespace. The import summary now counts only the values actually written and names the entries no file could take.
