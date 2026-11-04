@@ -132,11 +132,21 @@ data class Config (
     fun usesFlatKeys(): Boolean = gettext || flatKeys
 
     /**
-     * Returns the set of directory names to exclude from translation file scanning.
+     * [translationsRoot] as the scan reads it: a path spelled the way the settings page or the wizard
+     * accept it — ` ./src/locales/`, `/src/locales`, `src\locales` — names the same folder as
+     * `src/locales`. The field is free text, and a root typed with a leading `./`, a trailing `/` or
+     * Windows separators used to match no file at all, so the plugin went silent. An absolute path
+     * keeps its leading `/`; [SourceDiscovery.isUnderRoot] tells it from a project-relative one.
+     */
+    fun normalizedTranslationsRoot(): String = normalizeRoot(translationsRoot)
+
+    /**
+     * Returns the set of directory names to exclude from translation file scanning. Split as every
+     * other list here: `node_modules; dist` used to be one entry, which excluded nothing.
      */
     fun excludedDirectorySet(): Set<String> =
         excludedDirectories
-            .split(",")
+            .split("[;|,\\s]".toRegex())
             .map { it.trim() }
             .filter { it.isNotEmpty() }
             .toSet()
@@ -159,11 +169,18 @@ data class Config (
         val code: (CodeDefaults) -> String?,
     )
 
-    private companion object {
-        val CODE_FIELDS = listOf(
+    companion object {
+        private val CODE_FIELDS = listOf(
             CodeField({ it.defaultNs }, { c, v -> c.copy(defaultNs = v) }, { it.defaultNs.joinToString(",").ifEmpty { null } }),
             CodeField({ it.foldingPreferredLanguage }, { c, v -> c.copy(foldingPreferredLanguage = v) }, { it.referenceLocale }),
         )
+
+        /** [normalizedTranslationsRoot] for a root held outside a [Config]: a module's, a caller's parameter. */
+        fun normalizeRoot(root: String): String {
+            val slashed = root.trim().replace('\\', '/')
+            val relative = slashed.removePrefix("./")
+            return if (relative.startsWith("/")) relative.trimEnd('/') else relative.trim('/')
+        }
     }
 }
 

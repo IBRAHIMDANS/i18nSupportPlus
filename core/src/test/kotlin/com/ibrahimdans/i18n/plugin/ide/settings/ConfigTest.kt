@@ -43,6 +43,22 @@ class ConfigTest {
     }
 
     @Test
+    fun `excluded directories split on any separator like the other lists`() {
+        assertEquals(setOf("a", "b", "c", "d"), Config(excludedDirectories = "a; b,c d").excludedDirectorySet())
+    }
+
+    @Test
+    fun `the translations root reads the same whatever its spelling`() {
+        for (root in listOf("src/locales", "./src/locales", "src\\locales", " src/locales/ ")) {
+            assertEquals("src/locales", Config(translationsRoot = root).normalizedTranslationsRoot(), "root spelled '$root'")
+        }
+        assertEquals("/src/locales", Config(translationsRoot = " /src/locales/ ").normalizedTranslationsRoot(), "a leading slash is kept")
+        assertEquals("C:/app/locales", Config(translationsRoot = "C:\\app\\locales\\").normalizedTranslationsRoot())
+        assertEquals("", Config(translationsRoot = " ./ ").normalizedTranslationsRoot())
+        assertEquals("", Config(translationsRoot = "/").normalizedTranslationsRoot())
+    }
+
+    @Test
     fun `an ignored locale covers its regional variants`() {
         val config = Config(ignoredLocales = "de, en-GB")
 
