@@ -10,7 +10,7 @@
 <h1 align="center">I18n Support Plus</h1>
 
 <p align="center">
-  <b>Your i18n keys, as first-class code symbols.</b><br>
+  <b>Your app's translations, handled from the code that uses them.</b><br>
   WebStorm, IntelliJ IDEA Ultimate and PhpStorm 2025.2 and later.
 </p>
 
@@ -22,7 +22,8 @@
 </p>
 
 <p align="center">
-  <img src="docs/img/marketplace/extract-i18n-key.gif" alt="Extracting a JSX text into a key, its value written in every locale" width="720">
+  <img src="docs/img/marketplace/extract-i18n-key.gif" alt="Extracting a JSX text into a key, its value written in every locale" width="720"><br>
+  <sub>A hard-coded text becomes a key, written in every language at once.</sub>
 </p>
 
 <p align="center">
@@ -42,18 +43,18 @@
 </p>
 
 <!-- Plugin description -->
-Turns i18n keys into first-class code symbols in **WebStorm, IntelliJ IDEA Ultimate and PhpStorm**: see each key's value and status, jump to it, rename it, translate it and keep every locale in sync.
+When an app is translated into several languages, every text in the code becomes a key, such as `t('checkout.pay_now')`, and its wording lives in one file per language. To the IDE that key is a plain string: nothing tells you what it says, whether French still lacks it, or where it is defined.
 
-Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-intl, ngx-translate, Transloco, Angular i18n (`$localize`), svelte-i18n, i18n-js, Paraglide JS, typesafe-i18n, Meteor universe:i18n, Laravel / Blade and Symfony / Twig**, in JS, TS, JSX, TSX, Vue SFC, Svelte, Astro, Angular templates, PHP, Blade and Twig, with **JSON, JSON5, YAML, PO/POT, XLIFF, Laravel PHP arrays, Flutter ARB, Java `.properties`** and plain **TS/JS catalogues**. A setup wizard configures it on first launch, monorepo modules included.
+**I18n Support Plus** makes **WebStorm, IntelliJ IDEA Ultimate and PhpStorm** understand those keys the way they understand a function name:
 
-- **See** — gutter status per key (all / some / no locale), inline value hints, folding and hover in a preview locale, completion of real keys, namespaces included
-- **Edit safely** — extract hard-coded strings (variables and plural forms included), rename a key or a whole level across every locale and call site (`Shift+F6`), move a key to another namespace; one Ctrl+Z undoes the files and the code
-- **Translate** — opt-in machine translation of empty locales, for one key or a whole locale, through a local Ollama (nothing leaves the machine), DeepL, LibreTranslate, Google or any OpenAI-compatible API; variables, tags and the target language's plural forms are kept, and nothing is written before a preview
-- **AI agents** — Codex, Claude or any MCP client translates through the plugin's tools on the IDE's MCP server, on your own AI plan: only missing values are written, placeholders and plural forms are checked, and one Ctrl+Z undoes it (2025.2.6+)
-- **Plurals done right** — i18next `_one` / `_other` keys and nested plural objects resolve, missing CLDR forms per language are reported, ICU messages are validated
-- **Stay healthy** — tool window with tree and table views, filters for missing, empty, duplicate and unreferenced keys, coverage per namespace and locale, a keep list for keys used outside the code, keys synchronizer, cleanup, CSV and XLIFF export / import, comparison with a Git branch
-- **In CI** — `i18n-check` runs the same checks from the command line or as a GitHub Action that annotates the pull request, and `i18n-check.json` shares the configuration with the team
-- **Your own calls** — rules turn `translate('key')` or `__('key')` into translation calls, and a module can write its own wrapper's call at extraction
+- **Read** — hover a key to see its text and which languages still lack it; a gutter icon shows its status, and completion offers the keys that really exist
+- **Navigate** — Ctrl+click opens the right line of the translation file; Shift+F6 renames the key, or a whole level, in every language and every call site
+- **Extract** — select a hard-coded text, press Alt+Enter, and it becomes a key written in every language at once; one Ctrl+Z undoes the files and the code
+- **Keep in sync** — a tool window lists what is missing, empty, duplicated or unused, and fills the gaps by machine translation (a local Ollama, DeepL, LibreTranslate, Google or any OpenAI-compatible API) or through Codex, Claude or any MCP client, after a preview and with placeholders and plural forms checked
+
+It also catches what a translation can get wrong: missing plural forms per language, broken placeholders and ICU messages, stale values, hard-coded text. The same checks run in CI with `i18n-check`, as a GitHub Action that annotates the pull request, with the configuration shared in `i18n-check.json`.
+
+Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-intl, ngx-translate, Transloco, Angular i18n (`$localize`), svelte-i18n, i18n-js, Paraglide JS, typesafe-i18n, Meteor universe:i18n, Laravel / Blade and Symfony / Twig**, in JS, TS, JSX, TSX, Vue SFC, Svelte, Astro, Angular templates, PHP, Blade and Twig, with **JSON, JSON5, YAML, PO/POT, XLIFF, Laravel PHP arrays, Flutter ARB, Java `.properties`** and plain **TS/JS catalogues**: [every framework, language and format](https://github.com/IBRAHIMDANS/i18nSupportPlus#supported-frameworks). A setup wizard configures it on first launch, monorepo modules included, and rules teach it your own `translate('key')` wrapper.
 
 **Coming from I18n Support?** This plugin is the maintained successor of the original, which no longer installs on IDEs after 2023.1: install it next to the old one, it reads your project settings as they are — see [the migration notes](https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/docs/COMPARISON.md#coming-from-i18n-support).
 
@@ -98,11 +99,7 @@ whether a key exists, in which namespace, and whether it's translated everywhere
   Count Key Usages (find keys no code refers to), CSV and XLIFF export/import, and inspections for missing,
   empty, duplicate or inconsistent values.
 
-Works with **i18next / react-i18next, vue-i18n, next-intl, lingui, react-intl, ngx-translate, Transloco, Angular i18n,
-svelte-i18n, i18n-js, Paraglide JS, typesafe-i18n, Meteor universe:i18n, Laravel / Blade and Symfony / Twig**, across JS/TS/JSX/TSX, Vue SFC,
-Svelte, Astro, Angular templates, PHP, Blade and Twig, with JSON, JSON5, YAML, PO/POT, XLIFF, Laravel PHP arrays, Flutter ARB, Java `.properties` and
-TS/JS catalogues.
-A setup wizard auto-configures it on first launch, a module per application in a monorepo.
+Every library, language and file format it reads: [Supported Frameworks](#supported-frameworks).
 
 **Coming from i18n Ally or Easy I18n?** See the [feature-by-feature comparison](docs/COMPARISON.md) and how to carry your settings over.
 
