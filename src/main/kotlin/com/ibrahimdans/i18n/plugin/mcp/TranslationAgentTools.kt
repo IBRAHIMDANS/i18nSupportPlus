@@ -179,7 +179,7 @@ class TranslationAgentTools(private val project: Project) {
 
     /** The modules by name, as *Fill Missing Translations* offers them; one unnamed scope without any. */
     private fun scopes(): List<Pair<String, ModuleConfig?>> {
-        val modules = Settings.getInstance(project).modules.filter { it.rootDirectory.isNotBlank() }
+        val modules = Settings.getInstance(project).config().modules.filter { it.rootDirectory.isNotBlank() }
         if (modules.size < 2) return listOf(PROJECT to null)
         return modules.map { it.name.ifBlank { it.rootDirectory } to it }
     }

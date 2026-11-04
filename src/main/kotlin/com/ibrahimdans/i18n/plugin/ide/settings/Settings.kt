@@ -109,6 +109,17 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
         return config.withCodeDefaults(codeDefaults(config))
     }
 
+    /**
+     * Whether [config] holds a module: the ones `i18n-check.json` lists when it lists any, the stored
+     * ones otherwise — the same choice [config] makes, without building a [Config]. Asked of every PSI
+     * element by the presets and the call templates, in projects that mostly have none: the file is
+     * read once per change ([configFile]), and a project without it costs a list check.
+     *
+     * The stored list alone used to answer: a project whose modules the file declares had no preset,
+     * no call template and no react-intl handling.
+     */
+    fun hasModules(): Boolean = (configFile().content?.modules ?: modules).isNotEmpty()
+
     /** [namespaceFacts] of this project under [config]; none for settings built with no project. */
     fun namespaceFacts(config: Config): NamespaceFacts =
         project?.let { com.ibrahimdans.i18n.plugin.ide.settings.namespaceFacts(it, config) } ?: NamespaceFacts()

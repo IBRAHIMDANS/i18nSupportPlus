@@ -61,10 +61,11 @@ object CallTemplate {
     /** The valid template of the module holding [element]'s file, or null: no module, none set, or invalid. */
     fun of(element: PsiElement): String? {
         val project = element.project
+        val settings = Settings.getInstance(project)
         // No Config built for a project without modules, nearly all of them.
-        if (Settings.getInstance(project).modules.isEmpty()) return null
+        if (!settings.hasModules()) return null
         val file = element.hostVirtualFile() ?: return null
-        val module = ModuleSources.owner(Settings.getInstance(project).config().modules, ModuleSources.FilePath.of(file, project.basePath ?: ""))
+        val module = ModuleSources.owner(settings.config().modules, ModuleSources.FilePath.of(file, project.basePath ?: ""))
         return module?.callTemplate?.trim()?.takeIf { it.isNotEmpty() && isValid(it) }
     }
 

@@ -85,7 +85,8 @@ internal object ReactIntlCall {
     private fun module(element: PsiElement) =
         element.hostVirtualFile()?.let { file ->
             val project = element.project
-            if (Settings.getInstance(project).modules.isEmpty()) return@let null
-            ModuleSources.owner(Settings.getInstance(project).config().modules, ModuleSources.FilePath.of(file, project.basePath ?: ""))
+            val settings = Settings.getInstance(project)
+            if (!settings.hasModules()) return@let null
+            ModuleSources.owner(settings.config().modules, ModuleSources.FilePath.of(file, project.basePath ?: ""))
         }
 }

@@ -419,8 +419,8 @@ class KeyMaintenanceTools(private val project: Project) {
     }
 
     /** The modules by name, as [TranslationAgentTools] lists them; one unnamed scope without any. */
-    private fun scopes(): List<Pair<String, ModuleConfig?>> {
-        val modules = Settings.getInstance(project).modules.filter { it.rootDirectory.isNotBlank() }
+    internal fun scopes(): List<Pair<String, ModuleConfig?>> {
+        val modules = config.modules.filter { it.rootDirectory.isNotBlank() }
         if (modules.size < 2) return listOf(TranslationAgentTools.PROJECT to null)
         return modules.map { it.name.ifBlank { it.rootDirectory } to it }
     }

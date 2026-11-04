@@ -25,7 +25,7 @@ internal data class ModuleScope(val config: ModuleConfig?)
  * when fewer than two modules are configured, which is the pre-existing behaviour.
  */
 internal fun chooseModuleScope(project: Project, title: String): ModuleScope? {
-    val modules = Settings.getInstance(project).modules.filter { it.rootDirectory.isNotBlank() }
+    val modules = Settings.getInstance(project).config().modules.filter { it.rootDirectory.isNotBlank() }
     if (modules.size < 2) return ModuleScope(null)
 
     val names: Array<String> = modules.map { it.name.ifBlank { it.rootDirectory } }.toTypedArray()

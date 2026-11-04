@@ -38,7 +38,7 @@ object ReviewLocation {
      */
     fun rootOf(project: Project, module: ModuleConfig?): VirtualFile? {
         val own = ownRootOf(project, module)
-        val lone = ModuleSources.lone(Settings.getInstance(project).modules) ?: return own
+        val lone = ModuleSources.lone(Settings.getInstance(project).config().modules) ?: return own
         if (module != null && module != lone) return own
         return shared(listOf(ownRootOf(project, lone), project.guessProjectDir()), own) { directoryOf(it) != null }
     }
