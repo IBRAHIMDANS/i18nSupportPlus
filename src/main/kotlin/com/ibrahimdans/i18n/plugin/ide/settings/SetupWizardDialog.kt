@@ -221,19 +221,20 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         }
 
         /**
-         * Blocks *Apply* on the two values nothing else can repair.
+         * Blocks *Apply* on a separator the key pipeline cannot read as meant.
          *
-         * A blank separator is not a preference: it makes every composite key unresolvable, and
-         * `ConfigDiagnostics` already reports it as a problem afterwards. Saying so here — where
-         * the field is — is what the old wizard could not do, since it validated nothing at all.
+         * The two fields obey [SeparatorRules], the rule the settings page applies: one character,
+         * the key separator never blank nor equal to the namespace one. The old check only refused
+         * a blank value, so `::` typed here went through and split keys character by character;
+         * it also refused a blank namespace separator, which the settings page accepts. Saying so
+         * here — where the field is — is what the old wizard could not do, since it validated
+         * nothing at all. The plural separator is not shown here, so its problems are not raised.
          */
         override fun _commit(finishChosen: Boolean) {
-            if (keySeparatorField.text.isBlank()) {
-                throw CommitStepException(PluginBundle.message("wizard.summary.error.keySeparator"))
-            }
-            if (nsSeparatorField.text.isBlank()) {
-                throw CommitStepException(PluginBundle.message("wizard.summary.error.nsSeparator"))
-            }
+            val shown = setOf(SeparatorRules.Separator.NAMESPACE, SeparatorRules.Separator.KEY)
+            SeparatorRules.check(nsSeparatorField.text, keySeparatorField.text, Settings.getInstance(project).pluralSeparator)
+                .firstOrNull { it.separator in shown }
+                ?.let { throw CommitStepException(it.text()) }
         }
 
         private fun rebuild(plan: WizardPlan.Plan) {
