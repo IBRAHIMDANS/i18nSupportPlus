@@ -360,26 +360,23 @@ class TableViewModel {
     }
 
     /**
-     * The localization source holding [key]'s namespace for [locale], or null when the module
-     * owns no such file.
+     * The localization source holding [key]'s namespace for [locale] ([TranslationFileRouting.fileFor]),
+     * or null when the module owns no such file.
      *
      * Shared by the in-place edit and by *Open translation file*: both have to land on the very
      * file the displayed row was read from, which is why [moduleConfig] is threaded through
      * rather than being resolved project-wide — see [saveValue] for what that costs in a monorepo.
+     * A key without a prefix used to land in the first file of the locale, whatever its namespace.
      */
     internal fun findSourceFor(
         project: Project,
         key: String,
         locale: String,
         moduleConfig: ModuleConfig? = null,
-    ): LocalizationSource? {
-        val namespace = namespaceOf(key)
-        return TranslationDataLoader.findSources(project, moduleConfig)
-            .firstOrNull { source ->
-                TranslationDataLoader.extractLocale(source) == locale &&
-                    (namespace == null || TranslationDataLoader.extractNamespace(source) == namespace)
-            }
-    }
+    ): LocalizationSource? =
+        TranslationFileRouting.fileFor(
+            key, locale, TranslationDataLoader.findSources(project, moduleConfig), Settings.getInstance(project).config()
+        )
 
     /**
      * The file and offset where [key] is declared for [locale]. Falls back to the deepest

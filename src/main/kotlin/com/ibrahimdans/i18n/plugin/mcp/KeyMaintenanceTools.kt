@@ -329,7 +329,7 @@ class KeyMaintenanceTools(private val project: Project) {
             rejected[locale] = when {
                 text.isBlank() -> EMPTY
                 locale != reference && !PlaceholderMask.samePlaceholders(referenceValue, text) -> "$PLACEHOLDERS $referenceValue"
-                translationFileFor(key, locale, sources) == null -> "No translation file for this key's namespace in '$locale'"
+                translationFileFor(key, locale, sources, config) == null -> "No translation file for this key's namespace in '$locale'"
                 else -> { accepted[locale] = text; continue }
             }
         }

@@ -2,10 +2,13 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationFileRouting
+import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.utils.CsvTranslationCodec
+import com.ibrahimdans.i18n.plugin.utils.CsvTranslationCodec.ImportEntry
 import com.ibrahimdans.i18n.plugin.utils.CsvTranslationCodec.ImportPlan
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
@@ -93,7 +96,7 @@ class ImportTranslationsAction : AnAction() {
                         malformed ?: PluginBundle.message("action.import.error.malformed"),
                         PluginBundle.message("action.import.title")
                     )
-                    plan.entries.isEmpty() -> Messages.showInfoMessage(project, summaryOf(plan, applied = false), PluginBundle.message("action.import.title"))
+                    plan.entries.isEmpty() -> Messages.showInfoMessage(project, summaryOf(plan, routed = null), PluginBundle.message("action.import.title"))
                     else -> return@withContext ImportPreviewDialog(project, plan).showAndGet()
                 }
                 false
@@ -102,23 +105,22 @@ class ImportTranslationsAction : AnAction() {
         }
     }
 
-    /** Applies all planned entries in one WriteCommandAction (single undo step). */
+    /**
+     * Applies all planned entries in one WriteCommandAction (single undo step). The summary counts
+     * the values written and names the entries no file took ([routePlan]).
+     */
     private suspend fun applyPlan(project: Project, plan: ImportPlan, scope: ModuleScope) {
-        val written = withBackgroundProgress(project, PluginBundle.message("action.import.progress.title"), cancellable = false) {
+        val routed = withBackgroundProgress(project, PluginBundle.message("action.import.progress.title"), cancellable = false) {
             val config = Settings.getInstance(project).config()
             // Scoped to the chosen module: writing against the project-wide source
             // list would route a value into another module's file sharing the same
             // namespace and locale.
             val sources = readAction { TranslationDataLoader.findSources(project, scope.config) }
-            val operations = coroutineToIndicator { indicator ->
+            val routed = coroutineToIndicator { indicator ->
                 indicator.text = PluginBundle.message("action.import.progress.resolving")
-                val synchronizer = KeysSynchronizer()
-                val built = plan.entries.mapNotNull { entry ->
-                    val source = translationFileFor(entry.key, entry.locale, sources) ?: return@mapNotNull null
-                    Triple(source, synchronizer.buildFullKey(entry.key, config), entry.value)
+                routePlan(plan, sources, config).also {
+                    indicator.text = PluginBundle.message("action.import.progress.writing", it.writes.size)
                 }
-                indicator.text = PluginBundle.message("action.import.progress.writing", built.size)
-                built
             }
 
             withContext(Dispatchers.EDT) {
@@ -126,53 +128,92 @@ class ImportTranslationsAction : AnAction() {
                 WriteCommandAction.runWriteCommandAction(
                     project, PluginBundle.message("action.import.command"), null,
                 {
-                    for ((source, fullKey, value) in operations) {
-                        viewModel.saveTranslation(source, fullKey, value)
+                    for ((source, fullKey, entry) in routed.writes) {
+                        viewModel.saveTranslation(source, fullKey, entry.value)
                     }
                 })
             }
-            operations.size
+            routed
         }
-        LOG.info("Import Translations: $written values written")
+        LOG.info("Import Translations: ${routed.writes.size} values written, ${routed.unrouted.size} without a file")
         withContext(Dispatchers.EDT) {
             Messages.showInfoMessage(
                 project,
-                summaryOf(plan, applied = true),
+                summaryOf(plan, routed),
                 PluginBundle.message("action.import.title")
             )
         }
     }
 
-    private fun summaryOf(plan: ImportPlan, applied: Boolean): String = buildString {
-        val creations = plan.entries.count { it.isCreation }
-        val updates = plan.entries.size - creations
-        if (applied) append(
-            PluginBundle.message("action.import.summary.applied", plan.entries.size, creations, updates)
-        ) else append(PluginBundle.message("action.import.summary.nothing"))
-        if (plan.ignoredKeys.isNotEmpty()) {
-            val sample = plan.ignoredKeys.take(SAMPLE_SIZE).joinToString(", ") +
-                if (plan.ignoredKeys.size > SAMPLE_SIZE) ", …" else ""
-            append("\n")
-            append(PluginBundle.message("action.import.summary.ignored.keys", plan.ignoredKeys.size, sample))
-        }
-        if (plan.ignoredColumns.isNotEmpty()) {
-            append("\n")
-            append(
-                PluginBundle.message(
-                    "action.import.summary.ignored.columns", plan.ignoredColumns.joinToString(", ")
-                )
-            )
-        }
-    }
+    /** A planned entry with the file it goes to and the key it is written under there. */
+    internal data class Write(val source: LocalizationSource, val fullKey: FullKey, val entry: ImportEntry)
 
-    private companion object {
-        val LOG = Logger.getInstance(ImportTranslationsAction::class.java)
+    /** [routePlan]'s answer: the writes to make, and the entries no file of the module takes. */
+    internal data class RoutedPlan(val writes: List<Write>, val unrouted: List<ImportEntry>)
+
+    companion object {
+        private val LOG = Logger.getInstance(ImportTranslationsAction::class.java)
 
         /** How many of the ignored keys the summary names before trailing off. */
-        const val SAMPLE_SIZE = 5
+        private const val SAMPLE_SIZE = 5
 
         /** CSV, and the extensions an XLIFF file goes by. */
-        val IMPORTABLE_EXTENSIONS = setOf("csv") + XliffTranslationCodec.EXTENSIONS
+        private val IMPORTABLE_EXTENSIONS = setOf("csv") + XliffTranslationCodec.EXTENSIONS
+
+        /**
+         * Each entry of [plan] with the file of [sources] it goes to ([translationFileFor]), apart
+         * from the entries no file takes — a namespace the module has no file for in that locale.
+         * Those used to be dropped without a word while the summary counted them as imported.
+         */
+        internal fun routePlan(plan: ImportPlan, sources: List<LocalizationSource>, config: Config): RoutedPlan {
+            val synchronizer = KeysSynchronizer()
+            val writes = mutableListOf<Write>()
+            val unrouted = mutableListOf<ImportEntry>()
+            for (entry in plan.entries) {
+                val source = translationFileFor(entry.key, entry.locale, sources, config)
+                if (source == null) unrouted += entry
+                else writes += Write(source, synchronizer.buildFullKey(entry.key, config), entry)
+            }
+            return RoutedPlan(writes, unrouted)
+        }
+
+        /**
+         * What the import did — the values of [routed] written, the entries no file took — or, with
+         * no [routed] plan, that there was nothing to apply; then the keys and locale columns the
+         * file holds that the project does not know.
+         */
+        internal fun summaryOf(plan: ImportPlan, routed: RoutedPlan?): String = buildString {
+            if (routed == null) append(PluginBundle.message("action.import.summary.nothing"))
+            else {
+                val written = routed.writes.map { it.entry }
+                val creations = written.count { it.isCreation }
+                append(PluginBundle.message("action.import.summary.applied", written.size, creations, written.size - creations))
+                if (routed.unrouted.isNotEmpty()) {
+                    append("\n")
+                    append(
+                        PluginBundle.message(
+                            "action.import.summary.unrouted", routed.unrouted.size, sampleOf(routed.unrouted.map { "${it.key} (${it.locale})" })
+                        )
+                    )
+                }
+            }
+            if (plan.ignoredKeys.isNotEmpty()) {
+                append("\n")
+                append(PluginBundle.message("action.import.summary.ignored.keys", plan.ignoredKeys.size, sampleOf(plan.ignoredKeys)))
+            }
+            if (plan.ignoredColumns.isNotEmpty()) {
+                append("\n")
+                append(
+                    PluginBundle.message(
+                        "action.import.summary.ignored.columns", plan.ignoredColumns.joinToString(", ")
+                    )
+                )
+            }
+        }
+
+        /** The first [SAMPLE_SIZE] of [names], trailing off past them. */
+        private fun sampleOf(names: List<String>): String =
+            names.take(SAMPLE_SIZE).joinToString(", ") + if (names.size > SAMPLE_SIZE) ", …" else ""
     }
 }
 
@@ -227,14 +268,9 @@ private class ImportPreviewDialog(
 }
 
 /**
- * The translation file of [locale] for [key]'s namespace among [sources] (same routing as the Keys
- * Synchronizer). Shared by the CSV import and *Fill Missing Translations*, which write a key into a
- * locale the same way.
+ * The translation file of [locale] for [key] among [sources]: [TranslationFileRouting.fileFor] under
+ * [config]'s default namespaces, the routing of *Sync Keys*. Shared by the CSV import, *Fill Missing
+ * Translations* and the agents' tools, which write a key into a locale the same way.
  */
-internal fun translationFileFor(key: String, locale: String, sources: List<LocalizationSource>): LocalizationSource? {
-    val namespace = KeySpelling.namespaceOf(key)
-    return sources.firstOrNull { source ->
-        TranslationDataLoader.extractLocale(source) == locale &&
-            (namespace == null || TranslationDataLoader.extractNamespace(source) == namespace)
-    }
-}
+internal fun translationFileFor(key: String, locale: String, sources: List<LocalizationSource>, config: Config): LocalizationSource? =
+    TranslationFileRouting.fileFor(key, locale, sources, config)

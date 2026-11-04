@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationFileRouting
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
@@ -142,26 +143,16 @@ class KeysSynchronizer {
     }
 
     /**
-     * The source [key] is written to for [targetLocale]: the file of the namespace the key is
-     * prefixed with, or, for a key spelled without one, a file of a default namespace — that is
-     * where the loader read it from, since it strips exactly that prefix.
-     *
-     * A prefix-less key used to take the **first** file of the locale, whatever its namespace:
-     * with `common` as the default namespace, `actions.save` was routed to `fr/auth.json`,
-     * the first name in alphabetical order. A locale holding a single file keeps it as the
-     * fallback — the one-file-per-locale layout names it after the locale, not the namespace.
+     * The source [key] is written to for [targetLocale]: [TranslationFileRouting.fileFor], the rule
+     * the import, the table's edit and the automatic fill write by, so a key is proposed for the
+     * very file they would put it in.
      */
     private fun findSourceForKeyAndLocale(
         key: String,
         targetLocale: String,
         allSources: List<LocalizationSource>,
         defaultNamespaces: List<String>,
-    ): LocalizationSource? {
-        val wanted = KeySpelling.namespaceOf(key)?.let { listOf(it) } ?: defaultNamespaces
-        val ofLocale = allSources.filter { TranslationDataLoader.extractLocale(it) == targetLocale }
-        return ofLocale.firstOrNull { TranslationDataLoader.extractNamespace(it, defaultNamespaces.first()) in wanted }
-            ?: ofLocale.singleOrNull()
-    }
+    ): LocalizationSource? = TranslationFileRouting.fileFor(key, targetLocale, allSources, defaultNamespaces)
 
     /**
      * Applies all missing entries by inserting empty string values.
