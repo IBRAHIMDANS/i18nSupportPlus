@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.usages.DynamicReach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -149,30 +150,17 @@ class DynamicKeyUsageTest : PlatformBaseTest() {
         assertTrue(statusOf("common:status.ok") != UsageStatus.DYNAMIC)
     }
 
-    // ── The shape of a literal, without the platform ──────────────────────────
-
-    @Test
-    fun `the shape of a literal is its static head and tail`() {
-        assertEquals(DynamicKeyUsages.Shape("common:status.", ""), DynamicKeyUsages.shapeOf("common:status.\${kind}"))
-        assertEquals(DynamicKeyUsages.Shape("", ":status.ok"), DynamicKeyUsages.shapeOf("\${ns}:status.ok"))
-        assertEquals(DynamicKeyUsages.Shape("menu.", ".label"), DynamicKeyUsages.shapeOf("menu.\${id}.label"))
-        assertEquals(DynamicKeyUsages.Shape("a.", ".c"), DynamicKeyUsages.shapeOf("a.\${x}.b.\${y}.c"))
-    }
-
-    @Test
-    fun `a literal with nothing computed or nothing static has no shape`() {
-        assertEquals(null, DynamicKeyUsages.shapeOf("common:status.ok"))
-        assertEquals(null, DynamicKeyUsages.shapeOf("\${name}"))
-        assertEquals(null, DynamicKeyUsages.shapeOf("\${ns}\${key}"))
-    }
+    // ── The rule the column applies, without the platform ─────────────────────
+    // The shape of a literal and the keys it reaches are `DynamicReach`'s, shared with
+    // `i18n-check`: its table is in `DynamicReachTest`; these two pin the column to that rule.
 
     @Test
     fun `a shape reaches a key starting with its head and ending with its tail`() {
-        val shape = DynamicKeyUsages.Shape("", ":status.ok")
+        val shape = DynamicReach.Shape("", ":status.ok")
         assertTrue(shape.reaches("common:status.ok", "status.ok", ":", "."))
         assertTrue(!shape.reaches("common:status.ko", "status.ko", ":", "."))
-        assertTrue(DynamicKeyUsages.Shape("menu.", ".label").reaches("common:menu.x.label", "menu.x.label", ":", "."))
-        assertTrue(!DynamicKeyUsages.Shape("menu.", ".label").reaches("common:menu.x.icon", "menu.x.icon", ":", "."))
+        assertTrue(DynamicReach.Shape("menu.", ".label").reaches("common:menu.x.label", "menu.x.label", ":", "."))
+        assertTrue(!DynamicReach.Shape("menu.", ".label").reaches("common:menu.x.icon", "menu.x.icon", ":", "."))
     }
 
     // ── The words searched, without the platform ──────────────────────────────
@@ -213,11 +201,11 @@ class DynamicKeyUsageTest : PlatformBaseTest() {
 
     @Test
     fun `a one-segment head without a tail reaches the default namespace only`() {
-        val errors = DynamicKeyUsages.Shape("errors.", "")
+        val errors = DynamicReach.Shape("errors.", "")
         assertTrue(errors.reaches("errors.timeout", "errors.timeout", ":", "."))
         assertTrue(!errors.reaches("auth:errors.timeout", "errors.timeout", ":", "."))
         // A namespace written in the head, or a tail, keeps the old rule.
-        assertTrue(DynamicKeyUsages.Shape("common:errors.", "").reaches("common:errors.timeout", "errors.timeout", ":", "."))
+        assertTrue(DynamicReach.Shape("common:errors.", "").reaches("common:errors.timeout", "errors.timeout", ":", "."))
     }
 
     @Test

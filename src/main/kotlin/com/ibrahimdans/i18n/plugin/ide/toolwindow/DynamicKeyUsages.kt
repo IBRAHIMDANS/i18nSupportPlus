@@ -34,15 +34,6 @@ object DynamicKeyUsages {
     private const val INTERPOLATION = "\${"
 
     /**
-     * [DynamicReach.Shape] as this object's tests name it: the static ends of one dynamic key
-     * literal, and the rule of which keys it reaches — the one `i18n-check` applies too.
-     */
-    internal data class Shape(val head: String, val tail: String) {
-        fun reaches(key: String, bare: String, nsSeparator: String, keySeparator: String): Boolean =
-            DynamicReach.Shape(head, tail).reaches(key, bare, nsSeparator, keySeparator)
-    }
-
-    /**
      * The subset of [keys] some dynamic key literal can reach.
      *
      * One search per distinct prefix or suffix rather than per key: the three `status.*` keys
@@ -60,7 +51,7 @@ object DynamicKeyUsages {
         if (keys.isEmpty()) return emptySet()
         val shapes = searchWords(keys, nsSeparator, keySeparator)
             .flatMapTo(mutableSetOf()) { word -> perWord { dynamicLiterals(word, scope, searchHelper) } }
-            .mapNotNullTo(mutableSetOf(), ::shapeOf)
+            .mapNotNullTo(mutableSetOf(), DynamicReach::shapeOf)
         if (shapes.isEmpty()) return emptySet()
 
         return keys.filterTo(mutableSetOf()) { key ->
@@ -88,7 +79,7 @@ object DynamicKeyUsages {
         val bare = key.substringAfter(nsSeparator, key)
         return wordsOf(key, nsSeparator, keySeparator).any { word ->
             literals.getOrPut(word) { dynamicLiterals(word, scope, searchHelper) }
-                .any { shapeOf(it)?.reaches(key, bare, nsSeparator, keySeparator) == true }
+                .any { DynamicReach.shapeOf(it)?.reaches(key, bare, nsSeparator, keySeparator) == true }
         }
     }
 
@@ -105,7 +96,7 @@ object DynamicKeyUsages {
             { element, _ ->
                 val literal = languages.firstNotNullOfOrNull { it.resolveLiteral(element) }
                 val text = literal?.text?.unQuote()
-                if (text != null && shapeOf(text) != null) literals.add(text)
+                if (text != null && DynamicReach.shapeOf(text) != null) literals.add(text)
                 true
             },
             scope,
@@ -115,9 +106,6 @@ object DynamicKeyUsages {
         )
         return literals
     }
-
-    /** [DynamicReach.shapeOf]: the shape of a key literal, `null` when nothing in it is computed or static. */
-    internal fun shapeOf(text: String): Shape? = DynamicReach.shapeOf(text)?.let { Shape(it.head, it.tail) }
 
     /** The distinct words to search for, on behalf of all of [keys]. */
     internal fun searchWords(keys: List<String>, nsSeparator: String, keySeparator: String): List<String> =
@@ -135,9 +123,9 @@ object DynamicKeyUsages {
      * project for. For a key of the default namespace, written without one, it is searched
      * followed by the separator and an interpolation instead (`errors.${'$'}{`): that is the shape
      * of `t(`errors.${'$'}{code}`)` after `useTranslation()`, the usual message per error code, and
-     * the text occurs nowhere else. Its head says nothing about a namespace, so [Shape.reaches]
-     * lets it reach the default namespace's keys only. A key of another namespace keeps the old
-     * rule: its first segment alone is left out.
+     * the text occurs nowhere else. Its head says nothing about a namespace, so
+     * [DynamicReach.Shape.reaches] lets it reach the default namespace's keys only. A key of
+     * another namespace keeps the old rule: its first segment alone is left out.
      */
     internal fun prefixesOf(key: String, nsSeparator: String, keySeparator: String): List<String> {
         val prefixes = mutableListOf<String>()
