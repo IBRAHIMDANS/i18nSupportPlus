@@ -4,7 +4,7 @@
 
 ### Fixes
 
-- [Editor] **A template key with its `${…}` in the middle resolves under a hook's `t`**: with `const { t } = useTranslation()`, `` t(`common:role.${role}.label`) `` was reported *Unresolved key* from `${role}` on, although every runtime value names a key that exists; the hook extractor flattened the template into one literal key, so the interpolation never became the wildcard the segments after it need. A template key now keeps its structure as it does for a plain `t()`, the hook's namespace and key prefix included.
+- [Editor] **Template keys under a hook's `t` resolve their `${…}`**: with `const { t } = useTranslation()`, `` t(`common:role.${role}.label`) `` is no longer reported *Unresolved key* when every matching entry exists.
 
 ## 1.18.0 - 2026-11-03
 
