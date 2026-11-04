@@ -76,22 +76,12 @@ class TextFilesTest {
         project.writeLatin1("src/vendor.min.js", "t('extra') // café\n")
         project.write("locales/en.json", """{"title": "Shop", "extra": "More"}""")
         project.write("locales/fr.json", """{"title": "Boutique", "extra": "Plus"}""")
-        val stderr = ByteArrayOutputStream()
-        val systemErr = System.err
 
-        System.setErr(PrintStream(stderr, true, Charsets.UTF_8))
-        val run = try {
-            check(project.toString(), "--code")
-        } finally {
-            System.setErr(systemErr)
-        }
+        val run = check(project.toString(), "--code")
 
         Assertions.assertEquals(I18nCheck.OK, run.exit, run.err)
         Assertions.assertTrue(run.out.endsWith("No problem found."), run.out)
-        Assertions.assertEquals(
-            "i18n-check: src/vendor.min.js is not UTF-8: its code is read with replacement characters",
-            stderr.toString(Charsets.UTF_8).trimEnd(),
-        )
+        Assertions.assertEquals("i18n-check: src/vendor.min.js is not UTF-8: its code is read with replacement characters", run.err)
     }
 
     @Test
@@ -125,5 +115,50 @@ class TextFilesTest {
 
         Assertions.assertEquals(I18nCheck.CANNOT_CHECK, run.exit)
         Assertions.assertEquals("i18n-check: cannot read angular.json: not valid UTF-8", run.err)
+    }
+
+    @Test
+    fun `a resource bundle with invalid bytes stops the check with its name`(@TempDir project: Path) {
+        project.write("src/main/resources/messages.properties", "farewell=Goodbye\n")
+        project.writeLatin1("src/main/resources/messages_fr.properties", "farewell=À bientôt\n")
+
+        val run = check(project.toString())
+
+        Assertions.assertEquals(I18nCheck.CANNOT_CHECK, run.exit)
+        Assertions.assertEquals("i18n-check: cannot read src/main/resources/messages_fr.properties: not valid UTF-8", run.err)
+    }
+
+    @Test
+    fun `an ARB catalogue with invalid bytes stops the check with its name`(@TempDir project: Path) {
+        project.write("lib/l10n/app_en.arb", """{"@@locale": "en", "hello": "Hello"}""")
+        project.writeLatin1("lib/l10n/app_fr.arb", """{"@@locale": "fr", "hello": "Bonjour à tous"}""")
+
+        val run = check(project.toString())
+
+        Assertions.assertEquals(I18nCheck.CANNOT_CHECK, run.exit)
+        Assertions.assertEquals("i18n-check: cannot read lib/l10n/app_fr.arb: not valid UTF-8", run.err)
+    }
+
+    @Test
+    fun `a Symfony catalogue with invalid bytes stops the check with its name`(@TempDir project: Path) {
+        project.write("composer.json", """{"require": {"symfony/translation": "7.1.*"}}""")
+        project.write("translations/messages.en.yaml", "hello: Hello\n")
+        project.writeLatin1("translations/messages.fr.yaml", "hello: Bonjour à tous\n")
+
+        val run = check(project.toString())
+
+        Assertions.assertEquals(I18nCheck.CANNOT_CHECK, run.exit)
+        Assertions.assertEquals("i18n-check: cannot read translations/messages.fr.yaml: not valid UTF-8", run.err)
+    }
+
+    @Test
+    fun `a settings file with invalid bytes is named, not its byte count`(@TempDir project: Path) {
+        cleanProject(project)
+        project.writeLatin1(SettingsFile.JSON_PATH, """{ "nsSeparator": "é" }""")
+
+        val run = check(project.toString())
+
+        Assertions.assertEquals(I18nCheck.CANNOT_CHECK, run.exit)
+        Assertions.assertEquals("i18n-check: cannot read ${SettingsFile.JSON_PATH}: not valid UTF-8", run.err)
     }
 }

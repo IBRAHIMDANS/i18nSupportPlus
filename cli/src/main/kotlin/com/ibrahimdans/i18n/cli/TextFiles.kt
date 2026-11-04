@@ -39,10 +39,13 @@ internal object TextFiles {
 
     /** The manifest or translation file at [path], whole; one that is not UTF-8, or cannot be read, stops the check naming it as [shownAs]. */
     fun read(path: Path, shownAs: String = path.toString()): String = try {
-        decode(Files.readAllBytes(path), CodingErrorAction.REPORT)
+        text(path)
     } catch (e: IOException) {
         throw CannotCheck("cannot read $shownAs: ${reason(e)}")
     }
+
+    /** The UTF-8 text at [path], for a caller that reports its own errors: a byte no UTF-8 encodes is an [IOException] like the others. */
+    fun text(path: Path): String = decode(Files.readAllBytes(path), CodingErrorAction.REPORT)
 
     private fun decode(bytes: ByteArray, onError: CodingErrorAction): String =
         Charsets.UTF_8.newDecoder()
@@ -51,8 +54,8 @@ internal object TextFiles {
             .decode(ByteBuffer.wrap(bytes))
             .toString()
 
-    /** Why the file could not be read, for a reader: the exception's own message is the path again. */
-    private fun reason(e: IOException): String = when (e) {
+    /** Why the file could not be read, for a reader: the exception's own message is the path again, or `Input length = 1`. */
+    fun reason(e: IOException): String = when (e) {
         is CharacterCodingException -> "not valid UTF-8"
         is NoSuchFileException -> "no such file"
         is AccessDeniedException -> "permission denied"

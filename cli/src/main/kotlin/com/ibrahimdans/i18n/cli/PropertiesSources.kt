@@ -11,7 +11,6 @@ import com.ibrahimdans.i18n.plugin.format.PropertiesBundle
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
-import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.nameWithoutExtension
@@ -41,11 +40,7 @@ internal class PropertiesSources(private val config: Config) : TranslationTechno
                 val placements = PropertiesBundle.placementsIn(files.map { it.nameWithoutExtension }, ReferenceLocale.wanted(module, config))
                 files.mapNotNull { file ->
                     val placement = placements[file.nameWithoutExtension] ?: return@mapNotNull null
-                    val tree = try {
-                        CheckFormats.PROPERTIES.parse(Files.readString(file))
-                    } catch (e: IOException) {
-                        null
-                    }
+                    val tree = CheckFormats.PROPERTIES.parse(TextFiles.read(file, relative(nio, file)))
                     TranslationSource(
                         tree, file.fileName.toString(), file.parent.fileName.toString(), relative(nio, file),
                         CheckFormats.PROPERTIES, locale = placement.locale, namespace = placement.namespace,

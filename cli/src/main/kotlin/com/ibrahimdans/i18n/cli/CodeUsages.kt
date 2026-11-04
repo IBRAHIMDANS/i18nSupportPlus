@@ -53,14 +53,9 @@ data class UnknownKey(val key: String, val file: String, val line: Int)
  * the `tsconfig.json`, else `jsconfig.json`, nearest to the importing file, `extends` followed (`@/keys`, [pathAliasesOf]).
  *
  * A source file that is not UTF-8 is read with replacement characters, and one that cannot be read at all is left
- * out ([TextFiles.readOrNull]): each is said once through [warn], on the error stream by default, rather than
- * ending the check.
+ * out ([TextFiles.readOrNull]): each is said once through [warn] rather than ending the check.
  */
-class CodeUsages(
-    project: Path,
-    private val config: Config,
-    warn: (String) -> Unit = { System.err.println("i18n-check: $it") },
-) {
+class CodeUsages(project: Path, private val config: Config, warn: (String) -> Unit) {
 
     private val modules: List<ModuleConfig>
 

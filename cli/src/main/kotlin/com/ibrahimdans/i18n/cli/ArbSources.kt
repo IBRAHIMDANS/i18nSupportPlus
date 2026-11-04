@@ -9,7 +9,6 @@ import com.ibrahimdans.i18n.Workspace
 import com.ibrahimdans.i18n.plugin.format.ArbCatalogue
 import com.ibrahimdans.i18n.plugin.format.ParsedNode
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
-import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.nameWithoutExtension
@@ -35,11 +34,7 @@ internal class ArbSources(private val config: Config) : TranslationTechnology<Pa
             val relative = file.path.removePrefix(nio.basePath).trim('/')
             if (SourceDiscovery.isExcludedPath(relative, excluded)) return@mapNotNull null
             val path = Path.of(file.path)
-            val tree = try {
-                CheckFormats.ARB.parse(Files.readString(path))
-            } catch (e: IOException) {
-                null
-            }
+            val tree = CheckFormats.ARB.parse(TextFiles.read(path, relative))
             val locale = ArbCatalogue.localeOf(path.nameWithoutExtension, tree?.let(ArbCatalogue::declaredLocale)) ?: return@mapNotNull null
             TranslationSource(tree, file.name, path.parent.fileName.toString(), relative, CheckFormats.ARB, locale = locale)
         }

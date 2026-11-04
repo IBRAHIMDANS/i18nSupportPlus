@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.ProjectConfigFile
 import org.w3c.dom.Element
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.xml.XMLConstants
@@ -32,7 +33,7 @@ object SettingsFile {
     /**
      * The [Config] of [project], the defaults when it has no settings file.
      *
-     * @throws IllegalArgumentException a settings file that cannot be read, its path in the message
+     * @throws IllegalArgumentException a settings file that cannot be read — not UTF-8 included — its path in the message
      */
     fun read(project: Path): Config {
         val json = project.resolve(JSON_PATH)
@@ -46,7 +47,7 @@ object SettingsFile {
         try {
             read()
         } catch (e: Exception) {
-            throw IllegalArgumentException("$path: ${e.message}", e)
+            throw IllegalArgumentException("$path: ${if (e is IOException) TextFiles.reason(e) else e.message}", e)
         }
 
     private fun readXml(file: Path): Config {
@@ -55,7 +56,7 @@ object SettingsFile {
         return ProjectConfigFile.contentOf(optionsOf(component), modulesOf(component)).applyTo(Config())
     }
 
-    private fun readJson(file: Path): Config = ProjectConfigFile.parse(Files.readString(file)).applyTo(Config())
+    private fun readJson(file: Path): Config = ProjectConfigFile.parse(TextFiles.text(file)).applyTo(Config())
 
     private fun parse(file: Path) = DocumentBuilderFactory.newInstance().apply {
         // A settings file has no reason to declare a DTD: refusing one rules out external entities.
