@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.hint
 
+import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.actions.EditTranslationAtCaretAction
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
@@ -19,6 +20,7 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -29,6 +31,9 @@ private const val MAX_TRANSLATION_LENGTH = 60
 
 /** Prefix of the *Edit* link: `i18n-edit:<offset>:<file url>`, the literal the hint was shown for. */
 internal const val EDIT_LINK_PREFIX = "i18n-edit:"
+
+/** Prefix of a "→" link: `i18n-go:<offset>:<file url>`, the root of the source in its file. */
+internal const val NAVIGATE_LINK_PREFIX = "i18n-go:"
 
 /**
  * Shows all available translations (grouped by language folder) as a hint on Ctrl+hover.
@@ -49,8 +54,10 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
     override fun getQuickNavigateInfo(element: PsiElement?, originalElement: PsiElement?): String? = null
 
     /**
-     * Handles navigation links encoded as "displayPath" (without protocol prefix).
-     * Navigates to the translation file when a "→" link is clicked in the doc popup.
+     * Opens what a link of the popup points to: the translation dialog for the *Edit* link, the
+     * source's file at its root for a "→" link ([NAVIGATE_LINK_PREFIX]). A "→" link of the older
+     * form, a display path, is still resolved against the project's base path — which an inline
+     * source (`i18n.ts#translation`) or a module outside it never matched: those get the file URL.
      */
     override fun getDocumentationElementForLink(
         psiManager: PsiManager,
@@ -59,14 +66,19 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
     ): PsiElement? {
         val project = psiManager.project
         if (link.startsWith(EDIT_LINK_PREFIX)) {
-            openEditDialog(psiManager, link.removePrefix(EDIT_LINK_PREFIX))
+            locate(link.removePrefix(EDIT_LINK_PREFIX))?.let { (virtualFile, offset) -> openEditDialog(psiManager, virtualFile, offset) }
             return null
         }
-        val basePath = project.basePath ?: return null
-        val virtualFile = LocalFileSystem.getInstance().findFileByPath("$basePath/$link") ?: return null
+        val (virtualFile, offset) = if (link.startsWith(NAVIGATE_LINK_PREFIX)) {
+            locate(link.removePrefix(NAVIGATE_LINK_PREFIX)) ?: return null
+        } else {
+            val basePath = project.basePath ?: return null
+            val file = LocalFileSystem.getInstance().findFileByPath("$basePath/$link") ?: return null
+            file to -1
+        }
         // navigate(true) must run on the EDT — schedule it regardless of the calling thread
         ApplicationManager.getApplication().invokeLater {
-            OpenFileDescriptor(project, virtualFile).navigate(true)
+            OpenFileDescriptor(project, virtualFile, offset).navigate(true)
         }
         // findFile requires a read action when called from a background thread (IntelliJ 2024.3+)
         return ReadAction.compute<PsiFile?, RuntimeException> {
@@ -74,13 +86,18 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
         }
     }
 
+    /** The file and offset a `<offset>:<file url>` [target] names; null once the file is gone. */
+    private fun locate(target: String): Pair<VirtualFile, Int>? {
+        val offset = target.substringBefore(':').toIntOrNull() ?: return null
+        val virtualFile = VirtualFileManager.getInstance().findFileByUrl(target.substringAfter(':')) ?: return null
+        return virtualFile to offset
+    }
+
     /**
-     * Opens the translation dialog on the literal [target] points to (`<offset>:<file url>`). The
-     * dialog is modal: it waits for the next EDT turn, out of the link handling.
+     * Opens the translation dialog on the literal at [offset] of [virtualFile]. The dialog is
+     * modal: it waits for the next EDT turn, out of the link handling.
      */
-    private fun openEditDialog(psiManager: PsiManager, target: String) {
-        val offset = target.substringBefore(':').toIntOrNull() ?: return
-        val virtualFile = VirtualFileManager.getInstance().findFileByUrl(target.substringAfter(':')) ?: return
+    private fun openEditDialog(psiManager: PsiManager, virtualFile: VirtualFile, offset: Int) {
         val project = psiManager.project
         ApplicationManager.getApplication().invokeLater {
             if (project.isDisposed) return@invokeLater
@@ -119,8 +136,8 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
                 ?.let { StringUtil.escapeXmlEntities(it) }
                 ?: return@mapNotNull null
             val locale = StringUtil.escapeXmlEntities(source.localeLabel())
-            // The path lands in a single-quoted attribute, where one apostrophe would close it.
-            val navLink = "<a href='psi_element://${StringUtil.escapeXmlEntities(source.displayPath)}'>&#8599;</a>"
+            // The target lands in a single-quoted attribute, where one apostrophe would close it.
+            val navLink = "<a href='psi_element://${StringUtil.escapeXmlEntities(navigationTarget(source))}'>&#8599;</a>"
             "<tr>" +
                 "<td><b>$locale</b></td>" +
                 "<td style='padding-left:8px; white-space:nowrap'>$value</td>" +
@@ -131,6 +148,18 @@ class HintProvider : DocumentationProvider, CompositeKeyResolver<PsiElement> {
         if (rows.isEmpty()) return null
 
         return "<table cellspacing='0' cellpadding='2'>${rows.joinToString("")}</table>" + editLink(sourceElement)
+    }
+
+    /**
+     * Where the "→" link of [source] leads: `i18n-go:<offset>:<file url>` of the source's root, so
+     * that a source inside a configuration file (`i18n.ts#translation`) opens on its object and a
+     * module outside the project's base path opens at all; the display path, resolved against the
+     * base path, for a source with no element to read a file from.
+     */
+    private fun navigationTarget(source: LocalizationSource): String {
+        val root = source.tree?.value() ?: return source.displayPath
+        val url = root.containingFile?.virtualFile?.url ?: return source.displayPath
+        return "$NAVIGATE_LINK_PREFIX${root.textRange.startOffset}:$url"
     }
 
     /** The *Edit* link to the literal [sourceElement], or nothing for a literal in no file on disk. */
