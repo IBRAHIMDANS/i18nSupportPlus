@@ -6,14 +6,14 @@ The checks the IDE runs on translations and code, and how to run them in CI, wit
 
 ## Inspections
 
-Under *Settings | Editor | Inspections | i18n Support Plus*, those marked *off* to be turned on there (the setup wizard offers the first two):
+The twenty-four inspections, under *Settings | Editor | Inspections | i18n Support Plus*; those marked *off* are to be turned on there (the setup wizard offers the first two). A row naming several languages is one inspection per language:
 
 | Inspection | Reports |
 |------------|---------|
 | Translation key with no reference in code | A key of a translation file no code refers to, unless the settings keep it (*Keys used outside the code*); quick fixes: delete it, or keep it (off) |
 | Hard-coded text in JSX / in a Vue template | A text written as is, `<button>Save</button>`, with a quick fix extracting it; code tags, punctuation alone and technical attributes are never reported (off) |
 | Hard-coded text in an Angular template / in a Svelte component | The same in an Angular template, the quick fix writing `{{ 'key' \| translate }}` (or `\| transloco` in a Transloco project), and in a Svelte component's markup, writing `{$_('key')}` and its import; `{{ name }}` and `{name}` become variables, a tag marked `translate`, `transloco` or `i18n` is left alone (off) |
-| Hard-coded text in a Blade view / in an Astro component | The same in a Blade view's HTML, the quick fix writing `{{ __('key') }}`, and in an Astro component's template, writing `{t('key')}` and its import; Astro's `{name}` becomes a variable, while a Blade text split by an echo or a directive (`Hello {{ $name }}!`) is left alone (off) |
+| Hard-coded text in a Blade view / in a Twig template / in an Astro component | The same in a Blade view's HTML, the quick fix writing `{{ __('key') }}`, in a Twig template of a Symfony project, writing `{{ 'key'\|trans }}` (an echo `{{ user.name }}` becoming the parameter `%name%`), and in an Astro component's template, writing `{t('key')}` and its import; Astro's `{name}` becomes a variable, while a Blade text split by an echo or a directive (`Hello {{ $name }}!`) is left alone (off) |
 | Hard-coded string shown to the user in JavaScript | A string passed to `alert`, `confirm` or `toast` (`toast.error('Failed')`), or held by a `title`, `label` or `placeholder` property, in a JS or TS file; both lists are options, and the quick fix extracts it (off) |
 | Translation key missing from a locale | In a locale file, each key of the reference locale's file for the same namespace that it lacks, plural forms compared as a group; quick fix: add it empty |
 | Translation key absent from the reference locale | A key of a locale that the reference locale's file does not hold — renamed in the reference only, or mistyped — plural forms compared as a group; quick fixes: remove it from the locale, or add it empty to the reference (off) |
@@ -40,8 +40,8 @@ The inspections also run without an editor, in [Qodana](https://www.jetbrains.co
 `i18n-check` compares the translation files of a project to the reference locale, without IntelliJ. It needs Java 21 and is not shipped with the plugin: each [GitHub release](https://github.com/IBRAHIMDANS/i18nSupportPlus/releases), from 1.16.0, carries it as `i18n-check-<version>.zip`.
 
 ```bash
-unzip i18n-check-1.16.0.zip
-i18n-check-1.16.0/bin/i18n-check [project] [--locales <dir> | --code] [--reference <locale>] [--format text|json|github] [--max-problems N] [--no-values]
+unzip i18n-check-1.18.0.zip
+i18n-check-1.18.0/bin/i18n-check [project] [--locales <dir> | --code] [--reference <locale>] [--format text|json|github] [--max-problems N] [--no-values]
 ```
 
 `./gradlew :cli:installDist` builds it from this repository instead, in `cli/build/install/i18n-check/`.
@@ -123,7 +123,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: IBRAHIMDANS/i18nSupportPlus@v1.16.0
+      - uses: IBRAHIMDANS/i18nSupportPlus@v1.18.0
         with:
           args: --code
 ```
@@ -145,7 +145,7 @@ Unless `args` sets its own `--format`, the action runs `--format github`: each p
 
 ### Other CI systems
 
-Each release, from the one after 1.16.1, also publishes `i18n-check` as a Docker image with Java 21 included, for Linux x86_64 and arm64: `ghcr.io/ibrahimdans/i18n-check:<version>`, and `:latest`. It checks the directory mounted on `/work` and takes the same arguments:
+Each release, from 1.17.0, also publishes `i18n-check` as a Docker image with Java 21 included, for Linux x86_64 and arm64: `ghcr.io/ibrahimdans/i18n-check:<version>`, and `:latest`. It checks the directory mounted on `/work` and takes the same arguments:
 
 ```bash
 docker run --rm -v "$PWD:/work" ghcr.io/ibrahimdans/i18n-check:latest --code

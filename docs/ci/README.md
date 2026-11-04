@@ -5,23 +5,20 @@ any IntelliJ-based IDE started headless (`inspect.sh`). A pull request adding `t
 without its translation, or dropping a key from `fr/common.json`, fails the build instead of waiting
 for someone to open the file.
 
-| What | Reported by |
-|------|-------------|
+The profiles below enable the checks a build should fail on; any other inspection of [the full list](../checks.md#inspections) can be added by its id:
+
+| What | Inspection id |
+|------|---------------|
+| A key or namespace the code uses and no file holds | `Annotator` — the plugin's annotator, run as an inspection |
 | A key of the reference locale missing from another locale | `I18nMissingKey` |
 | A placeholder present in one locale and not in another | `I18nPlaceholderConsistency` |
 | A plural form the locale's language needs | `I18nMissingPluralForms` |
 | Markup lost in a translation (`<1>…</1>`) | `I18nMarkupConsistency` |
 | An ICU plural or select without `other` | `I18nIcuFormat` |
 | A call not passing a variable its message needs | `I18nInterpolationArguments` |
-| A key or namespace the code uses and no file holds | the plugin's annotator, through `Annotator` |
 | A key no code uses (opt-in) | `I18nUnusedKey` |
-| A key of a locale the reference locale does not hold (opt-in) | `I18nOrphanKey` |
-| Hard-coded text in JSX or a Vue template (opt-in) | `I18nHardcodedJsxText`, `I18nHardcodedVueText` |
-| A reviewed value whose reference text changed since (opt-in, needs `.i18n-reviews/`) | `I18nStaleTranslation` |
-| A key not following the project's naming convention (opt-in) | `I18nKeyNaming` |
 
-The plugin reads the project's settings from `.idea/i18nSettings.xml` (translation root, namespaces,
-modules): commit that file, or the run uses the defaults.
+The run reads the project's settings as the IDE does: from `i18n-check.json` at the project root when the team commits one ([Share the configuration with your team](../configuration.md#share-the-configuration-with-your-team)), else from `.idea/i18nSettings.xml`. Without either, the defaults apply.
 
 ## Qodana
 
