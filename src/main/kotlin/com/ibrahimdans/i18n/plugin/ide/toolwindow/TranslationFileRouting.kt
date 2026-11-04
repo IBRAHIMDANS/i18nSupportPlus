@@ -25,13 +25,16 @@ object TranslationFileRouting {
      * The file of [locale] among [sources] that [key] belongs to: the file of the namespace the key
      * is prefixed with, or, for a key spelled without one, the first file of a default namespace.
      *
-     * A locale holding a single file keeps it as the fallback — the one-file-per-locale layout
-     * names it after the locale, not the namespace. Several files and none of the wanted
-     * namespace is null: the key is better skipped than written into a namespace it is not part of.
+     * For a bare key, a locale holding a single file keeps it as the fallback — the
+     * one-file-per-locale layout names it after the locale, not the namespace. A key naming its
+     * namespace never falls back: `profile:bio` with no `profile` file is null, not written into
+     * `common.json`. Nor does a bare key among several files of other namespaces: the key is
+     * better skipped than written into a namespace it is not part of.
      */
     fun fileFor(key: String, locale: String, sources: List<LocalizationSource>, defaultNamespaces: List<String>): LocalizationSource? {
         val ofLocale = sources.filter { TranslationDataLoader.extractLocale(it) == locale }
-        return filesOf(key, ofLocale, defaultNamespaces).firstOrNull() ?: ofLocale.singleOrNull()
+        val fallback = if (KeySpelling.namespaceOf(key) == null) ofLocale.singleOrNull() else null
+        return filesOf(key, ofLocale, defaultNamespaces).firstOrNull() ?: fallback
     }
 
     /** [filesOf] under [config]'s default namespaces. */
