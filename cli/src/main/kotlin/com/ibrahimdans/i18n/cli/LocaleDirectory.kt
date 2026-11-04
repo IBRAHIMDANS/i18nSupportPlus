@@ -9,7 +9,6 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationLeaves
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocaleNames
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
-import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.extension
 import kotlin.io.path.isDirectory
@@ -26,7 +25,7 @@ import kotlin.io.path.nameWithoutExtension
  *
  * Only names [LocaleNames] reads as a locale count: `README.md` or `scripts/` beside them are left
  * alone. The keys of a namespace file are spelled `namespace:key`, with the configured namespace
- * separator, as the code writes them.
+ * separator, as the code writes them. A file that is not UTF-8 stops the check, naming it ([TextFiles.read]).
  */
 object LocaleDirectory {
 
@@ -60,13 +59,13 @@ object LocaleDirectory {
         for (file in bundles) {
             val placement = placements[file.nameWithoutExtension] ?: continue
             val nsPrefix = placement.namespace?.let { it + config.nsSeparator }.orEmpty()
-            TranslationLeaves.collect(config, CheckFormats.PROPERTIES.parse(Files.readString(file))!!, nsPrefix, placement.locale, ParsedLeaves, result)
+            TranslationLeaves.collect(config, CheckFormats.PROPERTIES.parse(TextFiles.read(file))!!, nsPrefix, placement.locale, ParsedLeaves, result)
             files += LocaleFile(placement.locale, nsPrefix, file.toAbsolutePath().normalize())
         }
     }
 
     private fun collectArb(file: Path, config: Config, result: MutableMap<String, MutableMap<String, String>>, files: MutableList<LocaleFile>) {
-        val tree = CheckFormats.ARB.parse(Files.readString(file)) ?: throw CannotCheck(CheckFormats.unreadable(CheckFormats.ARB, file)!!)
+        val tree = CheckFormats.ARB.parse(TextFiles.read(file)) ?: throw CannotCheck(CheckFormats.unreadable(CheckFormats.ARB, file)!!)
         val locale = ArbCatalogue.localeOf(file.nameWithoutExtension, ArbCatalogue.declaredLocale(tree)) ?: return
         TranslationLeaves.collect(config, tree, "", locale, ParsedLeaves, result)
         files += LocaleFile(locale, "", file.toAbsolutePath().normalize())
@@ -86,7 +85,7 @@ object LocaleDirectory {
     ) {
         val extension = file.extension.lowercase()
         val format = FORMATS.getValue(extension)
-        val tree = format.parse(Files.readString(file), extension)
+        val tree = format.parse(TextFiles.read(file), extension)
             ?: CheckFormats.unreadable(format, file)?.let { throw CannotCheck(it) }
             ?: return
         TranslationLeaves.collect(config, tree, nsPrefix, locale, ParsedLeaves, result)

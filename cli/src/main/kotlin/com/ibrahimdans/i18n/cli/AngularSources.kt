@@ -9,7 +9,6 @@ import com.ibrahimdans.i18n.extensions.technology.angulari18n.AngularI18nConfig
 import com.ibrahimdans.i18n.plugin.format.ParsedNode
 import com.ibrahimdans.i18n.plugin.format.SymfonyXliffTree
 import com.ibrahimdans.i18n.plugin.format.XliffKeying
-import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -21,6 +20,7 @@ import java.nio.file.Path
  * translation the locale lacks. Ids are keys as written, `home.title` whole.
  *
  * A file `angular.json` names but that does not exist yet is skipped: `ng extract-i18n` may not have run.
+ * `angular.json` or a catalogue that is not UTF-8 stops the check, naming it ([TextFiles.read]).
  */
 internal class AngularSources : TranslationTechnology<ParsedNode, ParsedFormat> {
 
@@ -34,7 +34,7 @@ internal class AngularSources : TranslationTechnology<ParsedNode, ParsedFormat> 
         val nio = workspace as? NioWorkspace ?: return emptyList()
         val root = Path.of(nio.basePath)
         val config = root.resolve(ANGULAR_JSON).takeIf { Files.isRegularFile(it) } ?: return emptyList()
-        val projects = AngularI18nConfig.parse(Files.readString(config))
+        val projects = AngularI18nConfig.parse(TextFiles.read(config, ANGULAR_JSON))
         val files = projects.flatMap { project ->
             val reference = project.referenceFiles.firstOrNull { Files.isRegularFile(root.resolve(it)) }
             listOfNotNull(reference?.let { Triple(it, project.sourceLocale, XliffKeying.ANGULAR_SOURCE) }) +
@@ -43,11 +43,7 @@ internal class AngularSources : TranslationTechnology<ParsedNode, ParsedFormat> 
         return files.distinctBy { it.first }.mapNotNull { (relative, locale, keying) ->
             val path = root.resolve(relative).normalize()
             if (!Files.isRegularFile(path)) return@mapNotNull null
-            val tree = try {
-                SymfonyXliffTree.parse(Files.readString(path), keying)
-            } catch (e: IOException) {
-                null
-            }
+            val tree = SymfonyXliffTree.parse(TextFiles.read(path, relative), keying)
             TranslationSource(
                 tree, path.fileName.toString(), path.parent?.fileName?.toString().orEmpty(), relative,
                 CheckFormats.ANGULAR_XLIFF, locale = locale,

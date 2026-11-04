@@ -10,7 +10,6 @@ import com.ibrahimdans.i18n.plugin.format.PropertiesBundle
 import com.ibrahimdans.i18n.plugin.format.PropertiesTranslationTree
 import com.ibrahimdans.i18n.plugin.format.SymfonyXliffTree
 import com.ibrahimdans.i18n.plugin.format.XliffKeying
-import java.nio.file.Files
 import java.nio.file.Path
 
 /**
@@ -59,15 +58,16 @@ internal object CheckFormats {
     /**
      * Why [file], of [format], gave no tree: null for a TS, JS or PHP file holding code rather than a
      * catalogue — a helper sitting among the translations, left out — and the reason to stop the check otherwise.
+     * A TS or PHP file read again here that is not UTF-8 stops it too, named as [shownAs] ([TextFiles.read]).
      */
     fun unreadable(format: ParsedFormat, file: Path, shownAs: String = file.toString()): String? = when (format) {
-        TS -> when (val reading = TsCatalogTree.read(Files.readString(file))) {
+        TS -> when (val reading = TsCatalogTree.read(TextFiles.read(file, shownAs))) {
             TsCatalogTree.Reading.NoCatalogue -> null
             is TsCatalogTree.Reading.Partial -> notLiteral(shownAs, reading.construct, reading.line)
             // parse() and read() agree: a catalogue would have given a tree.
             is TsCatalogTree.Reading.Catalogue -> null
         }
-        PHP -> when (val reading = PhpArrayTranslationTree.read(Files.readString(file))) {
+        PHP -> when (val reading = PhpArrayTranslationTree.read(TextFiles.read(file, shownAs))) {
             PhpArrayTranslationTree.Reading.NoArray -> null
             is PhpArrayTranslationTree.Reading.Partial -> notLiteral(shownAs, reading.construct, reading.line)
             is PhpArrayTranslationTree.Reading.Catalogue -> null
