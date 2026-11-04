@@ -17,6 +17,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationFileRouting
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationRow
 import com.ibrahimdans.i18n.plugin.mcp.TranslationAgentTools.Refused
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
@@ -409,14 +410,8 @@ class KeyMaintenanceTools(private val project: Project) {
      * The files of [sources] that may hold [key]: its namespace's, or for a key naming none the
      * default namespaces' — never another namespace's file holding the same path.
      */
-    private fun namespaceSources(sources: List<LocalizationSource>, key: String): List<LocalizationSource> {
-        val namespace = namespaceOf(key)
-        val defaults = config.defaultNamespaces()
-        return sources.filter { source ->
-            val sourceNamespace = TranslationDataLoader.extractNamespace(source, defaults.first())
-            if (namespace == null) sourceNamespace in defaults else sourceNamespace == namespace
-        }
-    }
+    private fun namespaceSources(sources: List<LocalizationSource>, key: String): List<LocalizationSource> =
+        TranslationFileRouting.filesOf(key, sources, config)
 
     /** The modules by name, as [TranslationAgentTools] lists them; one unnamed scope without any. */
     internal fun scopes(): List<Pair<String, ModuleConfig?>> {
