@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- [Editor] **Template keys under a hook's `t` resolve their `${…}`**: with `const { t } = useTranslation()`, `` t(`common:role.${role}.label`) `` is no longer reported *Unresolved key* when every matching entry exists.
+
 ## 1.18.0 - 2026-11-03
 
 ### Features

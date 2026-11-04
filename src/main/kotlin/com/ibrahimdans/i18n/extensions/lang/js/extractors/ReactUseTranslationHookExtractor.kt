@@ -17,6 +17,7 @@ import com.intellij.lang.javascript.psi.JSObjectLiteralExpression
 import com.intellij.lang.javascript.psi.JSParenthesizedExpression
 import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.lang.javascript.psi.JSVariable
+import com.intellij.lang.javascript.psi.ecma6.JSStringTemplateExpression
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -69,12 +70,14 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
 
     override fun canExtract(element: PsiElement): Boolean {
         // Accept both JSLiteralExpression and its direct leaf token (returned by findElementAt).
-        val literal = element as? JSLiteralExpression
-            ?: element.parent as? JSLiteralExpression
-            ?: return false
+        val literal = literalOf(element) ?: return false
         if (!literal.isQuotedLiteral) return false
         return resolveHook(element)?.methodExpression?.text in hooksOf(element.project)
     }
+
+    /** [element] itself as the literal, or the literal its direct leaf token belongs to. */
+    private fun literalOf(element: PsiElement): JSLiteralExpression? =
+        element as? JSLiteralExpression ?: element.parent as? JSLiteralExpression
 
     override fun extract(element: PsiElement): RawKey {
         val hook = resolveHook(element)
@@ -87,10 +90,19 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
         val hookNamespaces = if (prefixed) emptyList() else firstArgumentStrings
         val prefix = if (prefixed) firstArgumentStrings.firstOrNull() else keyPrefixOption(hookArguments.getOrNull(1))
 
+        // Templates are quoted literals too: preserve their interpolations as wildcards
+        // while retaining the hook's namespaces and key prefix.
+        val literal = literalOf(element)
+        val keyElements = if (literal is JSStringTemplateExpression) {
+            templateKeyElements(literal)
+        } else {
+            listOf(KeyElement.literal(element.text.unQuote()))
+        }
+
         // i18next: an explicit `t(key, { ns })` option overrides the hook default namespace.
         val optionsNamespaces = OptionsExtractor.extractNamespaces(element)
         return RawKey(
-            listOf(KeyElement.literal(element.text.unQuote())),
+            keyElements,
             optionsNamespaces.ifEmpty { hookNamespaces },
             prefix?.takeIf { it.isNotBlank() }?.let { listOf(KeyElement.literal(it)) }.orEmpty(),
             context = OptionsExtractor.extractContext(element),
