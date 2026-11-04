@@ -65,6 +65,8 @@ Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-
 - [Installation](#installation) · [Why this plugin?](#why-this-plugin) · [Features](#features) · [Supported Frameworks](#supported-frameworks)
 - [Requirements](#requirements) · [Build from Source](#build-from-source) · [Contributing](#contributing)
 
+New to the plugin? [Getting started](docs/getting-started.md) takes you from the installation to your first keys in ten minutes, and defines the words the pages below use.
+
 The reference, one page per topic, in [`docs/`](docs):
 
 - [Frameworks, languages and file formats](docs/frameworks.md): every syntax read, per framework, and the file formats
@@ -78,6 +80,7 @@ The reference, one page per topic, in [`docs/`](docs):
 
 In the IDE, **Settings › Plugins › Marketplace**, search for **I18n Support Plus** (plugin ID `com.ibrahimdans.i18n`) and install it, or click *Install* on its [Marketplace page](https://plugins.jetbrains.com/plugin/30971-i18n-support-plus). It needs WebStorm, IntelliJ IDEA Ultimate or PhpStorm 2025.2 or later ([Requirements](#requirements)).
 On first launch, the setup wizard detects the framework and the translation files and configures the rest.
+First steps, from the wizard to your first keys: [Getting started](docs/getting-started.md).
 
 ## Why this plugin?
 
@@ -122,7 +125,7 @@ Details: [In the editor](docs/editor.md).
 
 ![Creating an unknown key with its values](docs/img/marketplace/create-key-quickfix.gif)
 
-Details: [Key Extraction](docs/editor.md#key-extraction), [Rename Refactoring](docs/editor.md#rename-refactoring), [Bulk Actions](docs/tool-window.md#bulk-actions).
+Details: [Key Extraction](docs/editor.md#key-extraction), [Rename Refactoring](docs/editor.md#rename-refactoring), [Actions on keys](docs/editor.md#actions-on-keys).
 
 ### Every key of every locale in one table
 
@@ -140,7 +143,7 @@ Details: [Machine translation and AI agents](docs/translation.md).
 
 ### Catch the problems in the IDE and in CI
 
-Nineteen inspections check the translations and the code: missing, orphan, empty and duplicate keys, placeholders, markup, ICU messages, plural forms, stale translations and hard-coded text. `i18n-check` runs the same checks in CI, as a GitHub Action or a Docker image, and annotates the pull request.
+Twenty-four inspections check the translations and the code: missing, orphan, empty and duplicate keys, placeholders, markup, ICU messages, plural forms, stale translations and hard-coded text. `i18n-check` runs the same checks in CI, as a GitHub Action or a Docker image, and annotates the pull request.
 
 Details: [Checks: inspections, CI and the command line](docs/checks.md).
 

@@ -6,13 +6,10 @@ The tool window that shows every key of every locale, and the actions that work 
 
 ## Bulk Actions
 
+The actions that work on many keys at once, from **Tools > i18n Support Plus** or the tool window's toolbar. The actions on the key under the caret — edit, extract, move, sort — are in [In the editor](editor.md#actions-on-keys).
+
 | Action | Where | What it does |
 |--------|-------|--------------|
-| Edit Translation… | editor context menu › *i18n*, *Edit* link of the Ctrl+hover hint | Edit the values of the key under the caret in every locale, or create it when no file holds it |
-| Batch Extract i18n Keys… | **Code** menu | Extract several hard-coded strings of a file as keys in one pass |
-| Internationalize… | Project view context menu, editor context menu › *i18n* | Replace every hard-coded text of the selected JS/TS and Vue files and folders by a key, after a preview where texts are unchecked and keys edited |
-| Move i18n Key to Namespace… | editor context menu › *i18n*, `Ctrl+Alt+Shift+M` | Move a key to another namespace, updating every locale file and code reference |
-| Sort i18n Keys | editor context menu › *i18n*, in a translation file | Reorder the file's keys in the *Key order* of the settings, recursively |
 | Sync Keys… | **Tools > i18n Support Plus**, tool window toolbar | Create in every locale the keys it lacks, with a batch dialog to fill the values |
 | Count Key Usages | tool window toolbar | Count the code usages of every key and fill the table's *Usage* column |
 | Clean Up Keys with No Reference… | **Tools > i18n Support Plus** | Find the keys no code refers to and delete the selected ones from every locale. A key used outside the code (API, config, database) cannot be detected: keep it in *Keys used outside the code* |
@@ -87,4 +84,10 @@ Clicking a cell lists that namespace's untranslated keys in that locale — **mi
 
 ### Multi-Module Support
 
-A monorepo is described as **modules** on the *Modules* settings page, *Settings | Tools | i18n Support Plus | Modules* (root directory, path template, key template, framework preset). With two or more, the toolbar's module selector switches the three views from one module to the next; a code file inside a module's root directory resolves its keys against that module's translation files only. The root directory is the application's folder (`apps/shop`), not its translations folder: a module rooted at `apps/shop/public/locales` owns no code file, and the application's keys are then resolved against every module's files. Once modules describe the project, the files of a project attached in the same window (another content root) are not read as its translations, and *Edit Translations* opened from a code file shows its module's files and locales only; translations the project keeps outside every module, a shared package, are still read. Untick a module's **Active** box to put it aside: its translation files are no longer read, the code under its root directory is neither checked nor completed, and the module selector shows it greyed — what *Excluded directories* did by hand for the applications you are not working on. To switch application in one click, choose a greyed module in the selector, or right-click it: **Focus on This Module** keeps it active and puts the others aside, **Activate All Modules** brings them back; both are in *Tools › i18n Support Plus* too, and a notification offers *Undo*. [examples/monorepo-react](../examples/monorepo-react/README.md) is a four-application monorepo to try it on.
+A monorepo is described as **modules** on *Settings | Tools | i18n Support Plus | Modules* — root directory, path template, key template, framework preset, see [Modules](configuration.md#modules). [examples/monorepo-react](../examples/monorepo-react/README.md) is a four-application monorepo to try it on.
+
+- With two or more modules, the toolbar's module selector switches the three views from one module to the next.
+- A code file inside a module's root directory resolves its keys against that module's translation files only. The root directory is the application's folder (`apps/shop`), not its translations folder: a module rooted at `apps/shop/public/locales` owns no code file, and the application's keys are then resolved against every module's files.
+- Once modules describe the project, the files of a project attached in the same window (another content root) are not read as its translations, and *Edit Translations* opened from a code file shows its module's files and locales only. Translations the project keeps outside every module, a shared package, are still read.
+- Untick a module's **Active** box to put it aside: its translation files are no longer read, the code under its root directory is neither checked nor completed, and the module selector shows it greyed — what *Excluded directories* did by hand for the applications you are not working on.
+- To switch application in one click, choose a greyed module in the selector, or right-click it: **Focus on This Module** keeps it active and puts the others aside, **Activate All Modules** brings them back. Both are in *Tools › i18n Support Plus* too, and a notification offers *Undo*.

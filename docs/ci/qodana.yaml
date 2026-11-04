@@ -38,7 +38,7 @@ include:
   # Off by default: set the convention in the inspection options of the profile first.
   # - name: I18nKeyNaming             # a key not following the project's naming convention
 
-# The plugin reads its settings from `.idea/i18nSettings.xml`: commit it, or the run uses the defaults.
+# The plugin reads its settings from `i18n-check.json` at the project root, else from `.idea/i18nSettings.xml`: commit one of them, or the run uses the defaults.
 
 # Fail the job on any new problem; raise it while you clean up an existing project.
 failThreshold: 0
