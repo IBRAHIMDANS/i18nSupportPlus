@@ -14,7 +14,7 @@ import java.nio.file.Path
  * Latin-1 source, used to end the command with the stack trace of a `MalformedInputException`. Code is searched
  * for keys, so a replacement character in place of such a byte changes nothing: it is read anyway ([readOrNull]).
  * Every byte of a manifest or a translation file matters: one that is not UTF-8 stops the check, naming the file
- * ([read]).
+ * ([read]) — except a Java resource bundle, which Java itself reads as UTF-8 and then as ISO-8859-1 ([readBundle]).
  */
 internal object TextFiles {
 
@@ -42,6 +42,23 @@ internal object TextFiles {
         text(path)
     } catch (e: IOException) {
         throw CannotCheck("cannot read $shownAs: ${reason(e)}")
+    }
+
+    /**
+     * The `.properties` bundle at [path], as `PropertyResourceBundle` reads it since Java 9: UTF-8, and ISO-8859-1
+     * when a byte is no UTF-8 — a bundle in Latin-1 is a bundle still. One that cannot be read stops the check naming it as [shownAs].
+     */
+    fun readBundle(path: Path, shownAs: String = path.toString()): String {
+        val bytes = try {
+            Files.readAllBytes(path)
+        } catch (e: IOException) {
+            throw CannotCheck("cannot read $shownAs: ${reason(e)}")
+        }
+        return try {
+            decode(bytes, CodingErrorAction.REPORT)
+        } catch (e: CharacterCodingException) {
+            String(bytes, Charsets.ISO_8859_1)
+        }
     }
 
     /** The UTF-8 text at [path], for a caller that reports its own errors: a byte no UTF-8 encodes is an [IOException] like the others. */

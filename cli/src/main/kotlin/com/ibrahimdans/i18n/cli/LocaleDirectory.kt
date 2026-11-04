@@ -25,7 +25,8 @@ import kotlin.io.path.nameWithoutExtension
  *
  * Only names [LocaleNames] reads as a locale count: `README.md` or `scripts/` beside them are left
  * alone. The keys of a namespace file are spelled `namespace:key`, with the configured namespace
- * separator, as the code writes them. A file that is not UTF-8 stops the check, naming it ([TextFiles.read]).
+ * separator, as the code writes them. A file that is not UTF-8 stops the check, naming it ([TextFiles.read]);
+ * a resource bundle is read as Java reads it, in ISO-8859-1 then ([TextFiles.readBundle]).
  */
 object LocaleDirectory {
 
@@ -59,7 +60,7 @@ object LocaleDirectory {
         for (file in bundles) {
             val placement = placements[file.nameWithoutExtension] ?: continue
             val nsPrefix = placement.namespace?.let { it + config.nsSeparator }.orEmpty()
-            TranslationLeaves.collect(config, CheckFormats.PROPERTIES.parse(TextFiles.read(file))!!, nsPrefix, placement.locale, ParsedLeaves, result)
+            TranslationLeaves.collect(config, CheckFormats.PROPERTIES.parse(TextFiles.readBundle(file))!!, nsPrefix, placement.locale, ParsedLeaves, result)
             files += LocaleFile(placement.locale, nsPrefix, file.toAbsolutePath().normalize())
         }
     }

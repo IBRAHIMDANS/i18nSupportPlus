@@ -117,15 +117,17 @@ class TextFilesTest {
         Assertions.assertEquals("i18n-check: cannot read angular.json: not valid UTF-8", run.err)
     }
 
+    /** Java reads a bundle as UTF-8, then as ISO-8859-1: a Latin-1 bundle is a bundle still. Read wrongly, `clé` would be missing and `cl?` an orphan. */
     @Test
-    fun `a resource bundle with invalid bytes stops the check with its name`(@TempDir project: Path) {
-        project.write("src/main/resources/messages.properties", "farewell=Goodbye\n")
-        project.writeLatin1("src/main/resources/messages_fr.properties", "farewell=À bientôt\n")
+    fun `a Latin-1 resource bundle is read as Java reads it`(@TempDir project: Path) {
+        project.write("src/main/resources/messages.properties", "clé=Key\n")
+        project.writeLatin1("src/main/resources/messages_fr.properties", "clé=Clé\n")
 
         val run = check(project.toString())
 
-        Assertions.assertEquals(I18nCheck.CANNOT_CHECK, run.exit)
-        Assertions.assertEquals("i18n-check: cannot read src/main/resources/messages_fr.properties: not valid UTF-8", run.err)
+        Assertions.assertEquals(I18nCheck.OK, run.exit, run.out + run.err)
+        Assertions.assertEquals("", run.err)
+        Assertions.assertTrue(run.out.endsWith("No problem found."), run.out)
     }
 
     @Test

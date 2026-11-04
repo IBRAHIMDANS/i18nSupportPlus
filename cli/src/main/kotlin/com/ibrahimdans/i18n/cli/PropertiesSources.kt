@@ -40,7 +40,7 @@ internal class PropertiesSources(private val config: Config) : TranslationTechno
                 val placements = PropertiesBundle.placementsIn(files.map { it.nameWithoutExtension }, ReferenceLocale.wanted(module, config))
                 files.mapNotNull { file ->
                     val placement = placements[file.nameWithoutExtension] ?: return@mapNotNull null
-                    val tree = CheckFormats.PROPERTIES.parse(TextFiles.read(file, relative(nio, file)))
+                    val tree = CheckFormats.PROPERTIES.parse(TextFiles.readBundle(file, relative(nio, file)))
                     TranslationSource(
                         tree, file.fileName.toString(), file.parent.fileName.toString(), relative(nio, file),
                         CheckFormats.PROPERTIES, locale = placement.locale, namespace = placement.namespace,
