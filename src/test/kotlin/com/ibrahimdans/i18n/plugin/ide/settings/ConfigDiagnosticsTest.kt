@@ -214,4 +214,31 @@ class ConfigDiagnosticsTest {
 
         assertEquals(listOf(ConfigDiagnostic(ConfigIssue.DEFAULT_NS_FROM_CODE, path = "common", origin = "src/i18n.ts")), diagnostics)
     }
+
+    @Test
+    fun `a root typed with dot-slash, backslashes or a trailing slash is probed as the plugin reads it`() {
+        for (typed in listOf("./locales", "locales\\", "locales/", " locales ")) {
+            val diagnostics = ConfigDiagnostics.inspect(Config(translationsRoot = typed), probe("locales" to DirectoryState.OK))
+            assertEquals(emptyList<ConfigDiagnostic>(), diagnostics, typed)
+        }
+    }
+
+    @Test
+    fun `a missing root is reported as the user typed it`() {
+        val diagnostics = ConfigDiagnostics.inspect(Config(translationsRoot = "./src/locales"), probe())
+
+        assertEquals(listOf(ConfigDiagnostic(ConfigIssue.ROOT_MISSING, module = null, path = "./src/locales")), diagnostics)
+    }
+
+    @Test
+    fun `a root of dot-slash names none`() {
+        assertEquals(listOf(ConfigDiagnostic(ConfigIssue.ROOT_NOT_CONFIGURED)), ConfigDiagnostics.inspect(Config(translationsRoot = "./"), healthy))
+    }
+
+    @Test
+    fun `a module root typed with dot-slash is probed as the plugin reads it`() {
+        val config = Config(translationsRoot = "", modules = listOf(ModuleConfig(name = "web", rootDirectory = "./apps/web")))
+
+        assertEquals(emptyList<ConfigDiagnostic>(), ConfigDiagnostics.inspect(config, probe("apps/web" to DirectoryState.OK)))
+    }
 }

@@ -96,9 +96,10 @@ object ConfigDiagnostics {
 
     /** Every problem [config] currently has, in the order they should be shown. */
     fun inspect(config: Config, probe: DirectoryProbe, facts: NamespaceFacts = NamespaceFacts()): List<ConfigDiagnostic> = buildList {
-        val modules = config.modules.filter { it.rootDirectory.isNotBlank() }
+        val modules = config.modules.filter { Config.normalizeRoot(it.rootDirectory).isNotEmpty() }
 
-        if (config.translationsRoot.isBlank()) {
+        // Read as the scan reads it: `./` names no root, `./locales` and `/locales` name `locales`.
+        if (config.normalizedTranslationsRoot().isEmpty()) {
             // Modules carrying their own roots make the project-wide one redundant, so its
             // absence is only worth reporting when nothing else points at the translations.
             if (modules.isEmpty()) add(ConfigDiagnostic(ConfigIssue.ROOT_NOT_CONFIGURED))
@@ -149,7 +150,8 @@ object ConfigDiagnostics {
     }
 
     private fun MutableList<ConfigDiagnostic>.addRootIssue(module: String?, path: String, probe: DirectoryProbe) {
-        when (probe.inspect(path)) {
+        // The banner shows the root as typed; the probe gets it as the plugin reads it.
+        when (probe.inspect(Config.normalizeRoot(path))) {
             DirectoryState.MISSING -> add(ConfigDiagnostic(ConfigIssue.ROOT_MISSING, module, path))
             DirectoryState.WITHOUT_TRANSLATIONS -> add(ConfigDiagnostic(ConfigIssue.ROOT_WITHOUT_TRANSLATIONS, module, path))
             DirectoryState.OK -> Unit
@@ -335,7 +337,8 @@ class ConfigDiagnosticsPanel(
 
     private fun inspect(root: String): DirectoryState {
         val basePath = project.basePath ?: ""
-        val dirPath = if (root.startsWith("/")) root else "$basePath/$root"
+        // Config.resolveRoot, as the scan: `/locales` is the project's `locales`, an absolute path inside the project is kept.
+        val dirPath = Config.resolveRoot(root, basePath)
         val dir = LocalFileSystem.getInstance().findFileByPath(dirPath)
             ?: LocalFileSystem.getInstance().findFileByIoFile(File(dirPath))
 

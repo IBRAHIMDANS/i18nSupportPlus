@@ -90,6 +90,16 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
         assertTrue(unusedWarningsFromFile("""{"title": "Hello"}""", "fixtures/data.json").isEmpty())
     }
 
+    /** `./` names no root, as the scan reads it: the project is checked as one without a root. */
+    @Test
+    fun testDotSlashRootChecksLikeNoRoot() {
+        val withoutRoot = unusedWarningsFromFile("""{"title": "Hello"}""", "fixtures/data.json").size
+        myFixture.runWithConfig(Config(translationsRoot = "./")) {
+            assertEquals(withoutRoot, unusedWarningsFromFile("""{"title": "Hello"}""", "fixtures/other.json").size)
+        }
+        assertEquals(1, withoutRoot)
+    }
+
     // JSON — object-valued properties are skipped (only leaves are leaf strings)
 
     @Test
