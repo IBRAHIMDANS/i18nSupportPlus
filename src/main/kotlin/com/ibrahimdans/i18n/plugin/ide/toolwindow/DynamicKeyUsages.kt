@@ -30,20 +30,16 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object DynamicKeyUsages {
 
-    /** What makes a key literal dynamic, in every language the plugin reads. */
+    /** The text a dynamic literal must hold for its search word to be worth searching: see [prefixesOf]. */
     private const val INTERPOLATION = "\${"
 
     /**
-     * The static ends of one dynamic key literal: [head] before its first interpolation, [tail]
-     * after its last one. A key it can produce starts with the one and ends with the other.
+     * [DynamicReach.Shape] as this object's tests name it: the static ends of one dynamic key
+     * literal, and the rule of which keys it reaches — the one `i18n-check` applies too.
      */
     internal data class Shape(val head: String, val tail: String) {
-        /**
-         * Whether [key] — [bare] without its namespace — is one this literal can produce: the
-         * rule of [DynamicReach], the one `i18n-check` applies too, so both give one verdict.
-         */
         fun reaches(key: String, bare: String, nsSeparator: String, keySeparator: String): Boolean =
-            DynamicReach.reaches(head, tail, key, bare, nsSeparator, keySeparator)
+            DynamicReach.Shape(head, tail).reaches(key, bare, nsSeparator, keySeparator)
     }
 
     /**
@@ -120,16 +116,8 @@ object DynamicKeyUsages {
         return literals
     }
 
-    /**
-     * The shape of a key literal, or `null` when nothing in it is computed or nothing in it is
-     * static — `t(`${'$'}{name}`)` says nothing about the keys it reaches.
-     */
-    internal fun shapeOf(text: String): Shape? {
-        if (!text.contains(INTERPOLATION)) return null
-        val lastEnd = text.indexOf('}', text.lastIndexOf(INTERPOLATION))
-        val tail = if (lastEnd < 0) "" else text.substring(lastEnd + 1)
-        return Shape(text.substringBefore(INTERPOLATION), tail).takeIf { it.head.isNotEmpty() || it.tail.isNotEmpty() }
-    }
+    /** [DynamicReach.shapeOf]: the shape of a key literal, `null` when nothing in it is computed or static. */
+    internal fun shapeOf(text: String): Shape? = DynamicReach.shapeOf(text)?.let { Shape(it.head, it.tail) }
 
     /** The distinct words to search for, on behalf of all of [keys]. */
     internal fun searchWords(keys: List<String>, nsSeparator: String, keySeparator: String): List<String> =

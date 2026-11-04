@@ -1,18 +1,44 @@
 package com.ibrahimdans.i18n.plugin.usages
 
+import com.ibrahimdans.i18n.plugin.usages.DynamicReach.Shape
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 
 /**
- * The one rule the IDE's *Usage* column and `i18n-check` share: which translation keys a key
- * built at runtime can produce, from the static head and tail of its literal.
+ * The one reading the IDE's *Usage* column and `i18n-check` share: the static head and tail of a
+ * key literal built at runtime, and which translation keys they let it produce.
  */
 class DynamicReachTest {
 
     private fun reaches(head: String, tail: String, key: String, nsSeparator: String = ":", keySeparator: String = "."): Boolean =
-        DynamicReach.reaches(head, tail, key, key.substringAfter(nsSeparator, key), nsSeparator, keySeparator)
+        Shape(head, tail).reaches(key, key.substringAfter(nsSeparator, key), nsSeparator, keySeparator)
+
+    // ── The shape of a literal ────────────────────────────────────────────────
+
+    @Test
+    fun `the shape of a literal is its static head and tail`() {
+        // Interpolation at the end, at the start, in the middle.
+        Assertions.assertEquals(Shape("common:status.", ""), DynamicReach.shapeOf("common:status.\${kind}"))
+        Assertions.assertEquals(Shape("", ":status.ok"), DynamicReach.shapeOf("\${ns}:status.ok"))
+        Assertions.assertEquals(Shape("menu.", ".label"), DynamicReach.shapeOf("menu.\${id}.label"))
+        // Several interpolations: the text between them is not static.
+        Assertions.assertEquals(Shape("a.", ".c"), DynamicReach.shapeOf("a.\${x}.b.\${y}.c"))
+        Assertions.assertEquals(Shape("a.", ""), DynamicReach.shapeOf("a.\${x}.\${y}"))
+        // An interpolation left open has no tail.
+        Assertions.assertEquals(Shape("a.", ""), DynamicReach.shapeOf("a.\${x"))
+    }
+
+    @Test
+    fun `a literal with nothing computed or nothing static has no shape`() {
+        Assertions.assertNull(DynamicReach.shapeOf("common:status.ok"))
+        Assertions.assertNull(DynamicReach.shapeOf("\${name}"))
+        Assertions.assertNull(DynamicReach.shapeOf("\${ns}\${key}"))
+        Assertions.assertNull(DynamicReach.shapeOf(""))
+    }
+
+    // ── The keys a shape reaches ──────────────────────────────────────────────
 
     @ParameterizedTest(name = "head `{0}` tail `{1}` reaches `{2}`: {3}")
     @CsvSource(

@@ -71,7 +71,7 @@ class TreeSitterKeyUsageIndex(
                 key.lookupNamespaces(),
                 // As the code writes it: the literal's text, or the msgid built for a source-text `<Trans>`.
                 if (key.isDynamic) null else rawKey.keyElements.joinToString("") { it.text },
-                if (key.isDynamic) shapeOf(node.text.unQuote()) else null,
+                if (key.isDynamic) DynamicReach.shapeOf(node.text.unQuote()) else null,
                 key.context,
             )
         }
@@ -146,7 +146,7 @@ class TreeSitterKeyUsageIndex(
         if (shapes.isEmpty()) return emptySet()
         return keys.filterTo(mutableSetOf()) { key ->
             val bare = key.substringAfter(config.nsSeparator, key)
-            shapes.any { DynamicReach.reaches(it.head, it.tail, key, bare, config.nsSeparator, config.keySeparator) }
+            shapes.any { it.reaches(key, bare, config.nsSeparator, config.keySeparator) }
         }
     }
 
@@ -178,14 +178,14 @@ class TreeSitterKeyUsageIndex(
     /**
      * A call site whose literal resolves to [path] in [namespaces] — none when it writes none and
      * sits under no hook — with its [key] as written, or, for a key built at runtime, the [shape] of
-     * the keys it may produce — and the i18next [context] it reads the key under.
+     * the keys it may produce ([DynamicReach.shapeOf]) — and the i18next [context] it reads the key under.
      */
     private inner class CallSite(
         val usage: KeyUsage,
         val path: List<String>,
         val namespaces: List<String>,
         val key: String?,
-        val shape: Shape?,
+        val shape: DynamicReach.Shape?,
         val context: ContextOption?,
     ) {
 
@@ -195,22 +195,6 @@ class TreeSitterKeyUsageIndex(
          */
         fun worksIn(namespace: String?): Boolean = namespaces.isEmpty() ||
             if (namespace == null) namespaces.any { it in defaultNamespaces } else namespace in namespaces
-    }
-
-    /** The static ends of a dynamic key literal: a key it can produce starts with [head] and ends with [tail]. */
-    private data class Shape(val head: String, val tail: String)
-
-    private companion object {
-
-        const val INTERPOLATION = "\${"
-
-        /** `DynamicKeyUsages.shapeOf`: null when nothing in [text] is computed or nothing is static. */
-        fun shapeOf(text: String): Shape? {
-            if (!text.contains(INTERPOLATION)) return null
-            val lastEnd = text.indexOf('}', text.lastIndexOf(INTERPOLATION))
-            val tail = if (lastEnd < 0) "" else text.substring(lastEnd + 1)
-            return Shape(text.substringBefore(INTERPOLATION), tail).takeIf { it.head.isNotEmpty() || it.tail.isNotEmpty() }
-        }
     }
 }
 
