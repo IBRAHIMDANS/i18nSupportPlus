@@ -55,8 +55,8 @@ object JsonTranslationEditor : TranslationEditor {
         return sortEdits(source, root, order)
     }
 
-    /** [text] as a JSON string literal, quotes included. */
-    private fun quote(text: String): String = "\"${String(JsonStringEncoder.getInstance().quoteAsString(text))}\""
+    /** [text] as a JSON string literal, quotes included — the one spelling of a key or value, shared with the PSI generator. */
+    fun quote(text: String): String = "\"${String(JsonStringEncoder.getInstance().quoteAsString(text))}\""
 
     /**
      * The property `"<keys[0]>": …` holding [literal] under the chain of objects of the other
