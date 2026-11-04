@@ -3,8 +3,11 @@ package com.ibrahimdans.i18n.plugin.ide.settings
 import com.ibrahimdans.i18n.plugin.ide.whatsnew.WhatsNewPreferences
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.project.Project
+import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.Row
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.util.ui.UIUtil
 import java.awt.Component
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
@@ -13,9 +16,11 @@ import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JComboBox
 import javax.swing.JComponent
+import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.JTextField
+import javax.swing.SwingUtilities
 import javax.swing.UIManager
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
@@ -131,11 +136,13 @@ class SettingsPanel(val settings: Settings, val project: Project, private val co
 
             group(PluginBundle.message("settings.group.namespaces")) {
                 row(PluginBundle.message("settings.namespace.separator")) {
-                    cell(separatorField(PluginBundle.message("settings.namespace.separator"), settings::nsSeparator))
+                    separatorCells(PluginBundle.message("settings.namespace.separator"), settings::nsSeparator, SeparatorRules.Separator.NAMESPACE)
                 }
                 row(PluginBundle.message("settings.key.separator")) {
-                    cell(separatorField(PluginBundle.message("settings.key.separator"), settings::keySeparator))
-                        .comment(PluginBundle.message("settings.separator.refused.comment"))
+                    separatorCells(
+                        PluginBundle.message("settings.key.separator"), settings::keySeparator, SeparatorRules.Separator.KEY,
+                        comment = PluginBundle.message("settings.separator.refused.comment")
+                    )
                 }
                 row {
                     cell(checkbox(PluginBundle.message("settings.first.component.ns"), settings::firstComponentNs))
@@ -146,7 +153,7 @@ class SettingsPanel(val settings: Settings, val project: Project, private val co
                         .comment(PluginBundle.message("settings.flat.keys.comment"))
                 }
                 row(PluginBundle.message("settings.plural.separator")) {
-                    cell(separatorField(PluginBundle.message("settings.plural.separator"), settings::pluralSeparator))
+                    separatorCells(PluginBundle.message("settings.plural.separator"), settings::pluralSeparator, SeparatorRules.Separator.PLURAL)
                 }
                 row(PluginBundle.message("settings.default.namespace")) {
                     cell(defaultNamespace)
@@ -322,11 +329,55 @@ class SettingsPanel(val settings: Settings, val project: Project, private val co
         return control
     }
 
-    private fun separatorField(label: String, property: KMutableProperty0<String>): JTextField {
+    /** A separator field and, beside it, why its last value was refused: blank while the value passes. */
+    private fun Row.separatorCells(label: String, property: KMutableProperty0<String>, separator: SeparatorRules.Separator, comment: String? = null) {
+        val fault = JBLabel().apply { foreground = UIUtil.getErrorForeground() }
+        val field = cell(separatorField(label, property, separator, fault))
+        comment?.let { field.comment(it) }
+        cell(fault)
+    }
+
+    /**
+     * A separator field: a value [SeparatorRules] refuses never reaches the settings, where the key
+     * pipeline would read it character by character. Typing stays capped at one character and
+     * filtered; what the cap cannot stop — a paste, a value equal to the other separator — is put
+     * back to the last accepted value, with the rule's sentence in [fault] saying why. An empty field
+     * is not refused here: it is the state of every value being retyped, and the diagnostics banner
+     * reports an empty separator once it is stored.
+     */
+    private fun separatorField(label: String, property: KMutableProperty0<String>, separator: SeparatorRules.Separator, fault: JLabel): JTextField {
         val control = JTextField(initial(property), 2)
         control.name = label
-        addLimitationsAndHandlers(control, 1, property::set, {!" {}$`".contains(it)})
+        var accepted = control.text
+        // A value stored before the rule existed, or read from i18n-check.json, is shown with its fault.
+        fault.text = problemOf(separator, accepted)?.text().orEmpty()
+        addLimitationsAndHandlers(control, 1, onChange = { text ->
+            val problem = problemOf(separator, text)
+            if (problem == null) {
+                accepted = text
+                property.set(text)
+                fault.text = ""
+            } else {
+                fault.text = problem.text()
+                UIManager.getLookAndFeel().provideErrorFeedback(control)
+                // A document cannot be changed from its own listener: revert once the notification is over.
+                SwingUtilities.invokeLater { if (control.text != accepted) control.text = accepted }
+            }
+        }, isValid = { it !in SeparatorRules.REFUSED_CHARACTERS })
         return control.heldBy(property)
+    }
+
+    /**
+     * The problem [value] would bring to [separator], the two others standing as they are; null when
+     * it passes. Emptiness is left to the diagnostics, see [separatorField].
+     */
+    private fun problemOf(separator: SeparatorRules.Separator, value: String): SeparatorRules.Problem? {
+        fun current(own: SeparatorRules.Separator, property: KMutableProperty0<String>) = if (separator == own) value else initial(property)
+        return SeparatorRules.check(
+            current(SeparatorRules.Separator.NAMESPACE, settings::nsSeparator),
+            current(SeparatorRules.Separator.KEY, settings::keySeparator),
+            current(SeparatorRules.Separator.PLURAL, settings::pluralSeparator)
+        ).firstOrNull { it.fault != SeparatorRules.Fault.EMPTY && (it.separator == separator || it.other == separator) }
     }
 
     private fun textField(label: String, property: KMutableProperty0<String>, maxLength: Int = 100, columns: Int = 10): JTextField {
