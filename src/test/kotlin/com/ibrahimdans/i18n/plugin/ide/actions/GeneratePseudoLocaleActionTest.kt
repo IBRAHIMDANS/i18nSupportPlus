@@ -54,6 +54,22 @@ class GeneratePseudoLocaleActionTest : PlatformBaseTest() {
         assertEquals("\"menu\":\n  \"home\": \"[Ĥöɱé ··]\"\n", textAt("locales/en-XA/common.yaml"))
     }
 
+    /**
+     * `a` holding a value and `a.b` below it, whichever comes first: the nested file cannot hold
+     * both, so `a` becomes the object. It used to write `b` at the root, or lose it.
+     */
+    @Test
+    fun aKeyThatIsBothAValueAndAParentBecomesTheParent() = myFixture.runWithConfig(Config()) {
+        myFixture.addFileToProject("locales/en/first.json", """{"a": "Save", "a": {"b": "Home"}}""")
+        myFixture.addFileToProject("locales/en/second.json", """{"a": {"b": "Home"}, "a": "Save"}""")
+
+        generate()
+
+        val expected = "{\n  \"a\": {\n    \"b\": \"[Ĥöɱé ··]\"\n  }\n}\n"
+        assertEquals(expected, textAt("locales/en-XA/first.json"))
+        assertEquals(expected, textAt("locales/en-XA/second.json"))
+    }
+
     @Test
     fun regeneratingGivesTheSameFile() = myFixture.runWithConfig(Config()) {
         myFixture.addFileToProject("locales/en/common.json", """{"save": "Save"}""")

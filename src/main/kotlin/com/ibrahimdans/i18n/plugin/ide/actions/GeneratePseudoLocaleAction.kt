@@ -142,15 +142,22 @@ class GeneratePseudoLocaleAction : AnAction() {
 
         private val YAML_EXTENSIONS = setOf("yml", "yaml")
 
-        /** [leaves] nested back into objects, in their order. */
+        /**
+         * [leaves] nested back into objects, in their order.
+         *
+         * A key that is both a value and a parent — `a` and `a.b`, two properties of one name in the
+         * reference file — becomes the object: a nested file cannot hold both, and the object keeps
+         * every key below it where the value kept one. Stopping at the value instead wrote `b` one
+         * level up, at the root.
+         */
         private fun tree(leaves: Map<List<String>, String>): Map<String, Any> {
             val root = linkedMapOf<String, Any>()
             for ((path, value) in leaves) {
                 var node = root
                 for (segment in path.dropLast(1)) {
-                    node = node.getOrPut(segment) { linkedMapOf<String, Any>() } as? LinkedHashMap<String, Any> ?: break
+                    node = node[segment] as? LinkedHashMap<String, Any> ?: linkedMapOf<String, Any>().also { node[segment] = it }
                 }
-                node[path.last()] = value
+                if (node[path.last()] !is Map<*, *>) node[path.last()] = value
             }
             return root
         }
