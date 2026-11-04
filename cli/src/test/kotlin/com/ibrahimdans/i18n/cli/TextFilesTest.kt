@@ -163,4 +163,27 @@ class TextFilesTest {
         Assertions.assertEquals(I18nCheck.CANNOT_CHECK, run.exit)
         Assertions.assertEquals("i18n-check: cannot read ${SettingsFile.JSON_PATH}: not valid UTF-8", run.err)
     }
+
+    @Test
+    fun `a discovered translation file that is not UTF-8 is said to be so, not invalid`(@TempDir project: Path) {
+        cleanProject(project)
+        project.writeLatin1("locales/fr.json", """{"title": "Boutique française"}""")
+
+        val run = check(project.toString())
+
+        Assertions.assertEquals(I18nCheck.CANNOT_CHECK, run.exit)
+        Assertions.assertTrue(run.err.contains("not valid UTF-8") && run.err.contains("fr.json"), run.err)
+        Assertions.assertFalse(run.err.contains("not a valid"), run.err)
+    }
+
+    @Test
+    fun `a discovered translation file that is malformed UTF-8 JSON is still said to be invalid`(@TempDir project: Path) {
+        cleanProject(project)
+        project.write("locales/fr.json", """{"title": "Boutique",}""")
+
+        val run = check(project.toString())
+
+        Assertions.assertEquals(I18nCheck.CANNOT_CHECK, run.exit)
+        Assertions.assertTrue(run.err.contains("not a valid JSON translation file"), run.err)
+    }
 }

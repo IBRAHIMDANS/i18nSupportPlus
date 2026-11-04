@@ -58,7 +58,8 @@ internal object CheckFormats {
     /**
      * Why [file], of [format], gave no tree: null for a TS, JS or PHP file holding code rather than a
      * catalogue — a helper sitting among the translations, left out — and the reason to stop the check otherwise.
-     * A TS or PHP file read again here that is not UTF-8 stops it too, named as [shownAs] ([TextFiles.read]).
+     * A file read again here that is not UTF-8 stops it too, named as [shownAs] ([TextFiles.read]): any format,
+     * so that an encoding problem is never reported as a malformed file.
      */
     fun unreadable(format: ParsedFormat, file: Path, shownAs: String = file.toString()): String? = when (format) {
         TS -> when (val reading = TsCatalogTree.read(TextFiles.read(file, shownAs))) {
@@ -72,7 +73,13 @@ internal object CheckFormats {
             is PhpArrayTranslationTree.Reading.Partial -> notLiteral(shownAs, reading.construct, reading.line)
             is PhpArrayTranslationTree.Reading.Catalogue -> null
         }
-        else -> "not a valid ${format.name} translation file: $shownAs"
+        else -> {
+            // Read again strictly first: a file that is merely not UTF-8 stops the check saying so
+            // ([TextFiles.read]), where "not a valid" sent the user looking for a syntax error. A
+            // Java bundle is read as Java reads it, Latin-1 included ([TextFiles.readBundle]).
+            if (format == PROPERTIES) TextFiles.readBundle(file, shownAs) else TextFiles.read(file, shownAs)
+            "not a valid ${format.name} translation file: $shownAs"
+        }
     }
 
     private fun notLiteral(shownAs: String, construct: String, line: Int) =
