@@ -48,13 +48,17 @@ private class JsonContentGenerator: ContentGenerator {
 
     private val tabChar = "  "
 
-    override fun generateContent(compositeKey: List<Literal>, value: String): String {
-        val escapedValue = String(JsonStringEncoder.getInstance().quoteAsString(value))
-        return compositeKey.foldRightIndexed("\"$escapedValue\"", { i, key, acc ->
+    override fun generateContent(compositeKey: List<Literal>, value: String): String =
+        compositeKey.foldRightIndexed(quote(value)) { i, key, acc ->
             val tab = tabChar.repeat(i)
-            "{\n$tabChar$tab\"${key.text}\": $acc\n$tab}"
-        })
-    }
+            "{\n$tabChar$tab${quote(key.text)}: $acc\n$tab}"
+        }
+
+    /**
+     * [text] as a JSON string literal, quotes included — a key as much as a value: a key segment
+     * holding `"` or `\` was once written as typed, and the new file did not parse.
+     */
+    private fun quote(text: String): String = "\"${String(JsonStringEncoder.getInstance().quoteAsString(text))}\""
 
     override fun getType(): FileType = JsonFileType.INSTANCE
     override fun getLanguage(): Language = JsonLanguage.INSTANCE
@@ -73,11 +77,14 @@ private class JsonContentGenerator: ContentGenerator {
      * file never holds a dangling comma without its property — it once did, and an invalid JSON
      * file loses every key of that namespace in that locale. The property, the step built from
      * user text, is created before the file is touched.
+     *
+     * [key] is the key's text, quoted here: `JsonElementGenerator.createProperty` pastes its name
+     * between quotes as given, so a key holding `"` broke the file.
      */
     override fun generateTranslationEntry(item: PsiElement, key: String, value: String) {
         val obj = item as JsonObject
         val project = item.project
-        val property = JsonElementGenerator(project).createProperty(key, value)
+        val property = JsonElementGenerator(project).createValue<JsonObject>("{${quote(key)}: $value}").propertyList.first()
         val settings = Settings.getInstance(project)
         CodeStyleManager.getInstance(project).performActionWithFormatterDisabled {
             JsonInsertion(obj).insert(property) { props ->
