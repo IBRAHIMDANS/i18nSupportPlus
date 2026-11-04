@@ -44,6 +44,13 @@ class CsvTranslationCodecTest {
     }
 
     @Test
+    fun parseIgnoresALeadingByteOrderMark() {
+        val csv = encode(listOf("en", "fr"), translations)
+
+        assertEquals(parse(csv), parse("\uFEFF" + csv))
+    }
+
+    @Test
     fun parseRejectsMalformedInput() {
         assertThrows(IllegalArgumentException::class.java) { parse("key,en\nk1,\"unterminated") }
         assertThrows(IllegalArgumentException::class.java) { parse("key,en\nk1,val\"ue") }
@@ -119,5 +126,15 @@ class CsvTranslationCodecTest {
         assertThrows(IllegalArgumentException::class.java) {
             computeImportPlan(translations, listOf("en"), emptyList())
         }
+    }
+
+    @Test
+    fun headerErrorNamesTheColumnRead() {
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            computeImportPlan(translations, listOf("en"), listOf(listOf("clé", "en")))
+        }
+
+        assertTrue(error.message!!.contains("'clé'"), error.message)
+        assertTrue(error.message!!.contains("'key'"), error.message)
     }
 }
