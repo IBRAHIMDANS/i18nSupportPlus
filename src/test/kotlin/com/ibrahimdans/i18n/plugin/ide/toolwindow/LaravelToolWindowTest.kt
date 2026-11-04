@@ -134,7 +134,7 @@ class LaravelToolWindowTest : PlatformBaseTest() {
         val sources = TranslationDataLoader.findSources(project)
         val config = Settings.getInstance(project).config()
         val operations = plan.entries.map { entry ->
-            val source = translationFileFor(entry.key, entry.locale, sources)
+            val source = translationFileFor(entry.key, entry.locale, sources, config)
             assertNotNull(source, entry.key)
             Triple(source!!, KeysSynchronizer().buildFullKey(entry.key, config), entry.value)
         }

@@ -135,4 +135,14 @@ class ModuleSourcesTest {
         assertFalse(ModuleSources.hasTemplates(listOf(module("r"), module("r", "{ns}.json"))))
         assertTrue(ModuleSources.hasTemplates(listOf(module("r", "{lang}.json"))))
     }
+
+    @Test
+    fun aRootTypedWithDotSlashOrBackslashesOwnsItsFiles() {
+        val app = ModuleSources.FilePath("apps/web/src/App.tsx", anchored = true)
+        for (root in listOf("./apps/web", "apps\\web", "/apps/web/", " apps/web ")) {
+            assertTrue(ModuleSources.contains(module(root), app), root)
+            assertTrue(ModuleSources.holdsCode(module(root), app), root)
+        }
+        assertTrue(ModuleSources.holdsCode(module("x").copy(codeRoots = "./apps/web, libs\\ui"), ModuleSources.FilePath("libs/ui/Button.tsx", true)))
+    }
 }

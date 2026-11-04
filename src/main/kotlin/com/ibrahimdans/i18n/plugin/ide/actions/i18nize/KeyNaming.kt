@@ -64,7 +64,8 @@ internal class KeyNaming(
                     is JSClass -> current.name
                     else -> null
                 }
-                if (name != null && name.first().isUpperCase()) return camelCase(name)
+                // `firstOrNull`: a method named by an empty string (`''() {}`) has no first letter.
+                if (name != null && name.firstOrNull()?.isUpperCase() == true) return camelCase(name)
                 current = current.parent
             }
             return camelCase(element.containingFile.virtualFile?.nameWithoutExtension ?: element.containingFile.name.substringBefore('.'))

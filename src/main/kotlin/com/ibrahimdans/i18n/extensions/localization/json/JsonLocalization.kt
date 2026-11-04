@@ -2,13 +2,13 @@ package com.ibrahimdans.i18n.extensions.localization.json
 
 import com.ibrahimdans.i18n.*
 import com.ibrahimdans.i18n.extensions.localization.arb.ArbMetadata
+import com.ibrahimdans.i18n.plugin.edit.JsonTranslationEditor
 import com.ibrahimdans.i18n.plugin.ide.actions.JsonKeySorter
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
-import com.fasterxml.jackson.core.io.JsonStringEncoder
 import com.intellij.icons.AllIcons
 import com.intellij.json.JsonFileType
 import com.intellij.json.JsonLanguage
@@ -48,13 +48,15 @@ private class JsonContentGenerator: ContentGenerator {
 
     private val tabChar = "  "
 
-    override fun generateContent(compositeKey: List<Literal>, value: String): String {
-        val escapedValue = String(JsonStringEncoder.getInstance().quoteAsString(value))
-        return compositeKey.foldRightIndexed("\"$escapedValue\"", { i, key, acc ->
+    /**
+     * Keys and values are quoted alike ([JsonTranslationEditor.quote]): a key segment holding `"`
+     * or `\` was once written as typed, and the new file did not parse.
+     */
+    override fun generateContent(compositeKey: List<Literal>, value: String): String =
+        compositeKey.foldRightIndexed(JsonTranslationEditor.quote(value)) { i, key, acc ->
             val tab = tabChar.repeat(i)
-            "{\n$tabChar$tab\"${key.text}\": $acc\n$tab}"
-        })
-    }
+            "{\n$tabChar$tab${JsonTranslationEditor.quote(key.text)}: $acc\n$tab}"
+        }
 
     override fun getType(): FileType = JsonFileType.INSTANCE
     override fun getLanguage(): Language = JsonLanguage.INSTANCE
@@ -73,11 +75,14 @@ private class JsonContentGenerator: ContentGenerator {
      * file never holds a dangling comma without its property — it once did, and an invalid JSON
      * file loses every key of that namespace in that locale. The property, the step built from
      * user text, is created before the file is touched.
+     *
+     * [key] is the key's text, quoted here: `JsonElementGenerator.createProperty` pastes its name
+     * between quotes as given, so a key holding `"` broke the file.
      */
     override fun generateTranslationEntry(item: PsiElement, key: String, value: String) {
         val obj = item as JsonObject
         val project = item.project
-        val property = JsonElementGenerator(project).createProperty(key, value)
+        val property = JsonElementGenerator(project).createValue<JsonObject>("{${JsonTranslationEditor.quote(key)}: $value}").propertyList.first()
         val settings = Settings.getInstance(project)
         CodeStyleManager.getInstance(project).performActionWithFormatterDisabled {
             JsonInsertion(obj).insert(property) { props ->

@@ -130,6 +130,9 @@ class SourceDiscovery<N, F : TranslationFormat>(
         return if (designated.isEmpty()) named else named + designated
     }
 
+    /** The configured root as [isUnderRoot] reads it; blank when none is set. */
+    private val translationsRoot: String get() = config.normalizedTranslationsRoot()
+
     /**
      * Every file of a format that is a source by itself: one a module template designates, or one the
      * root (or, without a root, the locale guess) takes in. A format not [TranslationFormat.scannedByName]
@@ -144,9 +147,9 @@ class SourceDiscovery<N, F : TranslationFormat>(
                     val alias = aliasMatch(file)
                     when {
                         template != null -> sourceOf(format, file, template)
-                        isIncluded(file.path, config.translationsRoot, workspace.basePath) -> sourceOf(format, file, alias)
+                        isIncluded(file.path, translationsRoot, workspace.basePath) -> sourceOf(format, file, alias)
                         // An aliased name is a locale for the guess too.
-                        alias != null && config.translationsRoot.isBlank() -> sourceOf(format, file, alias)
+                        alias != null && translationsRoot.isBlank() -> sourceOf(format, file, alias)
                         else -> null
                     }
                 }
@@ -164,8 +167,8 @@ class SourceDiscovery<N, F : TranslationFormat>(
                 .filter { file -> workspace.isNamedAfter(format, file, fileNames) && !isExcluded(file) }
                 .mapNotNull { file ->
                     val template = moduleMatch(file)
-                    if (template == null && config.translationsRoot.isNotBlank() &&
-                        !isUnderRoot(file.path, config.translationsRoot, workspace.basePath)
+                    if (template == null && translationsRoot.isNotBlank() &&
+                        !isUnderRoot(file.path, translationsRoot, workspace.basePath)
                     ) null
                     else sourceOf(format, file, template ?: aliasMatch(file))
                 }
@@ -333,9 +336,13 @@ class SourceDiscovery<N, F : TranslationFormat>(
             return LocaleNames.looksLikeLocale(directory.substringAfterLast('/')) || LocaleNames.looksLikeLocale(stem)
         }
 
-        /** True when [path] lies inside basePath/[translationsRoot] — `locales2/` is not under `locales`. */
+        /**
+         * True when [path] lies inside the folder [translationsRoot] names — `locales2/` is not under
+         * `locales`. The root is read as [Config.resolveRoot] does, so `./locales`, `/locales`,
+         * `locales\` and `locales` are the same folder under [basePath].
+         */
         fun isUnderRoot(path: String, translationsRoot: String, basePath: String): Boolean {
-            val rootPath = "$basePath/$translationsRoot".trimEnd('/')
+            val rootPath = Config.resolveRoot(translationsRoot, basePath)
             return path == rootPath || path.startsWith("$rootPath/")
         }
     }

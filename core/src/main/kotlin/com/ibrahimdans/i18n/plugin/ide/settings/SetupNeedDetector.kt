@@ -44,18 +44,19 @@ object SetupNeedDetector {
     /** Every root [config] points at, whether it comes from the global setting or a module. */
     private fun configuredRoots(config: Config): List<String> =
         (listOf(config.translationsRoot) + config.modules.map { it.rootDirectory })
-            .map { it.trim() }
+            .map { Config.normalizeRoot(it) }
             .filter { it.isNotBlank() }
 
     /**
-     * True when [root] — read the way the rest of the plugin reads it, absolute or relative to
-     * [basePath] — is a directory holding at least one translation file.
+     * True when [root] — read the way the scan reads it, [Config.resolveRoot] under [basePath] — is a
+     * directory holding at least one translation file. A `/locales` root used to be probed as an
+     * absolute path and found dead, so the wizard kept coming back for a folder the user had named.
      *
      * The walk is bounded and stops on the first match, so a dead root costs a `stat` and a
      * live one costs the few directories before its first file.
      */
     fun holdsTranslations(basePath: String?, root: String): Boolean {
-        val dir = if (root.startsWith("/")) File(root) else File(basePath ?: return false, root)
+        val dir = File(Config.resolveRoot(root, basePath ?: return false))
         if (!dir.isDirectory) return false
         return dir.walkTopDown()
             .maxDepth(TranslationFileScanner.MAX_SCAN_DEPTH)

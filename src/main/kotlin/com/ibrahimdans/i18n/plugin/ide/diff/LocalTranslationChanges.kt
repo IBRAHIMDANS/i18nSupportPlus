@@ -104,7 +104,7 @@ object LocalTranslationChanges {
      * fewer than two modules, where the project is one scope, or when they all share it.
      */
     private fun referencesOf(project: Project, projectReference: String, config: Config): List<String> {
-        val modules = Settings.getInstance(project).modules.filter { it.rootDirectory.isNotBlank() }
+        val modules = config.modules.filter { it.rootDirectory.isNotBlank() }
         if (modules.size < 2) return emptyList()
         val references = (listOf(projectReference) + modules.mapNotNull { referenceOf(project, it, config) }).distinct()
         return if (references.size > 1) references else emptyList()

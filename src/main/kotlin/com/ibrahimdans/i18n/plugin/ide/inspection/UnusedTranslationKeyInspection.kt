@@ -95,7 +95,8 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
         if (TranslationFileScope.sourceOf(file) != null) return true
         if (TOOL_CONFIGURATION.matches(file.name)) return false
         val config = Settings.getInstance(file.project).config()
-        return config.translationsRoot.isBlank() && config.modules.isEmpty()
+        // `./` names no root, as the scan reads it: such a project is checked like one without a root.
+        return config.normalizedTranslationsRoot().isEmpty() && config.modules.isEmpty()
     }
 
     private companion object {

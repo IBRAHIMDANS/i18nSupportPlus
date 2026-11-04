@@ -68,7 +68,7 @@ class RetranslateStaleAction : AnAction() {
          */
         fun reviewsOn(project: Project): Boolean {
             val store = ReviewStore.getInstance(project)
-            val modules = Settings.getInstance(project).modules
+            val modules = Settings.getInstance(project).config().modules
             return (modules.map { ReviewLocation.rootOf(project, it) } + ReviewLocation.rootOf(project, null))
                 .any { root -> root != null && store.isEnabled(root) }
         }

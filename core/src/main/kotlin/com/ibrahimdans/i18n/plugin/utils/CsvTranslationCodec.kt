@@ -13,6 +13,9 @@ object CsvTranslationCodec {
 
     const val KEY_COLUMN = "key"
 
+    /** UTF-8 byte order mark as decoded into a string, written by Excel and Notepad. */
+    private const val BOM = '\uFEFF'
+
     /** One value to write during import: [key] in [locale] becomes [value]. */
     data class ImportEntry(val key: String, val locale: String, val value: String, val isCreation: Boolean)
 
@@ -54,6 +57,10 @@ object CsvTranslationCodec {
      * Parses CSV [text] into records. Handles quoted fields containing commas,
      * doubled quotes and newlines. Accepts both \r\n and \n line endings.
      *
+     * A leading byte order mark is dropped: Excel saves "CSV UTF-8" with one,
+     * so a file the plugin exported and the translator edited came back with a
+     * first cell of `\uFEFFkey` and was refused as an invalid header.
+     *
      * @throws IllegalArgumentException on malformed input (unterminated quote,
      *         or a stray quote in the middle of an unquoted field).
      */
@@ -62,7 +69,7 @@ object CsvTranslationCodec {
         val record = mutableListOf<String>()
         val field = StringBuilder()
         var inQuotes = false
-        var i = 0
+        var i = if (text.startsWith(BOM)) 1 else 0
 
         fun endField() { record.add(field.toString()); field.clear() }
         fun endRecord() { endField(); records.add(record.toList()); record.clear() }

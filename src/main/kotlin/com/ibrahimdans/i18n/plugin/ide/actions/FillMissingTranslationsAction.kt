@@ -460,7 +460,7 @@ internal object MachineFill {
                         val now = current[key]?.get(target)
                         val seen = replaced[target]?.get(key)
                         if (if (seen == null) !now.isNullOrBlank() else now != seen) return@filter false
-                        val file = translationFileFor(key, target, sources) ?: return@filter false
+                        val file = translationFileFor(key, target, sources, config) ?: return@filter false
                         viewModel.saveTranslation(file, synchronizer.buildFullKey(key, config), value)
                         true
                     }

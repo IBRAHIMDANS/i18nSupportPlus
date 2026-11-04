@@ -210,7 +210,9 @@ internal class I18nizeApply private constructor(
         val existing = folder.findFile(name)
         val generator = target.localization.contentGenerator()
         val file = existing ?: folder.add(
-            PsiFileFactory.getInstance(project).createFileFromText(name, generator.getLanguage(), generator.generateContent(fullKey, value))
+            PsiFileFactory.getInstance(project).createFileFromText(
+                name, generator.getLanguage(), generator.generateContent(project, "${target.base.path}/${target.path}", fullKey, value)
+            )
         ).containingFile
         return LocalizationSource(target.localization.elementsTree(file), name, folder.name, target.path, target.localization) to (existing == null)
     }

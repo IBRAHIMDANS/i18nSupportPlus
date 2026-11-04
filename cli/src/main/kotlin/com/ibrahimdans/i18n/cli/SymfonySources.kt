@@ -9,7 +9,6 @@ import com.ibrahimdans.i18n.Workspace
 import com.ibrahimdans.i18n.plugin.format.ParsedNode
 import com.ibrahimdans.i18n.plugin.format.SymfonyCatalogue
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
-import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -41,13 +40,8 @@ internal class SymfonySources(private val config: Config) : TranslationTechnolog
             if (SourceDiscovery.isExcludedPath(relative, excluded)) return@mapNotNull null
             val catalogue = SymfonyCatalogue.parse(file.name) ?: return@mapNotNull null
             val format = FORMATS.getValue(file.name.substringAfterLast('.').lowercase())
-            val tree = try {
-                format.parse(Files.readString(path))
-            } catch (e: IOException) {
-                null
-            }
             TranslationSource(
-                tree, file.name, SymfonyCatalogue.FOLDER, relative, format,
+                format.parse(TextFiles.read(path, relative)), file.name, SymfonyCatalogue.FOLDER, relative, format,
                 locale = catalogue.locale, namespace = catalogue.domain,
             )
         }

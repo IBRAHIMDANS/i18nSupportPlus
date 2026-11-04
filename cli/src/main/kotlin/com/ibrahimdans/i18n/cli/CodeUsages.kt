@@ -51,8 +51,11 @@ data class UnknownKey(val key: String, val file: String, val line: Int)
  * A key passed through a constant, `t(KEYS.save)`, is read as the IDE reads it ([ConstantKeys]): the constant
  * declared in the file, or imported from another script of the project by a relative path or by a path alias of
  * the `tsconfig.json`, else `jsconfig.json`, nearest to the importing file, `extends` followed (`@/keys`, [pathAliasesOf]).
+ *
+ * A source file that is not UTF-8 is read with replacement characters, and one that cannot be read at all is left
+ * out ([TextFiles.readOrNull]): each is said once through [warn] rather than ending the check.
  */
-class CodeUsages(project: Path, private val config: Config) {
+class CodeUsages(project: Path, private val config: Config, warn: (String) -> Unit) {
 
     private val modules: List<ModuleConfig>
 
@@ -90,7 +93,11 @@ class CodeUsages(project: Path, private val config: Config) {
         val extensions = EXTENSIONS + listOfNotNull(HTML.takeIf { angular }, PHP.takeIf { laravel })
         texts = NioWorkspace(root, SourceDiscovery.DEFAULT_EXCLUDED_DIRECTORIES + config.excludedDirectorySet())
             .files(extensions)
-            .associate { root.relativize(it.file).joinToString("/") to Files.readString(it.file) }
+            .mapNotNull { found ->
+                val path = root.relativize(found.file).joinToString("/")
+                TextFiles.readOrNull(found.file, path, warn)?.let { path to it }
+            }
+            .toMap()
         modules = ModuleSources.active(config.modules)
         val (phpFiles, scripts) = texts.entries.partition { (path, _) -> path.endsWith(".$PHP") }
         php = phpFiles.associate { it.toPair() }
@@ -211,7 +218,7 @@ class CodeUsages(project: Path, private val config: Config) {
         /** True when `angular.json` names a source file `ng extract-i18n` has written: Angular's own i18n is in use. */
         fun hasAngularCatalogue(root: Path): Boolean {
             val config = root.resolve("angular.json").takeIf { Files.isRegularFile(it) } ?: return false
-            return AngularI18nConfig.parse(Files.readString(config))
+            return AngularI18nConfig.parse(TextFiles.read(config, config.fileName.toString()))
                 .any { project -> project.referenceFiles.any { Files.isRegularFile(root.resolve(it)) } }
         }
 

@@ -1,18 +1,27 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.Localization
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.TranslationSource
 import com.ibrahimdans.i18n.plugin.ide.dialog.DialogViewModel
-import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
 import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleTemplateResolver
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
+import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.review.ReviewMigration
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
-import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
-import com.ibrahimdans.i18n.plugin.utils.unQuote
+import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
+import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
+import com.ibrahimdans.i18n.plugin.utils.of
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -20,12 +29,16 @@ import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.UndoConfirmationPolicy
 import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Document
+import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.vfs.VfsUtil
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiDirectory
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -45,15 +58,24 @@ import javax.swing.JPanel
  * the action:
  *  1. Resolves the key's value leaves in every locale file of the source namespace
  *  2. Shows a combo to pick the target namespace (e.g. "profile")
- *  3. Copies each value to the sibling target file in the same locale dir, creating it if missing
+ *  3. Copies each value to the target namespace's file of the same locale, creating it if missing
+ *     (see [targetSourceFor] for where that file is)
  *  4. Deletes the entry from the source files
- *  5. Rewrites all code references with an explicit `targetNs:` prefix
+ *  5. Rewrites all code references with an explicit target namespace in front of the key
  *
  * The whole operation runs under a single WriteCommandAction (one undo step), the reviews of the
- * moved key included: they follow it to `targetNs:` ([ReviewMigration]), approval kept.
+ * moved key included: they follow it to the target namespace ([ReviewMigration]), approval kept.
  *
- * The source namespace is derived from the *resolved* translation files (not the literal text),
- * so keys whose namespace comes from a `useTranslation('ns')` hook are handled correctly.
+ * The source namespace is the one of the *resolved* translation sources (not the literal text), so
+ * keys whose namespace comes from a `useTranslation('ns')` hook are handled correctly. It is read
+ * as the tool window reads it ([TranslationDataLoader.extractNamespace]): the namespace a module
+ * template or a format states for the file (`locales/{ns}/{lang}.json`, `errors_fr.properties`),
+ * the file name otherwise. The file stem alone offered `messages_fr` as a namespace to move from.
+ *
+ * Keys are spelled with the configured separators, both when a reference is told apart from an
+ * unrelated literal and when it is rewritten: with `keySeparator = "/"` the references were
+ * compared against a `.`-joined path and matched nothing, and the moved key was written with `:`
+ * and `.`, which the parser would not read back.
  */
 class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
 
@@ -69,6 +91,9 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
         val compositeKey: List<Literal>,
         val leavesByNamespace: Map<String, List<PsiElement>>,
     )
+
+    /** One text replacement in a code file, read before the PSI changes and applied after. */
+    private data class Rewrite(val document: Document, val range: TextRange, val text: String)
 
     /**
      * BGT: [update] reads `PSI_FILE` and resolves the references under the caret, which the
@@ -100,7 +125,8 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
             return
         }
 
-        val keyPath = resolved.compositeKey.joinToString(".") { it.text }
+        val config = Settings.getInstance(project).config()
+        val keyPath = spellPath(resolved.compositeKey, config)
 
         // When the key resolves in several namespaces (multi-namespace hook), ask which one to move.
         val sourceNs = if (resolved.leavesByNamespace.size > 1) {
@@ -130,7 +156,7 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
             project, PluginBundle.message("action.move.target.prompt", sourceNs, keyPath), namespaces
         ) ?: return
 
-        if (hasCollision(project, targetNs, resolved.compositeKey)) {
+        if (hasCollision(project, targetNs, resolved.compositeKey, resolved.sourceCodeElement, config)) {
             val choice = Messages.showYesNoDialog(
                 project,
                 PluginBundle.message("action.move.overwrite", keyPath, targetNs),
@@ -155,8 +181,8 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
     // --- Core (testable; must be called inside a write action) ---
 
     /**
-     * Performs the move: copies each source leaf value into the sibling target-namespace file
-     * (creating it when absent), deletes the source entries, and rewrites the code references.
+     * Performs the move: copies each source leaf value into the target namespace's file of the same
+     * locale (creating it when absent), deletes the source entries, and rewrites the code references.
      *
      * Pure of any UI; intended to be called from within a [WriteCommandAction].
      */
@@ -167,28 +193,27 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
         compositeKey: List<Literal>,
         targetNs: String,
     ) {
-        // 0. Where the reviews of the source entries live, read before the PSI changes.
-        val reviews = sourceLeaves.mapNotNull { ReviewMigration.moveOf(it, namespace = targetNs) }
+        val config = Settings.getInstance(project).config()
 
-        // 1. Copy into the target namespace, one sibling file per source locale (created if missing).
-        sourceLeaves.forEach { leaf -> insertIntoTarget(project, leaf, compositeKey, targetNs) }
+        // 0. Read before the PSI changes: where the reviews of the source entries live, and which
+        //    code literals write the moved key — told by parsing them, which needs their key intact.
+        val reviews = sourceLeaves.mapNotNull { ReviewMigration.moveOf(it, namespace = targetNs) }
+        val rewrites = codeUsages.distinct().mapNotNull { rewriteOf(it, compositeKey, targetNs, config) }
+
+        // 1. Copy into the target namespace, one file per source locale (created if missing).
+        sourceLeaves.forEach { leaf -> insertIntoTarget(project, leaf, compositeKey, targetNs, config) }
 
         // 2. Remove the source entries, separating comma included: a bare delete()
         //    leaves `{,"sibling":…}` behind and corrupts the file whenever the moved
         //    key has a sibling — i.e. almost always in a real translation file.
         sourceLeaves.mapNotNull { toPropertyElement(it) }.forEach { deletePropertyAndSeparator(it) }
 
-        // 3. Rewrite code references with an explicit target-namespace prefix.
-        val keyPath = compositeKey.joinToString(".") { it.text }
-        val newKey = "$targetNs:$keyPath"
-        codeUsages.distinct()
-            .groupBy { it.containingFile?.viewProvider?.document }
-            .forEach { (doc, elements) ->
-                if (doc == null) return@forEach
-                // Replace from the end so earlier offsets stay valid across multiple edits in one document.
-                elements.sortedByDescending { it.textRange.startOffset }
-                    .forEach { rewriteCodeUsage(doc, it, keyPath, newKey) }
-            }
+        // 3. Rewrite code references with an explicit target namespace in front of the key.
+        rewrites.groupBy { it.document }.forEach { (document, edits) ->
+            // Replace from the end so earlier offsets stay valid across multiple edits in one document.
+            edits.sortedByDescending { it.range.startOffset }
+                .forEach { document.replaceString(it.range.startOffset, it.range.endOffset, it.text) }
+        }
 
         // 4. The reviews follow the key to its new namespace, in each locale.
         ReviewMigration.move(project, reviews)
@@ -200,7 +225,7 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
      * Resolves the i18n key at the caret to its composite key and value leaves grouped by
      * source namespace. Returns null when there is no resolvable key under the caret.
      *
-     * The namespace comes from the *resolved* translation files (not the literal text), so a key
+     * The namespace comes from the *resolved* translation sources (not the literal text), so a key
      * whose namespace is provided by a `useTranslation('ns')` / `useTranslation(['a','b'])` hook
      * resolves correctly. Read-only — performs no UI and no writes.
      */
@@ -212,10 +237,11 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
         val resolved = ref.references.filter { it.reference.path.size == maxPath && it.reference.unresolved.isEmpty() }
         if (resolved.isEmpty()) return null
 
+        val defaultNamespace = Settings.getInstance(psiFile.project).config().defaultNamespaces().first()
         val compositeKey = resolved.first().reference.path
         val leavesByNamespace = resolved
             .mapNotNull { d ->
-                val ns = namespaceOf(d.reference.localizationSource) ?: return@mapNotNull null
+                val ns = namespaceOf(d.reference.localizationSource, defaultNamespace) ?: return@mapNotNull null
                 val leaf = d.reference.element?.value() ?: return@mapNotNull null
                 ns to leaf
             }
@@ -246,46 +272,191 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
             ?: element.references.filterIsInstance<I18nReference>().firstOrNull()
     }
 
-    private fun namespaceOf(source: TranslationSource<*, *>): String? =
-        source.name.substringBeforeLast('.').ifBlank { null }
+    /**
+     * The namespace [source] holds, as the tool window names it: the one its module template or its
+     * format states, else its file name, and the default namespace for a file named after its locale.
+     */
+    private fun namespaceOf(source: TranslationSource<PsiElement, *>, defaultNamespace: String): String? {
+        // Every source the plugin resolves a key in is read through a Localization.
+        @Suppress("UNCHECKED_CAST")
+        val localizationSource = source as LocalizationSource
+        return TranslationDataLoader.extractNamespace(localizationSource, defaultNamespace).ifBlank { null }
+    }
+
+    /** The key's path as the code writes it: the segments joined with the configured key separator. */
+    private fun spellPath(compositeKey: List<Literal>, config: Config): String =
+        compositeKey.joinToString(config.keySeparator) { it.text }
 
     /**
-     * Inserts [leaf]'s value into the sibling file `<targetNs>.<ext>` in the same locale directory,
-     * creating that file when it does not exist yet (so no locale is silently dropped).
+     * What the code writes between a namespace and its key, or null when it cannot name a
+     * namespace at all: flat keys are never split, and without a namespace separator there is
+     * nothing to write. A first-component namespace is joined with the key separator, as *Copy Key*
+     * writes it.
      */
-    private fun insertIntoTarget(project: Project, leaf: PsiElement, compositeKey: List<Literal>, targetNs: String) {
+    private fun namespaceSeparatorOf(config: Config): String? = when {
+        config.usesFlatKeys() -> null
+        config.firstComponentNs -> config.keySeparator
+        config.nsSeparator.isEmpty() -> null
+        else -> config.nsSeparator
+    }
+
+    private fun fullKeyOf(namespace: String, compositeKey: List<Literal>, config: Config): FullKey = FullKey(
+        source = namespaceSeparatorOf(config)?.let { namespace + it }.orEmpty() + spellPath(compositeKey, config),
+        ns = Literal(namespace),
+        compositeKey = compositeKey
+    )
+
+    /**
+     * The rewrite of [literal] to [targetNs], or null when it does not write the moved key.
+     *
+     * The literal is read as the annotator reads it — the configured separators, a hook's namespace,
+     * a module's key template — and compared on the key it names, not on its text: a textual
+     * `endsWith` rebuilt with `.` and `:` missed every call of a project using other separators.
+     * The path is kept as written; only the namespace in front of it changes, with the separator
+     * the literal already uses when it names one. A call under a `keyPrefix` hook writes the tail
+     * of the key only and cannot name a namespace: it is left alone, as is a flat key.
+     */
+    private fun rewriteOf(literal: PsiElement, compositeKey: List<Literal>, targetNs: String, config: Config): Rewrite? {
+        val rawKey = Extensions.LANG.extensionList.firstNotNullOfOrNull { it.extractRawKey(literal) } ?: return null
+        val fullKey = RawKeyParser(literal.project).parse(rawKey, literal) ?: return null
+        if (fullKey.keyPrefix.isNotEmpty() || fullKey.compositeKey.map { it.text } != compositeKey.map { it.text }) return null
+
+        val text = literal.text
+        val quoted = text.isQuoted()
+        val key = if (quoted) text.substring(1, text.length - 1) else text
+        val namespacePart = writtenNamespaceOf(key, fullKey)
+        val separator = fullKey.ns?.text?.let { namespacePart.removePrefix(it) }?.takeIf { it.isNotEmpty() }
+            ?: namespaceSeparatorOf(config) ?: return null
+        val rewritten = targetNs + separator + key.removePrefix(namespacePart)
+        if (rewritten == key) return null
+
+        val document = literal.containingFile?.viewProvider?.document ?: return null
+        return Rewrite(document, literal.textRange, if (quoted) "${text.first()}$rewritten${text.last()}" else rewritten)
+    }
+
+    /**
+     * The namespace and its separator at the start of [key] — `common:` in `common:user.name`,
+     * `common.` with a first-component namespace, `courier::messages.` for a Laravel package —
+     * or an empty string when the key writes none. Found between the namespace and the first key
+     * segment of [fullKey]'s source, whatever separator the key's syntax uses.
+     */
+    private fun writtenNamespaceOf(key: String, fullKey: FullKey): String {
+        val namespace = fullKey.ns?.text ?: return ""
+        val source = fullKey.source
+        if (!source.startsWith(namespace)) return ""
+        val firstSegment = fullKey.compositeKey.firstOrNull()?.text ?: return ""
+        val afterNamespace = source.substring(namespace.length)
+        val separatorLength = afterNamespace.indexOf(firstSegment).takeIf { it > 0 } ?: return ""
+        return source.substring(0, namespace.length + separatorLength).takeIf { key.startsWith(it) } ?: ""
+    }
+
+    /**
+     * Inserts [leaf]'s value into the target namespace's source of the same locale — see
+     * [targetSourceFor] — creating the file when it does not exist yet (so no locale is silently dropped).
+     */
+    private fun insertIntoTarget(project: Project, leaf: PsiElement, compositeKey: List<Literal>, targetNs: String, config: Config) {
         val value = readPsiValue(leaf) ?: return
-        val sourceVFile = leaf.containingFile?.virtualFile ?: return
-        val localeDir = PsiManager.getInstance(project).findDirectory(sourceVFile.parent ?: return) ?: return
-        val ext = sourceVFile.extension ?: return
+        val sourceFile = leaf.containingFile ?: return
+        val target = targetSourceFor(project, sourceFile, targetNs, config) ?: return
 
-        val localization = Extensions.LOCALIZATION.extensionList
-            .find { loc -> loc.types().any { it.extensions().contains(ext) } } ?: return
-        val generator = localization.contentGenerator()
-
-        val targetName = "$targetNs.$ext"
-        val targetPsi: PsiFile = localeDir.findFile(targetName) ?: run {
-            val created = PsiFileFactory.getInstance(project)
-                .createFileFromText(targetName, generator.getLanguage(), emptyRootContent(ext))
-            localeDir.add(created) as PsiFile
-        }
-
-        val tree = localization.elementsTree(targetPsi) ?: return
-        val targetSource = LocalizationSource(tree, targetName, localeDir.name, targetPsi.name, localization)
-        val targetFullKey = FullKey(
-            source = "$targetNs:${compositeKey.joinToString(".") { it.text }}",
-            ns = Literal(targetNs),
-            compositeKey = compositeKey
-        )
-
-        val ref = resolveCompositeKey(compositeKey, targetSource) ?: return
+        val ref = resolveCompositeKey(compositeKey, target) ?: return
         val rootOrLeaf = ref.element?.value() ?: return
+        val generator = target.localization.contentGenerator()
         if (ref.unresolved.isEmpty()) {
             updatePsiValue(rootOrLeaf, value, project)
         } else if (generator.isSuitable(rootOrLeaf)) {
-            generator.generate(rootOrLeaf, targetFullKey, ref.unresolved, value)
+            generator.generate(rootOrLeaf, fullKeyOf(targetNs, compositeKey, config), ref.unresolved, value)
         }
     }
+
+    /**
+     * The source the moved value goes to: [targetNs] in the locale of [sourceFile], which is
+     *  1. the file the module's path template designates for that locale and namespace
+     *     (`locales/{ns}/{lang}.json` puts `profile` in `locales/profile/fr.json`), created when missing;
+     *  2. else a source of that namespace and locale the project already has — beside the source file
+     *     first, for a format naming its files its own way (`errors_fr.properties`), else wherever it lives;
+     *  3. else `<targetNs>.<ext>` beside the source file, created when missing.
+     *
+     * The sibling file used to be the only answer: in a folder-per-namespace module the key landed in
+     * `locales/common/profile.json`, a file no template designates and nothing reads.
+     */
+    private fun targetSourceFor(project: Project, sourceFile: PsiFile, targetNs: String, config: Config): LocalizationSource? {
+        val virtualFile = sourceFile.virtualFile ?: return null
+        val extension = virtualFile.extension ?: return null
+        val source = TranslationFileScope.sourceOf(sourceFile)
+        val localization = source?.localization ?: localizationOf(extension) ?: return null
+
+        if (source != null) {
+            templateTargetOf(project, virtualFile, source, targetNs, config, localization)?.let { return it }
+            val locale = TranslationDataLoader.extractLocale(source)
+            val existing = project.service<LocalizationSourceService>().findSources(listOf(targetNs), sourceFile)
+                .filter { TranslationDataLoader.extractLocale(it) == locale }
+            (existing.firstOrNull { fileOf(it)?.parent == virtualFile.parent } ?: existing.firstOrNull())?.let { return it }
+        }
+
+        val directory = sourceFile.containingDirectory ?: return null
+        return sourceIn(project, directory, "$targetNs.$extension", localization)
+    }
+
+    /**
+     * The file the module template matching [virtualFile] designates for [targetNs] in the locale
+     * of [source], or null when no template designates one — no module template matches the file,
+     * or the template names no namespace (`{lang}.json`: one file per locale, nothing to move to).
+     *
+     * Anchored on the source file rather than on the project directory: the file matched the
+     * template, so its path ends with the template resolved for its own locale and namespace, and
+     * what precedes that is where the target resolves too — in a test fixture as in a project.
+     */
+    private fun templateTargetOf(
+        project: Project,
+        virtualFile: VirtualFile,
+        source: LocalizationSource,
+        targetNs: String,
+        config: Config,
+        localization: Localization<PsiElement>,
+    ): LocalizationSource? {
+        val locale = source.locale ?: return null
+        val ownNamespace = source.namespace ?: return null
+        val path = ModuleSources.FilePath.of(virtualFile, project.basePath ?: "")
+        val module = ModuleSources.active(config.modules).firstOrNull { ModuleSources.match(listOf(it), path) != null } ?: return null
+        val template = ModuleTemplateResolver.combine(module)
+        val extension = virtualFile.extension ?: return null
+
+        fun resolved(namespace: String): String {
+            val resolved = ModuleTemplateResolver.resolve(template, locale, namespace).trim('/')
+            // A template naming no extension (`{lang}/{ns}`) designates a file of the source's format.
+            return if (resolved.substringAfterLast('/').contains('.')) resolved else "$resolved.$extension"
+        }
+
+        val own = resolved(ownNamespace)
+        if (!virtualFile.path.endsWith("/$own")) return null
+        var anchor: VirtualFile = virtualFile
+        repeat(own.count { it == '/' } + 1) { anchor = anchor.parent ?: return null }
+
+        val target = resolved(targetNs)
+        val folder = target.substringBeforeLast('/', "")
+        val directory = if (folder.isEmpty()) anchor
+            else runCatching { VfsUtil.createDirectoryIfMissing(anchor, folder) }.getOrNull() ?: return null
+        val psiDirectory = PsiManager.getInstance(project).findDirectory(directory) ?: return null
+        return sourceIn(project, psiDirectory, target.substringAfterLast('/'), localization)
+    }
+
+    /** The source read from [name] in [directory], the file created empty when missing. */
+    private fun sourceIn(project: Project, directory: PsiDirectory, name: String, localization: Localization<PsiElement>): LocalizationSource? {
+        val file: PsiFile = directory.findFile(name) ?: run {
+            val created = PsiFileFactory.getInstance(project)
+                .createFileFromText(name, localization.contentGenerator().getLanguage(), emptyRootContent(name.substringAfterLast('.')))
+            directory.add(created) as PsiFile
+        }
+        val tree = localization.elementsTree(file) ?: return null
+        return LocalizationSource(tree, name, directory.name, file.virtualFile?.path ?: name, localization)
+    }
+
+    private fun fileOf(source: LocalizationSource): VirtualFile? =
+        (source.tree?.value() ?: source.host)?.containingFile?.virtualFile
+
+    private fun localizationOf(extension: String): Localization<PsiElement>? =
+        Extensions.LOCALIZATION.extensionList.find { loc -> loc.types().any { it.extensions().contains(extension) } }
 
     private fun toPropertyElement(element: PsiElement): PsiElement? = TranslationPsi.propertyOf(element)
 
@@ -294,32 +465,10 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
     private fun updatePsiValue(element: PsiElement, newValue: String, project: Project) =
         TranslationPsi.replaceValue(element, newValue, project)
 
-    private fun rewriteCodeUsage(doc: Document, element: PsiElement, keyPath: String, newKey: String) {
-        val original = element.text
-        // Safety: only rewrite a literal that actually carries this key — bare ("key.path")
-        // or namespace-prefixed ("<ns>:key.path"). This prevents overwriting an unexpectedly
-        // broad host element should reference search ever return one.
-        val unquoted = original.unQuote()
-        if (unquoted != keyPath && !unquoted.endsWith(":$keyPath")) return
-
-        val updated = if (original.isQuoted()) {
-            val quote = original.first()
-            "$quote$newKey$quote"
-        } else {
-            newKey
+    private fun hasCollision(project: Project, targetNs: String, compositeKey: List<Literal>, caller: PsiElement, config: Config): Boolean =
+        ReadAction.compute<Boolean, RuntimeException> {
+            DialogViewModel(project).loadTranslations(fullKeyOf(targetNs, compositeKey, config), caller).any { (_, v) -> v != null }
         }
-        if (updated != original) {
-            doc.replaceString(element.textRange.startOffset, element.textRange.endOffset, updated)
-        }
-    }
-
-    private fun hasCollision(project: Project, targetNs: String, compositeKey: List<Literal>): Boolean {
-        val keyPath = compositeKey.joinToString(".") { it.text }
-        val targetFullKey = FullKey(source = "$targetNs:$keyPath", ns = Literal(targetNs), compositeKey = compositeKey)
-        return ReadAction.compute<Boolean, RuntimeException> {
-            DialogViewModel(project).loadTranslations(targetFullKey).any { (_, v) -> v != null }
-        }
-    }
 
     private fun emptyRootContent(ext: String): String =
         if (ext == "json" || ext == "json5") "{}" else ""

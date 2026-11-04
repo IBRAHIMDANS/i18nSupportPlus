@@ -21,6 +21,7 @@ import com.intellij.lang.properties.psi.PropertiesElementFactory
 import com.intellij.lang.properties.psi.PropertiesFile
 import com.intellij.lang.properties.psi.PropertyKeyValueFormat
 import com.intellij.openapi.fileTypes.FileType
+import com.intellij.openapi.project.Project
 import com.intellij.patterns.ElementPattern
 import com.intellij.patterns.PlatformPatterns
 import com.intellij.psi.PsiElement
@@ -69,7 +70,17 @@ class PropertiesLocalization : Localization<PsiElement> {
 internal class PropertiesContentGenerator : ContentGenerator {
 
     override fun generateContent(compositeKey: List<Literal>, value: String): String =
-        escapeKey(compositeKey.joinToString(DEFAULT_SEPARATOR) { it.text }) + "=" +
+        content(compositeKey, value, DEFAULT_SEPARATOR)
+
+    /**
+     * The key joined by the project's separator, as [generate] writes it into an existing file: a
+     * new file used to get `user.name` in a project whose code reads `user/name`.
+     */
+    override fun generateContent(project: Project, path: String, fullKey: FullKey, value: String?): String =
+        content(fullKey.compositeKey, value ?: fullKey.source, Settings.getInstance(project).config().keySeparator)
+
+    private fun content(compositeKey: List<Literal>, value: String, separator: String): String =
+        escapeKey(compositeKey.joinToString(separator) { it.text }) + "=" +
             PropertiesElementFactory.escapeValue(value, '=', PropertyKeyValueFormat.MEMORY)
 
     override fun getType(): FileType = PropertiesFileType.INSTANCE

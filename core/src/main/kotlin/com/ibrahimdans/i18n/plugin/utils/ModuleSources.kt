@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.utils
 
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleTemplateResolver
 
@@ -101,11 +102,14 @@ object ModuleSources {
         return if (file.anchored) path.startsWith("$root/") else "/$path".contains("/$root/")
     }
 
-    private fun rootOf(module: ModuleConfig) = module.rootDirectory.trim().trim('/')
+    /** [ModuleConfig.rootDirectory] as the scan reads a root ([Config.normalizeRoot]): `./apps/web` and `apps\web` are `apps/web`. */
+    private fun rootOf(module: ModuleConfig) = relativeRoot(module.rootDirectory)
+
+    private fun relativeRoot(root: String) = Config.normalizeRoot(root).trim('/')
 
     /** The folders whose code uses [module]'s keys: its [ModuleConfig.codeRoots], else its root directory. */
     fun codeRootsOf(module: ModuleConfig): List<String> =
-        module.codeRoots.split(",").map { it.trim().trim('/') }.filter { it.isNotEmpty() }
+        module.codeRoots.split(",").map(::relativeRoot).filter { it.isNotEmpty() }
             .ifEmpty { listOfNotNull(rootOf(module).ifEmpty { null }) }
 
     /** Whether [file] is code that uses [module]'s keys: it lies under one of its [codeRootsOf]. */

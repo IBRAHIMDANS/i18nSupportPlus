@@ -7,7 +7,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
-import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationFileRouting
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationRow
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
@@ -138,18 +138,20 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
     }
 
     /**
-     * Resolves [key] in every matching localization source and returns the
-     * property elements (JsonProperty / YAMLKeyValue) holding its value, one
-     * per locale where the key exists.
+     * Resolves [key] in the sources that may hold it ([TranslationFileRouting.filesOf]) and returns
+     * the property elements (JsonProperty / YAMLKeyValue) holding its value, one per locale where
+     * the key exists.
+     *
+     * A key spelled without a namespace used to be resolved in every file of every locale: with
+     * `common` as the default namespace, deleting its `menu.home` also deleted `auth`'s `menu.home`
+     * — another key, shown on its own row as `auth:menu.home`.
      *
      * Takes the already-loaded [sources]: resolving them per key turned the scan
      * into O(keys × translation files) full PSI rebuilds.
      */
     internal fun leafProperties(sources: List<LocalizationSource>, key: String, config: Config = Config()): List<PsiElement> {
         val fullKey = KeysSynchronizer().buildFullKey(key, config)
-        val namespace = fullKey.ns?.text
-        return sources
-            .filter { namespace == null || TranslationDataLoader.extractNamespace(it) == namespace }
+        return TranslationFileRouting.filesOf(key, sources, config)
             .mapNotNull { source ->
                 val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@mapNotNull null
                 val element = ref.element

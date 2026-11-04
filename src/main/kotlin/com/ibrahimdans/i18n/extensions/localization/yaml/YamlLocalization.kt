@@ -64,13 +64,26 @@ private class YamlContentGenerator: ContentGenerator {
     override fun generateContent(compositeKey: List<Literal>, value: String): String =
         generateContent(compositeKey, value, defaultIndent)
 
+    /**
+     * The keys are spelled like the values ([spellKey]): plain when a plain scalar reads back as
+     * the key, quoted otherwise. Written as typed, a segment holding `: ` or ` #` split into
+     * another key or a comment, one starting with `'`, `"` or `- ` did not parse.
+     */
     private fun generateContent(compositeKey: List<Literal>, value: String, tabChar: String): String =
         compositeKey.foldRightIndexed(YamlScalars.spell(value), { i, key, acc ->
             val caret = if (i == 0) "" else "\n"
             val tab = tabChar.repeat(i)
             val valuePart = if (acc.startsWith("\n")) acc else " $acc"
-            "$caret$tab${key.text}:$valuePart"
+            "$caret$tab${spellKey(key.text)}:$valuePart"
         })
+
+    /**
+     * [key] spelled as YAML needs ([YamlScalars.spell]), double-quoted when it holds an apostrophe:
+     * single-quoted, the apostrophe is doubled (`'it''s'`), and the IDE's key reader like the
+     * plugin's [unQuote] strip the outer quotes without undoubling it, so the key was never found.
+     */
+    private fun spellKey(key: String): String =
+        YamlScalars.spell(key, if ('\'' in key) YamlScalars.Style.DOUBLE else YamlScalars.Style.PLAIN)
 
     override fun getType(): FileType = YAMLFileType.YML
     override fun getLanguage(): Language = YAMLLanguage.INSTANCE
@@ -95,7 +108,7 @@ private class YamlContentGenerator: ContentGenerator {
         val props = obj.keyValues
         if (props.isEmpty()) {
             // An empty flow mapping, `{}`: no key to take the column of, left to the code style.
-            obj.addAfter(generator.createYamlKeyValue(key, value), obj.addAfter(generator.createEol(), item.node.firstChildNode.psi))
+            obj.addAfter(generator.createYamlKeyValue(spellKey(key), value), obj.addAfter(generator.createEol(), item.node.firstChildNode.psi))
             return
         }
         val column = YAMLUtil.getIndentToThisElement(props.first())
@@ -116,15 +129,16 @@ private class YamlContentGenerator: ContentGenerator {
         }
     }
 
-    /** `key: value` as it reads at [column]: the lines of a nested [value] shifted under the key. */
+    /** `key: value` as it reads at [column], the key spelled as YAML needs: the lines of a nested [value] shifted under the key. */
     private fun entryAt(project: Project, key: String, value: String, column: Int): YAMLKeyValue {
         val generator = YAMLElementGenerator.getInstance(project)
         val nested = generator.createDummyYamlWithText(value).documents.firstOrNull()?.topLevelValue is YAMLMapping
+        val spelledKey = spellKey(key)
         val text = if (nested) {
             val indent = " ".repeat(column) + LocalizationSettingsPanel.indent(project, "yaml")
-            "$key:" + value.lines().joinToString("") { "\n$indent$it" }
+            "$spelledKey:" + value.lines().joinToString("") { "\n$indent$it" }
         } else {
-            "$key: $value"
+            "$spelledKey: $value"
         }
         return PsiTreeUtil.findChildOfType(generator.createDummyYamlWithText(text), YAMLKeyValue::class.java)!!
     }

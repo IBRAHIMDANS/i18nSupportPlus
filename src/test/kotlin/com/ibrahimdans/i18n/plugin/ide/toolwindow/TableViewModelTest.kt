@@ -547,10 +547,16 @@ class TableViewModelTest {
     private fun source(displayPath: String, name: String, parent: String) =
         LocalizationSource(tree = null, name = name, parent = parent, displayPath = displayPath, localization = mockk())
 
+    /** The project's settings hold [config]: that is where the routing reads the default namespaces. */
+    private fun settings(config: Config = Config()) {
+        every { project.getService(Settings::class.java) } returns mockk<Settings> { every { config() } returns config }
+    }
+
     @Test
     fun `findSourceFor picks the file of the asked locale`() {
         val en = source("src/locales/en.json", "en.json", "en")
         val fr = source("src/locales/fr.json", "fr.json", "fr")
+        settings()
         every { TranslationDataLoader.findSources(project, null) } returns listOf(en, fr)
         every { TranslationDataLoader.extractLocale(en) } returns "en"
         every { TranslationDataLoader.extractLocale(fr) } returns "fr"
@@ -564,6 +570,7 @@ class TableViewModelTest {
         // into whichever file came first.
         val common = source("src/locales/en/common.json", "common.json", "en")
         val auth = source("src/locales/en/auth.json", "auth.json", "en")
+        settings()
         every { TranslationDataLoader.findSources(project, null) } returns listOf(common, auth)
         every { TranslationDataLoader.extractLocale(common) } returns "en"
         every { TranslationDataLoader.extractLocale(auth) } returns "en"
@@ -574,8 +581,24 @@ class TableViewModelTest {
     }
 
     @Test
+    fun `findSourceFor routes a key without a prefix to the default namespace's file, not to the first one`() {
+        // `common` is the default namespace, auth.json the first file of the locale: editing
+        // `menu.home` in the table wrote it there, under a namespace it is not part of.
+        val auth = source("src/locales/en/auth.json", "auth.json", "en")
+        val common = source("src/locales/en/common.json", "common.json", "en")
+        settings(Config(defaultNs = "common"))
+        every { TranslationDataLoader.findSources(project, null) } returns listOf(auth, common)
+        every { TranslationDataLoader.extractLocale(any()) } returns "en"
+        every { TranslationDataLoader.extractNamespace(auth, any()) } returns "auth"
+        every { TranslationDataLoader.extractNamespace(common, any()) } returns "common"
+
+        assertEquals(common, viewModel.findSourceFor(project, "menu.home", "en"))
+    }
+
+    @Test
     fun `findSourceFor returns nothing when the locale has no file`() {
         val en = source("src/locales/en.json", "en.json", "en")
+        settings()
         every { TranslationDataLoader.findSources(project, null) } returns listOf(en)
         every { TranslationDataLoader.extractLocale(en) } returns "en"
 

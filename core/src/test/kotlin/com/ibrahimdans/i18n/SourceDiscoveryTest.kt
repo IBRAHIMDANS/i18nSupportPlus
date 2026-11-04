@@ -173,6 +173,7 @@ class SourceDiscoveryTest {
 
         assertEquals(listOf("locales/en/common.json"), discovery(Config(translationsRoot = "locales")).sources().paths())
         assertEquals(listOf("locales/en/common.json"), discovery(Config(translationsRoot = "locales/")).sources().paths())
+        assertEquals(listOf("locales/en/common.json"), discovery(Config(translationsRoot = " ./locales/ ")).sources().paths())
         assertEquals(
             listOf("public/locales/messages.json"),
             discovery(Config(translationsRoot = "public/locales")).sources().paths(),
@@ -187,6 +188,19 @@ class SourceDiscoveryTest {
         assertFalse(SourceDiscovery.isIncluded("/p/config/settings.json", "", "/p"))
         assertTrue(SourceDiscovery.isUnderRoot("/p/locales", "locales", "/p"), "the root itself")
         assertFalse(SourceDiscovery.isUnderRoot("/p/locales2/en.json", "locales", "/p"))
+    }
+
+    /** The root is free text in the settings page and the wizard: every spelling of a folder names it. */
+    @Test
+    fun isUnderRootReadsEverySpellingOfTheRoot() {
+        for (root in listOf("src/locales", "./src/locales", "/src/locales", "src\\locales", " src/locales/ ")) {
+            assertTrue(SourceDiscovery.isUnderRoot("/p/src/locales/en.json", root, "/p"), "root spelled '$root'")
+            assertTrue(SourceDiscovery.isUnderRoot("/p/src/locales", root, "/p"), "the root itself, spelled '$root'")
+            assertFalse(SourceDiscovery.isUnderRoot("/p/src/locales2/en.json", root, "/p"), "root spelled '$root'")
+        }
+        assertTrue(SourceDiscovery.isUnderRoot("/p/src/locales/en.json", "/p/src/locales", "/p"), "an absolute root inside the project")
+        assertTrue(SourceDiscovery.isUnderRoot("/p/src/locales/en.json", "/p", "/p"), "the project itself as an absolute root")
+        assertFalse(SourceDiscovery.isUnderRoot("/elsewhere/locales/en.json", "/elsewhere/locales", "/p"), "a root outside the project is read under it, as before")
     }
 
     /** Any `common.json` — a serverless config — was a source of `common`, shown as a locale named after the file. */

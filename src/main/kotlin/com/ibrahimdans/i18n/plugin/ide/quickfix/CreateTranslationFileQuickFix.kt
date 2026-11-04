@@ -30,10 +30,11 @@ class CreateTranslationFileQuickFix(
 
     private fun doInvoke(project: Project) {
         val name: String = fileName + "." + contentGenerator.getType().defaultExtension
-        val content: String = contentGenerator.generateContent(fullKey, translationValue)
         folderSelector.select(project) { folders ->
             WriteCommandAction.runWriteCommandAction(project) {
                 folders.forEach {
+                    // Per folder: the module holding it sets what the content depends on (key separator, reference locale).
+                    val content = contentGenerator.generateContent(project, "${it.virtualFile.path}/$name", fullKey, translationValue)
                     it.add(PsiFileFactory.getInstance(project).createFileFromText(name, contentGenerator.getLanguage(), content))
                 }
                 onComplete()

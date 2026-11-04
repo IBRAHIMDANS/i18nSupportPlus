@@ -108,7 +108,7 @@ object I18nCheck {
             return CANNOT_CHECK
         }
         return try {
-            val result = check(options)
+            val result = check(options, err)
             warnUnreadLocales(options, err)
             out.println(options.format.render(result, options.maxProblems, options.project))
             if (options.format == Format.GITHUB) GithubReport.summarize(result, options.maxProblems, env)
@@ -129,7 +129,8 @@ object I18nCheck {
         }
     }
 
-    private fun check(options: Options): ProjectResult {
+    /** [err] takes the warnings of the code's reading: a source file that is not UTF-8. */
+    private fun check(options: Options, err: PrintStream): ProjectResult {
         val config = try {
             SettingsFile.read(options.project)
         } catch (e: Exception) {
@@ -156,7 +157,7 @@ object I18nCheck {
             )
         }
         if (!options.code) return ProjectResult(results)
-        val code = CodeUsages(options.project, config)
+        val code = CodeUsages(options.project, config) { err.println("i18n-check: $it") }
         // A module's keys are used by its own code only, as the IDE reads them.
         val referenceKeys = scopes.zip(results) { scope, result ->
             scope.module to scope.translations.filterValues { result.reference in it }.keys

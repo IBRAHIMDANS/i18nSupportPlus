@@ -1,6 +1,9 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.ide.runWithConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.intellij.json.psi.JsonFile
 import com.intellij.json.psi.JsonObject
@@ -300,6 +303,145 @@ class MoveI18nKeyHandlerTest : PlatformBaseTest() {
         Assertions.assertNotNull(resolved)
         // Both namespaces are surfaced so the action can ask which one to move (no silent pick).
         Assertions.assertEquals(setOf("dashboard", "common"), resolved!!.leavesByNamespace.keys)
+    }
+
+    // The key was recomposed with `.` and `:` whatever the settings said, and the call sites were
+    // told apart by a textual `endsWith(":user.name")`: with other separators nothing matched, and
+    // what was written back was a key the parser would not read.
+
+    private fun documentText(path: String): String = ReadAction.compute<String, RuntimeException> {
+        com.intellij.openapi.fileEditor.FileDocumentManager.getInstance().getDocument(myFixture.findFileInTempDir(path))!!.text
+    }
+
+    private val slashAndPipe = Config(nsSeparator = "|", keySeparator = "/")
+
+    @Test
+    fun execute_customSeparators_rewritesTheCallsWithThem() = myFixture.runWithConfig(slashAndPipe) {
+        addFileToProject("locales/en/common.json", """{"user":{"name":"John","age":"Age"}}""")
+        addFileToProject("locales/en/profile.json", """{}""")
+        val code = addFileToProject("src/App.tsx", "const a = t('common|user/name'); const b = t('user/name'); const c = t('common|user/age');")
+
+        val usages = ReadAction.compute<List<PsiElement>, RuntimeException> {
+            collectQuotedLiterals(code, "common|user/name", "user/name", "common|user/age")
+        }
+        Assertions.assertEquals(3, usages.size, "expected to locate the three code literals")
+
+        WriteCommandAction.runWriteCommandAction(project) {
+            val src = leaf(jsonFile("locales/en/common.json"), "user", "name")
+            handler.execute(project, listOf(src), usages, literals("user", "name"), "profile")
+        }
+
+        Assertions.assertEquals("John", valueAt("locales/en/profile.json", "user", "name"))
+        Assertions.assertNull(valueAt("locales/en/common.json", "user", "name"))
+        Assertions.assertEquals(
+            "const a = t('profile|user/name'); const b = t('profile|user/name'); const c = t('common|user/age');",
+            documentText("src/App.tsx")
+        )
+    }
+
+    @Test
+    fun resolveKey_customSeparators_readsTheKeyAndItsNamespace() = myFixture.runWithConfig(slashAndPipe) {
+        addFileToProject("assets/common.json", """{"user":{"name":"John"}}""")
+        myFixture.configureByText("Comp.tsx", "const a = t('common|user/na<caret>me');")
+
+        val resolved = ReadAction.compute<MoveI18nKeyHandler.ResolvedKey?, RuntimeException> {
+            handler.resolveKey(myFixture.editor, myFixture.file)
+        }
+
+        Assertions.assertNotNull(resolved)
+        Assertions.assertEquals(setOf("common"), resolved!!.leavesByNamespace.keys)
+        Assertions.assertEquals(listOf("user", "name"), resolved.compositeKey.map { it.text })
+    }
+
+    /** A flat key is one property whatever it contains, and no namespace can be written in front of it. */
+    @Test
+    fun execute_flatKeys_movesTheWholePropertyAndLeavesTheCallAsWritten() = myFixture.runWithConfig(Config(flatKeys = true)) {
+        addFileToProject("locales/en/common.json", """{"app.title":"Title","app.other":"Other"}""")
+        addFileToProject("locales/en/ui.json", """{}""")
+        val code = addFileToProject("src/App.tsx", "const a = t('app.title');")
+        val usages = ReadAction.compute<List<PsiElement>, RuntimeException> { collectQuotedLiterals(code, "app.title") }
+        Assertions.assertEquals(1, usages.size)
+
+        WriteCommandAction.runWriteCommandAction(project) {
+            val src = leaf(jsonFile("locales/en/common.json"), "app.title")
+            handler.execute(project, listOf(src), usages, literals("app.title"), "ui")
+        }
+
+        Assertions.assertEquals("Title", valueAt("locales/en/ui.json", "app.title"), "one flat property, not an `app` object")
+        Assertions.assertNull(valueAt("locales/en/ui.json", "app", "title"))
+        Assertions.assertNull(valueAt("locales/en/common.json", "app.title"))
+        Assertions.assertEquals("Other", valueAt("locales/en/common.json", "app.other"))
+        Assertions.assertEquals("const a = t('app.title');", documentText("src/App.tsx"))
+    }
+
+    /** In a folder-per-namespace module the target is the file the template designates, not a sibling `profile.json`. */
+    @Test
+    fun execute_moduleTemplate_writesWhereTheTemplateSays() = myFixture.runWithConfig(
+        Config(modules = listOf(ModuleConfig(name = "app", pathTemplate = "locales/{ns}/{lang}.json")))
+    ) {
+        addFileToProject("locales/common/en.json", """{"greeting":"Hello","other":"Other"}""")
+        addFileToProject("locales/common/fr.json", """{"greeting":"Bonjour","other":"Autre"}""")
+        addFileToProject("locales/profile/en.json", """{"title":"Profile"}""")
+        // intentionally no locales/profile/fr.json
+
+        WriteCommandAction.runWriteCommandAction(project) {
+            val leaves = listOf(
+                leaf(jsonFile("locales/common/en.json"), "greeting"),
+                leaf(jsonFile("locales/common/fr.json"), "greeting"),
+            )
+            handler.execute(project, leaves, emptyList(), literals("greeting"), "profile")
+        }
+
+        Assertions.assertEquals("Hello", valueAt("locales/profile/en.json", "greeting"))
+        Assertions.assertEquals("Profile", valueAt("locales/profile/en.json", "title"), "the existing target file is kept")
+        Assertions.assertNotNull(myFixture.findFileInTempDir("locales/profile/fr.json"), "the fr target file is created by the template")
+        Assertions.assertEquals("Bonjour", valueAt("locales/profile/fr.json", "greeting"))
+        Assertions.assertNull(myFixture.findFileInTempDir("locales/common/profile.json"), "no sibling file beside the source")
+        Assertions.assertNull(valueAt("locales/common/en.json", "greeting"))
+        Assertions.assertNull(valueAt("locales/common/fr.json", "greeting"))
+    }
+
+    /** The namespace of a resource bundle is the one its format states, not the file stem (`messages_fr`). */
+    @Test
+    fun resolveKey_propertiesBundle_groupsEveryLocaleUnderTheStatedNamespace() {
+        addFileToProject("src/main/resources/messages.properties", "user.name=Name\n")
+        addFileToProject("src/main/resources/messages_fr.properties", "user.name=Nom\n")
+        addFileToProject("src/main/resources/errors.properties", "failed=Failed\n")
+        addFileToProject("src/main/resources/errors_fr.properties", "failed=Echec\n")
+        myFixture.configureByText("Comp.tsx", "const a = t('messages:user.na<caret>me');")
+
+        val resolved = ReadAction.compute<MoveI18nKeyHandler.ResolvedKey?, RuntimeException> {
+            handler.resolveKey(myFixture.editor, myFixture.file)
+        }
+
+        Assertions.assertNotNull(resolved, "the bundle must resolve the key")
+        Assertions.assertEquals(setOf("messages"), resolved!!.leavesByNamespace.keys)
+        Assertions.assertEquals(2, resolved.leavesByNamespace.getValue("messages").size, "both locales under one namespace")
+    }
+
+    /** The `resources` of an i18next configuration are named after their locale: they hold the default namespace. */
+    @Test
+    fun resolveKey_i18nextInlineResources_holdTheDefaultNamespace() = myFixture.runWithConfig(Config(jsConfiguration = "src/i18n.ts")) {
+        addFileToProject(
+            "src/i18n.ts",
+            """
+            i18n.init({
+              resources: {
+                en: { translation: { greeting: 'Hello' } },
+                fr: { translation: { greeting: 'Bonjour' } },
+              },
+            });
+            """.trimIndent()
+        )
+        myFixture.configureByText("Comp.tsx", "const a = t('greet<caret>ing');")
+
+        val resolved = ReadAction.compute<MoveI18nKeyHandler.ResolvedKey?, RuntimeException> {
+            handler.resolveKey(myFixture.editor, myFixture.file)
+        }
+
+        Assertions.assertNotNull(resolved, "the inline resources must resolve the key")
+        Assertions.assertEquals(setOf("translation"), resolved!!.leavesByNamespace.keys)
+        Assertions.assertEquals(2, resolved.leavesByNamespace.getValue("translation").size, "both locales under one namespace")
     }
 
     /**

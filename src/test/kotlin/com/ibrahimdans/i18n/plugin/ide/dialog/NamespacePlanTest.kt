@@ -57,6 +57,20 @@ class NamespacePlanTest {
         )
     }
 
+    /** The root is free text: `./i18n/` names the folder `i18n`, not a `./i18n/` path under the project. */
+    @Test
+    fun theConfiguredRootIsReadHoweverItIsSpelled() {
+        val expected = NamespacePlan.Create(listOf("/project/i18n/en/auth.json", "/project/i18n/fr/auth.json"))
+        for (root in listOf(" ./i18n/ ", "/i18n", "/project/i18n")) {
+            assertEquals(expected, plan(config = Config(translationsRoot = root)), "root spelled '$root'")
+        }
+        assertEquals(
+            NamespacePlan.Create(listOf("/project/public/locales/en/auth.json", "/project/public/locales/fr/auth.json")),
+            plan(config = Config(translationsRoot = " ./ ")),
+            "a root that names no folder falls back"
+        )
+    }
+
     @Test
     fun emptyContentFollowsTheFormat() {
         assertEquals("{}\n", DialogViewModel.emptyContentFor("auth.json"))

@@ -1,26 +1,27 @@
 package com.ibrahimdans.i18n.extensions.lang.js
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.extensions.lang.js.extractors.ReactIntlExtractor
+import com.ibrahimdans.i18n.plugin.factory.CallTemplate
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
+import com.ibrahimdans.i18n.plugin.rules.RuleDecision
 import com.ibrahimdans.i18n.plugin.utils.ModulePresets
 import com.ibrahimdans.i18n.plugin.utils.type
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.lang.Language
-import com.intellij.lang.javascript.patterns.JSPatterns
 import com.ibrahimdans.i18n.plugin.factory.MessageVariable
 import com.intellij.lang.javascript.JSTokenTypes
+import com.intellij.lang.javascript.psi.JSArgumentList
 import com.intellij.lang.javascript.psi.JSBinaryExpression
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSExpression
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.lang.javascript.psi.ecma6.JSStringTemplateExpression
 import com.intellij.lang.javascript.psi.JSReferenceExpression
-import com.intellij.lang.javascript.psi.JSThisExpression
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
-import com.intellij.psi.util.PsiTreeUtil
 
 /**
  * Extracts a string of JavaScript: a literal, a template literal — `` `${count} files` `` — or a
@@ -38,10 +39,9 @@ internal class JsTranslationExtractor: TranslationExtractor {
     internal fun isStringToken(element: PsiElement): Boolean =
         "JS:STRING_LITERAL" == element.type() ||
             (element.node?.elementType == JSTokenTypes.STRING_TEMPLATE_PART && element.parent is JSStringTemplateExpression)
-    override fun isExtracted(element: PsiElement): Boolean {
-        if (!JSPatterns.jsArgument("t", 0).accepts(element.parent)) return false
-        return isDirectOrConfiguredCall(element)
-    }
+
+    override fun isExtracted(element: PsiElement): Boolean = ExtractedKey.holds(element)
+
     override fun text(element: PsiElement): String {
         val parts = parts(element) ?: return element.text.unQuote()
         val placeholders = variables(element).associate { it.expression to it.placeholder }
@@ -143,13 +143,53 @@ internal class JsTranslationExtractor: TranslationExtractor {
 
     override fun scopeNamespaces(element: PsiElement): List<String> =
         TranslationHookInScope.find(element)?.namespaces.orEmpty()
+}
 
-    private fun isDirectOrConfiguredCall(element: PsiElement): Boolean {
-        val callExpr = PsiTreeUtil.getParentOfType(element, JSCallExpression::class.java) ?: return true
-        val refExpr = callExpr.methodExpression as? JSReferenceExpression ?: return true
-        val qualifier = refExpr.qualifier ?: return true
-        if (qualifier is JSThisExpression) return true
-        val fnNames = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
-        return refExpr.text in fnNames
+/**
+ * Whether a string is already the key of a translation call, so that *Extract I18n*, *Batch
+ * Extract*, *Internationalize…* and the hard-coded text inspections leave it alone.
+ *
+ * Only `t('…')` used to count: a key in `$t('…')`, `i18n._('…')`, `formatMessage({ id })` or the
+ * `translate('…')` of a module's call template was offered for extraction and, accepted, became a
+ * translation of itself. The calls recognised are the ones the key pipeline reads — the names the
+ * technologies publish, restricted to the module's preset as the annotator restricts them, with
+ * the same qualifier and import rules ([isDirectOrConfiguredCall]) — the callee of the module's
+ * call template, and the react-intl descriptor. A bare `t` is always one: every
+ * extractor writes it under a translation hook, and vue-i18n's `useI18n()` gives it without
+ * publishing it.
+ *
+ * The one copy [JsTranslationExtractor] and [JsxTranslationExtractor] share.
+ */
+internal object ExtractedKey {
+
+    private const val BARE_T = "t"
+
+    private val CALLEE = Regex("""[\p{L}\p{N}_$.]+$""")
+
+    /** True when [element], a string token, is the first argument of a translation call or the `id` of a react-intl descriptor. */
+    fun holds(element: PsiElement): Boolean {
+        val preset = ModulePresets.presetOf(element)
+        val literal = element.parent as? JSLiteralExpression
+        if (literal != null && ModulePresets.allows(preset, ReactIntlCall.PRESET) && ReactIntlExtractor.isFormatMessageDescriptor(literal)) return true
+        val call = (element.parent?.parent as? JSArgumentList)?.parent as? JSCallExpression ?: return false
+        val callee = call.methodExpression as? JSReferenceExpression ?: return false
+        // The module's own wrapper: no framework publishes it, an import gate on its name (Transloco's
+        // `translate`) must not keep it out, and every argument it takes — the key, the text a
+        // `{text}` template writes after it — is the extraction's own.
+        if (callee.text == templateCallee(element)) return true
+        if (call.arguments.firstOrNull() !== element.parent) return false
+        val published = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
+        val names = ModulePresets.restrict(published, preset) + BARE_T +
+            // A call a rule includes is a translation call, as the annotator reads it.
+            listOfNotNull(callee.text.takeIf { jsRuleDecision(element) == RuleDecision.INCLUDE })
+        if (names.none { it.substringAfterLast('.') == callee.referenceName }) return false
+        return isDirectOrConfiguredCall(element, names)
     }
+
+    /**
+     * The function the module's call template calls — `translate` for `translate({key}, {text})`,
+     * `tr` for `tr({text}, {key})` — or null: no template, or one that names no function.
+     */
+    fun templateCallee(element: PsiElement): String? =
+        CallTemplate.of(element)?.substringBefore(CallTemplate.KEY)?.substringBefore('(')?.trim()?.let { CALLEE.find(it)?.value }
 }

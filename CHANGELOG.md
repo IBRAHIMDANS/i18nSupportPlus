@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Fixes
+
+- [Translation files] **A key without a namespace prefix is written to the default namespace's file**: the CSV/XLIFF import, the table's in-place edit and the automatic fills (*Fill Missing*, *Retranslate Stale*, *Internationalize…*) wrote it to whichever file of the locale came first, while *Sync Keys* already used the default namespace. The import summary now counts only the values actually written and names the entries no file could take.
+- [Tool window] ***Clean Up Unused Keys* no longer deletes a namesake from another namespace**: removing `menu.home` from the default namespace also removed `auth:menu.home`, which may still be in use.
+- [Settings] **Modules declared in `i18n-check.json` apply everywhere**: presets, call templates, react-intl extraction, review folders, the MCP tools, *Retranslate Stale Translations* and the branch comparison read only the modules entered in the IDE settings, so a project configured by the file alone had none of them.
+- [Refactoring] ***Move Key* follows your separators and module layout**: it wrote keys with `.` and `:` whatever the settings, rewrote no call written with other separators, and created a `<ns>.json` next to the source even in a `locales/{ns}/{lang}.json` layout. Flat keys now move whole.
+- [Settings] **A translations root typed with `./`, `/` or `\` is read**: `./src/locales` or `/src/locales` matched no file and the plugin fell silent; the scan, the setup check, TypeScript catalogs and *Add Namespace* now read it as the folder it names. The excluded directories and file extensions accept `;` and spaces as separators, like the other lists.
+- [Settings] **Separators of several characters are refused**: `::` or `__` were accepted and split keys character by character. The settings page and the setup wizard now say why next to the field, and a value already stored or read from `i18n-check.json` is reported at the top of the settings page.
+- [Settings] **The settings banner and the modules read a root written `./`, `/` or `\` like the rest of the plugin**: the banner reported `./locales` as missing while the plugin read it, and a module rooted at `./apps/web` owned no file.
+- [CLI] **`i18n-check` says a translation file is not UTF-8 instead of calling it invalid**, so a re-saved `fr.json` no longer sends you looking for a syntax error.
+- [Import] **A CSV saved by Excel imports again**: a file re-saved as "UTF-8 with BOM" was rejected as having an invalid header.
+- [Extraction] ***Extract I18n*, *Batch Extract* and *Internationalize…* no longer offer a key already extracted**: a string inside `$t('…')`, `i18n._('…')`, `formatMessage({ id })` or the module's call template was offered for extraction, and accepted, became a translation of itself.
+- [Translation files] **New files stay valid whatever the key holds**: a key with quotes, `:` or `#` broke a JSON or YAML file created by *Create key*. A new `.properties` file joins the key with your key separator, and a new XLIFF file declares your module's reference locale instead of `en`.
+- [CLI] **`i18n-check` and the IDE agree on keys built dynamically**: a key reached only through `` t(`errors.${code}`) `` could pass in CI and be reported unused in the IDE.
+- [CLI] **`i18n-check` no longer stops with a stack trace on a file that is not UTF-8**: a source file is read with replacement characters and named in a warning, a manifest, translation or settings file that cannot be decoded is reported by name, and a Latin-1 Java bundle is read as Java reads it.
+- [Editor] **The hover's arrow link opens the source file**: it did nothing for keys declared in an i18next configuration file or outside the project root; it now opens the file at the namespace's object.
+- [Tools] **A pseudo-locale keeps a key that is both a value and a parent**: with `a` and `a.b`, `b` was written at the root of the generated file.
+- [Extraction] ***Internationalize…* no longer fails on a declaration with an empty name** (`''() {}`) when naming the component.
+
 ## 1.18.1 - 2026-11-04
 
 ### Fixes

@@ -91,6 +91,13 @@ interface ContentGenerator {
     fun generateContent(fullKey: FullKey, value: String?): String = generateContent(fullKey.compositeKey, value ?: fullKey.source)
 
     /**
+     * The content of a new file, to be created at [path] (absolute), holding [fullKey] = [value]:
+     * [project] and [path] reach the settings of the module the file falls in — its key separator,
+     * its reference locale. A format whose content depends on neither keeps the default.
+     */
+    fun generateContent(project: Project, path: String, fullKey: FullKey, value: String?): String = generateContent(fullKey, value)
+
+    /**
      * Generates content by given composite key
      */
 

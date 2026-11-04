@@ -108,6 +108,14 @@ class HookInsertionTest : PlatformBaseTest() {
         Assertions.assertNull(componentOf(helper))
     }
 
+    /** A method named by an empty string (`''() {}`) has no first letter to read: no component, no exception. */
+    @Test
+    fun anEmptyNameGetsNoHookAndNeverThrows() = myFixture.runWithConfig(config) {
+        val file = myFixture.addFileToProject("src/unnamed.tsx", "const o = { ''() { return <p>Hello</p>; } };")
+
+        Assertions.assertNull(componentOf(file))
+    }
+
     /** A react-intl component has no `t`: it gets `const intl = useIntl()`, never react-i18next's hook. */
     @Test
     fun aReactIntlComponentGetsUseIntlInsteadOfUseTranslation() = myFixture.runWithConfig(config) {

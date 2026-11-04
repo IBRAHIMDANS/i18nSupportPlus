@@ -1,6 +1,8 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.ide.runWithConfig
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.intellij.json.psi.JsonFile
 import com.intellij.json.psi.JsonObject
 import com.intellij.json.psi.JsonStringLiteral
@@ -67,6 +69,21 @@ class CleanupUnusedKeysActionTest : PlatformBaseTest() {
         Assertions.assertNull(valueAt("locales/fr/common.json", "menu", "exit"))
         Assertions.assertEquals("Home", valueAt("locales/en/common.json", "menu", "home"), "sibling keys must survive")
         Assertions.assertEquals("Accueil", valueAt("locales/fr/common.json", "menu", "home"))
+    }
+
+    /**
+     * With `common` as the default namespace, `menu.home` is common's key and `auth:menu.home`
+     * another one, on its own row: deleting the first used to delete the second with it.
+     */
+    @Test
+    fun deleteKeys_leavesTheHomonymOfAnotherNamespaceAlone() = myFixture.runWithConfig(Config(defaultNs = "common")) {
+        addFileToProject("locales/en/auth.json", """{"menu":{"home":"Sign-in home"}}""")
+        addFileToProject("locales/en/common.json", """{"menu":{"home":"Home"}}""")
+
+        Assertions.assertEquals(1, action.deleteKeys(project, listOf("menu.home")), "one locale entry, common's")
+
+        Assertions.assertNull(valueAt("locales/en/common.json", "menu", "home"))
+        Assertions.assertEquals("Sign-in home", valueAt("locales/en/auth.json", "menu", "home"), "auth's key is not the one deleted")
     }
 
     @Test

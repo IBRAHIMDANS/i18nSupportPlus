@@ -122,6 +122,7 @@ class TranslationChangesDialog(
     }
 
     private fun fill() {
+        val config = Settings.getInstance(project).config()
         model.setRowCount(0)
         laggingOnly.text = PluginBundle.message("diff.translation.lagging.only", shown.lagging.size)
         laggingOnly.isEnabled = shown.lagging.isNotEmpty()
@@ -131,7 +132,7 @@ class TranslationChangesDialog(
         if (laggingOnly.isSelected) {
             model.setColumnIdentifiers(arrayOf(keyColumn(), localeColumn(), changeColumn()))
             val behind = PluginBundle.message("diff.translation.kind.lagging", shown.referenceLocale ?: "")
-            shown.lagging.forEach { model.addRow(arrayOf(keyOf(it.namespace, it.path), it.locale, behind)) }
+            shown.lagging.forEach { model.addRow(arrayOf(keyOf(config, it.namespace, it.path), it.locale, behind)) }
         } else {
             model.setColumnIdentifiers(
                 arrayOf(
@@ -141,7 +142,7 @@ class TranslationChangesDialog(
                 )
             )
             shown.changes.forEach {
-                model.addRow(arrayOf(keyOf(it.namespace, it.path), it.locale, kindOf(it.kind), it.before.orEmpty(), it.after.orEmpty()))
+                model.addRow(arrayOf(keyOf(config, it.namespace, it.path), it.locale, kindOf(it.kind), it.before.orEmpty(), it.after.orEmpty()))
             }
         }
     }
@@ -159,7 +160,15 @@ class TranslationChangesDialog(
         TranslationChange.Kind.MODIFIED -> PluginBundle.message("diff.translation.kind.modified")
     }
 
-    private fun keyOf(namespace: String, path: List<String>) = "$namespace:${path.joinToString(".")}"
+    companion object {
+        /**
+         * [path] in [namespace] as the table spells it: `common:menu.home`, the levels joined with the
+         * configured key separator — `.` was hard-coded, so a project nesting with `/` read `a.b` here
+         * and `a/b` everywhere else.
+         */
+        internal fun keyOf(config: Config, namespace: String, path: List<String>): String =
+            namespace + KeySpelling.NAMESPACE_SEPARATOR + path.fold("") { spelled, segment -> KeySpelling.child(config, spelled, segment) }
+    }
 }
 
 /**
@@ -287,7 +296,7 @@ internal object LaggingRetranslation {
         val reference = found.referenceLocale ?: return Plan(emptyList(), emptyList())
         if (found.lagging.isEmpty()) return Plan(emptyList(), emptyList())
         val config = Settings.getInstance(project).config()
-        val modules = Settings.getInstance(project).modules.filter { it.rootDirectory.isNotBlank() }
+        val modules = config.modules.filter { it.rootDirectory.isNotBlank() }
         // Every configured module, not only those holding a lagging key: one with no file in the project's reference is named too.
         val otherReference = if (modules.size < 2) emptyList() else modules.filter { LocalTranslationChanges.referenceOf(project, it, config) != reference }
         val scopes: List<ModuleConfig?> = if (modules.size < 2) listOf(null)

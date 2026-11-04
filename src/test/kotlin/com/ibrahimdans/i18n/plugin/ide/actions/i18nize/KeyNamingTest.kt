@@ -90,4 +90,11 @@ class KeyNamingTest : PlatformBaseTest() {
         val text = textOf("order-summary.tsx", "export default function () { return <p>Total</p>; }", "Total")
         Assertions.assertEquals("orderSummary", ReadAction.compute<String, RuntimeException> { KeyNaming.componentOf(text) })
     }
+
+    /** A method named by an empty string (`''() {}`) has no first letter to read: the file names the text. */
+    @Test
+    fun anEmptyNameNamesNothingAndNeverThrows() {
+        val text = textOf("order-summary.tsx", "const o = { ''() { return <p>Total</p>; } };", "Total")
+        Assertions.assertEquals("orderSummary", ReadAction.compute<String, RuntimeException> { KeyNaming.componentOf(text) })
+    }
 }

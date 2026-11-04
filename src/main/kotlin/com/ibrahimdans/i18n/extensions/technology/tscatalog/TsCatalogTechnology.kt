@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.Localization
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.SOURCE_ROOT
+import com.ibrahimdans.i18n.SourceDiscovery
 import com.ibrahimdans.i18n.Technology
 import com.ibrahimdans.i18n.Workspace
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
@@ -238,8 +239,8 @@ class TsCatalogTechnology : Technology {
         if (file.path.split('/').any { it == NODE_MODULES }) return false
         if (ProjectFileIndex.getInstance(project).isExcluded(file)) return false
         if (file.path.split('/').any { it in config.excludedDirectorySet() }) return false
-        val root = config.translationsRoot
-        if (root.isNotBlank()) return file.path.startsWith("$basePath/${root.trim('/')}")
+        val root = config.normalizedTranslationsRoot()
+        if (root.isNotBlank()) return SourceDiscovery.isUnderRoot(file.path, root, basePath)
         return file.parent?.name?.lowercase() in CATALOG_DIRECTORY_NAMES ||
             file.nameWithoutExtension.lowercase() in CATALOG_FILE_STEMS
     }

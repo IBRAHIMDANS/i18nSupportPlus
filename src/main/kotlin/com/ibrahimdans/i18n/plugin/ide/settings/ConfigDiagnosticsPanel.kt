@@ -42,6 +42,12 @@ enum class ConfigIssue {
     DEFAULT_NS_EMPTY,
     KEY_SEPARATOR_EMPTY,
 
+    /**
+     * A stored separator [SeparatorRules] refuses — several characters, a refused one, the namespace
+     * and key separators alike: `i18n-check.json` and settings saved before the rule can hold one.
+     */
+    SEPARATOR_INVALID,
+
     /** No locale has a file for the default namespace: every key without a prefix is unresolved. */
     DEFAULT_NS_NO_FILE,
 
@@ -61,7 +67,9 @@ data class ConfigDiagnostic(
     val module: String? = null,
     val path: String = "",
     val suggestion: String? = null,
-    val origin: String? = null
+    val origin: String? = null,
+    /** The problem a [ConfigIssue.SEPARATOR_INVALID] reports, null for every other issue. */
+    val separator: SeparatorRules.Problem? = null
 )
 
 /**
@@ -88,9 +96,10 @@ object ConfigDiagnostics {
 
     /** Every problem [config] currently has, in the order they should be shown. */
     fun inspect(config: Config, probe: DirectoryProbe, facts: NamespaceFacts = NamespaceFacts()): List<ConfigDiagnostic> = buildList {
-        val modules = config.modules.filter { it.rootDirectory.isNotBlank() }
+        val modules = config.modules.filter { Config.normalizeRoot(it.rootDirectory).isNotEmpty() }
 
-        if (config.translationsRoot.isBlank()) {
+        // Read as the scan reads it: `./` names no root, `./locales` and `/locales` name `locales`.
+        if (config.normalizedTranslationsRoot().isEmpty()) {
             // Modules carrying their own roots make the project-wide one redundant, so its
             // absence is only worth reporting when nothing else points at the translations.
             if (modules.isEmpty()) add(ConfigDiagnostic(ConfigIssue.ROOT_NOT_CONFIGURED))
@@ -107,7 +116,15 @@ object ConfigDiagnostics {
             add(ConfigDiagnostic(ConfigIssue.DEFAULT_NS_EMPTY))
         }
         defaultNamespaceWithoutFile(config, facts)?.let(::add)
-        if (config.keySeparator.isBlank()) add(ConfigDiagnostic(ConfigIssue.KEY_SEPARATOR_EMPTY))
+        // The empty key separator keeps its own issue: it is a choice some flat-key projects make,
+        // and its banner says what the plugin does with it rather than refusing it.
+        SeparatorRules.check(config.nsSeparator, config.keySeparator, config.pluralSeparator).forEach { problem ->
+            if (problem.separator == SeparatorRules.Separator.KEY && problem.fault == SeparatorRules.Fault.EMPTY) {
+                add(ConfigDiagnostic(ConfigIssue.KEY_SEPARATOR_EMPTY))
+            } else {
+                add(ConfigDiagnostic(ConfigIssue.SEPARATOR_INVALID, path = problem.value, separator = problem))
+            }
+        }
     }
 
     /**
@@ -133,7 +150,8 @@ object ConfigDiagnostics {
     }
 
     private fun MutableList<ConfigDiagnostic>.addRootIssue(module: String?, path: String, probe: DirectoryProbe) {
-        when (probe.inspect(path)) {
+        // The banner shows the root as typed; the probe gets it as the plugin reads it.
+        when (probe.inspect(Config.normalizeRoot(path))) {
             DirectoryState.MISSING -> add(ConfigDiagnostic(ConfigIssue.ROOT_MISSING, module, path))
             DirectoryState.WITHOUT_TRANSLATIONS -> add(ConfigDiagnostic(ConfigIssue.ROOT_WITHOUT_TRANSLATIONS, module, path))
             DirectoryState.OK -> Unit
@@ -155,8 +173,28 @@ internal fun ConfigDiagnostic.text(): String = when (issue) {
 
     ConfigIssue.DEFAULT_NS_EMPTY -> PluginBundle.message("settings.diagnostics.defaultNs.empty")
     ConfigIssue.KEY_SEPARATOR_EMPTY -> PluginBundle.message("settings.diagnostics.keySeparator.empty")
+    ConfigIssue.SEPARATOR_INVALID -> separator?.text() ?: PluginBundle.message("settings.separator.refused.comment")
     ConfigIssue.DEFAULT_NS_NO_FILE -> PluginBundle.message("settings.diagnostics.defaultNs.noFile", path)
     ConfigIssue.DEFAULT_NS_FROM_CODE -> PluginBundle.message("settings.diagnostics.defaultNs.fromCode", path, origin.orEmpty())
+}
+
+/** The setting's label, as the settings page shows it: the subject of every separator message. */
+internal fun SeparatorRules.Separator.label(): String = when (this) {
+    SeparatorRules.Separator.NAMESPACE -> PluginBundle.message("settings.namespace.separator")
+    SeparatorRules.Separator.KEY -> PluginBundle.message("settings.key.separator")
+    SeparatorRules.Separator.PLURAL -> PluginBundle.message("settings.plural.separator")
+}
+
+/**
+ * The localized sentence for this problem, the same under a settings field and in a banner: the
+ * user who pasted `::` and the one who inherited it from `i18n-check.json` read the same words.
+ */
+internal fun SeparatorRules.Problem.text(): String = when (fault) {
+    SeparatorRules.Fault.EMPTY -> PluginBundle.message("settings.separator.empty", separator.label())
+    SeparatorRules.Fault.SEVERAL_CHARACTERS -> PluginBundle.message("settings.separator.severalCharacters", separator.label(), value)
+    SeparatorRules.Fault.REFUSED_CHARACTER -> PluginBundle.message("settings.separator.refusedCharacter", separator.label(), value)
+    SeparatorRules.Fault.SAME_AS_ANOTHER ->
+        PluginBundle.message("settings.separator.sameAsAnother", separator.label(), (other ?: separator).label(), value)
 }
 
 /** The label of the action applying [ConfigDiagnostic.suggestion]: `Use 'common' (from src/i18n.ts)`. */
@@ -290,7 +328,7 @@ class ConfigDiagnosticsPanel(
                 }
             }
 
-            ConfigIssue.DEFAULT_NS_EMPTY, ConfigIssue.KEY_SEPARATOR_EMPTY, ConfigIssue.DEFAULT_NS_FROM_CODE -> Unit
+            ConfigIssue.DEFAULT_NS_EMPTY, ConfigIssue.KEY_SEPARATOR_EMPTY, ConfigIssue.SEPARATOR_INVALID, ConfigIssue.DEFAULT_NS_FROM_CODE -> Unit
         }
         return banner
     }
@@ -299,7 +337,8 @@ class ConfigDiagnosticsPanel(
 
     private fun inspect(root: String): DirectoryState {
         val basePath = project.basePath ?: ""
-        val dirPath = if (root.startsWith("/")) root else "$basePath/$root"
+        // Config.resolveRoot, as the scan: `/locales` is the project's `locales`, an absolute path inside the project is kept.
+        val dirPath = Config.resolveRoot(root, basePath)
         val dir = LocalFileSystem.getInstance().findFileByPath(dirPath)
             ?: LocalFileSystem.getInstance().findFileByIoFile(File(dirPath))
 

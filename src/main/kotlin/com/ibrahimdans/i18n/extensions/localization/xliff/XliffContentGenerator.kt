@@ -2,12 +2,16 @@ package com.ibrahimdans.i18n.extensions.localization.xliff
 
 import com.ibrahimdans.i18n.ContentGenerator
 import com.ibrahimdans.i18n.extensions.technology.symfony.SymfonyTranslations
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
+import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.intellij.lang.Language
 import com.intellij.lang.xml.XMLLanguage
 import com.intellij.openapi.fileTypes.FileType
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -27,12 +31,25 @@ import com.intellij.psi.xml.XmlTag
  */
 class XliffContentGenerator : ContentGenerator {
 
-    override fun generateContent(compositeKey: List<Literal>, value: String): String {
+    override fun generateContent(compositeKey: List<Literal>, value: String): String =
+        content(compositeKey, value, DEFAULT_SOURCE_LANGUAGE)
+
+    /**
+     * The new file declares the reference locale of the module [path] falls in ([ReferenceLocale.wanted])
+     * as its `source-language`: it declared `en` whatever the module translates from.
+     */
+    override fun generateContent(project: Project, path: String, fullKey: FullKey, value: String?): String {
+        val config = Settings.getInstance(project).config()
+        val module = ModuleSources.owner(config.modules, ModuleSources.FilePath.of(path, project.basePath ?: ""))
+        return content(fullKey.compositeKey, value ?: fullKey.source, ReferenceLocale.wanted(module, config))
+    }
+
+    private fun content(compositeKey: List<Literal>, value: String, sourceLanguage: String): String {
         val id = escape(idOf(compositeKey))
         return """
             |<?xml version="1.0" encoding="UTF-8"?>
             |<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
-            |  <file source-language="en" datatype="plaintext" original="ng2.template">
+            |  <file source-language="${escape(sourceLanguage)}" datatype="plaintext" original="ng2.template">
             |    <body>
             |      <trans-unit id="$id" datatype="html">
             |        <source>${placeholdersXml(value, version2 = false) ?: escape(value)}</source>
@@ -164,6 +181,9 @@ class XliffContentGenerator : ContentGenerator {
     internal companion object {
         /** One level of indentation, as `ng extract-i18n` writes it. */
         private const val STEP = "  "
+
+        /** The `source-language` of a file generated with no project at hand. */
+        private const val DEFAULT_SOURCE_LANGUAGE = "en"
 
         /** An Angular interpolation with its default delimiters, the expression as written between them. */
         private val INTERPOLATION = Regex("""\{\{(.*?)}}""")

@@ -124,7 +124,8 @@ internal object HookInsertion {
             if (current is JSClass) return null
             if (current is JSFunction) {
                 val name = current.name ?: PsiTreeUtil.getParentOfType(current, JSVariable::class.java, true, JSFunction::class.java)?.name
-                if (name != null && name.first().isUpperCase()) return current
+                // `firstOrNull`: a method named by an empty string (`''() {}`) has no first letter.
+                if (name != null && name.firstOrNull()?.isUpperCase() == true) return current
             }
             current = current.parent
         }
