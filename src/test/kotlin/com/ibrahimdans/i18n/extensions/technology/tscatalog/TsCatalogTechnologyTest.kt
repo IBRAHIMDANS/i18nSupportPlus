@@ -172,26 +172,33 @@ class TsCatalogTechnologyTest : PlatformBaseTest() {
      * Checked on [TsCatalogTechnology.isCandidate] with an explicit base path rather than
      * through `findSourcesByConfiguration`: the light fixture keeps its files in an in-memory
      * VFS rooted at `/src`, while `project.basePath` is a real temp directory, so a configured
-     * root — matched as `"$basePath/$root"` exactly as `LocalizationSourceService.isIncluded`
+     * root — matched under `basePath` exactly as `LocalizationSourceService.isIncluded`
      * does — can never prefix them. Going through the project here would assert nothing.
      */
     @Test
     fun findsACatalogUnderTheConfiguredTranslationsRoot() {
         val inRoot = addFileToProject("content/copy.ts", CATALOG).virtualFile
         val outOfRoot = addFileToProject("elsewhere/copy.ts", CATALOG).virtualFile
+        val inSibling = addFileToProject("content2/copy.ts", CATALOG).virtualFile
         // The fixture's own content root, i.e. the parent of the paths passed above.
         val basePath = inRoot.parent.parent.path
-        val config = Config(translationsRoot = "content")
 
         ReadAction.run<RuntimeException> {
-            Assertions.assertTrue(
-                technology.isCandidate(inRoot, project, config, basePath),
-                "a catalog under the configured root is a candidate whatever its folder is named"
-            )
-            Assertions.assertFalse(
-                technology.isCandidate(outOfRoot, project, config, basePath),
-                "a configured root excludes everything outside it"
-            )
+            for (root in listOf("content", " ./content/ ", "/content")) {
+                val config = Config(translationsRoot = root)
+                Assertions.assertTrue(
+                    technology.isCandidate(inRoot, project, config, basePath),
+                    "a catalog under the root spelled '$root' is a candidate whatever its folder is named"
+                )
+                Assertions.assertFalse(
+                    technology.isCandidate(outOfRoot, project, config, basePath),
+                    "a configured root excludes everything outside it"
+                )
+                Assertions.assertFalse(
+                    technology.isCandidate(inSibling, project, config, basePath),
+                    "content2/ is not under content"
+                )
+            }
         }
     }
 

@@ -153,7 +153,7 @@ data class Config (
 
     fun excludedFileExtensionSet(): Set<String> =
         excludedFileExtensions
-            .split(",")
+            .split("[;|,\\s]".toRegex())
             .map { it.trim().trimStart('.').lowercase() }
             .filter { it.isNotEmpty() }
             .toSet()
@@ -180,6 +180,22 @@ data class Config (
             val slashed = root.trim().replace('\\', '/')
             val relative = slashed.removePrefix("./")
             return if (relative.startsWith("/")) relative.trimEnd('/') else relative.trim('/')
+        }
+
+        /**
+         * The folder [root] names, as an absolute path without a trailing `/`: [normalizeRoot] applied,
+         * then an absolute path pointing inside the project (`/home/me/app/locales` for a [basePath] of
+         * `/home/me/app`) kept as it is, and any other leading `/` read as the project root, as the
+         * settings page and the wizard let users type it. Every reader of a root resolves it here, so
+         * the scan, the setup check and the files *Add Namespace* writes agree on the folder.
+         */
+        fun resolveRoot(root: String, basePath: String): String {
+            val normalized = normalizeRoot(root)
+            val base = basePath.trimEnd('/')
+            return when {
+                normalized == base || normalized.startsWith("$base/") -> normalized
+                else -> "$base/${normalized.trimStart('/')}".trimEnd('/')
+            }
         }
     }
 }

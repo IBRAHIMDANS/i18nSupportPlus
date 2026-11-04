@@ -43,8 +43,19 @@ class ConfigTest {
     }
 
     @Test
-    fun `excluded directories split on any separator like the other lists`() {
+    fun `exclusion lists split on any separator like the other lists`() {
         assertEquals(setOf("a", "b", "c", "d"), Config(excludedDirectories = "a; b,c d").excludedDirectorySet())
+        assertEquals(setOf("json", "yml", "po"), Config(excludedFileExtensions = ".json; yml|.PO").excludedFileExtensionSet())
+    }
+
+    @Test
+    fun `a root resolves under the project unless it is an absolute path inside it`() {
+        assertEquals("/p/src/locales", Config.resolveRoot("./src/locales/", "/p"))
+        assertEquals("/p/src/locales", Config.resolveRoot("/src/locales", "/p"), "a leading slash is the project root")
+        assertEquals("/p/src/locales", Config.resolveRoot("/p/src/locales", "/p/"), "an absolute path inside the project")
+        assertEquals("/p", Config.resolveRoot("/p", "/p"))
+        assertEquals("/p", Config.resolveRoot("", "/p"), "no root is the project itself")
+        assertEquals("/p/elsewhere/locales", Config.resolveRoot("/elsewhere/locales", "/p"), "an absolute path outside the project is read under it")
     }
 
     @Test

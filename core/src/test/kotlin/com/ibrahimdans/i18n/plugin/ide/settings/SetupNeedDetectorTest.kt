@@ -108,13 +108,37 @@ class SetupNeedDetectorTest {
         }
     }
 
+    /** The root is free text: each spelling of a folder is probed as the scan reads it. */
     @Test
-    fun `an absolute root is read as is`() {
+    fun `a root resolves however it is spelled`() {
         withTempProject { base ->
-            val outside = File(base, "outside/locales").also { it.mkdirs() }
-            File(outside, "fr.json").writeText("{}")
+            File(base, "public/locales").mkdirs()
+            File(base, "public/locales/fr.json").writeText("{}")
 
-            assertTrue(SetupNeedDetector.holdsTranslations(null, outside.absolutePath))
+            for (root in listOf(" ./public/locales/ ", "/public/locales", "public\\locales")) {
+                assertTrue(SetupNeedDetector.holdsTranslations(base.path, root), "root spelled '$root'")
+            }
+            assertTrue(SetupNeedDetector.holdsTranslations(base.path, File(base, "public/locales").absolutePath), "an absolute root inside the project")
+            assertEquals(
+                SetupNeed.NONE,
+                SetupNeedDetector.detect(Config(translationsRoot = "/public/locales")) { SetupNeedDetector.holdsTranslations(base.path, it) },
+                "the root the detector hands over is the one the probe resolves"
+            )
+        }
+    }
+
+    @Test
+    fun `a root outside the project is read under it, as the scan does`() {
+        withTempProject { base ->
+            val outside = Files.createTempDirectory("setup-need-outside").toFile()
+            try {
+                File(outside, "fr.json").writeText("{}")
+
+                assertFalse(SetupNeedDetector.holdsTranslations(base.path, outside.absolutePath))
+                assertFalse(SetupNeedDetector.holdsTranslations(null, outside.absolutePath), "no project, nothing to resolve under")
+            } finally {
+                outside.deleteRecursively()
+            }
         }
     }
 

@@ -366,9 +366,9 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
                 )
             }
 
-            val root = config.translationsRoot.trim('/').ifBlank { FALLBACK_ROOT }
+            val rootPath = Config.resolveRoot(config.normalizedTranslationsRoot().ifBlank { FALLBACK_ROOT }, basePath)
             val extension = if (config.preferredLocalization == "yaml") "yml" else "json"
-            return NamespacePlan.Create(FALLBACK_LOCALES.map { "$basePath/$root/$it/$name.$extension" })
+            return NamespacePlan.Create(FALLBACK_LOCALES.map { "$rootPath/$it/$name.$extension" })
         }
 
         /**

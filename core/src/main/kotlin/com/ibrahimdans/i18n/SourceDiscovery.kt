@@ -338,24 +338,12 @@ class SourceDiscovery<N, F : TranslationFormat>(
 
         /**
          * True when [path] lies inside the folder [translationsRoot] names — `locales2/` is not under
-         * `locales`. The root is read as [Config.normalizedTranslationsRoot] spells it, so `./locales`,
-         * `/locales`, `locales\` and `locales` are the same folder under [basePath]. An absolute path
-         * is taken as such when it points inside the project (`/home/me/app/locales` for a [basePath]
-         * of `/home/me/app`); a leading `/` on anything else is the project root, as the settings page
-         * and the wizard let users type it.
+         * `locales`. The root is read as [Config.resolveRoot] does, so `./locales`, `/locales`,
+         * `locales\` and `locales` are the same folder under [basePath].
          */
         fun isUnderRoot(path: String, translationsRoot: String, basePath: String): Boolean {
-            val rootPath = resolveRoot(translationsRoot, basePath)
+            val rootPath = Config.resolveRoot(translationsRoot, basePath)
             return path == rootPath || path.startsWith("$rootPath/")
-        }
-
-        private fun resolveRoot(translationsRoot: String, basePath: String): String {
-            val root = Config.normalizeRoot(translationsRoot)
-            val base = basePath.trimEnd('/')
-            return when {
-                root == base || root.startsWith("$base/") -> root
-                else -> "$base/${root.trimStart('/')}".trimEnd('/')
-            }
         }
     }
 }
