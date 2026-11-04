@@ -132,6 +132,40 @@ class ConfigDiagnosticsTest {
         )
     }
 
+    @Test
+    fun `a stored two-character namespace separator is reported with the rule's problem`() {
+        val diagnostics = ConfigDiagnostics.inspect(Config(translationsRoot = "locales", nsSeparator = "::"), healthy)
+
+        assertEquals(
+            listOf(
+                ConfigDiagnostic(
+                    ConfigIssue.SEPARATOR_INVALID,
+                    path = "::",
+                    separator = SeparatorRules.Problem(SeparatorRules.Separator.NAMESPACE, SeparatorRules.Fault.SEVERAL_CHARACTERS, "::")
+                )
+            ),
+            diagnostics
+        )
+    }
+
+    @Test
+    fun `the namespace and key separators holding the same character are reported once`() {
+        val diagnostics = ConfigDiagnostics.inspect(Config(translationsRoot = "locales", nsSeparator = ".", keySeparator = "."), healthy)
+
+        assertEquals(
+            listOf(
+                ConfigDiagnostic(
+                    ConfigIssue.SEPARATOR_INVALID,
+                    path = ".",
+                    separator = SeparatorRules.Problem(
+                        SeparatorRules.Separator.KEY, SeparatorRules.Fault.SAME_AS_ANOTHER, ".", other = SeparatorRules.Separator.NAMESPACE
+                    )
+                )
+            ),
+            diagnostics
+        )
+    }
+
     private val cboxFiles = mapOf("en" to setOf("common", "auth"), "fr" to setOf("common", "auth"))
     private val initCode = CodeDefaults("src/i18n.ts", defaultNs = listOf("common"))
 
