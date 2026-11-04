@@ -88,6 +88,35 @@ class NextIntlMethodsTest : PlatformBaseTest() {
         myFixture.checkHighlighting(true, true, true, true)
     }
 
+    /** `t.rich` with `${role}` mid-key: a component reading `Home.role.<role>.label`. */
+    private fun richRoleLabel(key: String) = """
+        import { useTranslations } from 'next-intl';
+        export default function RoleLabel({ role }: { role: string }) {
+            const t = useTranslations('Home');
+            return t.rich(`$key`, {});
+        }
+    """.trimIndent()
+
+    private fun withRoleMessages(body: () -> Unit) = myFixture.runWithConfig(config) {
+        addFileToProject("messages/en.json", """{"Home": {"role": {"owner": {"label": "Owner"}, "member": {"label": "Member"}}}}""")
+        body()
+    }
+
+    @Test
+    fun aTemplateKeyKeepsItsMidKeyInterpolationUnderRich() = withRoleMessages {
+        myFixture.configureByText("RoleLabel.tsx", richRoleLabel("role.\${role}.label"))
+        myFixture.checkHighlighting(true, true, true, true)
+    }
+
+    @Test
+    fun aMissingStaticPrefixBeforeAnInterpolationIsReportedUnderRich() = withRoleMessages {
+        myFixture.configureByText(
+            "RoleLabel.tsx",
+            richRoleLabel("<error descr=\"Unresolved key\">absent.\${role}.label</error>"),
+        )
+        myFixture.checkHighlighting(true, true, true, true)
+    }
+
     @Test
     fun rawMayReadAnArray() = withMessages {
         myFixture.configureByText("Home.tsx", component("t.raw('features')"))
