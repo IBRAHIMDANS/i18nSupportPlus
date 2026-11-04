@@ -14,6 +14,7 @@ import com.ibrahimdans.i18n.plugin.parser.KeyResolver
 import com.ibrahimdans.i18n.plugin.tree.ContextKey
 import com.ibrahimdans.i18n.plugin.tree.ContextOption
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
+import com.ibrahimdans.i18n.plugin.usages.DynamicReach
 import com.ibrahimdans.i18n.plugin.utils.TextSpan
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 
@@ -135,14 +136,17 @@ class TreeSitterKeyUsageIndex(
         return path.dropLast(1) + base to context
     }
 
-    /** The rule of the plugin's `DynamicKeyUsages`, over every dynamic call site indexed. */
+    /**
+     * The rule the plugin's `DynamicKeyUsages` applies, [DynamicReach], over every dynamic call
+     * site indexed: one rule, so `i18n-check` and the IDE agree on which keys are reached.
+     */
     @Synchronized
     override fun dynamicallyReached(keys: Collection<String>): Set<String> {
         val shapes = files.values.flatMapTo(mutableSetOf()) { sites -> sites.mapNotNull { it.shape } }
         if (shapes.isEmpty()) return emptySet()
         return keys.filterTo(mutableSetOf()) { key ->
             val bare = key.substringAfter(config.nsSeparator, key)
-            shapes.any { it.reaches(key, bare) }
+            shapes.any { DynamicReach.reaches(it.head, it.tail, key, bare, config.nsSeparator, config.keySeparator) }
         }
     }
 
@@ -194,10 +198,7 @@ class TreeSitterKeyUsageIndex(
     }
 
     /** The static ends of a dynamic key literal: a key it can produce starts with [head] and ends with [tail]. */
-    private data class Shape(val head: String, val tail: String) {
-        fun reaches(key: String, bare: String): Boolean =
-            (key.startsWith(head) || bare.startsWith(head)) && (key.endsWith(tail) || bare.endsWith(tail))
-    }
+    private data class Shape(val head: String, val tail: String)
 
     private companion object {
 

@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages
+import com.ibrahimdans.i18n.plugin.usages.DynamicReach
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.PsiSearchHelper
@@ -38,26 +39,11 @@ object DynamicKeyUsages {
      */
     internal data class Shape(val head: String, val tail: String) {
         /**
-         * Whether [key] — [bare] without its namespace — is one this literal can produce.
-         *
-         * A literal that is one segment and an interpolation, nothing more (`errors.` of
-         * `t(`errors.${'$'}{code}`)`), says nothing about its namespace: it reaches the keys of the
-         * default namespace only, the ones written without a namespace, rather than every
-         * `errors.*` of every namespace. A tail narrows the shape enough to keep the old rule
-         * (`menu.${'$'}{id}.label`).
+         * Whether [key] — [bare] without its namespace — is one this literal can produce: the
+         * rule of [DynamicReach], the one `i18n-check` applies too, so both give one verdict.
          */
-        fun reaches(key: String, bare: String, nsSeparator: String, keySeparator: String): Boolean {
-            if (key != bare && tail.isEmpty() && isBareSegment(head, nsSeparator, keySeparator)) return false
-            return (key.startsWith(head) || bare.startsWith(head)) && (key.endsWith(tail) || bare.endsWith(tail))
-        }
-    }
-
-    /** True when [head] is one key segment followed by the key separator: `errors.`. */
-    private fun isBareSegment(head: String, nsSeparator: String, keySeparator: String): Boolean {
-        if (keySeparator.isEmpty() || !head.endsWith(keySeparator)) return false
-        val segment = head.dropLast(keySeparator.length)
-        return segment.isNotEmpty() && !segment.contains(keySeparator) &&
-            (nsSeparator.isEmpty() || !segment.contains(nsSeparator))
+        fun reaches(key: String, bare: String, nsSeparator: String, keySeparator: String): Boolean =
+            DynamicReach.reaches(head, tail, key, bare, nsSeparator, keySeparator)
     }
 
     /**
