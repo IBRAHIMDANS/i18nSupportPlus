@@ -1,0 +1,73 @@
+[
+ {
+  "name": "com.ibrahimdans.i18n.extract.treesitter.TreeSitterCodeNode$Companion$parseTsx$reader$1",
+  "methods": [
+   {
+    "name": "read",
+    "parameterTypes": [
+     "byte[]",
+     "int",
+     "org.treesitter.TSPoint"
+    ]
+   }
+  ]
+ },
+ {
+  "name": "java.lang.Boolean",
+  "methods": [
+   {
+    "name": "getBoolean",
+    "parameterTypes": [
+     "java.lang.String"
+    ]
+   }
+  ]
+ },
+ {
+  "name": "org.treesitter.TSNode",
+  "fields": [
+   {
+    "name": "context0"
+   },
+   {
+    "name": "context1"
+   },
+   {
+    "name": "context2"
+   },
+   {
+    "name": "context3"
+   },
+   {
+    "name": "idPtr"
+   },
+   {
+    "name": "treePtr"
+   }
+  ]
+ },
+ {
+  "name": "org.treesitter.TSPoint",
+  "fields": [
+   {
+    "name": "column"
+   },
+   {
+    "name": "row"
+   }
+  ]
+ },
+ {
+  "name": "org.treesitter.TSReader",
+  "methods": [
+   {
+    "name": "read",
+    "parameterTypes": [
+     "byte[]",
+     "int",
+     "org.treesitter.TSPoint"
+    ]
+   }
+  ]
+ }
+]
