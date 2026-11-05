@@ -1,0 +1,31 @@
+diff --git a/core-treesitter/src/main/kotlin/com/ibrahimdans/i18n/extract/treesitter/TreeSitterCodeNode.kt b/core-treesitter/src/main/kotlin/com/ibrahimdans/i18n/extract/treesitter/TreeSitterCodeNode.kt
+index ef846599..1e425873 100644
+--- a/core-treesitter/src/main/kotlin/com/ibrahimdans/i18n/extract/treesitter/TreeSitterCodeNode.kt
++++ b/core-treesitter/src/main/kotlin/com/ibrahimdans/i18n/extract/treesitter/TreeSitterCodeNode.kt
+@@ -6,6 +6,7 @@ import org.treesitter.TSInputEncoding
+ import org.treesitter.TSLanguage
+ import org.treesitter.TSNode
+ import org.treesitter.TSParser
++import org.treesitter.TSPoint
+ import org.treesitter.TSReader
+ import org.treesitter.TSTreeCursor
+ import org.treesitter.TreeSitterTsx
+@@ -91,10 +92,14 @@ class TreeSitterCodeNode private constructor(
+             // Parsed from bytes encoded here rather than with parseString, whose offsets would count
+             // the JNI's modified UTF-8: a character outside the BMP is 6 bytes there, 4 in real UTF-8.
+             val bytes = text.toByteArray(Charsets.UTF_8)
+-            val reader = TSReader { buffer, offset, _ ->
+-                val count = minOf(buffer.size, bytes.size - offset).coerceAtLeast(0)
+-                System.arraycopy(bytes, offset, buffer, 0, count)
+-                count
++            // A named class, not a lambda: the native library looks `read` up on the reader's own class,
++            // which a native image only registers for a class that has a name.
++            val reader = object : TSReader {
++                override fun read(buffer: ByteArray, offset: Int, position: TSPoint?): Int {
++                    val count = minOf(buffer.size, bytes.size - offset).coerceAtLeast(0)
++                    System.arraycopy(bytes, offset, buffer, 0, count)
++                    return count
++                }
+             }
+             val tree = TSParser().use { parser ->
+                 parser.setLanguage(TSX)
