@@ -17,20 +17,31 @@ import com.intellij.psi.PsiElement
  *
  * The pipe is recognised on the surrounding text rather than through the Angular PSI classes,
  * which keeps this free of any compile-time dependency on the Angular plugin — the plugin is
- * optional, and the extractor must not fail to load when it is absent. Only the two closest
- * ancestors are examined, so an unrelated `| translate` elsewhere in the template does not
- * capture a literal that has nothing to do with it.
+ * optional, and the extractor must not fail to load when it is absent. See [isPipeInput].
  */
 class AngularTranslatePipeExtractor : KeyExtractor {
 
-    override fun canExtract(element: PsiElement): Boolean {
-        if (element !is JSLiteralExpression || !element.isStringLiteral) return false
-        return generateSequence(element.parent) { it.parent }
-            .take(2)
-            .any { it.text.contains("|") && it.text.contains("translate") }
-    }
+    override fun canExtract(element: PsiElement): Boolean = isPipeInput(element, PIPE)
 
     override fun extract(element: PsiElement): RawKey = RawKey(listOf(KeyElement.literal(pipeKeyOf(element))))
+}
+
+private val PIPE = Regex("""^[\s)]*\|\s*translate\b""")
+
+/**
+ * Whether [element] is a string literal written right before the pipe [pipe] matches: `'key' | translate`.
+ *
+ * Read on the text following the literal in one of its three closest ancestors: the pipe's left side,
+ * the pipe expression, and one more for a parenthesised or ternary input. The ancestors' whole text is not enough:
+ * in `[options]="{ type: 'date', label: 'validFrom' | translate }"`, the object holding `'date'`
+ * contains the pipe too, and `'date'` was reported as a missing key.
+ */
+internal fun isPipeInput(element: PsiElement, pipe: Regex): Boolean {
+    if (element !is JSLiteralExpression || !element.isStringLiteral) return false
+    val end = element.textRange.endOffset
+    return generateSequence(element.parent) { it.parent }
+        .take(3)
+        .any { ancestor -> pipe.containsMatchIn(ancestor.text.substring(end - ancestor.textRange.startOffset)) }
 }
 
 /**

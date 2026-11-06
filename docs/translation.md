@@ -78,6 +78,12 @@ Use the i18n tools to check the translations and delete the keys no code uses.
 
 The agent calls `i18n_check`, then `i18n_delete_unused_keys` with the keys it lists as unused. With several projects open in the IDE, it has to say which one (`projectPath`): give it the project folder if it asks.
 
+**4. Make the tools the default** (optional). Asked to translate without a word about the tools, an agent may edit the files itself: a client such as Claude Code loads a tool's definition only once the agent looks for it. One line in the project's instruction file — `CLAUDE.md` for Claude Code, `AGENTS.md` for Codex — settles it, with your own translations folder:
+
+```text
+For translation files (public/locales), use the i18n_* MCP tools instead of editing the JSON files.
+```
+
 ### Good to know
 
 - Only a missing value is filled, and only a stale one replaced: staleness is checked again when writing, so a value you fixed or approved after the agent listed it is refused (`Already filled and not stale`), and one changed during the write is left as it is (`Changed since it was read`). To re-translate any other filled value, use *Translate* in the *Edit Translation* dialog.
