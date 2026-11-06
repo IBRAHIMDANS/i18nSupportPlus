@@ -81,11 +81,15 @@ class I18NextTechnology : Technology {
                     (name, expr) ->
                         localizations.filter {
                             it.matches(LocalizationFileType(expr.containingFile.fileType), null, listOf())
-                        }.map {
+                        }.mapNotNull {
+                            // `translation: en` with `import en from './en.json'` holds no object: an empty
+                            // source, stating no namespace, kept a key without one from falling back to
+                            // the JSON files themselves, and every such key was unresolved (#863).
+                            val tree = it.elementsTree(expr) ?: return@mapNotNull null
                             expr.containingFile.putUserData(SOURCE_ROOT, true)
                             // One file holds every locale: the locale is the source's parent, and it
                             // keeps the path unique, or `distinctBy { displayPath }` kept the first locale.
-                            LocalizationSource(it.elementsTree(expr), name, name, "${expr.containingFile.name}#$name", it, locale = name)
+                            LocalizationSource(tree, name, name, "${expr.containingFile.name}#$name", it, locale = name)
                         }
                 }
             } }

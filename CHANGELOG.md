@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- [i18next] **Keys are found again when the i18next setup imports its JSON files**: with `resources: { en: { translation: en } }` and `import en from './en.json'`, every key without a namespace was reported unresolved, looked up in `index.ts#en`. The keys are read from the JSON files again.
+
 ## 1.19.0 - 2026-11-04
 
 ### Fixes
