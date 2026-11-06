@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- [Editor] **No more StackOverflowError in JavaScript and TypeScript files with string computed keys**: an object written `{ ['save']: … }` made the IDE report an error and stop resolving the file's keys.
+
 ## 1.19.0 - 2026-11-04
 
 ### Fixes
