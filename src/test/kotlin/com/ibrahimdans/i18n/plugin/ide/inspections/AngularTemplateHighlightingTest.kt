@@ -52,4 +52,25 @@ class AngularTemplateHighlightingTest : PlatformBaseTest() {
         )
         myFixture.checkHighlighting(true, false, false, true)
     }
+
+    /** #862: the object holding `'date'` contains a pipe, but `'date'` is not its input. */
+    @Test
+    fun ignoresAStringBesideAPipeInTheSameObject() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        angularProject()
+        myFixture.configureByText(
+            "tpl.html",
+            """<p [title]="{ type: 'date', label: 'menu.<error descr="Unresolved key">missing</error>' | translate }"></p>"""
+        )
+        myFixture.checkHighlighting(true, false, false, true)
+    }
+
+    @Test
+    fun readsAParenthesisedPipeInput() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        angularProject()
+        myFixture.configureByText(
+            "tpl.html",
+            """<p>{{ ('menu.<error descr="Unresolved key">missing</error>') | translate }}</p>"""
+        )
+        myFixture.checkHighlighting(true, false, false, true)
+    }
 }

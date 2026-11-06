@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- [Angular] **A string next to a `| translate` pipe is no longer read as a key**: in `[options]="{ type: 'date', label: 'validFrom' | translate }"`, `'date'` was reported as a missing key. Only the string the pipe applies to is a key now, for `| transloco` too, and `('key') | translate` is read as well.
+
 ## 1.19.0 - 2026-11-04
 
 ### Fixes
