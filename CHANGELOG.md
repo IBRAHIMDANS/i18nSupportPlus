@@ -4,6 +4,7 @@
 
 ### Fixes
 
+- [i18next] **Keys are found again when the i18next setup imports its JSON files**: with `resources: { en: { translation: en } }` and `import en from './en.json'`, every key without a namespace was reported unresolved, looked up in `index.ts#en`. The keys are read from the JSON files again.
 - [Angular] **A string next to a `| translate` pipe is no longer read as a key**: in `[options]="{ type: 'date', label: 'validFrom' | translate }"`, `'date'` was reported as a missing key. Only the string the pipe applies to is a key now, for `| transloco` too, and `('key') | translate` is read as well.
 - [Editor] **No more StackOverflowError in JavaScript and TypeScript files with string computed keys**: an object written `{ ['save']: … }` made the IDE report an error and stop resolving the file's keys.
 

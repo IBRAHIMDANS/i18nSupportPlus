@@ -7,10 +7,13 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ConfigDiagnostic
 import com.ibrahimdans.i18n.plugin.ide.settings.ConfigDiagnostics
 import com.ibrahimdans.i18n.plugin.ide.settings.ConfigIssue
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.namespaceFacts
 import com.ibrahimdans.i18n.plugin.ide.settings.useDefaultNamespace
+import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.intellij.openapi.components.service
 import com.intellij.openapi.util.TextRange
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -43,9 +46,9 @@ class I18nextInitDiscoveryTest : PlatformBaseTest() {
         addFileToProject("public/locales/en/auth.json", """{"login": "Log in"}""")
     }
 
-    private fun unresolvedKeysIn(calls: String): List<String> {
+    private fun unresolvedKeysIn(calls: String, path: String = "src/App.tsx"): List<String> {
         val file = addFileToProject(
-            "src/App.tsx",
+            path,
             "import { useTranslation } from 'react-i18next';\n" +
                 "export const A = () => { const { t } = useTranslation(); return [$calls]; };"
         )
@@ -157,5 +160,38 @@ class I18nextInitDiscoveryTest : PlatformBaseTest() {
             listOf(ConfigDiagnostic(ConfigIssue.DEFAULT_NS_FROM_CODE, path = "common", origin = "src/i18n.ts")),
             diagnostics.filter { it.issue != ConfigIssue.ROOT_NOT_CONFIGURED }
         )
+    }
+
+    /**
+     * #863: an initialisation importing its JSON files declares no resource of its own. Read as
+     * empty sources named `index.ts#en`, they stopped a key without a namespace from falling back
+     * to the JSON files, and every key was reported unresolved.
+     */
+    @Test
+    fun resourcesImportedFromJsonFilesLeaveTheKeysToThoseFiles() = myFixture.runWithConfig(
+        Config(
+            defaultNs = "",
+            modules = listOf(ModuleConfig(name = "app", rootDirectory = "app", pathTemplate = "src/i18n/{lang}.json", keyTemplate = "{key}")),
+        )
+    ) {
+        addFileToProject("app/src/i18n/en.json", """{"Tabs": {"equipment": "Equipment"}}""")
+        addFileToProject("app/src/i18n/de.json", """{"Tabs": {"equipment": "Ausrüstung"}}""")
+        addFileToProject(
+            "app/src/i18n/index.ts",
+            """
+            import i18n from 'i18next';
+            import { initReactI18next } from 'react-i18next';
+            import en from './en.json';
+            import de from './de.json';
+
+            i18n.use(initReactI18next).init({ resources: { en: { translation: en }, de: { translation: de } }, lng: 'en' });
+            export default i18n;
+            """.trimIndent()
+        )
+
+        val noNamespace = project.service<LocalizationSourceService>().findSources(emptyList(), project).map { it.displayPath }
+        assertTrue(noNamespace.none { it.startsWith("index.ts#") }, "no empty source for the imported resources: $noNamespace")
+        assertTrue(noNamespace.any { it.endsWith("en.json") }, "a key without namespace falls back to the JSON files: $noNamespace")
+        assertTrue(unresolvedKeysIn("t('Tabs.equipment')", "app/src/App.tsx").isEmpty())
     }
 }
