@@ -58,22 +58,17 @@ class TranslocoDirectiveExtractor : AngularDirectiveExtractor("transloco")
 
 /**
  * The key of `{{ 'key' | transloco }}` in an Angular template, recognised like
- * [AngularTranslatePipeExtractor] recognises `| translate`: on the text of the two closest
- * ancestors, with no compile-time dependency on the Angular plugin.
+ * [AngularTranslatePipeExtractor] recognises `| translate` ([isPipeInput]), with no compile-time
+ * dependency on the Angular plugin.
  */
 class TranslocoPipeExtractor : KeyExtractor {
 
-    override fun canExtract(element: PsiElement): Boolean {
-        if (element !is JSLiteralExpression || !element.isStringLiteral) return false
-        return generateSequence(element.parent) { it.parent }
-            .take(2)
-            .any { PIPE.containsMatchIn(it.text) }
-    }
+    override fun canExtract(element: PsiElement): Boolean = isPipeInput(element, PIPE)
 
     override fun extract(element: PsiElement): RawKey = RawKey(listOf(KeyElement.literal(pipeKeyOf(element))))
 
     private companion object {
-        val PIPE = Regex("""\|\s*transloco\b""")
+        val PIPE = Regex("""^[\s)]*\|\s*transloco\b""")
     }
 }
 

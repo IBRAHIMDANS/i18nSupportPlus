@@ -4,6 +4,7 @@
 
 ### Fixes
 
+- [Angular] **A string next to a `| translate` pipe is no longer read as a key**: in `[options]="{ type: 'date', label: 'validFrom' | translate }"`, `'date'` was reported as a missing key. Only the string the pipe applies to is a key now, for `| transloco` too, and `('key') | translate` is read as well.
 - [Editor] **No more StackOverflowError in JavaScript and TypeScript files with string computed keys**: an object written `{ ['save']: … }` made the IDE report an error and stop resolving the file's keys.
 
 ## 1.19.0 - 2026-11-04
