@@ -24,6 +24,7 @@ import com.intellij.lang.javascript.psi.JSArrayLiteralExpression
 import com.intellij.lang.javascript.psi.JSConditionalExpression
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.lang.javascript.psi.JSProperty
+import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.lang.javascript.psi.ecma6.TypeScriptEnumField
 import com.intellij.patterns.ElementPattern
 import com.intellij.patterns.ElementPatternCondition
@@ -92,10 +93,14 @@ internal class JsReferenceAssistant: ReferenceAssistant {
             private val ternaryArg = JSPatterns.jsExpression()
                 .andOr(*callMethodNames.map { JSPatterns.jsArgument(it, 0) }.toTypedArray())
 
+            /**
+             * Only a reference is resolved in a computed name, `[Keys.Save]`: a string key, `['save']`, may be
+             * [element] itself, and asking it for its reference re-entered this pattern until the stack overflowed.
+             */
             private fun isAlias(element: JSLiteralExpression): Boolean {
                 val config = Settings.getInstance(element.project).config()
                 return element.parents(false).toList()
-                    .mapNotNull {(it as? JSProperty)?.name ?: (it as? JSComputedPropertyNameOwner)?.computedPropertyName?.let {it.expression?.reference?.resolve() as? TypeScriptEnumField }?.name}
+                    .mapNotNull {(it as? JSProperty)?.name ?: (it as? JSComputedPropertyNameOwner)?.computedPropertyName?.let { (it.expression as? JSReferenceExpression)?.resolve() as? TypeScriptEnumField }?.name}
                     .reversed().joinToString(config.keySeparator).endsWith(element.text.unQuote())
             }
 

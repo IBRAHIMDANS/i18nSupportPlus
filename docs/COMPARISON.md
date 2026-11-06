@@ -5,7 +5,7 @@ _Last verified: 2026-11-03. Re-check at every major release of any of the tools 
 This page compares **I18n Support Plus** with the two tools people most often use for i18n keys in an editor:
 **i18n Ally** (by Lokalise, for VS Code and for JetBrains IDEs) and **Easy I18n** (for JetBrains IDEs). It also covers
 **I18n Support**, the plugin I18n Support Plus started from, and two other VS Code extensions: **i18n Ally Next** and
-**Sherlock** (by inlang). Each claim about another tool links to its documentation, its source
+**Sherlock** (by inlang), and the Laravel support built into PhpStorm. Each claim about another tool links to its documentation, its source
 code or its issue tracker at the version below. If one is wrong or out of date,
 [open an issue](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues) and it will be fixed.
 
@@ -18,6 +18,7 @@ code or its issue tracker at the version below. If one is wrong or out of date,
 | I18n Support | 2.8.4 | 2023-03-28 | [Marketplace](https://plugins.jetbrains.com/plugin/12981-i18n-support/versions), [GitHub](https://github.com/nyavro/i18nPlugin) |
 | i18n Ally Next | 3.0.16 | 2026-11-01 | [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=lydanne.i18n-ally-next), [docs](https://lydanne.github.io/i18n-ally-next/), [GitHub](https://github.com/lydanne/i18n-ally-next) |
 | Sherlock | 2.5.2 | 2026-11-02 | [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=inlang.vs-code-extension), [GitHub](https://github.com/opral/sherlock) |
+| Laravel Idea, bundled with PhpStorm | PhpStorm 2026.3 | — | [PhpStorm help](https://www.jetbrains.com/help/phpstorm/laravel-navigation-and-coding-assistance.html), [docs](https://laravel-idea.com/docs/localization) |
 
 In the tables, **—** means the tool's documentation says nothing about it at that version. It does not mean the
 feature is missing. <sup>next</sup> marks what the next release brings: it is on `main` and in the
@@ -164,6 +165,25 @@ IDEs.
 | Paraglide JS `m.hello()` | Yes, from the `project.inlang` settings | Static `m.hello()` calls detected ([changelog](https://github.com/lydanne/i18n-ally-next/blob/main/CHANGELOG.md)) | Its own format: the m-function matcher plugin reads `m.hello()` ([README](https://github.com/opral/sherlock)) |
 | Your own translation function | Key assistance rules, call template | Custom framework in YAML ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/custom-framework.md)) | — (matcher plugins exist for `m()`, `t()` and next-intl) |
 | Migration from i18n Ally | Settings table [below](#from-i18n-ally) | Command that renames the `i18n-ally.*` settings, custom framework and reviews files ([docs](https://github.com/lydanne/i18n-ally-next/blob/main/docs/guide/migration.md)) | — |
+
+## Laravel in PhpStorm
+PhpStorm supports Laravel out of the box: the Laravel Idea plugin "now comes bundled with the IDE and does not
+require additional installation" ([PhpStorm help](https://www.jetbrains.com/help/phpstorm/laravel-navigation-and-coding-assistance.html)).
+Its [localization page](https://laravel-idea.com/docs/localization) documents two features for translations: key
+completion, and generating a key from PHP code or Blade (`Alt+Insert`). I18n Support Plus works next to it and covers
+what that page does not mention.
+
+| | I18n Support Plus | Laravel Idea (PhpStorm) |
+|---|---|---|
+| Key completion in `__()`, `trans()`, `@lang` | Yes, by key or by value | Yes ([docs](https://laravel-idea.com/docs/localization#keys-completion)) |
+| New key from the code | Extract a hard-coded string, written in every locale | Key generation from PHP and Blade ([docs](https://laravel-idea.com/docs/localization#key-generation)) |
+| `lang/en/*.php` arrays and `lang/*.json` | Read and written; `package::file.key` from `lang/vendor/` | — |
+| Value next to the key, status per locale | Inlay hint, folding, Ctrl+hover table, gutter icon | — |
+| Missing translations per locale | Inspection, tool window, keys synchronizer | — |
+| Unused keys | Inspection, *Clean Up Keys with No Reference…* | — |
+| Rename a key in every locale and call site | `Shift+F6` | — |
+| Machine translation, AI agents (MCP) | Yes, opt-in | — |
+| Checks in CI | `i18n-check`, GitHub Action | — |
 
 ## What the others do better
 
