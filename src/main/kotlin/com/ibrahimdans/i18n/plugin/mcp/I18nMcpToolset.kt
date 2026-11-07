@@ -191,6 +191,7 @@ class I18nMcpToolset : McpToolset {
 
     private suspend fun respond(block: suspend (Project, String) -> Any): String {
         val (project, client) = caller() ?: return REQUIRES_UPDATE
+        TranslationFilesRefresh.refresh(project)
         val result = try {
             block(project, client)
         } catch (refused: TranslationAgentTools.Refused) {
