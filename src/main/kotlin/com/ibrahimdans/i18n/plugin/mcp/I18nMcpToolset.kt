@@ -39,7 +39,8 @@ class I18nMcpToolset : McpToolset {
 
     @McpTool(name = "i18n_missing_translations")
     @McpDescription(
-        description = "Lists the keys a locale lacks, with the reference text to translate, sorted by key. Plural forms " +
+        description = "Use this instead of reading the translation files to find what a locale lacks. " +
+            "Lists the keys a locale lacks, with the reference text to translate, sorted by key. Plural forms " +
             "the locale needs are listed one by one; 'pluralFromOther' means the source has no form of that category " +
             "and gives its 'other'. An ICU message ({count, plural, …}, select, selectordinal) is listed whole: write it " +
             "with the branches the locale needs. Items with 'skipped' (an ICU form the plugin does not handle) cannot " +
@@ -68,7 +69,8 @@ class I18nMcpToolset : McpToolset {
 
     @McpTool(name = "i18n_write_translations")
     @McpDescription(
-        description = "Writes translations into a locale, in one command the user can undo. A value is written where the " +
+        description = "Use this instead of editing the translation files to add or update translations. " +
+            "Writes translations into a locale, in one command the user can undo. A value is written where the " +
             "key is missing, or replaces the existing one only while it is stale when written (see " +
             "i18n_stale_translations); any other existing value is never replaced, and a stale one fixed since it was " +
             "listed is refused. Each value must keep exactly the placeholders and tags of its reference text ({{name}}, " +
