@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-### Features
+### Fixes
 
-- [AI agents] **Agents reach for the translation tools without a `CLAUDE.md` line**: the descriptions of `i18n_missing_translations` and `i18n_write_translations` now say to use them instead of reading or editing the translation files, so an agent that edited the JSON by hand, and rewrote values it was not asked to touch, is steered to the tools that refuse such rewrites.
+- [AI agents] **The translation tools see the files an agent just wrote**: after an agent edited the translation files itself, or reset them with git, `i18n_missing_translations` and the other tools answered from what the IDE had seen before, for example 92 keys still missing right after they were all written. The tools now reload the translation folders from disk first.
 
 ## 1.19.1 - 2026-11-06
 
