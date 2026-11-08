@@ -1,0 +1,118 @@
+<idea-plugin>
+    <!-- What the JavaScript plugin gives: the languages, the technologies reading their configuration in
+         JavaScript, the TypeScript translation files, and the refactorings editing JavaScript code. Kept
+         apart from plugin.xml so that no class of it is reachable from the trunk (TASK-JS-OPTIONAL). -->
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Angular's `$localize`:@@id:text``: a tagged template, matched by no call-based contributor. -->
+        <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.lang.js.extractors.LocalizeReferenceContributor"/>
+        <!-- One annotator for every JS dialect: annotators are inherited, so JSX, TypeScript and TSX
+             get it through JavaScript. The JSX one is used because its language is a superset of
+             JsLang, whose markup extractors need XML PSI that plain JS/TS files never hold. A
+             declaration per dialect annotated a .tsx key once per class. -->
+        <annotator language="JavaScript" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsxCompositeKeyAnnotator"/>
+        <gotoDeclarationHandler order="first" implementation="com.ibrahimdans.i18n.extensions.lang.js.ParaglideGotoDeclarationHandler"/>
+        <gotoDeclarationHandler order="first" implementation="com.ibrahimdans.i18n.extensions.lang.js.ConstantKeyGotoDeclarationHandler"/>
+        <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.lang.js.JsReferenceContributor"/>
+        <!-- JavaScript, not JSX Harmony alone: a .tsx file is TypeScript JSX, a dialect of JavaScript, never of JSX Harmony. -->
+        <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.lang.js.JsxReferenceContributor"/>
+        <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.localization.js.TsLocalizationReferenceContributor"/>
+        <!-- One completion contributor for every JS dialect: contributors are inherited, so JSX,
+             TypeScript and TSX get it through JavaScript. A declaration per dialect ran it twice
+             in a .tsx file. -->
+        <completion.contributor language="JavaScript" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompletionContributor"/>
+        <completion.contributor language="JavaScript" order="first" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.ParaglideCompletionContributor"/>
+        <completion.contributor language="JavaScript" order="first" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.TypesafeI18nCompletionContributor"/>
+        <lang.foldingBuilder language="TypeScript" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder"/>
+        <lang.foldingBuilder language="JavaScript" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder"/>
+        <lang.foldingBuilder language="TypeScript JSX" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder"/>
+        <!-- First: on Paraglide's `m.hello` the IDE's JavaScript documentation of the generated function
+             answered instead. HintProvider returns null on anything but a key, so nothing else changes. -->
+        <lang.documentationProvider language="JavaScript" order="first" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
+        <lang.documentationProvider language="JSX Harmony" order="first" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
+        <lang.documentationProvider language="TypeScript" order="first" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
+        <lang.documentationProvider language="TypeScript JSX" order="first" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
+        <!-- codeInsight.declarativeInlayProvider, not declarativeInlayHintsProvider: the latter names no
+             extension point, and the platform ignores an unknown one without a word — the provider was
+             never registered, so no hint ever showed and the settings page never listed it. `group` is
+             required: the settings model calls requiredGroup(), which refuses a missing one. Declared on
+             JavaScript only, like the line marker below: a .tsx collects the providers of its base
+             languages too, and one declaration per dialect rendered the same hint three times. -->
+        <codeInsight.declarativeInlayProvider language="JavaScript"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"
+            providerId="i18n.translations.inlay"
+            group="OTHER_GROUP"
+            bundle="messages.I18nBundle"
+            nameKey="inlay.hints.name"/>
+        <!-- Declared on JavaScript only: JSX, TypeScript and TSX are dialects of it and inherit the
+             provider. One declaration per dialect made a .tsx collect the same marker several times. -->
+        <codeInsight.lineMarkerProvider language="JavaScript" implementationClass="com.ibrahimdans.i18n.plugin.ide.I18nGutterIconProvider"/>
+        <renamePsiElementProcessor implementation="com.ibrahimdans.i18n.plugin.ide.actions.RenameNamespaceProcessor" order="first"/>
+        <localInspection
+            language="JavaScript"
+            groupName="i18n Support Plus"
+            key="inspection.interpolation.arguments.display.name"
+            shortName="I18nInterpolationArguments"
+            enabledByDefault="true"
+            level="WARNING"
+            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.InterpolationArgumentsInspection"/>
+        <localInspection
+            language="JavaScript"
+            groupName="i18n Support Plus"
+            key="inspection.hardcoded.jsx.text.display.name"
+            shortName="I18nHardcodedJsxText"
+            enabledByDefault="false"
+            level="WEAK WARNING"
+            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedJsxTextInspection"/>
+        <localInspection
+            language="JavaScript"
+            groupName="i18n Support Plus"
+            key="inspection.hardcoded.js.string.display.name"
+            shortName="I18nHardcodedJsString"
+            enabledByDefault="false"
+            level="WEAK WARNING"
+            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedJsStringInspection"/>
+        <!-- Svelte is no dependency of the plugin: its markup is a dialect of HTML, which the
+             inspection reads only in a .svelte file the Svelte plugin parses. -->
+        <localInspection
+            language="HTML"
+            groupName="i18n Support Plus"
+            key="inspection.hardcoded.svelte.text.display.name"
+            shortName="I18nHardcodedSvelteText"
+            enabledByDefault="false"
+            level="WEAK WARNING"
+            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedSvelteTextInspection"/>
+        <!-- Astro is no dependency of the plugin either: its language is a dialect of JavaScript, which
+             the inspection reads only in a .astro file the Astro plugin parses. -->
+        <localInspection
+            language="JavaScript"
+            groupName="i18n Support Plus"
+            key="inspection.hardcoded.astro.text.display.name"
+            shortName="I18nHardcodedAstroText"
+            enabledByDefault="false"
+            level="WEAK WARNING"
+            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedAstroTextInspection"/>
+    </extensions>
+    <actions>
+        <!-- No default shortcut: ctrl alt shift B is Surround With in the Linux keymaps (GNOME, KDE, XWin). -->
+        <action id="com.ibrahimdans.i18n.BatchExtractI18n"
+                class="com.ibrahimdans.i18n.plugin.ide.actions.BatchExtractI18nAction">
+            <add-to-group group-id="CodeMenu" anchor="last"/>
+        </action>
+        <!-- Files and folders of the Project view, or the file of the editor: hidden elsewhere by its update(). -->
+        <action id="com.ibrahimdans.i18n.Internationalize"
+                class="com.ibrahimdans.i18n.plugin.ide.actions.i18nize.I18nizeAction">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <!-- Its place in the editor menu of plugin.xml, between the separator and Sort Keys. -->
+            <add-to-group group-id="com.ibrahimdans.i18n.EditorMenu" anchor="before" relative-to-action="com.ibrahimdans.i18n.SortI18nKeys"/>
+        </action>
+    </actions>
+    <extensions defaultExtensionNs="com.ibrahimdans.i18n">
+        <localization implementation="com.ibrahimdans.i18n.extensions.localization.js.TsLocalization"/>
+        <lang implementation="com.ibrahimdans.i18n.extensions.lang.js.JsLang"/>
+        <lang implementation="com.ibrahimdans.i18n.extensions.lang.js.JsxLang"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.technology.i18next.I18NextTechnology"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.technology.vuei18n.VueI18nIdeTechnology"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.technology.tscatalog.TsCatalogTechnology"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.technology.typesafei18n.TypesafeI18nTechnology"/>
+    </extensions>
+</idea-plugin>
