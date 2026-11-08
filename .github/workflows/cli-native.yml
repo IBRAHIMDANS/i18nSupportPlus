@@ -81,6 +81,7 @@ jobs:
       - name: Size
         run: |
           binary="build/native/i18n-check${{ matrix.exe }}"
+          test -f "$binary"
           echo "${{ matrix.platform }}: $(wc -c < "$binary") bytes, $(gzip -9c "$binary" | wc -c) gzipped" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Compare with the JVM

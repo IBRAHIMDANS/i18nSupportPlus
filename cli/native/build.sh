@@ -39,4 +39,5 @@ printf '%s\n' -cp "$classpath" \
   "-H:IncludeResources=lib/$arch-$os-tree-sitter.*" \
   -H:-UnlockExperimentalVMOptions > "$args"
 
-"$native_image" "@$args" -o "$out" com.ibrahimdans.i18n.cli.MainKt
+# native-image adds `.exe` on Windows itself: given one, it wrote `i18n-check.exe.exe`.
+"$native_image" "@$args" -o "${out%.exe}" com.ibrahimdans.i18n.cli.MainKt
