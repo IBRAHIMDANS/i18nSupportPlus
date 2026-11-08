@@ -26,6 +26,9 @@ esac
 options=()
 [ "${2:-}" = --musl ] && options+=(--static --libc=musl)
 
+# native-image writes into an existing folder only.
+mkdir -p "$(dirname "$out")"
+
 # The `+` form: macOS's bash 3.2 calls an empty array unbound under `set -u`.
 "$native_image" ${options[@]+"${options[@]}"} \
   -cp "$lib/*" \
