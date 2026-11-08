@@ -8,6 +8,7 @@ import com.intellij.lang.javascript.psi.JSArgumentList
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.lang.javascript.psi.JSReferenceExpression
+import com.intellij.lang.javascript.psi.ecma6.JSStringTemplateExpression
 import com.intellij.psi.PsiElement
 
 /**
@@ -39,6 +40,9 @@ class VueI18nComposableExtractor : KeyExtractor {
 
     override fun extract(element: PsiElement): RawKey {
         val literal = element as? JSLiteralExpression ?: element.parent as JSLiteralExpression
+        // A template literal is a quoted literal too, with no string value once it interpolates:
+        // its static parts and its interpolations, as `TemplateKeyExtractor` reads them.
+        if (literal is JSStringTemplateExpression) return RawKey(templateKeyElements(literal))
         return RawKey(listOfNotNull(literal.stringValue?.let(KeyElement::literal)))
     }
 }

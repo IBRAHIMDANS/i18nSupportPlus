@@ -233,10 +233,6 @@ class ExtractorParityTest : PlatformBaseTest() {
          * `path:line` read differently by the two sides, and why. Each is a difference to look into, never a file taken
          * out of the comparison: the rest of the file is still compared.
          */
-        val KNOWN_GAPS = mapOf(
-            "examples/vue-i18n/src/components/OrderSummary.vue:11" to
-                "a template literal key in a `<script lang=\"ts\">` block: the plugin reads it as an empty key, " +
-                "i18n-check as `order.status.\${props.status}` (in a `.ts` or `.tsx` file both read the latter)",
-        )
+        val KNOWN_GAPS = mapOf<String, String>()
     }
 }
