@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.extract
 import com.ibrahimdans.i18n.index.KeyCall
 import com.ibrahimdans.i18n.index.TreeSitterKeyUsageIndex
 import com.ibrahimdans.i18n.plugin.KeyUsage
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
 import com.ibrahimdans.i18n.plugin.utils.TextSpan
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -150,6 +151,13 @@ class ConstantKeysTest {
         assertEquals(emptyList<KeyUsage>(), index.usages("actions.save"))
         // Read as `admin`, the hook would keep `title` out of every other namespace.
         assertTrue(index.usages("other:title").isNotEmpty())
+    }
+
+    @Test
+    fun `every preset hook and i18next namespace call keeps its constant argument as written`() {
+        val expected = FrameworkPresets.hookNames() + FrameworkPresets.I18NEXT_NAMESPACE_CALLS
+        assertTrue(expected.containsAll(setOf("useTranslation", "useTranslations", "getTranslations", "useI18n", "withTranslation")))
+        assertEquals(expected, ConstantKeys.NAMESPACE_CALLS)
     }
 
     @Test

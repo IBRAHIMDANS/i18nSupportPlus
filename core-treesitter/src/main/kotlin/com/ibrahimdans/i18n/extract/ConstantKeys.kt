@@ -420,10 +420,11 @@ object ConstantKeys {
     private fun items(node: CodeNode): List<CodeNode> = node.children.filter { it.text != "(" && it.text != ")" && it.text != "," && it.type != COMMENT }
 
     /**
-     * The calls whose first argument names a namespace, not a key: `useTranslation(NS)`. Left as written, as
-     * the plugin reads a hook's namespace from a literal only.
+     * The calls whose first argument names a namespace, not a key: every preset's hook, `useTranslation(NS)`,
+     * and i18next's other namespace calls, `withTranslation(NS)`. Left as written, as the plugin reads a hook's
+     * namespace from a literal only.
      */
-    private val NAMESPACE_CALLS: Set<String> = FrameworkPresets.ALL.flatMap { rules -> rules.hooks.map { it.name } }.toSet() + "withTranslation"
+    internal val NAMESPACE_CALLS: Set<String> = FrameworkPresets.hookNames() + FrameworkPresets.I18NEXT_NAMESPACE_CALLS
 
     private const val CALL_EXPRESSION = "call_expression"
     private const val ARGUMENTS = "arguments"
