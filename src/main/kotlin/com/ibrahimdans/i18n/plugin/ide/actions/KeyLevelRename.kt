@@ -3,7 +3,6 @@ package com.ibrahimdans.i18n.plugin.ide.actions
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.LocalizationSource
-import com.ibrahimdans.i18n.extensions.lang.js.extractors.ParaglideMessageExtractor
 import com.ibrahimdans.i18n.extensions.localization.arb.ArbMetadata
 import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideOutdir
 import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideTechnology
@@ -24,13 +23,6 @@ import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModulePresets
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.ibrahimdans.i18n.plugin.utils.unQuote
-import com.intellij.lang.javascript.psi.JSArrayLiteralExpression
-import com.intellij.lang.javascript.psi.JSCallExpression
-import com.intellij.lang.javascript.psi.JSIndexedPropertyAccessExpression
-import com.intellij.lang.javascript.psi.JSLiteralExpression
-import com.intellij.lang.javascript.psi.JSObjectLiteralExpression
-import com.intellij.lang.javascript.psi.JSProperty
-import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.project.Project
@@ -150,19 +142,19 @@ internal class KeyLevelRename(
         val edits: MutableSet<Edit> = ConcurrentHashMap.newKeySet()
         val dynamic: MutableSet<String> = ConcurrentHashMap.newKeySet()
         val languages = Extensions.LANG.extensionList
+        val sites = languages.mapNotNull { it.renameSites() }
         val parser = RawKeyParser(project)
         PsiSearchHelper.getInstance(project).processElementsWithWord(
             { element, _ ->
                 // Paraglide's generated code names every message: rewritten at its next compilation, never edited.
                 if (element.containingFile?.virtualFile?.let(ParaglideOutdir::contains) == true) return@processElementsWithWord true
                 // Paraglide's `m.hello` holds no reference: its key, read from the member, is rewritten in place.
-                paraglideMemberAt(element)?.let { member ->
-                    paraglideEdit(member, newName)?.let(edits::add)
+                sites.firstNotNullOfOrNull { it.messageMemberAt(element) }?.let { member ->
+                    memberEdit(member, newName, sites)?.let(edits::add)
                     return@processElementsWithWord true
                 }
                 // A key prefix is no key: no language resolves it as one, so it is looked at as found.
-                (element as? JSLiteralExpression ?: element.parent as? JSLiteralExpression)
-                    ?.let { keyPrefixEdit(it, newName) }?.let(edits::add)
+                sites.firstNotNullOfOrNull { it.prefixRewrite(element, path, newName, namespaces, config) }?.let(::editOf)?.let(edits::add)
                 val literal = languages.firstNotNullOfOrNull { it.resolveLiteral(element) }
                 if (literal != null) {
                     val reference = listOfNotNull(literal, literal.parent)
@@ -227,52 +219,20 @@ internal class KeyLevelRename(
     }
 
     /**
-     * The edit rewriting a react-i18next `keyPrefix` going through the level — `{ keyPrefix: 'button' }`
-     * or `'button.primary'` — in a hook of one of [namespaces]; null for any other literal.
+     * The edit rewriting the message member [member] when its key goes through the level — Paraglide's
+     * `m.hello` → `m.greeting` — in the form the language spells it; null when the level is not in it.
      */
-    private fun keyPrefixEdit(literal: PsiElement, newName: String): Edit? {
-        val string = literal as? JSLiteralExpression ?: return null
-        if (!string.isQuotedLiteral) return null
-        val property = string.parent as? JSProperty ?: return null
-        if (property.name != KEY_PREFIX) return null
-        val call = (property.parent as? JSObjectLiteralExpression)?.parent?.parent as? JSCallExpression ?: return null
-        if (call.methodExpression?.text != USE_TRANSLATION) return null
-        val hookNamespace = when (val first = call.arguments.firstOrNull()) {
-            is JSLiteralExpression -> first.stringValue
-            is JSArrayLiteralExpression -> (first.expressions.firstOrNull() as? JSLiteralExpression)?.stringValue
-            else -> null
-        }
-        val inNamespace = if (hookNamespace == null) namespaces.any { it in config.defaultNamespaces() } else hookNamespace in namespaces
-        if (!inNamespace) return null
-        val prefix = string.stringValue ?: return null
-        val segments = prefix.split(config.keySeparator).toMutableList()
-        if (segments.size < path.size || segments.take(path.size) != path) return null
-        segments[path.size - 1] = newName
-        val text = string.text
-        val document = documentOf(string) ?: return null
-        return Edit(document, string.textRange, "${text.first()}${segments.joinToString(config.keySeparator)}${text.last()}")
-    }
-
-    /**
-     * The edit rewriting the Paraglide member [member] (`m.button.save`'s key is `button.save`) when
-     * its key goes through the level: `m.hello` → `m.greeting`, and to the index form `m["a.b"]`
-     * when the renamed key is no identifier — or back to `m.key` when it becomes one.
-     */
-    private fun paraglideEdit(member: PsiElement, newName: String): Edit? {
-        val key = PARAGLIDE_MESSAGE.extract(member).keyElements.singleOrNull()?.text ?: return null
+    private fun memberEdit(member: PsiElement, newName: String, sites: List<KeyRenameSites>): Edit? {
+        val key = sites.firstNotNullOfOrNull { it.messageKeyOf(member) } ?: return null
         val segments = if (config.keySeparator.isEmpty()) mutableListOf(key) else key.split(config.keySeparator).toMutableList()
         if (segments.size < path.size || segments.take(path.size) != path) return null
         segments[path.size - 1] = newName
         val renamed = segments.joinToString(config.keySeparator)
-        val qualifier = when (member) {
-            is JSReferenceExpression -> member.qualifier
-            is JSIndexedPropertyAccessExpression -> member.qualifier
-            else -> null
-        }?.text ?: return null
-        val text = if (IDENTIFIER.matches(renamed)) "$qualifier.$renamed" else "$qualifier[\"$renamed\"]"
-        val document = documentOf(member) ?: return null
-        return Edit(document, member.textRange, text)
+        return sites.firstNotNullOfOrNull { it.messageMemberRewrite(member, renamed) }?.let(::editOf)
     }
+
+    private fun editOf(rewrite: KeyRenameSites.Rewrite): Edit? =
+        documentOf(rewrite.element)?.let { Edit(it, rewrite.element.textRange, rewrite.text) }
 
     private fun documentOf(element: PsiElement): Document? =
         element.containingFile?.let { PsiDocumentManager.getInstance(element.project).getDocument(it) }
@@ -288,22 +248,14 @@ internal class KeyLevelRename(
     companion object {
         private val QUOTES = setOf('"', '\'', '`')
         private const val DYNAMIC = "\${"
-        private const val KEY_PREFIX = "keyPrefix"
-        private const val USE_TRANSLATION = "useTranslation"
         private val NON_WORD = Regex("[^A-Za-z0-9_$]+")
         private const val PARAGLIDE = "paraglide"
-        private val PARAGLIDE_MESSAGE = ParaglideMessageExtractor()
-        private val IDENTIFIER = Regex("[A-Za-z_$][\\w$]*")
 
-        /** The Paraglide member at or just above [element] — its name, its index literal — or null. */
-        private fun paraglideMemberAt(element: PsiElement): PsiElement? =
-            generateSequence(element) { it.parent }.take(3).firstOrNull(PARAGLIDE_MESSAGE::canExtract)
-                ?.takeIf { ModulePresets.allows(ModulePresets.presetOf(it), PARAGLIDE) }
-
-        /** The leaf the Paraglide member at [element] names, to rename; null off a member. */
+        /** The leaf the message member at [element] names (Paraglide's `m.key`), to rename; null off a member. */
         fun ofParaglideMember(element: PsiElement): KeyLevelRename? {
-            val member = paraglideMemberAt(element) ?: return null
-            val key = PARAGLIDE_MESSAGE.extract(member).keyElements.singleOrNull()?.text ?: return null
+            val sites = Extensions.LANG.extensionList.mapNotNull { it.renameSites() }
+            val member = sites.firstNotNullOfOrNull { it.messageMemberAt(element) } ?: return null
+            val key = sites.firstNotNullOfOrNull { it.messageKeyOf(member) } ?: return null
             val config = Settings.getInstance(member.project).config()
             val path = if (config.keySeparator.isEmpty()) listOf(key) else key.split(config.keySeparator)
             // A message file has no namespace: an empty list lets the lookup reach every message file.
