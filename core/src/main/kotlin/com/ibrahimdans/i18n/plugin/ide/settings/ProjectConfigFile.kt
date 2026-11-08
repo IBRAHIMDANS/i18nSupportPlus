@@ -37,6 +37,10 @@ object ProjectConfigFile {
         val flag: Boolean = false,
     )
 
+    /**
+     * The [SettingScope.TEAM] settings of [Config.SCOPES], `modules` aside, plus [PREVIEW_LOCALE]:
+     * `ProjectConfigFileTest` fails when the two lists part.
+     */
     private val FIELDS: Map<String, Field> = linkedMapOf(
         "translationsRoot" to Field({ it.translationsRoot }, { c, v -> c.copy(translationsRoot = v) }),
         "excludedDirectories" to Field({ it.excludedDirectories }, { c, v -> c.copy(excludedDirectories = v) }),
