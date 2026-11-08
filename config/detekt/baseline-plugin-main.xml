@@ -1,0 +1,31 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>LongMethod:DialogMachineTranslation.kt:DialogMachineTranslation$private fun translate</ID>
+    <ID>LongMethod:ExtractKeyDialog.kt:ExtractKeyDialog$override fun createCenterPanel: JComponent</ID>
+    <ID>LongMethod:SettingsPanel.kt:SettingsPanel$fun getRootPanel: JPanel</ID>
+    <ID>LongMethod:SetupWizardDialog.kt:SetupWizardDialog.SummaryStep$private fun form: JComponent</ID>
+    <ID>NestedBlockDepth:I18nizeApply.kt:I18nizeApply$fun write: Outcome</ID>
+    <ID>TooGenericExceptionCaught:CleanupReviewsAction.kt:CleanupReviewsAction.Companion$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CodeUsageIndexService.kt:CodeUsageIndexService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DialogViewModel.kt:DialogViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:Settings.kt:Settings$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:TableViewModel.kt:TableViewModel$e: RuntimeException</ID>
+    <ID>TooManyFunctions:TableViewModel.kt:TableViewModel</ID>
+    <ID>UnsafeCallOnNullableType:CodeUsageIndexer.kt:CodeUsageIndexer$literal!!</ID>
+    <ID>UnsafeCallOnNullableType:LinkedMessageReferenceContributor.kt:LinkedMessages$match.groups[1]!!</ID>
+    <ID>UnsafeCallOnNullableType:LinkedMessageReferenceContributor.kt:LinkedMessages$reference.element!!</ID>
+    <ID>UnsafeCallOnNullableType:MarkupTexts.kt:MarkupTexts$first!!</ID>
+    <ID>UnsafeCallOnNullableType:MarkupTexts.kt:MarkupTexts$last!!</ID>
+    <ID>UnsafeCallOnNullableType:OrphanTranslationKeyInspection.kt:OrphanTranslationKeyInspection$value!!</ID>
+    <ID>UnsafeCallOnNullableType:ReviewLineMarkerProvider.kt:ReviewLineMarkerInfo$ReviewBadge.icon(state)!!</ID>
+    <ID>UnsafeCallOnNullableType:TableContextMenu.kt:TableContextMenu$host.localeAt(column)!!</ID>
+    <ID>UnsafeCallOnNullableType:TsObjectInsertion.kt:TsObjectInsertion$PsiTreeUtil.findChildOfType(dummy, JSObjectLiteralExpression::class.java)!!</ID>
+    <ID>UnsafeCallOnNullableType:TsObjectInsertion.kt:TsObjectInsertion$commaAfter(dummy.properties.first())!!</ID>
+    <ID>UnsafeCallOnNullableType:TsObjectInsertion.kt:TsObjectInsertion$commaAfter(dummy.properties.last())!!</ID>
+    <ID>UnsafeCallOnNullableType:VueHookInsertion.kt:VueHookInsertion$existing.namedImports!!</ID>
+    <ID>UnsafeCallOnNullableType:XliffDocument.kt:XliffDocument$file!!</ID>
+    <ID>UnsafeCallOnNullableType:YamlLocalization.kt:YamlContentGenerator$PsiTreeUtil.findChildOfType(generator.createDummyYamlWithText(text), YAMLKeyValue::class.java)!!</ID>
+  </CurrentIssues>
+</SmellBaseline>

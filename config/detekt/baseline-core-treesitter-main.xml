@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>UnsafeCallOnNullableType:AngularMessageIds.kt:AngularMessageIds$match.groups[2]!!</ID>
+    <ID>UnsafeCallOnNullableType:AngularTemplate.kt:AngularTemplate.Writer$interpolation.groups[1]!!</ID>
+    <ID>UnsafeCallOnNullableType:SvelteSfc.kt:SvelteSfc$script.groups[1]!!</ID>
+    <ID>UnsafeCallOnNullableType:TreeSitterKeyUsageIndex.kt:TreeSitterKeyUsageIndex$it.key!!</ID>
+    <ID>UnsafeCallOnNullableType:VueSfc.kt:VueSfc$interpolation.groups[1]!!</ID>
+    <ID>UnsafeCallOnNullableType:VueSfc.kt:VueSfc$script.groups[1]!!</ID>
+  </CurrentIssues>
+</SmellBaseline>

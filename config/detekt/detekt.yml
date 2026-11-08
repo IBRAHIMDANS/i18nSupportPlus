@@ -1,0 +1,85 @@
+# The rules the project holds its Kotlin to, and nothing else: detekt's defaults are not loaded
+# (buildUponDefaultConfig = false). What the code already breaks is frozen in config/detekt/baseline-<module>-main.xml,
+# so only new code fails the `lint` job. Regenerate a baseline only to drop fixed entries, never to hide a new one.
+
+config:
+  validation: true
+
+complexity:
+  active: true
+  LongMethod:
+    active: true
+    allowedLines: 80
+  NestedBlockDepth:
+    active: true
+    allowedDepth: 6
+  TooManyFunctions:
+    active: true
+    excludes: ['**/test/**', '**/uiTest/**']
+    allowedFunctionsPerFile: 30
+    allowedFunctionsPerClass: 30
+    allowedFunctionsPerInterface: 30
+    allowedFunctionsPerObject: 30
+    allowedFunctionsPerEnum: 30
+
+exceptions:
+  active: true
+  TooGenericExceptionCaught:
+    active: true
+    excludes: ['**/test/**', '**/uiTest/**']
+
+potential-bugs:
+  active: true
+  UnsafeCallOnNullableType:
+    active: true
+    excludes: ['**/test/**', '**/uiTest/**']
+
+style:
+  active: true
+  ForbiddenComment:
+    active: true
+    comments:
+      - value: 'TODO'
+        reason: 'A TODO names the issue it waits for (#123), or it goes to the backlog.'
+      - value: 'FIXME'
+        reason: 'A FIXME names the issue it waits for (#123), or it goes to the backlog.'
+    allowedPatterns: '#\d+'
+  # Internal platform API: the Marketplace refuses an upload that uses it (2026-11-03), and the CI does not.
+  # The imports below are the ones the plugin used when this rule came in, each to be replaced when its code
+  # is next touched; a new one needs a reason written here.
+  ForbiddenImport/internalApi:
+    active: true
+    excludes: ['**/test/**', '**/uiTest/**']
+    forbiddenImports:
+      - value: 'com.intellij.**.impl.**'
+        reason: 'Internal platform API: the Marketplace refuses an upload that uses it.'
+    allowedImports:
+      - 'com.intellij.psi.impl.source.PostprocessReformattingAspect'     # YamlLocalization
+      - 'com.intellij.psi.impl.cache.CacheManager'                       # I18nextJsReader, IndirectKeyUsages
+      - 'com.intellij.openapi.fileEditor.impl.LoadTextUtil'              # IndirectKeyUsages
+      - 'com.intellij.codeInsight.hints.declarative.impl.DeclarativeInlayHintsPassFactory' # EditorRefresh
+      - 'com.intellij.codeInsight.intention.impl.BaseIntentionAction'    # QuickFix
+      - 'com.intellij.codeInsight.daemon.impl.DaemonProgressIndicator'   # TranslationToCodeReferenceProvider
+      - 'com.intellij.psi.impl.source.tree.LeafPsiElement'               # CodeUsageIndexer
+      - 'com.intellij.openapi.fileEditor.impl.HTMLEditorProvider'        # ShowWhatsNewAction
+  # New background work runs in a coroutine (CONTRIBUTING.md). The files below still use Task.* until
+  # TASK-AUDIT-TASK-TO-COROUTINES migrates them; a file leaves the list when it no longer imports Task.
+  ForbiddenImport/progressTask:
+    active: true
+    excludes:
+      - '**/test/**'
+      - '**/uiTest/**'
+      - '**/plugin/ide/actions/ExportTranslationsAction.kt'
+      - '**/plugin/ide/actions/FillMissingTranslationsAction.kt'
+      - '**/plugin/ide/actions/GenerateI18nTypesAction.kt'
+      - '**/plugin/ide/actions/i18nize/I18nizeAction.kt'
+      - '**/plugin/ide/diff/TranslationChangesDialog.kt'
+      - '**/plugin/ide/diff/git/CompareTranslationsWithBranchAction.kt'
+      - '**/plugin/ide/toolwindow/TableUsageScan.kt'
+      - '**/plugin/ide/usages/CodeUsageIndexService.kt'
+      - '**/plugin/review/ui/CleanupReviewsAction.kt'
+    forbiddenImports:
+      - value: 'com.intellij.openapi.progress.Task'
+        reason: 'New background work runs in a coroutine (CONTRIBUTING.md), not in a Task.'
+      - value: 'com.intellij.openapi.progress.Task.*'
+        reason: 'New background work runs in a coroutine (CONTRIBUTING.md), not in a Task.'
