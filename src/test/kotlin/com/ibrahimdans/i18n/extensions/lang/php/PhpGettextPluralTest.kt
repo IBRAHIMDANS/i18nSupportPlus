@@ -6,7 +6,6 @@ import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import org.junit.jupiter.api.Assertions
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
 /**
@@ -84,10 +83,13 @@ class PhpGettextPluralTest : PlatformBaseTest() {
         Assertions.assertEquals(listOf("pear"), unresolvedKeys("<?php echo ngettext('pear', 'pears', \$n);"))
     }
 
-    @Disabled(
-        "2026-11-08: Extract I18n is still offered on the plural form. PhpTranslationExtractor.isExtracted " +
-            "knows the user's aliases only, not ngettext; the fix belongs to that file, outside TASK-CADRAGE-NGETTEXT."
-    )
+    @Test
+    fun extractionIsNotOfferedOnTheSingular() = myFixture.runWithConfig(gettext) {
+        myFixture.configureByText("plural.php", "<?php echo ngettext('app<caret>le', 'apples', \$n);")
+        val element = myFixture.file.findElementAt(myFixture.caretOffset)!!
+        Assertions.assertFalse(ExtractI18nIntentionAction().isAvailable(project, myFixture.editor, element))
+    }
+
     @Test
     fun extractionIsNotOfferedOnThePluralForm() = myFixture.runWithConfig(gettext) {
         myFixture.configureByText("plural.php", "<?php echo ngettext('apple', 'app<caret>les', \$n);")

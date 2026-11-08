@@ -100,7 +100,7 @@ internal fun phpTranslationFunctionNames(project: Project, config: Config, techn
  * second argument, looked up in the catalogue its domain names, which the aliases do not model either
  * (`dgettext` is not read).
  */
-private val GETTEXT_PLURAL_CALLS = listOf("ngettext")
+internal val GETTEXT_PLURAL_CALLS = listOf("ngettext")
 
 /** The name of the function or method called with [element] among its arguments, or null. */
 internal fun phpCalleeOf(element: PsiElement): String? =

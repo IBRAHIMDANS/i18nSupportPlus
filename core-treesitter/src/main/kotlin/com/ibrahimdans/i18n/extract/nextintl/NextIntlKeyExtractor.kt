@@ -63,7 +63,8 @@ class NextIntlKeyExtractor : CodeKeyExtractor {
         /** `t.has(key)` asks whether the message exists: a usage, never a missing key. */
         const val HAS = "has"
 
-        private val METHODS = setOf("rich", "markup", "raw", HAS)
+        /** The methods of `t` the next-intl hooks declare: `rich`, `markup`, `raw`, [HAS]. */
+        internal val METHODS: Set<String> = FrameworkPresets.NEXT_INTL.hooks.flatMapTo(mutableSetOf()) { it.methods }
         internal val HOOKS: Set<String> = FrameworkPresets.NEXT_INTL.hooks.map { it.name }.toSet()
 
         private const val IDENTIFIER = "identifier"

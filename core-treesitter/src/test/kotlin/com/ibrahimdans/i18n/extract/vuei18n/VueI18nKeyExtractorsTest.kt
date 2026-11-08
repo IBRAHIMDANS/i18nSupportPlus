@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.extract.CodeExtractors
 import com.ibrahimdans.i18n.extract.i18next.findKeys
 import com.ibrahimdans.i18n.extract.treesitter.TreeSitterCodeNode
 import com.ibrahimdans.i18n.plugin.parser.ExpressionNormalizer
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.io.File
@@ -54,6 +55,23 @@ class VueI18nKeyExtractorsTest {
         """.trimIndent()
 
         assertEquals(listOf("6: order.title", "8: in.template"), keysOf(component))
+    }
+
+    @Test
+    fun `a t destructured from any composable of the preset is read`() {
+        // The preset names one composable today: the loop proves the regex is built from the list, not copied.
+        val hooks = FrameworkPresets.VUE_I18N.hooks.map { it.name }
+        assertEquals(listOf("useI18n"), hooks)
+        for (hook in hooks) {
+            val component = """
+                <script setup lang="ts">
+                const { t } = $hook();
+                const title = t('order.title');
+                </script>
+            """.trimIndent()
+
+            assertEquals(listOf("3: order.title"), keysOf(component), hook)
+        }
     }
 
     @Test
