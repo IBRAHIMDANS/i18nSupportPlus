@@ -31,10 +31,14 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiDocumentManager
+import com.intellij.testFramework.PlatformTestUtil
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.LockSupport
 
 /**
  * *Fill Missing Translations*: only the keys a locale lacks go to the engine, a refused proposal is
@@ -209,6 +213,33 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
         val indicator = EmptyProgressIndicator().apply { cancel() }
 
         Assertions.assertNull(MachineFill.translate(MachineFill.itemsOf(translations, "en", "fr", "."), engine { Translation.Done("x") }, "en", "fr", indicator))
+    }
+
+    @Test
+    fun `a fill cancelled while the engine translates writes nothing and opens no preview`() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/common.json", """{"save": "Save"}""")
+        val fr = addFileToProject("locales/fr/common.json", "{}")
+        val sent = CountDownLatch(1)
+        // An engine that answers only once cancelled, checking for it as a real one does between its waits.
+        val slow = object : TranslationProvider {
+            override fun translate(request: TranslationRequest, cancellation: Cancellation?): List<Translation> {
+                sent.countDown()
+                while (true) {
+                    cancellation?.check()
+                    if (Thread.currentThread().isInterrupted) return request.texts.map { Translation.Done("trop tard") }
+                    LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10))
+                }
+            }
+        }
+
+        val job = MachineFill.run(project, null, "en", "fr", slow)
+        PlatformTestUtil.waitWithEventsDispatching("the engine was never called", { sent.count == 0L }, 30)
+        job.cancel()
+        PlatformTestUtil.waitWithEventsDispatching("the cancelled fill never ended", { job.isCompleted }, 30)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        Assertions.assertTrue(job.isCancelled, "the job ends cancelled")
+        Assertions.assertEquals("{}", FileDocumentManager.getInstance().getDocument(fr.virtualFile)!!.text, "nothing written")
     }
 
     @Test

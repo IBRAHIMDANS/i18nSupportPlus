@@ -28,23 +28,28 @@ import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.translate.TranslationRequest
 import com.ibrahimdans.i18n.plugin.translate.asCancellation
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginCoroutineScope
 import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.UndoConfirmationPolicy
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
+import com.intellij.openapi.progress.coroutineToIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.platform.ide.progress.withBackgroundProgress
 import com.intellij.util.concurrency.AppExecutorUtil
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Future
 
@@ -121,9 +126,9 @@ internal object MachineFill {
      * The same for every locale of [targets] at once: one preview, a *Locale* column telling them
      * apart, and one command writing them all.
      */
-    fun run(project: Project, module: ModuleConfig?, source: String, targets: List<String>, provider: TranslationProvider, onWritten: () -> Unit = {}) {
+    fun run(project: Project, module: ModuleConfig?, source: String, targets: List<String>, provider: TranslationProvider, onWritten: () -> Unit = {}): Job {
         val config = Settings.getInstance(project).config()
-        preview(project, module, source, targets, provider, Pass.FILL, onWritten) { translations, target ->
+        return preview(project, module, source, targets, provider, Pass.FILL, onWritten) { translations, target ->
             itemsOf(translations, source, target, config.keySeparator, config.parentLocale(target))
         }
     }
@@ -135,13 +140,13 @@ internal object MachineFill {
      * value they replace, then written — each one only while it still holds that value — and marked
      * to review on the new source, in one command. Nothing is proposed where reviews are off.
      */
-    fun retranslate(project: Project, module: ModuleConfig?, source: String, targets: List<String>, provider: TranslationProvider, onWritten: () -> Unit = {}) {
+    fun retranslate(project: Project, module: ModuleConfig?, source: String, targets: List<String>, provider: TranslationProvider, onWritten: () -> Unit = {}): Job {
         val config = Settings.getInstance(project).config()
         // Read in the background, once for all the targets.
         val reviews by lazy {
             TableViewModel().loadReviews(project, ReviewLocation.rootOf(project, module), (listOf(source) + targets).distinct(), config, module)
         }
-        preview(project, module, source, targets, provider, Pass.RETRANSLATE, onWritten) { translations, target ->
+        return preview(project, module, source, targets, provider, Pass.RETRANSLATE, onWritten) { translations, target ->
             staleItemsOf(translations, reviews, target)
         }
     }
@@ -155,41 +160,52 @@ internal object MachineFill {
     /**
      * The items [itemsFor] picks in each locale of [targets] (`translations, target -> items`, run
      * in the background), translated, previewed, then written with their marks in one command: what
-     * a fill and a retranslation share.
+     * a fill and a retranslation share. Its job, cancelled with the progress: nothing is written then.
      */
     private fun preview(
         project: Project, module: ModuleConfig?, source: String, targets: List<String>, provider: TranslationProvider,
         pass: Pass, onWritten: () -> Unit, itemsFor: (Map<String, Map<String, String>>, String) -> List<Item>,
-    ) {
+    ): Job = PluginCoroutineScope.of(project).launch {
         val title = PluginBundle.message(pass.title)
         val label = targets.joinToString(", ")
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, title, true) {
-            override fun run(indicator: ProgressIndicator) {
-                val translations = TranslationDataLoader.loadAllTranslations(project, module)
-                val config = Settings.getInstance(project).config()
-                val proposals = mutableListOf<Proposal>()
-                for (target in targets) {
-                    indicator.text = PluginBundle.message("action.fill.progress.locale", target)
-                    val items = itemsFor(translations, target)
-                    if (items.isNotEmpty()) proposals += translate(items, provider, source, target, indicator, translations, config) ?: return
+        // Null when the user cancelled: nothing is then proposed, nor written.
+        val proposals = withBackgroundProgress(project, title, cancellable = true) {
+            coroutineToIndicator { indicator -> proposalsFor(project, module, source, targets, provider, indicator, itemsFor) }
+        } ?: return@launch
+        if (proposals.isEmpty()) {
+            PluginNotifications.notify(project, PluginBundle.message(pass.nothing, label), title = title)
+            return@launch
+        }
+        withContext(Dispatchers.EDT) {
+            val reviewRoot = ReviewLocation.rootOf(project, module)
+            val dialog = MachineTranslationPreviewDialog(project, label, proposals, listOfNotNull(reviewRoot))
+            if (dialog.showAndGet()) {
+                val marks = reviewRoot?.let { root ->
+                    dialog.reviewOrigins()?.let { ReviewMarks(root, it, reviewSourcesOf(proposals, source)) }
                 }
-                if (proposals.isEmpty()) {
-                    PluginNotifications.notify(project, PluginBundle.message(pass.nothing, label), title = title)
-                    return
-                }
-                ApplicationManager.getApplication().invokeLater {
-                    val reviewRoot = ReviewLocation.rootOf(project, module)
-                    val dialog = MachineTranslationPreviewDialog(project, label, proposals, listOfNotNull(reviewRoot))
-                    if (dialog.showAndGet()) {
-                        val marks = reviewRoot?.let { root ->
-                            dialog.reviewOrigins()?.let { ReviewMarks(root, it, reviewSourcesOf(proposals, source)) }
-                        }
-                        write(project, module, dialog.acceptedByLocale(), marks, replacedOf(proposals), PluginBundle.message(pass.command))
-                        onWritten()
-                    }
-                }
+                write(project, module, dialog.acceptedByLocale(), marks, replacedOf(proposals), PluginBundle.message(pass.command))
+                onWritten()
             }
-        })
+        }
+    }
+
+    /**
+     * The proposals of every locale of [targets], each one's items picked by [itemsFor] and translated,
+     * the module's translations read once for them all; null when [indicator] was cancelled.
+     */
+    private fun proposalsFor(
+        project: Project, module: ModuleConfig?, source: String, targets: List<String>, provider: TranslationProvider,
+        indicator: ProgressIndicator, itemsFor: (Map<String, Map<String, String>>, String) -> List<Item>,
+    ): List<Proposal>? {
+        val translations = TranslationDataLoader.loadAllTranslations(project, module)
+        val config = Settings.getInstance(project).config()
+        val proposals = mutableListOf<Proposal>()
+        for (target in targets) {
+            indicator.text = PluginBundle.message("action.fill.progress.locale", target)
+            val items = itemsFor(translations, target)
+            if (items.isNotEmpty()) proposals += translate(items, provider, source, target, indicator, translations, config) ?: return null
+        }
+        return proposals
     }
 
     /**
