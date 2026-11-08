@@ -449,6 +449,7 @@ internal object MachineFill {
         val synchronizer = KeysSynchronizer()
         val sources = ReadAction.compute<List<LocalizationSource>, RuntimeException> { TranslationDataLoader.findSources(project, module) }
         val current = TranslationDataLoader.loadAllTranslations(project, module)
+        val order = referenceOrder(project, module, config, sources)
         val viewModel = DialogViewModel(project)
         WriteCommandAction.writeCommandAction(project)
             .withName(command)
@@ -456,7 +457,8 @@ internal object MachineFill {
             .withUndoConfirmationPolicy(UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION)
             .run<RuntimeException> {
                 val written = accepted.mapValues { (target, values) ->
-                    values.filter { (key, value) ->
+                    // Appended in the reference's key order, so an empty file reads like the reference.
+                    values.entries.sortedBy { order[it.key] ?: Int.MAX_VALUE }.associate { it.key to it.value }.filter { (key, value) ->
                         val now = current[key]?.get(target)
                         val seen = replaced[target]?.get(key)
                         if (if (seen == null) !now.isNullOrBlank() else now != seen) return@filter false
@@ -470,6 +472,19 @@ internal object MachineFill {
                     markWritten(project, marks.root, written, marks.origins, marks.sources) { ReviewKey.fromSpelling(it, defaultNamespace) }
                 }
             }
+    }
+
+    /**
+     * Each key of the reference locale among [sources] (`key -> position`), in the order its files
+     * list it: a key the reference lacks has none and is written after, in the order received.
+     */
+    private fun referenceOrder(
+        project: Project, module: ModuleConfig?, config: Config, sources: List<LocalizationSource>,
+    ): Map<String, Int> {
+        val locales = sources.map(TranslationDataLoader::extractLocale).distinct().sorted()
+        val reference = ReferenceLocale.of(module, config, locales) ?: locales.firstOrNull() ?: return emptyMap()
+        val referenceSources = sources.filter { TranslationDataLoader.extractLocale(it) == reference }
+        return TranslationDataLoader.translationsOf(project, referenceSources).keys.withIndex().associate { (index, key) -> key to index }
     }
 
     /**

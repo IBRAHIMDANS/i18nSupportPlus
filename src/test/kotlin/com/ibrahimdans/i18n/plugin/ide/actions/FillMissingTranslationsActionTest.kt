@@ -264,6 +264,40 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
         }
     }
 
+    private val referenceAuth = """{"login": {"title": "Sign in", "form": "Form", "button": "Go"}, "errors": {"required": "Required"}}"""
+
+    private val filled = mapOf(
+        "auth:errors.required" to "Obbligatorio", "auth:login.button" to "Vai", "auth:login.form" to "Modulo", "auth:login.title" to "Accedi",
+    )
+
+    /** The order of the keys' first appearance in [text], nested ones included. */
+    private fun keyOrder(text: String, vararg keys: String): List<String> =
+        keys.sortedBy { text.indexOf("\"$it\"").also { index -> Assertions.assertTrue(index >= 0, "$it in $text") } }
+
+    @Test
+    fun `an empty file is filled in the reference locale's key order, nested keys included`() = myFixture.runWithConfig(config) {
+        addFileToProject("locales/en/auth.json", referenceAuth)
+        val italian = addFileToProject("locales/it/auth.json", "{}")
+
+        MachineFill.write(project, null, "it", filled)
+
+        val text = FileDocumentManager.getInstance().getDocument(italian.virtualFile)!!.text
+        Assertions.assertEquals(listOf("login", "title", "form", "button", "errors", "required"),
+            keyOrder(text, "errors", "login", "button", "form", "title", "required"), text)
+    }
+
+    @Test
+    fun `a project sorting its keys alphabetically keeps them sorted`() = myFixture.runWithConfig(config.copy(sortKeysAlphabetically = true)) {
+        addFileToProject("locales/en/auth.json", referenceAuth)
+        val italian = addFileToProject("locales/it/auth.json", "{}")
+
+        MachineFill.write(project, null, "it", filled)
+
+        val text = FileDocumentManager.getInstance().getDocument(italian.virtualFile)!!.text
+        Assertions.assertEquals(listOf("errors", "required", "login", "button", "form", "title"),
+            keyOrder(text, "login", "title", "form", "button", "errors", "required"), text)
+    }
+
     @Test
     fun `accepted values are written in one undoable command, existing ones untouched`() = myFixture.runWithConfig(config) {
         addFileToProject("locales/en/common.json", """{"title": "Title", "save": "Save", "cancel": "Cancel"}""")

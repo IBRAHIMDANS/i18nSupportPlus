@@ -5,6 +5,7 @@
 ### Fixes
 
 - [AI agents] **The translation tools see the files an agent just wrote**: after an agent edited the translation files itself, or reset them with git, `i18n_missing_translations` and the other tools answered from what the IDE had seen before, for example 92 keys still missing right after they were all written. The tools now reload the translation folders from disk first.
+- [Machine translation] **An empty translation file is filled in the reference language's order**: *Fill Missing Translations* and an agent's `i18n_write_translations` wrote the keys alphabetically, so `it/auth.json` no longer read like `en/auth.json`. They now follow the reference file's key order, unless the project sorts its keys alphabetically.
 
 ## 1.19.1 - 2026-11-06
 

@@ -174,6 +174,21 @@ class TranslationAgentToolsTest : PlatformBaseTest() {
         Assertions.assertTrue("Abbrechen" !in document.text && "speichern" !in document.text, "one Ctrl+Z: ${document.text}")
     }
 
+    /** The keys come back sorted, but an empty file is written in the reference's order. */
+    @Test
+    fun `an empty locale file is written in the reference locale's key order`() = myFixture.runWithConfig(config) {
+        myFixture.addFileToProject("locales/en/auth.json", """{"login": {"title": "Sign in", "button": "Go"}, "errors": {"required": "Required"}}""")
+        val italian = myFixture.addFileToProject("locales/it/auth.json", "{}")
+        val keys = tools().missing(null, "it", 100).items.map { it.key }
+        Assertions.assertEquals(listOf("auth:errors.required", "auth:login.button", "auth:login.title"), keys, "listed by key")
+
+        tools().write(null, "it", mapOf("auth:errors.required" to "Obbligatorio", "auth:login.button" to "Vai", "auth:login.title" to "Accedi"), "codex")
+
+        val text = text(italian)
+        val order = listOf("errors", "login", "button", "title", "required").sortedBy { text.indexOf("\"$it\"") }
+        Assertions.assertEquals(listOf("login", "title", "button", "errors", "required"), order, text)
+    }
+
     @Test
     fun `the reference locale and an unknown locale or module are refused`() = myFixture.runWithConfig(config) {
         seed()
