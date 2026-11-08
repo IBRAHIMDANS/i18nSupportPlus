@@ -48,6 +48,15 @@ object DynamicReach {
         return Shape(text.substringBefore(INTERPOLATION), tail).takeIf { it.head.isNotEmpty() || it.tail.isNotEmpty() }
     }
 
+    /** The subset of [keys] one of [shapes] reaches ([Shape.reaches]). */
+    fun reached(keys: Collection<String>, shapes: Collection<Shape>, nsSeparator: String, keySeparator: String): Set<String> {
+        if (shapes.isEmpty()) return emptySet()
+        return keys.filterTo(mutableSetOf()) { key ->
+            val bare = key.substringAfter(nsSeparator, key)
+            shapes.any { it.reaches(key, bare, nsSeparator, keySeparator) }
+        }
+    }
+
     /** True when [head] is one key segment followed by the key separator: `errors.`. */
     private fun isBareSegment(head: String, nsSeparator: String, keySeparator: String): Boolean {
         if (keySeparator.isEmpty() || !head.endsWith(keySeparator)) return false
