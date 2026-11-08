@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.usages
 
+import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.IdeI18nRegistry
 import com.ibrahimdans.i18n.plugin.KeyUsage
 import com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages
@@ -30,17 +31,21 @@ import com.intellij.openapi.fileTypes.LanguageFileType
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager
+import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiTreeChangeAdapter
 import com.intellij.psi.PsiTreeChangeEvent
 import com.intellij.psi.search.FileTypeIndex
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.UsageSearchContext
+import com.intellij.psi.util.parents
 import org.jetbrains.annotations.TestOnly
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
@@ -49,7 +54,7 @@ import java.util.concurrent.atomic.AtomicLong
 /**
  * The key usages of the project's code, read once and kept: an inverted index from key path to the
  * places naming it ([CallSiteIndex]), filled file by file from the PSI ([CodeUsageIndexer]). It answers
- * what the word searches of `IndirectKeyUsages` and `DynamicKeyUsages` answer — the text scan, the
+ * what the word searches of `IndirectKeyUsages` and `DynamicKeyUsages` answered — the text scan, the
  * key-prefix and context scan, the dynamic keys, the translation values linking to a key — for every
  * key at once, where those searched the project once per key.
  *
@@ -135,6 +140,52 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
         return synchronized(this) { keys.distinct().associateWith { key -> asked.found(key) } }
     }
 
+    /**
+     * The call sites of [module]'s code naming [bareKey] — a key written without its namespace — read
+     * from one of [namespaces]: a Symfony call reads its domain from an argument, never from the key.
+     */
+    fun calls(bareKey: String, namespaces: List<String>, module: ModuleConfig?): Set<KeyUsage> {
+        val config = refresh()
+        val asked = readStep { Asked(project, config, module) }
+        return synchronized(this) { asked.calls(bareKey, namespaces) }
+    }
+
+    /** Whether a question has built the index already: asking it now reads the files changed since, not the project. */
+    val isBuilt: Boolean get() = builtWith != null && listedAt >= 0
+
+    /**
+     * The elements behind [usages], in the caller's read action: the literal at each place, found
+     * again in the file indexed there. A place whose file changed since it was indexed may find
+     * nothing, or another element: the caller asks again after the next question refreshed it.
+     */
+    fun elementsOf(usages: Collection<KeyUsage>): List<PsiElement> {
+        val files = synchronized(this) { hosts + linked.associate { it.file.path to it.file } }
+        val psi = PsiManager.getInstance(project)
+        val injection = InjectedLanguageManager.getInstance(project)
+        return usages.mapNotNull { usage ->
+            val file = files[usage.path]?.takeIf { it.isValid }?.let(psi::findFile) ?: return@mapNotNull null
+            elementAt(file, TextRange(usage.span.start, usage.span.end), injection)
+        }
+    }
+
+    /**
+     * The element spanning exactly [range] of [file] or of a fragment injected into it: the innermost
+     * one that is its own literal, as the searches returned it, else the outermost of that span.
+     */
+    private fun elementAt(file: PsiFile, range: TextRange, injection: InjectedLanguageManager): PsiElement? {
+        val languages = Extensions.LANG.extensionList
+        val starts = listOfNotNull(injection.findInjectedElementAt(file, range.startOffset)) +
+            file.viewProvider.allFiles.mapNotNull { it.findElementAt(range.startOffset) }
+        for (start in starts) {
+            val spanning = start.parents(true).takeWhile { it !is PsiFile }
+                .filter { (it.textRange?.let { own -> injection.injectedToHost(it, own) }) == range }
+                .toList()
+            if (spanning.isEmpty()) continue
+            return spanning.firstOrNull { element -> languages.any { it.resolveLiteral(element) === element } } ?: spanning.last()
+        }
+        return null
+    }
+
     /** The subset of [keys] a key the code of [module] builds at runtime may produce. */
     fun dynamicallyReached(keys: Collection<String>, module: ModuleConfig?): Set<String> {
         if (keys.isEmpty()) return emptySet()
@@ -173,15 +224,17 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
 
         fun found(key: String): Found {
             val query = IndirectKeyUsages.usageQuery(key, config.pluralSeparator)
-            val namespaces = query.namespace?.let { listOf(it) } ?: defaultNamespaces
-            val calls = textSites(query.bareKey)
-                .filter { covers(it.host) && (identifiers || !it.identifier) && worksIn(it, namespaces) }
-                .mapTo(sortedSetOf(USAGE_ORDER)) { it.usage }
+            val calls = calls(query.bareKey, query.namespace?.let { listOf(it) } ?: defaultNamespaces)
             val linking = linked
                 .filter { it.key == key && covers(it.file.path) && query.words.any { word -> containsWord(it.text, word) } }
                 .mapTo(sortedSetOf(USAGE_ORDER)) { it.usage }
             return Found(calls, linking, prefixed(key))
         }
+
+        /** The call sites naming [bareKey] or a key under it, in one of [namespaces]. */
+        fun calls(bareKey: String, namespaces: List<String>): Set<KeyUsage> = textSites(bareKey)
+            .filter { covers(it.host) && (identifiers || !it.identifier) && worksIn(it, namespaces) }
+            .mapTo(sortedSetOf(USAGE_ORDER)) { it.usage }
 
         /** The literals naming [bareKey] or a key under it: the prefix match of `ReferencesAccumulator`, on segments. */
         private fun textSites(bareKey: String): Sequence<TextSite> {
@@ -205,7 +258,10 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
             return declared == null || declared.any { it in namespaces } || fallbacks.any { it in namespaces }
         }
 
-        /** `IndirectKeyUsages.prefixedUsages` for one key. */
+        /**
+         * The calls reading [key] through what they do not write: a hook's key prefix, a key scope
+         * (Transloco's `read`, spelled `scope.key`), an i18next context. The text scan counts the others.
+         */
         private fun prefixed(key: String): Set<KeyUsage> {
             val found = sortedSetOf(USAGE_ORDER)
             val namespace = KeySpelling.namespaceOf(key)
@@ -230,7 +286,7 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
         }
 
         /**
-         * The paths a call naming [key] may write, as `IndirectKeyUsages.wantedPaths` reads them: the
+         * The paths a call naming [key] may write: the
          * key's own, and the base of a context variant (`friend_male`) under that context.
          */
         private fun wantedPaths(key: String): List<Pair<List<String>, String?>> {
@@ -264,9 +320,10 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
             val listed = readStep { codeFiles(config) }
             val known = synchronized(this) {
                 (hosts.keys - listed.mapTo(mutableSetOf()) { it.path }).forEach { path -> sites.remove(path); hosts -= path }
-                hosts.keys.toSet()
+                hosts.toMap()
             }
-            listed.filter { it.path !in known }.forEach { dirty.putIfAbsent(it, generation.incrementAndGet()) }
+            // A file deleted and created again at the same path — a `git checkout` — is another file: read it.
+            listed.filter { known[it.path] != it }.forEach { dirty.putIfAbsent(it, generation.incrementAndGet()) }
             listedAt = stamp
         }
         indexDirty(config, keyScopes)
@@ -299,6 +356,8 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
                 // Marked again while it was read: the next question reads it again.
                 if (!dirty.remove(file, marked)) return@synchronized
                 if (read == null) {
+                    // A file deleted since, whose path another file holds now: that one's sites stay.
+                    if (hosts[file.path].let { it != null && it != file }) return@synchronized
                     sites.remove(file.path)
                     hosts -= file.path
                 } else {

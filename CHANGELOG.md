@@ -9,6 +9,7 @@
 ### Improvements
 
 - [Tool window] ***Count Key Usages* reads the code once for all the keys**: on a large project the count takes seconds instead of minutes, and counting again after an edit only reads the files that changed.
+- [Editor] **The usage count shows above every key, whatever the size of the file**: it stopped past 100 keys and read "99+" for a popular key. It now gives the exact count on every key, read from the same index as the tool window, and *Unused translation key* and *Find Usages* on a key no longer search the project for each key.
 
 ### Fixes
 

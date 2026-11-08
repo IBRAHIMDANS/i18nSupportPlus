@@ -29,10 +29,9 @@ import com.intellij.psi.util.PsiTreeUtil
  * builds at runtime (`t(`menu.${'$'}{id}`)`) may reach it, shown as "dynamic usage" rather than
  * "no usages", or whether the project's keep list declares it used, shown as "kept".
  *
- * Two word searches per key: past [MAX_KEYS] keys in a file nothing is shown, rather than slowing
- * the daemon down on a catalogue of thousands of keys. A key used more than [MAX_USAGES] times
- * reads "99+ usages". JSON only — YAML is an optional dependency, kept out of the code `plugin.xml`
- * loads.
+ * Read from the index of the code's usages, asked once for the whole file: the count is exact and
+ * shown on every key, whatever the size of the file. JSON only — YAML is an optional dependency,
+ * kept out of the code `plugin.xml` loads.
  */
 class TranslationUsagesCodeVisionProvider : DaemonBoundCodeVisionProvider {
 
@@ -44,15 +43,17 @@ class TranslationUsagesCodeVisionProvider : DaemonBoundCodeVisionProvider {
     override fun computeForEditor(editor: Editor, file: PsiFile): List<Pair<TextRange, CodeVisionEntry>> {
         if (file !is JsonFile || TranslationFileScope.sourceOf(file) == null) return emptyList()
         val leaves = PsiTreeUtil.findChildrenOfType(file, JsonProperty::class.java).filter { it.value is JsonStringLiteral }
-        if (leaves.size > MAX_KEYS) return emptyList()
-        val heads = mutableMapOf<String, Set<String>>()
+        val names = leaves.map { it.nameElement }
+        val counts = TranslationKeyUsages.indirectCounts(names)
+        val unnamed = names.filter { counts[it] == 0 && !TranslationKeyUsages.kept(it) }
+        val reached = TranslationKeyUsages.reachedDynamically(unnamed)
         return leaves.map { property ->
-            val count = TranslationKeyUsages.indirectCount(property.nameElement)
+            val named = property.nameElement
+            val count = counts.getValue(named)
             val text = when {
-                count > MAX_USAGES -> PluginBundle.message("codevision.usages.many", MAX_USAGES)
                 count > 0 -> PluginBundle.message("codevision.usages.count", count)
-                TranslationKeyUsages.kept(property.nameElement) -> PluginBundle.message("codevision.usages.kept")
-                TranslationKeyUsages.reachedDynamically(property.nameElement, heads) -> PluginBundle.message("codevision.usages.dynamic")
+                named !in unnamed -> PluginBundle.message("codevision.usages.kept")
+                named in reached -> PluginBundle.message("codevision.usages.dynamic")
                 else -> PluginBundle.message("codevision.usages.none")
             }
             val pointer = SmartPointerManager.createPointer(property)
@@ -64,9 +65,5 @@ class TranslationUsagesCodeVisionProvider : DaemonBoundCodeVisionProvider {
 
     internal companion object {
         const val ID = "com.ibrahimdans.i18n.translationUsages"
-        // Set when each key ran the platform's reference search, about 14 ms per key on the benchmark:
-        // 500 keys held each pass of the file for 7 s. The text searches are cheaper; to be re-measured.
-        const val MAX_KEYS = 100
-        const val MAX_USAGES = 99
     }
 }

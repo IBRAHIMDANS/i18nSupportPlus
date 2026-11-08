@@ -33,10 +33,6 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
         if (DumbService.isDumb(holder.project)) return PsiElementVisitor.EMPTY_VISITOR
         if (!mayHoldTranslations(holder.file)) return PsiElementVisitor.EMPTY_VISITOR
 
-        // One cache for the whole file: its properties share their prefixes almost entirely,
-        // so the dynamic-head search runs a handful of times rather than once per key.
-        val heads = mutableMapOf<String, Set<String>>()
-
         return object : PsiElementVisitor() {
             override fun visitElement(element: PsiElement) {
                 val entry = TranslationPsi.entryOf(element) ?: return
@@ -45,7 +41,7 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
                 if (element is JsonProperty && JsonElementTree.isRootMetadata(element)) return
                 // JSON references sit on the property's name, YAML ones on the key-value itself.
                 val named = if (TranslationPsi.isYaml(element)) element else entry.keyElement
-                check(element, named, entry.keyElement, holder, heads)
+                check(element, named, entry.keyElement, holder)
             }
         }
     }
@@ -62,13 +58,12 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
         named: PsiElement,
         anchor: PsiElement,
         holder: ProblemsHolder,
-        heads: MutableMap<String, Set<String>>,
     ) {
         val hasRefs = ReadAction.compute<Boolean, RuntimeException> {
             TranslationKeyUsages.count(named, limit = 1) > 0
         }
         if (hasRefs || TranslationKeyUsages.kept(named) || TranslationKeyUsages.indirectCount(named) > 0 ||
-            TranslationKeyUsages.reachedDynamically(named, heads)) return
+            TranslationKeyUsages.reachedDynamically(named)) return
         val key = ReadAction.compute<String, RuntimeException> {
             TranslationKeyUsages.keyOf(named, Settings.getInstance(named.project).config())
         }

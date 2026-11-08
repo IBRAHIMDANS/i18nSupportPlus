@@ -85,7 +85,7 @@ class UsageCountBenchmarkTest : PlatformBaseTest() {
         return generated
     }
 
-    /** The leaf properties Code Vision would count in the first namespace's file, as many as it shows. */
+    /** The leaf properties Code Vision would count in the first namespace's file: the first [CODE_VISION_KEYS], as measured before. */
     private fun codeVisionProperties(): List<JsonProperty> {
         val file = PsiManager.getInstance(project).findFile(myFixture.findFileInTempDir("locales/en/common.json"))!!
         return PsiTreeUtil.findChildrenOfType(file, JsonProperty::class.java).filter { it.value is JsonStringLiteral }.take(CODE_VISION_KEYS)
@@ -98,13 +98,10 @@ class UsageCountBenchmarkTest : PlatformBaseTest() {
      */
     private fun codeVisionCounts(): Map<String, Int> = ReadAction.compute<Map<String, Int>, RuntimeException> {
         val config = Config()
-        val heads = mutableMapOf<String, Set<String>>()
-        codeVisionProperties().associate { property ->
-            val named = property.nameElement
-            val count = TranslationKeyUsages.indirectCount(named)
-            val shown = if (count == 0 && TranslationKeyUsages.reachedDynamically(named, heads)) -1 else count
-            TranslationKeyUsages.keyOf(named, config) to shown
-        }
+        val names = codeVisionProperties().map { it.nameElement }
+        val counts = TranslationKeyUsages.indirectCounts(names)
+        val reached = TranslationKeyUsages.reachedDynamically(names.filter { counts[it] == 0 })
+        names.associate { named -> TranslationKeyUsages.keyOf(named, config) to if (named in reached) -1 else counts.getValue(named) }
     }
 
     /** [block]'s result and how many milliseconds it took. */
@@ -117,7 +114,7 @@ class UsageCountBenchmarkTest : PlatformBaseTest() {
     private companion object {
         const val PROPERTY = "i18n.benchmark"
         const val OUTPUT = "i18n.benchmark.output"
-        /** As many keys as Code Vision shows per file. */
+        /** As many keys as Code Vision showed per file before it read the index: the measures stay comparable. */
         const val CODE_VISION_KEYS = 100
     }
 }

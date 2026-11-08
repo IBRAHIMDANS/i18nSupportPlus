@@ -32,16 +32,15 @@ class TranslationUsagesCodeVisionProviderTest : PlatformBaseTest() {
         assertEquals("no usages", labels["about"])
     }
 
-    /** Past [TranslationUsagesCodeVisionProvider.MAX_USAGES], the search stops and the label says so. */
+    /** The index gives the exact count: no cap, a key called 104 times reads so. */
     @Test
-    fun aKeyUsedPastTheLimitShowsACappedLabel() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
-        val max = TranslationUsagesCodeVisionProvider.MAX_USAGES
+    fun aKeyUsedManyTimesShowsItsExactCount() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
         addFileToProject("locales/en/common.json", """{"menu": {"home": "Home", "about": "About"}}""")
-        val calls = (List(max + 5) { "t('common:menu.home')" } + List(max) { "t('common:menu.about')" }).joinToString()
+        val calls = (List(104) { "t('common:menu.home')" } + List(99) { "t('common:menu.about')" }).joinToString()
         addFileToProject("src/App.js", "export const a = (t) => [$calls];")
         val labels = labelsOf("locales/en/common.json")
-        assertEquals("$max+ usages", labels["home"])
-        assertEquals("$max usages", labels["about"])
+        assertEquals("104 usages", labels["home"])
+        assertEquals("99 usages", labels["about"])
     }
 
     /** `t(`common:status.${kind}`)` names no key, yet may reach every `status.*`. */
@@ -145,11 +144,15 @@ class TranslationUsagesCodeVisionProviderTest : PlatformBaseTest() {
         assertEquals("no usages", labels["orphan"])
     }
 
+    /** A catalogue of 500 keys: every key gets its count, the index being asked once for the file. */
     @Test
-    fun aFilePastTheKeyLimitShowsNothing()= myFixture.runWithConfig(Config(defaultNs = "translation")) {
-        val keys = (0..TranslationUsagesCodeVisionProvider.MAX_KEYS).joinToString { "\"k$it\": \"v\"" }
+    fun everyKeyOfALargeFileShowsItsCount() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        val keys = (0 until 500).joinToString { "\"k$it\": \"v\"" }
         addFileToProject("locales/en/common.json", "{$keys}")
-        assertTrue(labelsOf("locales/en/common.json").isEmpty())
+        addFileToProject("src/App.js", "export const a = (t) => [" + (0 until 500 step 2).joinToString { "t('common:k$it')" } + "];")
+        val labels = labelsOf("locales/en/common.json")
+        assertEquals(500, labels.size)
+        assertEquals((0 until 500).associate { "k$it" to if (it % 2 == 0) "1 usage" else "no usages" }, labels)
     }
 
     @Test

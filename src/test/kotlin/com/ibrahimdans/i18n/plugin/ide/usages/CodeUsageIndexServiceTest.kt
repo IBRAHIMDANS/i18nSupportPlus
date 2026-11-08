@@ -79,6 +79,25 @@ class CodeUsageIndexServiceTest : PlatformBaseTest() {
         Assertions.assertEquals(1, count("profile.name"))
     }
 
+    /** A `git checkout` deletes a file and writes another at its path: the new one's usages count, the old one's do not. */
+    @Test
+    fun `a file created again at the path of an edited and deleted one is read`() {
+        val menu = menu()
+        Assertions.assertEquals(1, count("menu.home"))
+        // Edited, then deleted before the next question: it is still waiting to be read again.
+        WriteCommandAction.runWriteCommandAction(project) {
+            val document = myFixture.getDocument(menu)
+            document.insertString(document.textLength, "\nexport const back = () => i18n.t('menu.home');")
+            PsiDocumentManager.getInstance(project).commitDocument(document)
+            menu.virtualFile.delete(this)
+        }
+
+        myFixture.addFileToProject("src/Menu.tsx", "export const about = () => i18n.t('menu.about');")
+
+        Assertions.assertEquals(0, count("menu.home"))
+        Assertions.assertEquals(1, count("menu.about"))
+    }
+
     @Test
     fun `a moved file is found at its new place`() {
         val menu = menu()
@@ -89,6 +108,16 @@ class CodeUsageIndexServiceTest : PlatformBaseTest() {
 
         val usage = index.usages("menu.home").single()
         Assertions.assertTrue(usage.path.endsWith("src/moved/Menu.tsx"), usage.path)
+    }
+
+    /** The places the index keeps are found again as the elements the code holds there. */
+    @Test
+    fun `a usage is found again as its literal`() {
+        menu()
+
+        val found = index.readUsages("menu.home") { it.text }
+
+        Assertions.assertEquals(listOf("'menu.home'"), found)
     }
 
     @Test
