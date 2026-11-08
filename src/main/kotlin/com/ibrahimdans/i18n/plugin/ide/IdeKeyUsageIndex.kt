@@ -6,26 +6,22 @@ import com.ibrahimdans.i18n.plugin.KeyUsageIndex
 import com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationKeyUsages
 import com.ibrahimdans.i18n.plugin.ide.inspection.isIn
-import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.ibrahimdans.i18n.plugin.ide.toolwindow.DynamicKeyUsages
+import com.ibrahimdans.i18n.plugin.ide.usages.CodeUsageIndexService
 import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
 import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.searchScope
-import com.ibrahimdans.i18n.plugin.utils.TextSpan
-import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
-import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.PsiSearchHelper
-import java.util.concurrent.Callable
 
 /**
- * [KeyUsageIndex] on the IDE's word index: the text scan of [IndirectKeyUsages], its key-prefix
- * scan, and the dynamic keys of [DynamicKeyUsages] — the searches behind the table's *Usage*
- * column, asked here through one interface.
+ * [KeyUsageIndex] on the project's code, read once by [CodeUsageIndexService]: the call sites naming a
+ * key, with its namespace or under a hook declaring it, under a hook's key prefix or context, the
+ * translation values linking to it, and the keys built at runtime — the answers behind the table's
+ * *Usage* column, for every key at once.
  *
  * The references the platform finds on a key's declaration are not part of it: they start from a
  * PSI element, not from a key. The callers holding one still ask [TranslationKeyUsages] for them.
@@ -35,106 +31,32 @@ import java.util.concurrent.Callable
  */
 class IdeKeyUsageIndex(private val project: Project, private val module: ModuleConfig? = null) : KeyUsageIndex {
 
+    private val index get() = CodeUsageIndexService.getInstance(project)
+
     override fun usages(key: String): List<KeyUsage> =
         usages(listOf(key))[key].orEmpty()
 
     override fun usages(keys: Collection<String>): Map<String, List<KeyUsage>> =
-        search(keys) { unique, scope ->
-            elementsOf(unique, scope).mapValues { (_, elements) -> elements.mapNotNull(::usageOf).distinct() }
-        }
+        index.usages(keys, module).mapValues { (_, found) -> found.all }
+
+    override fun usageCounts(keys: Collection<String>): Map<String, Int> =
+        index.usages(keys, module).mapValues { (_, found) -> found.count }
+
+    override fun dynamicallyReached(keys: Collection<String>): Set<String> =
+        index.dynamicallyReached(keys, module)
 
     /**
      * What [read] makes of each element behind [key]'s [usages], those it reads as nothing left out:
      * for a caller looking at the code around a usage, which a [KeyUsage] no longer holds. [read]
-     * runs in the search's read action, while the elements are valid.
+     * runs in the search's read action, while the elements are valid. One key, searched for itself:
+     * the index keeps places, not elements.
      */
-    fun <T : Any> readUsages(key: String, read: (PsiElement) -> T?): List<T> =
-        search(listOf(key)) { unique, scope -> elementsOf(unique, scope)[key].orEmpty().mapNotNull(read) }
-
-    /** The elements naming each of [keys]: its text usages, then those under a hook's key prefix. */
-    private fun elementsOf(keys: List<String>, scope: TextSearch): Map<String, List<PsiElement>> {
-        val prefixed = scope.prefixedUsages(keys)
-        return keys.associateWith { key -> (scope.textUsages(key) + prefixed[key].orEmpty()).distinct() }
-    }
-
-    /**
-     * Counted batch by batch ([batchesOf]), each in its own [readStep]: the table asks for every
-     * key a project holds, and one read action over all of them held back every write action —
-     * and the EDT queued behind it — until the last key was counted.
-     */
-    override fun usageCounts(keys: Collection<String>): Map<String, Int> {
-        val scope = readStep { textSearch() }
-        return batchesOf(keys.distinct(), scope.config).flatMap { batch ->
-            readStep {
-                val prefixed = scope.prefixedUsages(batch)
-                batch.map { key -> key to scope.textCount(key) + prefixed[key].orEmpty().size }
-            }
-        }.toMap()
-    }
-
-    /** Runs [query] in one [readStep], on the distinct [keys], with what the batch's text searches share. */
-    private fun <T> search(keys: Collection<String>, query: (List<String>, TextSearch) -> T): T =
-        readStep { query(keys.distinct(), textSearch()) }
-
-    private fun textSearch(): TextSearch {
+    fun <T : Any> readUsages(key: String, read: (PsiElement) -> T?): List<T> = CodeUsageIndexService.readStep {
         val config = Settings.getInstance(project).config()
-        return TextSearch(
-            project, config, ModuleSources.searchScope(project, module), PsiSearchHelper.getInstance(project),
-            FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry),
-        )
-    }
-
-    private class TextSearch(
-        private val project: Project,
-        val config: Config,
-        private val scope: GlobalSearchScope,
-        private val helper: PsiSearchHelper,
-        private val fallbacks: List<String>,
-    ) {
-        fun textUsages(key: String) = IndirectKeyUsages.textUsages(key, config, scope, helper, fallbacks)
-        fun textCount(key: String) = IndirectKeyUsages.textCount(key, config, scope, helper, fallbacks)
-
-        /** The key-prefix scan, kept to [scope]: it searches the whole project itself. */
-        fun prefixedUsages(keys: List<String>): Map<String, List<PsiElement>> =
-            IndirectKeyUsages.prefixedUsages(project, keys, config).mapValues { (_, found) -> found.filter { it.isIn(scope) } }
-    }
-
-    /** One [readStep] per word searched: the words of every orphan of a project are many. */
-    override fun dynamicallyReached(keys: Collection<String>): Set<String> {
-        val (config, scope) = readStep { Settings.getInstance(project).config() to ModuleSources.searchScope(project, module) }
-        return DynamicKeyUsages.reachedKeys(
-            keys.toList(), scope, PsiSearchHelper.getInstance(project), config.nsSeparator, config.keySeparator, ::readStep,
-        )
-    }
-
-    companion object {
-        /** Keys counted per [readStep]; a word's keys are never split, so a batch may hold more. */
-        internal const val BATCH_SIZE = 50
-
-        /**
-         * [keys] cut into batches of about [BATCH_SIZE], the keys whose prefix scan searches the
-         * same word ([IndirectKeyUsages.prefixWordOf]) kept together: that search runs once per batch.
-         */
-        internal fun batchesOf(keys: List<String>, config: Config): List<List<String>> {
-            val batches = mutableListOf<MutableList<String>>()
-            for (group in keys.groupBy { IndirectKeyUsages.prefixWordOf(it, config) }.values) {
-                val last = batches.lastOrNull()
-                if (last != null && last.size + group.size <= BATCH_SIZE) last += group else batches += group.toMutableList()
-            }
-            return batches
-        }
-
-        /**
-         * Runs [compute] in a read action a write action cancels and restarts, rather than waits
-         * for; inside a read action already, it simply runs.
-         */
-        private fun <T> readStep(compute: () -> T): T =
-            ReadAction.nonBlocking<T>(Callable { compute() }).executeSynchronously()
-    }
-
-    private fun usageOf(element: PsiElement): KeyUsage? {
-        val path = element.containingFile?.virtualFile?.path ?: return null
-        val range = element.textRange ?: return null
-        return KeyUsage(path, TextSpan(range.startOffset, range.endOffset))
+        val scope = ModuleSources.searchScope(project, module)
+        val fallbacks = FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry)
+        val texts = IndirectKeyUsages.textUsages(key, config, scope, PsiSearchHelper.getInstance(project), fallbacks)
+        val prefixed = IndirectKeyUsages.prefixedUsages(project, listOf(key), config)[key].orEmpty().filter { it.isIn(scope) }
+        (texts + prefixed).distinct().mapNotNull(read)
     }
 }
