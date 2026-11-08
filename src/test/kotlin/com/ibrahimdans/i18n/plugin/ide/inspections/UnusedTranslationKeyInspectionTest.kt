@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
+import com.ibrahimdans.i18n.plugin.ide.usages.CodeUsageIndexService
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -36,6 +37,20 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
         return myFixture.doHighlighting()
             .mapNotNull { it.description }
             .filter { it == UNUSED_MSG }
+    }
+
+    /** While the code's usages are being read, a key the code does not name yet is not reported: it may be used. */
+    @Test
+    fun testNothingIsReportedBeforeTheUsagesAreRead() {
+        val service = CodeUsageIndexService.getInstance(project)
+        service.forget()
+        service.holdBuilds = true
+        try {
+            assertTrue(unusedWarnings("""{"greeting": "Hello!"}""").isEmpty())
+        } finally {
+            service.holdBuilds = false
+        }
+        assertEquals(1, unusedWarnings("""{"greeting": "Hello!"}""").size)
     }
 
     // JSON — leaf strings are flagged

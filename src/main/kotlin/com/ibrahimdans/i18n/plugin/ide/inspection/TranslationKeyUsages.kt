@@ -15,6 +15,7 @@ import com.ibrahimdans.i18n.plugin.utils.ownerOf
 import com.ibrahimdans.i18n.plugin.utils.usageScope
 import com.intellij.json.psi.JsonProperty
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiPolyVariantReference
@@ -95,6 +96,10 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
      * declaration: nothing of the plugin's resolves onto it (see [count]), but a reference another
      * plugin contributes might. It is kept to the code: the same-named properties of the other
      * locales, which the JSON plugin gives a name reference, were most of its candidates.
+     *
+     * At most [MAX_PLATFORM_SEARCHES] of these per question, the others left at what the index says:
+     * for a key spelled with a common word (`title`), the search reads every file holding the word —
+     * 200 such keys of one file held a highlighting pass for 194 s on the benchmark, 5.5 s once warm.
      */
     fun indirectCount(element: PsiElement): Int = indirectCounts(listOf(element)).getValue(element)
 
@@ -103,10 +108,23 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
         val first = elements.firstOrNull() ?: return emptyMap()
         val (keys, module) = keysOf(elements)
         val found = CodeUsageIndexService.getInstance(first.project).usages(keys.values.toSet(), module)
+        var searches = 0
         return keys.mapValues { (element, key) ->
-            found[key]?.count?.takeIf { it > 0 } ?: ReadAction.compute<Int, RuntimeException> { platformReferenceCount(element, scopeOf(element)) }
+            found[key]?.count?.takeIf { it > 0 }
+                ?: if (searches++ >= MAX_PLATFORM_SEARCHES) 0
+                else ReadAction.compute<Int, RuntimeException> { platformReferenceCount(element, scopeOf(element)) }
         }
     }
+
+    /** How many keys of one question the platform's reference search is run for, when the index finds none. */
+    internal const val MAX_PLATFORM_SEARCHES = 20
+
+    /**
+     * Whether a highlighting pass may count now: the index of the code's usages is built. Until it is,
+     * it is built in the background and the pass shows nothing — a key counted from a half-read
+     * project would be reported unused while the code uses it.
+     */
+    fun readyForHighlighting(project: Project): Boolean = CodeUsageIndexService.getInstance(project).readyForHighlighting()
 
     /** The key each of [elements] declares, and the module owning their file, whose code alone counts. */
     private fun keysOf(elements: List<PsiElement>): Pair<Map<PsiElement, String>, ModuleConfig?> =
