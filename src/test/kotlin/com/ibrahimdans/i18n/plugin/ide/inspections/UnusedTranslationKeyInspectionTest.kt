@@ -7,7 +7,17 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.ide.usages.CodeUsageIndexService
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.intellij.json.psi.JsonProperty
+import com.intellij.openapi.application.QueryExecutorBase
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.util.TextRange
+import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.PsiReference
+import com.intellij.psi.PsiReferenceBase
+import com.intellij.psi.search.searches.ReferencesSearch
+import com.intellij.util.Processor
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -266,6 +276,40 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
     }
 
     // A call site naming the key without leaving a reference on it — #408
+
+    /**
+     * A key the index does not find is searched for the references another plugin gives it — once,
+     * until the code changes: a pass with no edit since reads the count kept, an edit searches again.
+     */
+    @Test
+    fun testAnotherPluginsReferenceIsSearchedOncePerCodeChange() {
+        val code = myFixture.addFileToProject("src/App.js", "export const a = 1;")
+        myFixture.addFileToProject("locales/en/common.json", """{"foreign": "Foreign", "dead": "Dead"}""")
+        val searched = AtomicInteger()
+        var referenced = true
+        // Another plugin's reference onto `foreign`, held by the code file: what the platform's search finds.
+        ReferencesSearch.EP_NAME.point.registerExtension(object : QueryExecutorBase<PsiReference, ReferencesSearch.SearchParameters>(true) {
+            override fun processQuery(parameters: ReferencesSearch.SearchParameters, consumer: Processor<in PsiReference>) {
+                val target = parameters.elementToSearch as? JsonProperty ?: return
+                if (target.name != "foreign") return
+                searched.incrementAndGet()
+                if (referenced) consumer.process(PsiReferenceBase.Immediate(code, TextRange(0, 1), target))
+            }
+        }, testRootDisposable)
+
+        assertEquals(listOf("dead"), unusedIn("locales/en/common.json"))
+        val firstPass = searched.get()
+        assertTrue(firstPass > 0, "the key the index does not find is searched")
+        assertEquals(listOf("dead"), unusedIn("locales/en/common.json"), "the count kept")
+        assertEquals(firstPass, searched.get(), "no edit since: nothing searched again")
+
+        referenced = false
+        WriteCommandAction.runWriteCommandAction(project) { PsiDocumentManager.getInstance(project).getDocument(code)!!.setText("export const b = 2;") }
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+
+        assertEquals(listOf("foreign", "dead"), unusedIn("locales/en/common.json"), "searched again after the edit")
+        assertTrue(searched.get() > firstPass)
+    }
 
     private fun unusedIn(path: String): List<String> {
         myFixture.enableInspections(UnusedTranslationKeyInspection::class.java)

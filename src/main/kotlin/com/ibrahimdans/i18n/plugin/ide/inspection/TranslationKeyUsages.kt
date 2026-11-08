@@ -16,6 +16,7 @@ import com.ibrahimdans.i18n.plugin.utils.usageScope
 import com.intellij.json.psi.JsonProperty
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiPolyVariantReference
@@ -100,6 +101,9 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
      * At most [MAX_PLATFORM_SEARCHES] of these per question, the others left at what the index says:
      * for a key spelled with a common word (`title`), the search reads every file holding the word —
      * 200 such keys of one file held a highlighting pass for 194 s on the benchmark, 5.5 s once warm.
+     * Each count is kept on the key's element until the code changes ([CodeUsageIndexService.codeState]):
+     * a pass with no edit since searches nothing again, and the limit only counts the searches run, so
+     * the keys left out of one pass are searched by the next ones.
      */
     fun indirectCount(element: PsiElement): Int = indirectCounts(listOf(element)).getValue(element)
 
@@ -107,14 +111,21 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
     fun indirectCounts(elements: List<PsiElement>): Map<PsiElement, Int> {
         val first = elements.firstOrNull() ?: return emptyMap()
         val (keys, module) = keysOf(elements)
-        val found = CodeUsageIndexService.getInstance(first.project).usages(keys.values.toSet(), module)
+        val service = CodeUsageIndexService.getInstance(first.project)
+        val found = service.usages(keys.values.toSet(), module)
+        val state = service.codeState()
         var searches = 0
         return keys.mapValues { (element, key) ->
             found[key]?.count?.takeIf { it > 0 }
+                ?: element.getUserData(PLATFORM_COUNT)?.takeIf { it.first == state }?.second
                 ?: if (searches++ >= MAX_PLATFORM_SEARCHES) 0
                 else ReadAction.compute<Int, RuntimeException> { platformReferenceCount(element, scopeOf(element)) }
+                    .also { element.putUserData(PLATFORM_COUNT, state to it) }
         }
     }
+
+    /** The platform's count of a key's element, with the [CodeUsageIndexService.codeState] it was searched in. */
+    private val PLATFORM_COUNT = Key.create<Pair<Any, Int>>("i18n.platformReferenceCount")
 
     /** How many keys of one question the platform's reference search is run for, when the index finds none. */
     internal const val MAX_PLATFORM_SEARCHES = 20

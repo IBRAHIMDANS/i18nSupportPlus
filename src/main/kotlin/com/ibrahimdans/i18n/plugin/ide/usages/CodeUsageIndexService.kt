@@ -242,6 +242,13 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
         listOf(Settings.getInstance(project).config(), keyScopesOf(project), filesStamp(), generation.get())
     }
 
+    /**
+     * The state of the code as the index follows it ([buildState]): it changes with the settings, the
+     * files present and each code file edited. A count read from the code beside the index — the
+     * platform's reference search — stays true while it is the same.
+     */
+    fun codeState(): Any = buildState()
+
     private fun filesStamp(): Long =
         VirtualFileManager.getInstance().structureModificationCount + ProjectRootManager.getInstance(project).modificationCount
 
