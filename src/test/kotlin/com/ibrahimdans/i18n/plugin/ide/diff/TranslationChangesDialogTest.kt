@@ -18,10 +18,17 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.ui.TestDialog
+import com.intellij.openapi.ui.TestDialogManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
+import com.intellij.testFramework.PlatformTestUtil
+import com.intellij.util.concurrency.AppExecutorUtil
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 
@@ -303,5 +310,42 @@ class TranslationChangesDialogTest : PlatformBaseTest() {
         } finally {
             Disposer.dispose(dialog.disposable)
         }
+    }
+
+    @Test
+    fun `a retranslation cancelled from its progress previews nothing and writes nothing`() = myFixture.runWithConfig(config) {
+        val en = addFileToProject("locales/en/common.json", """{"save": "Save all"}""")
+        val fr = addFileToProject("locales/fr/common.json", """{"save": "Enregistrer"}""")
+        val found = changes(en to """{"save": "Save"}""")
+        val before = text(fr)
+        val started = CountDownLatch(1)
+        val progress = AtomicReference<ProgressIndicator>()
+        // A translation that ends only once its progress is cancelled, as a real engine does between its waits.
+        val endless: (List<LaggingRetranslation.Batch>, TranslationProvider, String, ProgressIndicator) -> List<LaggingRetranslation.Preview>? =
+            { _, _, _, indicator ->
+                progress.set(indicator)
+                started.countDown()
+                while (!indicator.isCanceled) Thread.onSpinWait()
+                indicator.checkCanceled()
+                null
+            }
+        // The Cancel button of the modal progress, pressed from outside: the EDT is busy in the modal loop meanwhile.
+        val cancel = AppExecutorUtil.getAppExecutorService().submit {
+            if (started.await(30, TimeUnit.SECONDS)) progress.get().cancel()
+        }
+        TestDialogManager.setTestDialog { message -> throw AssertionError("Unexpected modal: $message") }
+        val job = try {
+            LaggingRetranslation.run(project, found, engine, endless)!!.also { job ->
+                PlatformTestUtil.waitWithEventsDispatching("the cancelled retranslation never ended", { job.isCompleted }, 30)
+                PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+            }
+        } finally {
+            TestDialogManager.setTestDialog(TestDialog.DEFAULT)
+            cancel.cancel(true)
+        }
+
+        Assertions.assertEquals(0L, started.count, "the translation started")
+        Assertions.assertTrue(job.isCancelled, "the job ends cancelled")
+        Assertions.assertEquals(before, text(fr), "no translation written")
     }
 }
