@@ -51,7 +51,6 @@ jobs:
         include:
           - { platform: linux-x64, runner: ubuntu-latest }
           - { platform: linux-arm64, runner: ubuntu-24.04-arm }
-          - { platform: linux-x64-musl, runner: ubuntu-latest, musl: true }
           - { platform: darwin-x64, runner: macos-15-intel }
           - { platform: darwin-arm64, runner: macos-latest }
           - { platform: win32-x64, runner: windows-latest, exe: .exe }
@@ -69,7 +68,6 @@ jobs:
           java-version: '21'
           distribution: 'graalvm-community'
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          native-image-musl: ${{ matrix.musl == true }}
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6.4.1
@@ -78,27 +76,15 @@ jobs:
         run: ./gradlew :cli:installDist
 
       - name: Build the native binary
-        run: cli/native/build.sh "build/native/i18n-check${{ matrix.exe }}" ${{ matrix.musl && '--musl' || '' }}
+        run: cli/native/build.sh "build/native/i18n-check${{ matrix.exe }}"
 
       - name: Size
         run: |
           binary="build/native/i18n-check${{ matrix.exe }}"
           echo "${{ matrix.platform }}: $(wc -c < "$binary") bytes, $(gzip -9c "$binary" | wc -c) gzipped" | tee -a "$GITHUB_STEP_SUMMARY"
 
-      # The musl binary is static and cannot load tree-sitter's libraries: it is compared without
-      # `--code`, and `--code` must fail with an error, not crash.
       - name: Compare with the JVM
-        run: cli/native/compare.sh "build/native/i18n-check${{ matrix.exe }}" ${{ matrix.musl && '--no-code' || '' }}
-
-      - name: --code on musl fails cleanly
-        if: matrix.musl
-        run: |
-          set +e
-          build/native/i18n-check examples/simple --code > /dev/null 2> code.err
-          exit=$?
-          cat code.err
-          echo "exit code $exit"
-          [ "$exit" = 2 ]
+        run: cli/native/compare.sh "build/native/i18n-check${{ matrix.exe }}"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -150,12 +136,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { platform: linux-x64, runner: ubuntu-latest, container: 'node:24-bookworm-slim', code: true }
-          - { platform: linux-arm64, runner: ubuntu-24.04-arm, container: 'node:24-bookworm-slim', code: true }
-          - { platform: linux-x64-musl, runner: ubuntu-latest, container: 'node:24-alpine', code: false }
-          - { platform: darwin-x64, runner: macos-15-intel, code: true }
-          - { platform: darwin-arm64, runner: macos-latest, code: true }
-          - { platform: win32-x64, runner: windows-latest, code: true }
+          - { platform: linux-x64, runner: ubuntu-latest, container: 'node:24-bookworm-slim' }
+          - { platform: linux-arm64, runner: ubuntu-24.04-arm, container: 'node:24-bookworm-slim' }
+          - { platform: darwin-x64, runner: macos-15-intel }
+          - { platform: darwin-arm64, runner: macos-latest }
+          - { platform: win32-x64, runner: windows-latest }
     defaults:
       run:
         shell: ${{ matrix.container && 'sh' || 'bash' }}
@@ -194,6 +179,4 @@ jobs:
         run: |
           npx --no-install i18n-support-plus --help > /dev/null
           npx --no-install i18n-support-plus ../../examples/simple --max-problems 100000
-          if [ "${{ matrix.code }}" = true ]; then
-            npx --no-install i18n-support-plus ../../examples/react-multi-namespace --code --max-problems 100000
-          fi
+          npx --no-install i18n-support-plus ../../examples/react-multi-namespace --code --max-problems 100000

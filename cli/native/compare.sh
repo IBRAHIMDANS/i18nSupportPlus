@@ -4,13 +4,11 @@
 # binary instead of failing a check: this is what catches it, on each platform the binary is built for.
 #
 # usage, from the repository root, after `./gradlew :cli:installDist`:
-#   cli/native/compare.sh <native binary> [--no-code]
-# The JVM is $JAVA_HOME/bin/java. --no-code leaves out the cases that read the code with tree-sitter.
+#   cli/native/compare.sh <native binary>
+# The JVM is $JAVA_HOME/bin/java.
 set -uo pipefail
 
 binary=$1
-code=true
-[ "${2:-}" = --no-code ] && code=false
 
 lib=cli/build/install/i18n-check/lib
 java=${JAVA_HOME:?JAVA_HOME is not set}/bin/java
@@ -37,14 +35,14 @@ cases=()
 for example in examples/*/; do
   example=${example%/}
   cases+=("$example" "$example --format json" "$example --format github" "$example --no-values" "$example --max-problems 100000")
-  $code && cases+=("$example --code" "$example --code --format json" "$example --code --format github")
+  cases+=("$example --code" "$example --code --format json" "$example --code --format github")
 done
 for fixture in cli/src/test/resources/*/ "$work/latin1" "$work/malformed"; do
   fixture=${fixture%/}
   cases+=("$fixture" "--locales $fixture" "--locales $fixture --format json")
 done
 cases+=("--help" "--format yaml" "--max-problems -1" "--max-problems" "--unknown" "examples/simple examples/lingui")
-$code && cases+=("examples/simple --code --locales examples/simple")
+cases+=("examples/simple --code --locales examples/simple")
 
 failed=0
 for args in "${cases[@]}"; do

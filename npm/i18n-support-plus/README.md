@@ -21,10 +21,9 @@ Docker image are described in [docs/checks.md](https://github.com/IBRAHIMDANS/i1
 
 ## Platforms
 
-npm installs the one binary of the machine, as an optional dependency: Linux x64 and arm64 (glibc), Linux x64
-musl (Alpine), macOS x64 and arm64, Windows x64. On Alpine, `--code` is not available: the binary is linked
-statically there and cannot load tree-sitter, which reads the code. The zip of each
-[GitHub release](https://github.com/IBRAHIMDANS/i18nSupportPlus/releases) runs anywhere Java 21 does.
+npm installs the one binary of the machine, as an optional dependency: Linux x64 and arm64 (glibc), macOS x64
+and arm64, Windows x64. There is none for Alpine (musl): use the Docker image there, or the zip of each
+[GitHub release](https://github.com/IBRAHIMDANS/i18nSupportPlus/releases), which runs anywhere Java 21 does.
 
 An install with `--no-optional` or `--omit=optional`, or from a lockfile written on another platform, leaves
 the binary out: `i18n-support-plus` then says which package it lacks.

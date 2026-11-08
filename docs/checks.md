@@ -46,7 +46,7 @@ i18n-check-1.18.0/bin/i18n-check [project] [--locales <dir> | --code] [--referen
 
 `./gradlew :cli:installDist` builds it from this repository instead, in `cli/build/install/i18n-check/`.
 
-Without Java, the same check runs from npm, as a native binary for Linux x64 and arm64, macOS x64 and arm64, Windows x64 and Alpine: `npx i18n-support-plus` takes the arguments above, and a project can add it to its `devDependencies` for a script or a pre-commit hook (`"i18n": "i18n-support-plus --code"`). The command is `i18n-support-plus`, not `i18n-check`, which the unrelated `@lingual/i18n-check` package also installs. npm installs only the binary of the machine, as an optional dependency: an install with `--omit=optional` leaves it out, and the command then says which package it lacks. On Alpine (musl), `--code` stops with exit `2`: that binary is linked statically and cannot load tree-sitter, which reads the code; the translation files are checked as elsewhere, and the zip or the Docker image check the code there.
+Without Java, the same check runs from npm, as a native binary for Linux x64 and arm64 (glibc), macOS x64 and arm64 and Windows x64: `npx i18n-support-plus` takes the arguments above, and a project can add it to its `devDependencies` for a script or a pre-commit hook (`"i18n": "i18n-support-plus --code"`). The command is `i18n-support-plus`, not `i18n-check`, which the unrelated `@lingual/i18n-check` package also installs. npm installs only the binary of the machine, as an optional dependency: an install with `--omit=optional` leaves it out, and the command then says which package it lacks. There is no binary for Alpine (musl): the Docker image or the zip run there.
 
 ```bash
 npx i18n-support-plus --code

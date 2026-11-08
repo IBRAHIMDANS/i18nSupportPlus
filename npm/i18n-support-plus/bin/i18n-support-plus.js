@@ -16,14 +16,16 @@ function fail(message) {
   process.exit(CANNOT_CHECK);
 }
 
-// Node reports the glibc it runs on, and none under musl (Alpine).
+// Node reports the glibc it runs on, and none under musl (Alpine), where the glibc binary cannot run.
 function isMusl() {
   if (process.platform !== 'linux') return false;
   const report = process.report && process.report.getReport();
   return !(report && report.header && report.header.glibcVersionRuntime);
 }
 
-const key = `${process.platform}-${process.arch}${isMusl() ? '-musl' : ''}`;
+if (isMusl()) fail('there is no native i18n-check for musl (Alpine): use the Docker image or the zip of a release there.');
+
+const key = `${process.platform}-${process.arch}`;
 const platform = platforms[key];
 if (!platform) fail(`no native i18n-check for ${key}; there is one for ${Object.keys(platforms).join(', ')}.`);
 

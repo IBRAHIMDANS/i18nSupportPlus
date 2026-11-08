@@ -1,7 +1,6 @@
 {
   "linux-x64": { "os": "linux", "cpu": "x64", "libc": "glibc", "binary": "i18n-check" },
   "linux-arm64": { "os": "linux", "cpu": "arm64", "libc": "glibc", "binary": "i18n-check" },
-  "linux-x64-musl": { "os": "linux", "cpu": "x64", "libc": "musl", "binary": "i18n-check" },
   "darwin-x64": { "os": "darwin", "cpu": "x64", "binary": "i18n-check" },
   "darwin-arm64": { "os": "darwin", "cpu": "arm64", "binary": "i18n-check" },
   "win32-x64": { "os": "win32", "cpu": "x64", "binary": "i18n-check.exe" }
