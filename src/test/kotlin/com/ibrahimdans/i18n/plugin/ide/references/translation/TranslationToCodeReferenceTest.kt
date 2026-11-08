@@ -7,7 +7,15 @@ import com.ibrahimdans.i18n.plugin.utils.generator.code.*
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.JsonTranslationGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.YamlTranslationGenerator
 import com.ibrahimdans.i18n.plugin.utils.unQuote
+import com.ibrahimdans.i18n.plugin.ide.usages.CodeUsageIndexService
+import com.intellij.json.psi.JsonProperty
+import com.intellij.lang.annotation.HighlightSeverity
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiPolyVariantReference
+import com.intellij.psi.search.GlobalSearchScope
+import com.intellij.psi.search.PsiSearchHelper
+import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.testFramework.fixtures.CodeInsightTestFixture
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -45,8 +53,9 @@ class TranslationToCodeTestBase: PlatformBaseTest() {
         }
     }
 
+    /** A key nothing calls carries the reference too: it resolves to nothing, and nothing flags it. */
     @Test
-    fun testNoReference() {
+    fun testUnusedKeyResolvesToNothing() {
         tgs.forEach { tg ->
             myFixture.configureByText(
                 "test.${tg.ext()}",
@@ -54,8 +63,53 @@ class TranslationToCodeTestBase: PlatformBaseTest() {
             )
             val element = myFixture.file.findElementAt(myFixture.caretOffset)?.parent
             assertNotNull(element)
-            assertTrue(element!!.references.isEmpty())
+            assertUnresolvedAndUnflagged(element!!, myFixture)
         }
+    }
+
+    /**
+     * A key written in more files than the word index calls cheap carried no reference at all: no
+     * Ctrl+click, no Find Usages from the translation to its calls.
+     */
+    @Test
+    fun testPopularKeyResolvesToEveryCall() {
+        val cg = JsCodeGenerator()
+        repeat(POPULAR_FILES) { i -> myFixture.addFileToProject("popular$i.js", cg.generate("'popular:ref.section.key'")) }
+        myFixture.configureByText("popular.json", JsonTranslationGenerator().generateContent("ref", "section", "key<caret>", "Popular"))
+        @Suppress("DEPRECATION")
+        assertEquals(
+            PsiSearchHelper.SearchCostResult.TOO_MANY_OCCURRENCES,
+            PsiSearchHelper.getInstance(project).isCheapEnoughToSearch("popular:ref.section.key", GlobalSearchScope.projectScope(project), null),
+            "the key must be one the old guard left without a reference"
+        )
+        // Built, as a highlighting pass or a Ctrl+click off the event dispatch thread finds it.
+        CodeUsageIndexService.getInstance(project).calls("", emptyList(), null)
+
+        val element = myFixture.file.findElementAt(myFixture.caretOffset)?.parent!!
+        val reference = element.references.filterIsInstance<TranslationToCodeReference>().single()
+
+        val files = reference.multiResolve(false).mapNotNull { it.element?.containingFile?.name }.toSet()
+        assertEquals(POPULAR_FILES, files.size, "$files")
+    }
+
+    /**
+     * A search for the references to a translation key meets this reference in every locale file:
+     * another locale's key is no target of it, answered without resolving.
+     */
+    @Test
+    fun testAnotherTranslationIsNoTarget() {
+        myFixture.addFileToProject("target.js", JsCodeGenerator().generate("'target:ref.section.key'"))
+        val other = myFixture.addFileToProject("fr/target.json", JsonTranslationGenerator().generateContent("ref", "section", "key", "Cible"))
+        myFixture.configureByText("target.json", JsonTranslationGenerator().generateContent("ref", "section", "key<caret>", "Target"))
+
+        val element = myFixture.file.findElementAt(myFixture.caretOffset)?.parent!!
+        val reference = element.references.filterIsInstance<TranslationToCodeReference>().single()
+        val otherKey = PsiTreeUtil.findChildrenOfType(other, JsonProperty::class.java).single { it.name == "key" }
+
+        assertFalse(reference.isReferenceTo(otherKey))
+        assertFalse(reference.isReferenceTo(otherKey.nameElement))
+        val call = reference.multiResolve(false).single().element!!
+        assertTrue(reference.isReferenceTo(call), "the call site it resolves to")
     }
 
     @Test
@@ -196,6 +250,17 @@ class TranslationToCodeTestBase: PlatformBaseTest() {
             assertTrue(element!!.references.isEmpty())
         }
     }
+}
+
+private const val POPULAR_FILES = 15
+
+/** [element] carries the translation-to-code reference, resolving to nothing, and the file shows no error for it. */
+internal fun assertUnresolvedAndUnflagged(element: PsiElement, fixture: CodeInsightTestFixture) {
+    val references = element.references.filterIsInstance<TranslationToCodeReference>()
+    assertEquals(1, references.size, "${element.references.toList()}")
+    assertTrue(references.single().multiResolve(false).isEmpty())
+    val flagged = fixture.doHighlighting().filter { it.severity == HighlightSeverity.ERROR || it.description?.contains("resolve") == true }
+    assertTrue(flagged.isEmpty(), "$flagged")
 }
 
 class YamlReferencesTestBase : PlatformBaseTest() {

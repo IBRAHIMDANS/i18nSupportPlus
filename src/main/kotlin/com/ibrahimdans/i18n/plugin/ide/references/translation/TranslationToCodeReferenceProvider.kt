@@ -50,13 +50,10 @@ internal class TranslationToCodeReferenceProvider : KeyComposer<PsiElement> {
             false,
             config.firstComponentNs || scope != null
         )
-        @Suppress("DEPRECATION")
-        if (PsiSearchHelper.SearchCostResult.FEW_OCCURRENCES ==
-                PsiSearchHelper.getInstance(project).isCheapEnoughToSearch(key, ModuleSources.usageScope(project, element.containingFile?.virtualFile), null)
-        ) {
-            return listOf(TranslationToCodeReference(element, textRange, key))
-        }
-        return emptyList()
+        // On every key: resolving reads the index of the code's usages, one look-up per key. It was
+        // kept to the keys written in few files while each resolve searched the project for the
+        // key's words, which left a popular key without Ctrl+click or Find Usages to its calls.
+        return listOf(TranslationToCodeReference(element, textRange, key))
     }
 
     /** The domain of the Symfony catalogue holding [element], or null outside one. */
@@ -191,10 +188,24 @@ class TranslationToCodeReference(
         val (bareKey, readFrom) = if (namespaces != null) composedKey to namespaces
             else composedKey.substringAfter(separators.ns) to (if (namespace.isEmpty()) config.defaultNamespaces() else listOf(namespace))
         val index = CodeUsageIndexService.getInstance(project)
-        if (!index.isBuilt && ApplicationManager.getApplication().isDispatchThread) return searchRefs(bareKey, separators, readFrom)
+        if (!index.isBuilt && ApplicationManager.getApplication().isDispatchThread) {
+            return if (fewOccurrences()) searchRefs(bareKey, separators, readFrom) else emptyList()
+        }
         // In a monorepo, the code of the module owning this translation file only.
         val module = ModuleSources.ownerOf(project, element.containingFile?.virtualFile)
         return index.elementsOf(index.calls(bareKey, readFrom, module)).distinct()
+    }
+
+    /**
+     * Whether the key's words are written in few files: the search on the event dispatch thread is
+     * kept to them, a popular key's freezing the IDE for as long as it resolves every candidate.
+     */
+    @Suppress("DEPRECATION")
+    private fun fewOccurrences(): Boolean {
+        val project = element.project
+        val scope = ModuleSources.usageScope(project, element.containingFile?.virtualFile)
+        return PsiSearchHelper.getInstance(project).isCheapEnoughToSearch(composedKey, scope, null) ==
+            PsiSearchHelper.SearchCostResult.FEW_OCCURRENCES
     }
 
     /** [findRefs] by a search of the key's words. */
@@ -216,6 +227,16 @@ class TranslationToCodeReference(
         )
 
     override fun resolve(): PsiElement? = multiResolve(false).firstOrNull()?.element
+
+    /**
+     * Only a call site of the code is a target: a search for the references to a translation key —
+     * Rename, the platform's usage search — meets this reference in every locale file writing the
+     * key's words, and answers without reading the index nor finding each call again.
+     */
+    override fun isReferenceTo(target: PsiElement): Boolean {
+        val type = target.containingFile?.fileType ?: return false
+        return CodeUsageIndexService.isCodeType(type) && super.isReferenceTo(target)
+    }
 
     override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> =
             findRefs()

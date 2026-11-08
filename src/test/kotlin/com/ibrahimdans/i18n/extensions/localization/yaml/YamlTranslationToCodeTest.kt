@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.extensions.localization.yaml
 
+import com.ibrahimdans.i18n.plugin.ide.references.translation.assertUnresolvedAndUnflagged
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.utils.generator.code.JsCodeGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.YamlTranslationGenerator
@@ -35,8 +36,9 @@ class YamlTranslationToCodeTest: PlatformBaseTest() {
         assertTrue(element!!.references.isEmpty())
     }
 
+    /** A key nothing calls carries the reference too: it resolves to nothing, and nothing flags it. */
     @Test
-    fun testNoReference() {
+    fun testUnusedKeyResolvesToNothing() {
         val tg = YamlTranslationGenerator()
         myFixture.configureByText(
                 "test.${tg.ext()}",
@@ -44,7 +46,7 @@ class YamlTranslationToCodeTest: PlatformBaseTest() {
         )
         val element = myFixture.file.findElementAt(myFixture.caretOffset)?.parent
         assertNotNull(element)
-        assertTrue(element!!.references.isEmpty())
+        assertUnresolvedAndUnflagged(element!!, myFixture)
     }
 
     @Test

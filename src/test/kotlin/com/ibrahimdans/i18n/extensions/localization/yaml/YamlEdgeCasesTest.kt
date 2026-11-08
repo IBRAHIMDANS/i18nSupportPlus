@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.utils.generator.code.JsCodeGenerator
 import com.ibrahimdans.i18n.plugin.utils.generator.translation.YamlTranslationGenerator
 import com.ibrahimdans.i18n.plugin.utils.unQuote
+import com.intellij.psi.PsiPolyVariantReference
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -17,11 +18,11 @@ class YamlEdgeCasesTest : PlatformBaseTest() {
     @Test
     fun testNullValueDoesNotCrash() {
         // key: (no value) — YAMLKeyValue.value is null
-        // The reference assistant must not throw and must return empty references
+        // The reference assistant must not throw; the key, called nowhere, resolves to nothing
         myFixture.configureByText("nullvalue.${tg.ext()}", "section:\n  nul<caret>lKey:\n")
         val element = myFixture.file.findElementAt(myFixture.caretOffset)?.parent
         assertNotNull(element)
-        assertTrue(element!!.references.isEmpty())
+        assertTrue(element!!.references.all { (it as? PsiPolyVariantReference)?.multiResolve(false)?.isEmpty() ?: (it.resolve() == null) })
     }
 
     // ── Case 2: multi-line values ─────────────────────────────────────────────
