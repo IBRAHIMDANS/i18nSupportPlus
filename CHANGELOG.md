@@ -19,6 +19,8 @@
 - [Machine translation] **An empty translation file is filled in the reference language's order**: *Fill Missing Translations* and an agent's `i18n_write_translations` wrote the keys alphabetically, so `it/auth.json` no longer read like `en/auth.json`. They now follow the reference file's key order, unless the project sorts its keys alphabetically.
 - [Editor] **A key named only under a hook's `keyPrefix` is reported unused**: with `useTranslation('ns', { keyPrefix: 'header' })`, `t('title')` counted for `header.title` and for a top-level `title` too, which i18next never reads from that call, so the dead `title` escaped *Unused translation key* and *Cleanup unused keys*. It now counts for `header.title` only.
 - [Editor] **Ctrl+click and *Find Usages* from a translation key reach its calls whatever the key**: a key written in many files had no link to the code, so the most used keys were the ones you could not navigate from. Every key now leads to its calls.
+- [Twig] ***Show Translations Inline* and *Switch Preview Locale* are offered in Twig templates**: the editor's *i18n* submenu left them out of a `.twig` file, although its keys fold to their values. They now show wherever the plugin reads keys.
+
 
 ## 1.19.1 - 2026-11-06
 

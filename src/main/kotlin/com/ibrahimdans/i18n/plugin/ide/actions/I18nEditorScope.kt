@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
+import com.ibrahimdans.i18n.plugin.ide.usages.CodeUsageIndexService
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.intellij.openapi.components.service
 import com.intellij.psi.PsiFile
@@ -13,14 +14,13 @@ import com.intellij.psi.PsiFile
 internal object I18nEditorScope {
 
     /**
-     * The languages the plugin reads keys in, by id so that no optional plugin is needed to name them.
-     * Their dialects follow: TypeScript, JSX and TSX are kinds of JavaScript.
+     * True when [file] is source code the plugin reads keys in: its file type is one a registered `Lang`
+     * declares (`Lang.indexes`), the very files the usage index reads — so a template of a new `Lang`, Twig
+     * included, gets the actions without a list to keep here. By the file type alone, not the languages of
+     * its view: a Markdown file holds HTML too. Plain HTML counts, since JavaScript is read in it (Angular,
+     * Svelte templates); the actions still show only in a project that has translations ([hasSources]).
      */
-    private val CODE_LANGUAGES = setOf("JavaScript", "Vue", "PHP", "Blade", "Angular2", "Angular2Html", "SvelteHTML", "Astro")
-
-    /** True when [file] is source code of a language the plugin reads keys in. */
-    fun isCode(file: PsiFile): Boolean =
-        file.viewProvider.languages.any { language -> CODE_LANGUAGES.any { language.isKindOf(it) } }
+    fun isCode(file: PsiFile): Boolean = CodeUsageIndexService.isCodeType(file.fileType)
 
     /** True when [file] is code the plugin reads keys in, or a translation file. */
     fun isCodeOrTranslation(file: PsiFile): Boolean = isCode(file) || TranslationFileScope.sourceOf(file) != null
