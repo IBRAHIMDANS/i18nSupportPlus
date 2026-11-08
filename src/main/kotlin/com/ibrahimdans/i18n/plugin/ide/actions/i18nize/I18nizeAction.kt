@@ -80,13 +80,18 @@ class I18nizeAction : AnAction() {
     internal companion object {
 
         /**
-         * [selection]'s plan computed in the background, previewed, then written, or first
-         * translated, see [translateThenApply]. Its job, cancelled with the progress: nothing is written then.
+         * [selection]'s plan computed in the background by [computing], previewed, then written, or
+         * first translated, see [translateThenApply]. Its job, cancelled with the progress: nothing
+         * is written then. [computing] is [compute]; a test replaces it with one that never ends.
          */
-        fun run(project: Project, selection: List<VirtualFile>): Job = PluginCoroutineScope.of(project).launch {
+        fun run(
+            project: Project,
+            selection: List<VirtualFile>,
+            computing: (Project, List<VirtualFile>, ProgressIndicator) -> Preview = ::compute,
+        ): Job = PluginCoroutineScope.of(project).launch {
             val preview = withBackgroundProgress(project, PluginBundle.message("action.i18nize.title"), cancellable = true) {
                 coroutineToIndicator { indicator ->
-                    ReadAction.nonBlocking<Preview> { compute(project, selection, indicator) }
+                    ReadAction.nonBlocking<Preview> { computing(project, selection, indicator) }
                         .inSmartMode(project)
                         .wrapProgress(indicator)
                         .executeSynchronously()
