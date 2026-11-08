@@ -9,7 +9,6 @@ import com.intellij.psi.xml.XmlTag
 import com.intellij.psi.xml.XmlText
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertDoesNotThrow
-import org.junit.jupiter.api.Assumptions
 import org.junit.jupiter.api.Test
 
 class JsxTranslationExtractorTest : PlatformBaseTest() {
@@ -83,7 +82,7 @@ class JsxTranslationExtractorTest : PlatformBaseTest() {
         )
         val outerTag = PsiTreeUtil.findChildOfType(myFixture.file, XmlTag::class.java)
         val innerTag = outerTag?.let { PsiTreeUtil.findChildOfType(it, XmlTag::class.java) }
-        Assumptions.assumeTrue(innerTag != null) // JSX not parsed as XmlTag in this platform version — skip
+        Assertions.assertNotNull(innerTag, "JSX is no longer parsed as XmlTag: the extractor reads the wrong PSI")
         assertDoesNotThrow { extractor.textRange(innerTag!!) }
     }
 
@@ -95,7 +94,7 @@ class JsxTranslationExtractorTest : PlatformBaseTest() {
         )
         val outerTag = PsiTreeUtil.findChildOfType(myFixture.file, XmlTag::class.java)
         val innerTag = outerTag?.let { PsiTreeUtil.findChildOfType(it, XmlTag::class.java) }
-        Assumptions.assumeTrue(innerTag != null) // JSX not parsed as XmlTag in this platform version — skip
+        Assertions.assertNotNull(innerTag, "JSX is no longer parsed as XmlTag: the extractor reads the wrong PSI")
         assertDoesNotThrow { extractor.text(innerTag!!) }
     }
 
@@ -111,7 +110,7 @@ class JsxTranslationExtractorTest : PlatformBaseTest() {
                 "export const App = ({ name, count }: any) => <p>Hello {name}, {count} new</p>;"
             )
             val text = PsiTreeUtil.findChildOfType(myFixture.file, XmlText::class.java)
-            Assumptions.assumeTrue(text != null) // JSX not parsed as XmlTag in this platform version — skip
+            Assertions.assertNotNull(text, "JSX text is no longer parsed as XmlText: the extractor reads the wrong PSI")
             message = extractor.text(text!!.firstChild)
         }
         return message
