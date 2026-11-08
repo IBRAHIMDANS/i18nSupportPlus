@@ -14,6 +14,7 @@ import com.ibrahimdans.i18n.extract.i18next.unquoted
 import com.ibrahimdans.i18n.plugin.parser.CodeKeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.CodeNode
 import com.ibrahimdans.i18n.plugin.parser.RawKey
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import java.util.concurrent.ConcurrentHashMap
 
@@ -63,7 +64,7 @@ class NextIntlKeyExtractor : CodeKeyExtractor {
         const val HAS = "has"
 
         private val METHODS = setOf("rich", "markup", "raw", HAS)
-        private val HOOKS = setOf("useTranslations", "getTranslations")
+        internal val HOOKS: Set<String> = FrameworkPresets.NEXT_INTL.hooks.map { it.name }.toSet()
 
         private const val IDENTIFIER = "identifier"
         private const val MEMBER_EXPRESSION = "member_expression"
