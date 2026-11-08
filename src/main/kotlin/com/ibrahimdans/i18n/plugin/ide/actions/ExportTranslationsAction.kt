@@ -1,26 +1,32 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.utils.CsvTranslationCodec
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginCoroutineScope
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.XliffTranslationCodec
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.fileChooser.FileChooserFactory
 import com.intellij.openapi.fileChooser.FileSaverDescriptor
 import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
+import com.intellij.openapi.progress.coroutineToIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import com.intellij.platform.ide.progress.withBackgroundProgress
 import java.io.File
 import java.nio.charset.StandardCharsets
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Exports the project's translations so they can be handed to a translator and re-imported with
@@ -71,20 +77,7 @@ class ExportTranslationsAction : AnAction() {
             .save(null as com.intellij.openapi.vfs.VirtualFile?, if (missingOnly) "translations-missing.csv" else "translations.csv")
             ?: return
         val target = wrapper.file
-
-        runExport(project) { indicator ->
-            indicator.text = PluginBundle.message("action.export.progress.collecting")
-            val all = TranslationDataLoader.loadAllTranslations(project, scope.config)
-            val locales = all.values.flatMap { it.keys }.distinct().sorted()
-            val translations = if (missingOnly) incomplete(locales, all) else all
-            if (missingOnly && translations.isEmpty()) {
-                return@runExport PluginBundle.message("action.export.missing.nothing")
-            }
-
-            indicator.text = PluginBundle.message("action.export.progress.writing", translations.size)
-            target.writeText(CsvTranslationCodec.encode(locales, translations), StandardCharsets.UTF_8)
-            PluginBundle.message("action.export.done", translations.size, locales.size, target.absolutePath)
-        }
+        run(project) { indicator -> csv(project, scope.config, target, missingOnly, indicator) }
     }
 
     /** One file per target locale, in a chosen folder: XLIFF pairs a single source with a single target. */
@@ -92,43 +85,66 @@ class ExportTranslationsAction : AnAction() {
         val descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor()
             .withTitle(PluginBundle.message("action.export.xliff.chooser.title"))
         val folder = FileChooser.chooseFile(descriptor, project, null) ?: return
-        val directory = File(folder.path)
+        run(project) { indicator -> xliff(project, scope.config, File(folder.path), indicator) }
+    }
 
-        runExport(project) { indicator ->
+    /** The files an export writes, with their content, and the message shown once they are written. */
+    internal data class Export(val files: List<Pair<File, String>>, val message: String)
+
+    companion object {
+        /** The CSV of [config]'s translations to [target]; only the keys left to translate if [missingOnly]. */
+        internal fun csv(project: Project, config: ModuleConfig?, target: File, missingOnly: Boolean, indicator: ProgressIndicator): Export {
             indicator.text = PluginBundle.message("action.export.progress.collecting")
-            val translations = TranslationDataLoader.loadAllTranslations(project, scope.config)
+            val all = TranslationDataLoader.loadAllTranslations(project, config)
+            val locales = all.values.flatMap { it.keys }.distinct().sorted()
+            val translations = if (missingOnly) incomplete(locales, all) else all
+            if (missingOnly && translations.isEmpty()) {
+                return Export(emptyList(), PluginBundle.message("action.export.missing.nothing"))
+            }
+
+            indicator.text = PluginBundle.message("action.export.progress.writing", translations.size)
+            return Export(
+                listOf(target to CsvTranslationCodec.encode(locales, translations)),
+                PluginBundle.message("action.export.done", translations.size, locales.size, target.absolutePath)
+            )
+        }
+
+        /** One XLIFF file per target locale of [config], in [directory], each paired with the reference locale. */
+        internal fun xliff(project: Project, config: ModuleConfig?, directory: File, indicator: ProgressIndicator): Export {
+            indicator.text = PluginBundle.message("action.export.progress.collecting")
+            val translations = TranslationDataLoader.loadAllTranslations(project, config)
             val locales = translations.values.flatMap { it.keys }.distinct().sorted()
-            val config = Settings.getInstance(project).config()
-            val reference = ReferenceLocale.of(scope.config, config, locales) ?: locales.firstOrNull()
-                ?: return@runExport PluginBundle.message("action.export.xliff.nothing")
+            val reference = ReferenceLocale.of(config, Settings.getInstance(project).config(), locales) ?: locales.firstOrNull()
+                ?: return Export(emptyList(), PluginBundle.message("action.export.xliff.nothing"))
             val targets = locales - reference
 
             indicator.text = PluginBundle.message("action.export.progress.writing", translations.size)
-            val written = targets.map { locale ->
-                File(directory, "translations.$locale.xlf").also {
-                    it.writeText(XliffTranslationCodec.encode(reference, locale, translations), StandardCharsets.UTF_8)
-                }
+            val files = targets.map { locale ->
+                File(directory, "translations.$locale.xlf") to XliffTranslationCodec.encode(reference, locale, translations)
             }
-            if (written.isEmpty()) PluginBundle.message("action.export.xliff.nothing")
+            val message = if (files.isEmpty()) PluginBundle.message("action.export.xliff.nothing")
             else PluginBundle.message(
-                "action.export.xliff.done", translations.size, reference, written.joinToString("\n") { it.absolutePath }
+                "action.export.xliff.done", translations.size, reference, files.joinToString("\n") { it.first.absolutePath }
             )
+            return Export(files, message)
         }
-    }
 
-    /** Runs [export] in the background; the message it returns is shown when it is done. */
-    private fun runExport(project: Project, export: (ProgressIndicator) -> String) {
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.export.progress.title"), false) {
-            override fun run(indicator: ProgressIndicator) {
-                val message = export(indicator)
-                ApplicationManager.getApplication().invokeLater {
-                    Messages.showInfoMessage(project, message, PluginBundle.message("action.export.title"))
-                }
+        /**
+         * [plan] in the background, cancellable; its files are written only once it is complete, so a
+         * cancelled export writes nothing and leaves no file half written. The message is then shown on the EDT.
+         */
+        internal fun run(project: Project, plan: (ProgressIndicator) -> Export): Job = PluginCoroutineScope.of(project).launch {
+            val export = withBackgroundProgress(project, PluginBundle.message("action.export.progress.title"), cancellable = true) {
+                coroutineToIndicator { indicator -> plan(indicator) }
             }
-        })
-    }
+            withContext(Dispatchers.IO) {
+                export.files.forEach { (file, text) -> file.writeText(text, StandardCharsets.UTF_8) }
+            }
+            withContext(Dispatchers.EDT) {
+                Messages.showInfoMessage(project, export.message, PluginBundle.message("action.export.title"))
+            }
+        }
 
-    companion object {
         /** The keys at least one of [locales] lacks or leaves empty — what is left to translate. */
         fun incomplete(locales: List<String>, translations: Map<String, Map<String, String>>): Map<String, Map<String, String>> =
             translations.filterValues { values -> locales.any { values[it].isNullOrEmpty() } }
