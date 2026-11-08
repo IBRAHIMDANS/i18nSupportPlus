@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin.ide.settings
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.intellij.notification.Notification
 import com.intellij.notification.Notifications
+import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
@@ -17,6 +18,7 @@ import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -26,7 +28,8 @@ import org.junit.jupiter.api.Test
 
 /**
  * `i18n-check.json` at the project's root, read by the IDE: what it sets wins over the stored
- * settings, is never written back into them, and is read again when the file changes.
+ * settings, is never written back into them, and is read again when the file changes — its open
+ * document once the typing in it pauses, at once after an undo.
  */
 class ProjectConfigFileSettingsTest : PlatformBaseTest() {
 
@@ -42,6 +45,7 @@ class ProjectConfigFileSettingsTest : PlatformBaseTest() {
     fun restoreStored() {
         deleteConfigFile()
         settings.setConfig(stored)
+        settings.endTypingPause()
     }
 
     @Test
@@ -88,13 +92,43 @@ class ProjectConfigFileSettingsTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `an unsaved document is read before the file, as after an undo`() {
+    fun `an unsaved document is read before the file, once the typing in it pauses`() {
         addFileToProject(ProjectConfigFile.PATH, """{ "keySeparator": "/" }""")
         assertEquals("/", settings.config().keySeparator)
 
         editUnsaved("""{ "keySeparator": "#" }""")
 
+        Assertions.assertEquals("/", settings.config().keySeparator, "a keystroke waits for the pause")
+        settings.endTypingPause()
         assertEquals("#", settings.config().keySeparator)
+    }
+
+    /** The pause is the time's: what the typing left is read without another change — a daemon pass after the pause reads it. */
+    @Test
+    fun `the typing pause ends by itself`() {
+        addFileToProject(ProjectConfigFile.PATH, """{ "keySeparator": "/" }""")
+        assertEquals("/", settings.config().keySeparator)
+
+        editUnsaved("""{ "keySeparator": "#" }""")
+
+        assertEquals("/", settings.config().keySeparator)
+        PlatformTestUtil.waitWithEventsDispatching("the typing pause", { settings.config().keySeparator == "#" }, 5)
+    }
+
+    /** The undo of a namespace rename, which saved the file: the settings follow the undo at once, before any save. */
+    @Test
+    fun `an undone edit is read at once, unsaved`() {
+        val file = addFileToProject(ProjectConfigFile.PATH, """{ "keySeparator": "/" }""").virtualFile
+        myFixture.openFileInEditor(file)
+        val document = FileDocumentManager.getInstance().getDocument(file)!!
+        WriteCommandAction.runWriteCommandAction(project) { document.setText("""{ "keySeparator": "#" }""") }
+        FileDocumentManager.getInstance().saveDocument(document)
+        assertEquals("#", settings.config().keySeparator)
+
+        myFixture.performEditorAction(IdeActions.ACTION_UNDO)
+
+        assertTrue(FileDocumentManager.getInstance().isDocumentUnsaved(document), "the undo leaves the document unsaved")
+        assertEquals("/", settings.config().keySeparator)
     }
 
     @Test
@@ -103,6 +137,7 @@ class ProjectConfigFileSettingsTest : PlatformBaseTest() {
         assertEquals("/", settings.config().keySeparator)
 
         editUnsaved("""{ "keySeparator": "#" """)
+        settings.endTypingPause()
 
         assertEquals("/", settings.config().keySeparator)
     }
@@ -192,6 +227,7 @@ class ProjectConfigFileSettingsTest : PlatformBaseTest() {
     fun `a read of the unsaved document cancelled on the way is cancelled, not left to the file`() {
         addFileToProject(ProjectConfigFile.PATH, """{ "keySeparator": "/" }""")
         editUnsaved("""{ "keySeparator": "#" }""")
+        settings.endTypingPause()
 
         whileParsing({ "#" in it }) {
             assertThrows(ProcessCanceledException::class.java) { settings.configFileChanged() }
@@ -224,7 +260,7 @@ class ProjectConfigFileSettingsTest : PlatformBaseTest() {
         return seen
     }
 
-    /** Changes the document of `i18n-check.json` without saving it, as an undo does. */
+    /** Changes the document of `i18n-check.json` without saving it, as typing does. */
     private fun editUnsaved(text: String) {
         val file = settings.configFileOrNull()!!
         val document = FileDocumentManager.getInstance().getDocument(file)!!
