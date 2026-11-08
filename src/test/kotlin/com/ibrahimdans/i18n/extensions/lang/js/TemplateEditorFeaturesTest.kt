@@ -156,25 +156,35 @@ class TemplateEditorFeaturesTest : PlatformBaseTest() {
 
     private val composable = "import { useI18n } from 'vue-i18n';\nconst { t } = useI18n();\nconst label = t(`order.status.\${status}`);\n"
 
-    /** The key the plugin reads from the file's only template literal, its interpolation kept as written. */
-    private fun templateKey(): String? = ReadAction.compute<String?, RuntimeException> {
+    /** The key elements the plugin reads from the file's only template literal, each with its type. */
+    private fun templateKey(): List<String>? = ReadAction.compute<List<String>?, RuntimeException> {
         val template = PsiTreeUtil.findChildOfType(myFixture.file, JSStringTemplateExpression::class.java)
         Assertions.assertNotNull(template, "no template literal in the file")
         val names = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
         val lang = JsLang()
         if (!lang.canExtractKey(template!!, names)) return@compute null
-        lang.extractRawKey(template)?.keyElements?.joinToString("") { it.text }
+        lang.extractRawKey(template)?.keyElements?.map { "${it.type}:${it.text}" }
+    }
+
+    /** What a `.ts` file without `useI18n()` reads from the same call: the static prefix, then the interpolation as a wildcard. */
+    private fun keyWithoutComposable(): List<String>? {
+        open("plain.ts", "const label = t(`order.status.\${status}`);\n", "TypeScript")
+        return templateKey().also {
+            Assertions.assertTrue(it.orEmpty().any { element -> element.endsWith(":order.status.") }, "the reference reads the static prefix: $it")
+        }
     }
 
     @Test
-    fun `a template literal key after useI18n reads its static prefix in a TypeScript file`() {
+    fun `a template literal key after useI18n is read as in any TypeScript file`() {
+        val expected = keyWithoutComposable()
         open("order.ts", composable, "TypeScript")
-        Assertions.assertEquals("order.status.\${status}", templateKey())
+        Assertions.assertEquals(expected, templateKey())
     }
 
     @Test
-    fun `a template literal key reads its static prefix in a Vue script setup block`() = runVue {
+    fun `a template literal key in a Vue script setup block is read as in a TypeScript file`() = runVue {
+        val expected = keyWithoutComposable()
         myFixture.configureByText("Order.vue", "<script setup lang=\"ts\">\n$composable</script>\n<template><p>{{ label }}</p></template>\n")
-        Assertions.assertEquals("order.status.\${status}", templateKey())
+        Assertions.assertEquals(expected, templateKey())
     }
 }

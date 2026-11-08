@@ -1,10 +1,15 @@
 package com.ibrahimdans.i18n.extensions.technology.vuei18n
 
+import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.extensions.lang.js.JsLang
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.intellij.lang.javascript.psi.ecma6.JSStringTemplateExpression
+import com.intellij.openapi.application.ReadAction
+import com.intellij.psi.util.PsiTreeUtil
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
@@ -60,6 +65,27 @@ class VueI18nComposableTest : PlatformBaseTest() {
             <template><h2>{{ t('order.title') }}</h2><p>{{ t('order.inTemplate') }}</p></template>
         """.trimIndent())
         assertEquals(listOf("inTemplate"), unresolved)
+    }
+
+    /**
+     * A template literal is read as the key parser reads one elsewhere, static parts and interpolations: the
+     * preset leaves `t` out of the generic path, so only this extractor reads it, and it read an empty key.
+     */
+    @Test
+    fun aTemplateLiteralKeyOfUseI18nKeepsItsStaticPrefix() = myFixture.runWithConfig(config) {
+        myFixture.configureFromExistingVirtualFile(myFixture.addFileToProject("src/status.ts", """
+            import { useI18n } from 'vue-i18n';
+            const { t } = useI18n();
+            export const label = (status: string) => t(`order.status.${'$'}{status}`);
+        """.trimIndent()).virtualFile)
+        val key = ReadAction.compute<String?, RuntimeException> {
+            val template = PsiTreeUtil.findChildOfType(myFixture.file, JSStringTemplateExpression::class.java)!!
+            val names = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
+            val lang = JsLang()
+            if (lang.canExtractKey(template, names)) lang.extractRawKey(template)?.keyElements?.joinToString("") { it.text } else null
+        }
+        // The elements as `TemplateKeyExtractor` reads a template: its backticks, which the key parser drops, included.
+        assertEquals("`order.status.${'$'}{status}`", key)
     }
 
     /** A `t` that `useI18n()` does not return stays out of a vue-i18n module, as before. */
