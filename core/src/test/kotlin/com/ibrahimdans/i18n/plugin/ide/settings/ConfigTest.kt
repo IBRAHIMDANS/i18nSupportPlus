@@ -142,6 +142,7 @@ class ConfigTest {
             }
             .toSet()
 
-        assertEquals(properties, Config.SCOPES.keys, "a setting of Config without its line in Config.SCOPES, or a line for no setting")
+        assertEquals(emptySet<String>(), properties - Config.SCOPES.keys, "settings of Config without their line in Config.SCOPES")
+        assertEquals(emptySet<String>(), Config.SCOPES.keys - properties, "lines of Config.SCOPES that name no setting of Config")
     }
 }
