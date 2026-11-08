@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.extract.CodeExtractors
 import com.ibrahimdans.i18n.extract.i18next.findKeys
 import com.ibrahimdans.i18n.extract.treesitter.TreeSitterCodeNode
 import com.ibrahimdans.i18n.plugin.parser.RawKey
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -15,6 +16,16 @@ class NextIntlKeyExtractorTest {
 
     private fun key(key: String, prefix: String? = null) =
         RawKey(listOf(KeyElement.literal(key)), emptyList(), listOfNotNull(prefix?.let(KeyElement::literal)))
+
+    @Test
+    fun `every hook of the next-intl preset binds a t`() {
+        val hooks = FrameworkPresets.NEXT_INTL.hooks.map { it.name }
+        assertEquals(setOf("useTranslations", "getTranslations"), NextIntlKeyExtractor.HOOKS)
+        assertEquals(hooks.toSet(), NextIntlKeyExtractor.HOOKS)
+        hooks.forEach { hook ->
+            assertEquals(listOf(key("title", "Home")), keys("async function A() { const t = await $hook('Home'); return t('title'); }"), hook)
+        }
+    }
 
     @Test
     fun `the hook's argument prefixes the keys, not a namespace`() {

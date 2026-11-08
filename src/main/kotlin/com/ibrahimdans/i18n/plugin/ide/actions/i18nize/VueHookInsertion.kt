@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.actions.i18nize
 
 import com.ibrahimdans.i18n.extensions.lang.js.VueScriptTextExtractor
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
 import com.intellij.lang.ecmascript6.psi.ES6ImportDeclaration
 import com.intellij.lang.javascript.psi.JSEmbeddedContent
 import com.intellij.lang.javascript.psi.JSFunction
@@ -19,7 +20,8 @@ import com.intellij.psi.util.PsiTreeUtil
  */
 internal object VueHookInsertion {
 
-    const val HOOK = "useI18n"
+    /** vue-i18n's composable, `useI18n`, as its preset names it. */
+    val HOOK: String = FrameworkPresets.VUE_I18N.hooks.single().name
     const val MODULE = "vue-i18n"
 
     /** The edits giving each `<script setup>` holding one of [literals] its `t`. */
