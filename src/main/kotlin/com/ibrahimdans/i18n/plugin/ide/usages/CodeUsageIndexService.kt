@@ -17,18 +17,23 @@ import com.ibrahimdans.i18n.plugin.usages.DynamicReach
 import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
 import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.keyScopesOf
 import com.ibrahimdans.i18n.plugin.utils.searchScope
+import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.json.JsonFileType
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.fileTypes.LanguageFileType
+import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.TextRange
@@ -49,7 +54,10 @@ import com.intellij.psi.util.parents
 import org.jetbrains.annotations.TestOnly
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.locks.ReentrantLock
 
 /**
  * The key usages of the project's code, read once and kept: an inverted index from key path to the
@@ -70,6 +78,9 @@ import java.util.concurrent.atomic.AtomicLong
  */
 @Service(Service.Level.PROJECT)
 internal class CodeUsageIndexService(private val project: Project) : Disposable {
+
+    /** Held by the one [refresh] running. */
+    private val refreshing = ReentrantLock()
 
     /** The sites of each code file indexed. Guarded by `this`, as are [hosts] and [linked]. */
     private val sites = CallSiteIndex<CodeSite>()
@@ -100,6 +111,12 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
 
     @TestOnly
     fun filesRead(): Long = filesRead.get()
+
+    /** Drops what was read: the next question reads the project again, as after opening it. */
+    @TestOnly
+    fun forget() {
+        builtWith = null
+    }
 
     init {
         PsiManager.getInstance(project).addPsiTreeChangeListener(object : PsiTreeChangeAdapter() {
@@ -152,6 +169,56 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
 
     /** Whether a question has built the index already: asking it now reads the files changed since, not the project. */
     val isBuilt: Boolean get() = builtWith != null && listedAt >= 0
+
+    /**
+     * Whether the index answers a highlighting pass now: built with the settings and key scopes in force,
+     * so that a question reads at most the files changed since. When it does not, it is built in the
+     * background — one build at a time, under a progress indicator — and the highlighting runs again
+     * once it is: reading the whole project from a highlighting pass held it for as long (18 s on the
+     * benchmark's 300 files), and an answer read from a half-built index would call live keys unused.
+     */
+    fun readyForHighlighting(): Boolean {
+        if (isReady()) return true
+        if (holdBuilds) return false
+        val application = ApplicationManager.getApplication()
+        // A test reads what the counts decide: built here, in the pass that asks.
+        if (application.isUnitTestMode) {
+            refresh()
+            return isReady()
+        }
+        // Started from the event dispatch thread: a task cannot start from the read action the pass holds.
+        if (building.compareAndSet(false, true)) application.invokeLater({ build() }, project.disposed)
+        return false
+    }
+
+    private fun build() {
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("usages.index.progress.title"), false) {
+            override fun run(indicator: ProgressIndicator) {
+                try {
+                    refresh()
+                } finally {
+                    building.set(false)
+                }
+            }
+
+            override fun onFinished() {
+                if (!project.isDisposed) DaemonCodeAnalyzer.getInstance(project).restart()
+            }
+        })
+    }
+
+    private fun isReady(): Boolean {
+        val built = builtWith ?: return false
+        return listedAt >= 0 && readStep { Settings.getInstance(project).config() to keyScopesOf(project) } == built
+    }
+
+    /** Whether a build is running. */
+    private val building = AtomicBoolean()
+
+    /** Set by a test to see what the highlighting does before the index is built. */
+    @Volatile
+    @TestOnly
+    var holdBuilds = false
 
     /**
      * The elements behind [usages], in the caller's read action: the literal at each place, found
@@ -301,8 +368,21 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
     /**
      * Brings the index up to date with the settings, the files present and the files changed, and
      * returns the settings it now holds. Reads off the lock, writes under it.
+     *
+     * One at a time: two at once each saw the settings changed and cleared what the other was reading.
+     * The wait gives way to a cancellation, so that a highlighting pass waiting here never holds back
+     * the write action that cancelled it.
      */
     private fun refresh(): Config {
+        while (!refreshing.tryLock(WAIT_MS, TimeUnit.MILLISECONDS)) ProgressManager.checkCanceled()
+        try {
+            return refreshAlone()
+        } finally {
+            refreshing.unlock()
+        }
+    }
+
+    private fun refreshAlone(): Config {
         val (config, keyScopes) = readStep { Settings.getInstance(project).config() to keyScopesOf(project) }
         if (config to keyScopes != builtWith) {
             synchronized(this) {
@@ -400,6 +480,9 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
             listOfNotNull(JsonFileType.INSTANCE, FileTypeManager.getInstance().findFileTypeByName("YAML"))
 
         private fun isTranslationValueType(type: FileType): Boolean = type in translationValueTypes()
+
+        /** How long a question waits for another one's refresh before checking it was not cancelled. */
+        private const val WAIT_MS = 50L
 
         private val USAGE_ORDER = compareBy<KeyUsage>({ it.path }, { it.span.start }, { it.span.end })
 

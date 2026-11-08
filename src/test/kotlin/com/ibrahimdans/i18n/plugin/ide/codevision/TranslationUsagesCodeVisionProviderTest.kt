@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
+import com.ibrahimdans.i18n.plugin.ide.usages.CodeUsageIndexService
 import com.intellij.codeInsight.codeVision.ui.model.ClickableTextCodeVisionEntry
 import com.intellij.openapi.application.ReadAction
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -153,6 +154,22 @@ class TranslationUsagesCodeVisionProviderTest : PlatformBaseTest() {
         val labels = labelsOf("locales/en/common.json")
         assertEquals(500, labels.size)
         assertEquals((0 until 500).associate { "k$it" to if (it % 2 == 0) "1 usage" else "no usages" }, labels)
+    }
+
+    /** While the code's usages are being read, no count shows rather than a wrong one. */
+    @Test
+    fun nothingShowsBeforeTheUsagesAreRead() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        addFileToProject("locales/en/common.json", """{"menu": {"home": "Home"}}""")
+        addFileToProject("src/App.js", "export const a = (t) => t('common:menu.home');")
+        val service = CodeUsageIndexService.getInstance(project)
+        service.forget()
+        service.holdBuilds = true
+        try {
+            assertTrue(labelsOf("locales/en/common.json").isEmpty())
+        } finally {
+            service.holdBuilds = false
+        }
+        assertEquals("1 usage", labelsOf("locales/en/common.json")["home"])
     }
 
     @Test

@@ -23,6 +23,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiRecursiveElementWalkingVisitor
 
 class UnusedTranslationKeyInspection : LocalInspectionTool() {
 
@@ -32,42 +33,59 @@ class UnusedTranslationKeyInspection : LocalInspectionTool() {
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
         if (DumbService.isDumb(holder.project)) return PsiElementVisitor.EMPTY_VISITOR
         if (!mayHoldTranslations(holder.file)) return PsiElementVisitor.EMPTY_VISITOR
+        // Nothing is reported before the code's usages are read: a half-read project leaves live keys at zero.
+        if (!TranslationKeyUsages.readyForHighlighting(holder.project)) return PsiElementVisitor.EMPTY_VISITOR
+
+        // The whole file at once: one question to the index for every key, where one per key cost as much again each.
+        val unused by lazy { unusedOf(holder.file) }
 
         return object : PsiElementVisitor() {
             override fun visitElement(element: PsiElement) {
-                val entry = TranslationPsi.entryOf(element) ?: return
-                if (entry.literal == null) return
-                // Root metadata (Paraglide's `$schema`, an ARB `@key`) is no key, so never an unused one.
-                if (element is JsonProperty && JsonElementTree.isRootMetadata(element)) return
-                // JSON references sit on the property's name, YAML ones on the key-value itself.
-                val named = if (TranslationPsi.isYaml(element)) element else entry.keyElement
-                check(element, named, entry.keyElement, holder)
+                val key = unused[element] ?: return
+                val anchor = TranslationPsi.entryOf(element)?.keyElement ?: return
+                holder.registerProblem(anchor, MESSAGE, DeleteUnusedKeyFix(), KeepKeyQuickFix(key))
             }
         }
     }
 
     /**
-     * Reports the leaf key [declaration] when nothing refers to it: no resolving reference held by
-     * [named] — the element carrying the key's name — no call site naming it, under a key prefix or
-     * an `ns` option included, no reference the platform finds on [declaration], no dynamic key
-     * reaching it, and no rule of the project's [KeepList] keeping it.
-     * The problem sits on [anchor].
+     * The leaf keys of [file] nothing refers to, each with its key: no call site naming it, under a key
+     * prefix or an `ns` option included, no rule of the project's [KeepList] keeping it, no resolving
+     * reference held by the element carrying its name, no reference the platform finds on its
+     * declaration, and no dynamic key reaching it.
      */
-    private fun check(
-        declaration: PsiElement,
-        named: PsiElement,
-        anchor: PsiElement,
-        holder: ProblemsHolder,
-    ) {
-        val hasRefs = ReadAction.compute<Boolean, RuntimeException> {
-            TranslationKeyUsages.count(named, limit = 1) > 0
+    private fun unusedOf(file: PsiFile): Map<PsiElement, String> {
+        val named = ReadAction.compute<Map<PsiElement, PsiElement>, RuntimeException> { namedLeavesOf(file) }
+        if (named.isEmpty()) return emptyMap()
+        val counts = TranslationKeyUsages.indirectCounts(named.values.toList())
+        val unnamed = named.filterValues { name ->
+            counts[name] == 0 && !TranslationKeyUsages.kept(name) &&
+                ReadAction.compute<Boolean, RuntimeException> { TranslationKeyUsages.count(name, limit = 1) == 0 }
         }
-        if (hasRefs || TranslationKeyUsages.kept(named) || TranslationKeyUsages.indirectCount(named) > 0 ||
-            TranslationKeyUsages.reachedDynamically(named)) return
-        val key = ReadAction.compute<String, RuntimeException> {
-            TranslationKeyUsages.keyOf(named, Settings.getInstance(named.project).config())
+        val reached = TranslationKeyUsages.reachedDynamically(unnamed.values.toList())
+        val config = Settings.getInstance(file.project).config()
+        return ReadAction.compute<Map<PsiElement, String>, RuntimeException> {
+            unnamed.filterValues { it !in reached }.mapValues { (_, name) -> TranslationKeyUsages.keyOf(name, config) }
         }
-        holder.registerProblem(anchor, MESSAGE, DeleteUnusedKeyFix(), KeepKeyQuickFix(key))
+    }
+
+    /**
+     * The leaf keys of [file], each with the element carrying its name: JSON references sit on the
+     * property's name, YAML ones on the key-value itself. Root metadata (Paraglide's `$schema`, an ARB
+     * `@key`) is no key, so never an unused one.
+     */
+    private fun namedLeavesOf(file: PsiFile): Map<PsiElement, PsiElement> {
+        val found = linkedMapOf<PsiElement, PsiElement>()
+        file.accept(object : PsiRecursiveElementWalkingVisitor() {
+            override fun visitElement(element: PsiElement) {
+                val entry = TranslationPsi.entryOf(element)
+                if (entry?.literal != null && !(element is JsonProperty && JsonElementTree.isRootMetadata(element))) {
+                    found[element] = if (TranslationPsi.isYaml(element)) element else entry.keyElement
+                }
+                super.visitElement(element)
+            }
+        })
+        return found
     }
 
     /**

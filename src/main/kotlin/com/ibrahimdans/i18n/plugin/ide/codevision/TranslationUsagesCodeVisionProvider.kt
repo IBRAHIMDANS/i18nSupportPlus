@@ -30,7 +30,7 @@ import com.intellij.psi.util.PsiTreeUtil
  * "no usages", or whether the project's keep list declares it used, shown as "kept".
  *
  * Read from the index of the code's usages, asked once for the whole file: the count is exact and
- * shown on every key, whatever the size of the file. JSON only — YAML is an optional dependency,
+ * shown on every key, whatever the size of the file. Nothing shows while the index is being built. JSON only — YAML is an optional dependency,
  * kept out of the code `plugin.xml` loads.
  */
 class TranslationUsagesCodeVisionProvider : DaemonBoundCodeVisionProvider {
@@ -42,6 +42,7 @@ class TranslationUsagesCodeVisionProvider : DaemonBoundCodeVisionProvider {
 
     override fun computeForEditor(editor: Editor, file: PsiFile): List<Pair<TextRange, CodeVisionEntry>> {
         if (file !is JsonFile || TranslationFileScope.sourceOf(file) == null) return emptyList()
+        if (!TranslationKeyUsages.readyForHighlighting(file.project)) return emptyList()
         val leaves = PsiTreeUtil.findChildrenOfType(file, JsonProperty::class.java).filter { it.value is JsonStringLiteral }
         val names = leaves.map { it.nameElement }
         val counts = TranslationKeyUsages.indirectCounts(names)
