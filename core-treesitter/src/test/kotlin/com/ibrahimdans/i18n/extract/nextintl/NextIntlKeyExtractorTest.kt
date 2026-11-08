@@ -28,6 +28,16 @@ class NextIntlKeyExtractorTest {
     }
 
     @Test
+    fun `every method of t the preset declares is read`() {
+        val methods = FrameworkPresets.NEXT_INTL.hooks.flatMap { it.methods }.toSet()
+        assertEquals(setOf("rich", "markup", "raw", "has"), NextIntlKeyExtractor.METHODS)
+        assertEquals(methods, NextIntlKeyExtractor.METHODS)
+        // The last of the list, not the first: the set is read from the preset, not copied.
+        val method = FrameworkPresets.NEXT_INTL.hooks.last().methods.last()
+        assertEquals(listOf(key("a", "Nav")), keys("function A() { const t = useTranslations('Nav'); t.$method('a'); }"), method)
+    }
+
+    @Test
     fun `the hook's argument prefixes the keys, not a namespace`() {
         assertEquals(
             listOf(key("title", "Cart"), key("title", "Settings.Privacy")),

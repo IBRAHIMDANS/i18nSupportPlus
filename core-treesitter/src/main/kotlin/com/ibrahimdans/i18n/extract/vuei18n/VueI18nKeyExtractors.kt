@@ -88,6 +88,9 @@ class VueI18nComposableKeyExtractor : CodeKeyExtractor {
     private companion object {
         val FUNCTIONS = setOf("t", "te")
         val TEMPLATES = TemplateCallKeyExtractor(FUNCTIONS)
-        val DESTRUCTURING = FUNCTIONS.associateWith { name -> Regex("""\{[^}]*\b$name\b[^}]*}\s*=\s*useI18n\s*\(""") }
+
+        /** The composables of the vue-i18n preset, `useI18n`, as one regex alternative. */
+        val HOOKS = FrameworkPresets.VUE_I18N.hooks.joinToString("|") { Regex.escape(it.name) }
+        val DESTRUCTURING = FUNCTIONS.associateWith { name -> Regex("""\{[^}]*\b$name\b[^}]*}\s*=\s*(?:$HOOKS)\s*\(""") }
     }
 }
