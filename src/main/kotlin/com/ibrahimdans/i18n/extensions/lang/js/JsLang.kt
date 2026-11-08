@@ -15,6 +15,7 @@ import com.ibrahimdans.i18n.plugin.utils.hostFile
 import com.ibrahimdans.i18n.plugin.utils.type
 import com.intellij.lang.javascript.patterns.JSPatterns
 import com.intellij.patterns.ElementPattern
+import com.intellij.lang.javascript.psi.JSFunction
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.lang.javascript.psi.JSThisExpression
@@ -186,6 +187,8 @@ open class JsLang : Lang {
         NEXT_INTL_RAW.canExtract(element) || SVELTE_I18N_JSON.canExtract(element)
 
     override fun foldingProvider(): FoldingProvider = JsFoldingProvider()
+
+    override fun isFunctionBoundary(element: PsiElement): Boolean = element is JSFunction
 
     override fun translationExtractor(): TranslationExtractor = JsTranslationExtractor()
 

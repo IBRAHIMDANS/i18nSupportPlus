@@ -44,6 +44,13 @@ interface Lang : CodeLang {
      */
     fun references(literal: PsiElement): List<PsiReference> = literal.references.toList()
 
+    /**
+     * Whether [element] bounds a function: the markup above it does not show what the function
+     * computes, so a call inside one has no UI role. False for a language without functions in
+     * its PSI, which is the default.
+     */
+    fun isFunctionBoundary(element: PsiElement): Boolean = false
+
     override fun canExtractKey(node: CodeNode, translationFunctionNames: List<String>): Boolean =
         node is PsiCodeNode && canExtractKey(node.element, translationFunctionNames)
 
