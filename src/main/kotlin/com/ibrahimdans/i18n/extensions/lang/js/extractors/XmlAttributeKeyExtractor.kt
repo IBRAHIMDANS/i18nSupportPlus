@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.extensions.lang.js.extractors
 
 import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.RawKey
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
 import com.ibrahimdans.i18n.plugin.tree.ContextOption
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.nullableToList
@@ -95,6 +96,6 @@ class XmlAttributeKeyExtractor: KeyExtractor {
         const val NS = "ns"
         const val T = "t"
         const val KEY_PREFIX = "keyPrefix"
-        const val USE_TRANSLATION = "useTranslation"
+        val USE_TRANSLATION = FrameworkPresets.I18NEXT_HOOK
     }
 }

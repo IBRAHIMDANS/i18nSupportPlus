@@ -1,5 +1,7 @@
 package com.ibrahimdans.i18n.extensions.lang.js
 
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
+import com.ibrahimdans.i18n.plugin.rules.HookGives
 import com.intellij.lang.javascript.psi.JSArrayLiteralExpression
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSDestructuringElement
@@ -24,7 +26,8 @@ internal object TranslationHookInScope {
     /** What an unqualified `t('key')` resolves against: [namespaces] in order, the first by default. */
     data class Hook(val namespaces: List<String>)
 
-    private val HOOKS = setOf("useTranslation", "useI18n")
+    // The hooks giving namespaces: a next-intl `t` reads keys under a prefix, not whole keys.
+    private val HOOKS = FrameworkPresets.hookNames(HookGives.NAMESPACES)
 
     fun find(element: PsiElement): Hook? {
         var scope = PsiTreeUtil.getParentOfType(element, JSFunction::class.java)

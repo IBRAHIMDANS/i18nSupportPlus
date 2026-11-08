@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.extract.i18next
 
 import com.ibrahimdans.i18n.plugin.parser.CodeNode
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
 import com.ibrahimdans.i18n.plugin.tree.ContextOption
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import java.util.concurrent.ConcurrentHashMap
@@ -26,7 +27,7 @@ private const val VARIABLE_DECLARATOR = "variable_declarator"
 private const val OBJECT_PATTERN = "object_pattern"
 private const val SHORTHAND_PATTERN = "shorthand_property_identifier_pattern"
 private const val IDENTIFIER = "identifier"
-private const val USE_TRANSLATION = "useTranslation"
+private val USE_TRANSLATION = FrameworkPresets.I18NEXT_HOOK
 
 /** The tokens separating the items of an argument list, an array or an object, and comments. */
 private val SEPARATORS = setOf("(", ")", "[", "]", "{", "}", ",", "comment")

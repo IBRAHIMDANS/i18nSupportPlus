@@ -12,6 +12,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
@@ -375,7 +376,7 @@ private class NamespaceCallSites(private val container: NamespaceContainer) {
         val QUOTES = setOf('"', '\'', '`')
         val NON_WORD = Regex("[^A-Za-z0-9_$]+")
         const val NS = "ns"
-        val NAMESPACE_FUNCTIONS = setOf("useTranslation", "withTranslation", "getFixedT", "loadNamespaces", "setDefaultNamespace")
+        val NAMESPACE_FUNCTIONS = setOf(FrameworkPresets.I18NEXT_HOOK) + FrameworkPresets.I18NEXT_NAMESPACE_CALLS
         val NAMESPACE_OPTIONS = setOf(NS, "defaultNS", "fallbackNS")
     }
 }
