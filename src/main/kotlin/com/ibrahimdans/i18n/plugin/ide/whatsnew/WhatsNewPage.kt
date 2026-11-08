@@ -48,12 +48,14 @@ object WhatsNewPage {
         val current = parseVersion(currentVersion) ?: return emptyList()
         if (sections.none { it.version == currentVersion }) return emptyList()
         val previous = previousVersion?.let(::parseVersion)
-        val range = if (previous == null || compare(previous, current) >= 0) emptyList() else sections.filter { section ->
-            val version = parseVersion(section.version) ?: return@filter false
+        // A section whose version does not read (an `Unreleased` heading, a typo) is never shown.
+        val readable = sections.mapNotNull { section -> parseVersion(section.version)?.let { section to it } }
+        val range = if (previous == null || compare(previous, current) >= 0) emptyList() else readable.filter { (_, version) ->
             compare(version, previous) > 0 && compare(version, current) <= 0
         }
-        return range.ifEmpty { sections.filter { it.version == currentVersion } }
-            .sortedWith { a, b -> compare(parseVersion(b.version)!!, parseVersion(a.version)!!) }
+        return range.ifEmpty { readable.filter { (section, _) -> section.version == currentVersion } }
+            .sortedWith { a, b -> compare(b.second, a.second) }
+            .map { it.first }
     }
 
     /**

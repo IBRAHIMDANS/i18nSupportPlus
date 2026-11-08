@@ -61,6 +61,16 @@ class WhatsNewPageTest {
     }
 
     @Test
+    fun `a section whose version does not read is left out`() {
+        val withUnreadable = listOf(sections[0], Section("Unreleased", "<h2>Unreleased</h2>")) + sections.drop(1)
+        assertEquals(
+            listOf("1.10.0", "1.9.0", "1.8.0"),
+            WhatsNewPage.select(withUnreadable, "1.7.0", "1.10.0").map { it.version }
+        )
+        assertEquals(listOf("1.10.0"), WhatsNewPage.select(withUnreadable, "1.10.0", "1.10.0").map { it.version })
+    }
+
+    @Test
     fun `the page carries the title, the sections and the changelog link`() {
         val html = WhatsNewPage.build(sections, "1.8.0", "1.10.0", "What's New <1.10.0>", "Full changelog")!!
         assertTrue("<h1>What's New &lt;1.10.0&gt;</h1>" in html, html)

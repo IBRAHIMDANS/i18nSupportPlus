@@ -114,8 +114,8 @@ class ActivateAllModulesAction : DumbAwareAction() {
 
     override fun update(e: AnActionEvent) {
         val project = e.project
-        e.presentation.isEnabledAndVisible = ModuleFocus.isAvailable(project) &&
-            Settings.getInstance(project!!).config().modules.any { !it.enabled }
+        e.presentation.isEnabledAndVisible = project != null && ModuleFocus.isAvailable(project) &&
+            Settings.getInstance(project).config().modules.any { !it.enabled }
     }
 
     override fun actionPerformed(e: AnActionEvent) {
