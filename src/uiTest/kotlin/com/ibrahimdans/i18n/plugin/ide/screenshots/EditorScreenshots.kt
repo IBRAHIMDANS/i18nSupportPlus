@@ -178,12 +178,12 @@ object EditorScreenshots {
     val FOLDING_SESSION = ScreenshotSession(
         "folding",
         listOf(
-            Screenshot("folding-before.png") {
+            Screenshot("folding-folded.png") {
                 val editor = openEditor(NAVIGATION, reference(NAVIGATION))
                 editor.caretAtEndOf("import { useTranslation }")
                 lines(editor, 19, 21, width = 1220)
             },
-            Screenshot("folding-after.png") {
+            Screenshot("folding-unfolded.png") {
                 val editor = openEditor(NAVIGATION, reference(NAVIGATION))
                 // The caret inside a key unfolds it, as a user clicking it does.
                 editor.caretAtEndOf("{t('navigation:menu.set")
