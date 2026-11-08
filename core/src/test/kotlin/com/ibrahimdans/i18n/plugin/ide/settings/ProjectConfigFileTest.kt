@@ -167,4 +167,12 @@ class ProjectConfigFileTest {
         assertEquals(setOf("keySeparator"), content.names)
         assertNull(content.modules)
     }
+
+    @Test
+    fun `the file takes exactly the team settings, and the preview locale it accepts from older files`() {
+        val team = Config.SCOPES.filterValues { it == SettingScope.TEAM }.keys
+
+        assertEquals(team, ProjectConfigFile.names - ProjectConfigFile.PREVIEW_LOCALE + ProjectConfigFile.MODULES)
+        assertEquals(SettingScope.MACHINE, Config.SCOPES[ProjectConfigFile.PREVIEW_LOCALE])
+    }
 }

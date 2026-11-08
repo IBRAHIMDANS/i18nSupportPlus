@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.lang.reflect.Modifier
 
 class ConfigTest {
 
@@ -128,5 +129,20 @@ class ConfigTest {
         assertEquals("", shown.keepingCodeDefaultsOut(stored, code).defaultNs)
         assertEquals("auth", shown.copy(defaultNs = "auth").keepingCodeDefaultsOut(stored, code).defaultNs)
         assertEquals("common,shared", Config(defaultNs = "common,shared").keepingCodeDefaultsOut(Config(defaultNs = "common,shared"), code).defaultNs)
+    }
+
+    @Test
+    fun `every setting has a scope`() {
+        // Java reflection, core has no kotlin-reflect: a property is a field with a public getter.
+        val properties = Config::class.java.declaredFields
+            .filter { !Modifier.isStatic(it.modifiers) }
+            .map { it.name }
+            .filter { name ->
+                Config::class.java.methods.any { it.name == "get" + name.replaceFirstChar(Char::uppercase) && it.parameterCount == 0 }
+            }
+            .toSet()
+
+        assertEquals(emptySet<String>(), properties - Config.SCOPES.keys, "settings of Config without their line in Config.SCOPES")
+        assertEquals(emptySet<String>(), Config.SCOPES.keys - properties, "lines of Config.SCOPES that name no setting of Config")
     }
 }

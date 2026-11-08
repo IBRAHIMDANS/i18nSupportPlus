@@ -7,7 +7,13 @@ import com.ibrahimdans.i18n.plugin.utils.default
 import com.ibrahimdans.i18n.plugin.utils.whenMatches
 
 /**
- * Configuration holder
+ * Who a setting of [Config] belongs to: the [TEAM], which shares it through `i18n-check.json`
+ * ([ProjectConfigFile]), or one developer's [MACHINE], where it stays in the IDE's own settings.
+ */
+enum class SettingScope { TEAM, MACHINE }
+
+/**
+ * Configuration holder. Every setting has its line in [Config.SCOPES].
  */
 data class Config (
     val searchInProjectOnly: Boolean = true,
@@ -170,6 +176,47 @@ data class Config (
     )
 
     companion object {
+        /**
+         * The scope of every setting of [Config], by name. A setting added to [Config] gets its line
+         * here — `ConfigTest` fails otherwise — and a [SettingScope.TEAM] one its field in
+         * [ProjectConfigFile], which `ProjectConfigFileTest` checks. `modules` is [SettingScope.TEAM]:
+         * the file carries it under [ProjectConfigFile.MODULES].
+         */
+        val SCOPES: Map<String, SettingScope> = linkedMapOf(
+            "searchInProjectOnly" to SettingScope.MACHINE,
+            "nsSeparator" to SettingScope.TEAM,
+            "keySeparator" to SettingScope.TEAM,
+            "pluralSeparator" to SettingScope.TEAM,
+            "defaultNs" to SettingScope.TEAM,
+            "fallbackNs" to SettingScope.TEAM,
+            "firstComponentNs" to SettingScope.TEAM,
+            "jsConfiguration" to SettingScope.TEAM,
+            "foldingEnabled" to SettingScope.MACHINE,
+            "foldingPreferredLanguage" to SettingScope.TEAM,
+            "foldingMaxLength" to SettingScope.MACHINE,
+            "extractSorted" to SettingScope.MACHINE,
+            "gettext" to SettingScope.TEAM,
+            "gettextAliases" to SettingScope.TEAM,
+            "flatKeys" to SettingScope.TEAM,
+            "partialTranslationInspectionEnabled" to SettingScope.MACHINE,
+            "preferredLocalization" to SettingScope.MACHINE,
+            "localizationConfig" to SettingScope.MACHINE,
+            "sortKeysAlphabetically" to SettingScope.MACHINE,
+            "keyOrder" to SettingScope.MACHINE,
+            "previewLocale" to SettingScope.MACHINE,
+            "translationsRoot" to SettingScope.TEAM,
+            "excludedDirectories" to SettingScope.TEAM,
+            "excludedFileExtensions" to SettingScope.MACHINE,
+            "keptKeys" to SettingScope.TEAM,
+            "ignoredLocales" to SettingScope.TEAM,
+            "regionalFallback" to SettingScope.TEAM,
+            "localeAliases" to SettingScope.TEAM,
+            "gutterIconsEnabled" to SettingScope.MACHINE,
+            "setupWizardEnabled" to SettingScope.MACHINE,
+            "modules" to SettingScope.TEAM,
+            "rules" to SettingScope.MACHINE,
+        )
+
         private val CODE_FIELDS = listOf(
             CodeField({ it.defaultNs }, { c, v -> c.copy(defaultNs = v) }, { it.defaultNs.joinToString(",").ifEmpty { null } }),
             CodeField({ it.foldingPreferredLanguage }, { c, v -> c.copy(foldingPreferredLanguage = v) }, { it.referenceLocale }),
