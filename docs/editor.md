@@ -123,6 +123,3 @@ A key held by a constant is followed one step: `t(SAVE_KEY)`, `t(KEYS.save)` (an
 ### Wildcard Traversal
 
 Intermediate `*` wildcards in composite key resolution allow matching any segment at a given position. For example, `a.*.b` matches `a.foo.b`, `a.bar.b`, etc. Useful with dynamic keys where the middle segment varies.
-
-Probe: see [the missing page](missing-probe-page.md).
-Probe: download `i18n-check-1.19.1.zip`.
