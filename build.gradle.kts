@@ -190,8 +190,10 @@ dependencies {
 // util-8.jar; the plugin sandbox must not shadow them with older versions from test deps.
 //
 // IGPP's prepareTestSandbox copies test-runtime JARs from intellijPlatformTestRuntimeClasspath
-// into the plugin's sandbox lib/. Force kotlin-stdlib to 2.3.20 so the sandbox gets 2.3.20
-// instead of 2.0.0. Coroutines are excluded so IntelliJ's bundled 1.9.x in util-8.jar wins.
+// into the plugin's sandbox lib/. Force kotlin-stdlib to the build's own version so the sandbox
+// does not get mockk's 2.0.0. Coroutines are excluded so IntelliJ's bundled 1.9.x in util-8.jar wins.
+// Introduced by #32 (2026-04-14) and #56 (2026-04-23, platform 253). Recheck when mockk is bumped
+// or when platformVersion moves to a new branch: drop both blocks and run any coroutine test.
 configurations.named("testRuntimeClasspath") {
     resolutionStrategy.force("org.jetbrains.kotlin:kotlin-stdlib:2.4.21")
     exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core")
@@ -330,9 +332,14 @@ intellijPlatform {
         // task and fails on any internal API usage but those three.
         failureLevel.set(listOf(FailureLevel.COMPATIBILITY_PROBLEMS, FailureLevel.OVERRIDE_ONLY_API_USAGES))
         ides {
+            // recommended() only lists releases of the target platform's own type (IU, from productInfo) within
+            // pluginSinceBuild..pluginUntilBuild: it never adds another product.
             recommended()
             create(IntelliJPlatformType.IntellijIdeaUltimate, "2025.2")
             create(IntelliJPlatformType.IntellijIdeaUltimate, "2025.3")
+            // The two IDEs the README targets first, named so that recommended() leaving them out cannot go unnoticed.
+            create(IntelliJPlatformType.WebStorm, "2025.3")
+            create(IntelliJPlatformType.PhpStorm, "2025.3")
             // No JavaScript plugin: every class plugin.xml registers must load without it (the dependency is
             // optional). The last Community release; 2025.3 and later are the unified IntelliJ IDEA.
             create(IntelliJPlatformType.IntellijIdeaCommunity, "2025.2.6.4")
@@ -585,6 +592,9 @@ tasks {
         }
     }
 
+    // Three patches of the test sandbox, none of which changes what ships. Each one says what breaks
+    // without it, why, where it comes from, and when to try removing it. No YouTrack issue was ever
+    // cited for any of them. "Recheck" means: delete the block, run the tests named, keep it if they fail.
     named("prepareTestSandbox") {
         doLast {
             val pluginName = properties("pluginName").get()
@@ -603,6 +613,13 @@ tasks {
 
             // --- YAML: copy into plugins-test/ so ymlConfig.xml is activated ---
             //
+            // Without it: -Dplugin.path lists only this plugin and php-impl, the bundled YAML plugin is not
+            // loaded, ymlConfig.xml is never activated, and every YAML test fails (keys not found).
+            // Cause: the test sandbox only loads the plugins under plugins-test/; YAML is bundled with the IDE
+            // but not declared as a test plugin there.
+            // Origin: #20 (2026-03-30, a symlink), turned into a copy by #184 (2026-08-22, see below).
+            // Recheck: at each platformVersion branch change or IGPP major bump, with YamlScalarValuesTest.
+            //
             // Copied, not symlinked. The source lives in the shared Gradle transforms cache, and
             // a link to a *directory* there is a trap: deleting the sandbox descends through it
             // and empties plugins/yaml inside ~/.gradle. The next build then fails with
@@ -619,6 +636,13 @@ tasks {
             }
 
             // --- Vue: flatten lib/modules/ into lib/ so getPluginDistDirByClass() resolves ---
+            //
+            // Cause, as recorded when it was added: from platform 253 the Vue plugin keeps part of its jars in
+            // lib/modules/, and PathManager.getPluginDistDirByClass() only finds a plugin's directory from a jar
+            // sitting directly in its lib/; the Vue plugin then cannot locate its own files in the test sandbox.
+            // The exact failure was not written down at the time.
+            // Origin: #56 (2026-04-23, upgrade to platform 253).
+            // Recheck: at each platformVersion branch change, with the Vue tests (FoldingTestVue, *Vue* under runVue).
             //
             // These link individual *files*, which is why they never corrupted the cache the way
             // the YAML directory link did: deleting a link to a file removes the link, not the
@@ -641,6 +665,14 @@ tasks {
             }
 
             // --- PHP: strip duplicate META-INF descriptors from php-frontback.jar ---
+            //
+            // Without it: PluginException on a duplicate extension point registration, com.jetbrains.php does not
+            // load, phpConfig.xml is never activated, and every PHP test fails.
+            // Cause: the PHP plugin ships split-mode modules (php-frontback.jar, frontend/, frontend-split/) whose
+            // META-INF descriptors declare again extension points php.jar already declares. Only the descriptors
+            // go: deleting the whole jar also removed classes the PHP plugin needs, so it still did not load.
+            // Origin: #20 (2026-03-30, PHP plugin 243.x); frontend-split/ added by #56 (2026-04-23, platform 253).
+            // Recheck: at each platformVersion branch change or PHP plugin bump, with PhpGettextHighlightingTest.
             val phpLib = File(sandboxBase, "plugins-test/php-impl/lib")
             val frontback = File(phpLib, "php-frontback.jar")
             if (frontback.exists()) {
