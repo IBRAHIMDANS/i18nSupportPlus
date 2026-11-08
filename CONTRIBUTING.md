@@ -136,6 +136,11 @@ plugin tests extend `PlatformBaseTest`; `TestsCommon.kt` holds the shared helper
   existing `ReadAction.compute` calls as they are: their replacement does not exist in build 252,
   the oldest one the plugin supports
 - To report a problem, use the [issue templates](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/new/choose)
+- No new framework or file format without an issue or a discussion asking for it, at least until
+  May 2027: the plugin collects no usage data, and its list of frameworks is already longer than what
+  its users have asked for. Each framework has a support level in
+  [`docs/frameworks.md`](docs/frameworks.md#supported-frameworks); a change to a *Read* framework fixes
+  a reported bug or answers a request, nothing more
 
 ## Optional plugin dependencies and test sandbox notes
 
