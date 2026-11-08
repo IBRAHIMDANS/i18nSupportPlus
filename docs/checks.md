@@ -40,9 +40,11 @@ The inspections also run without an editor, in [Qodana](https://www.jetbrains.co
 `i18n-check` compares the translation files of a project to the reference locale, without IntelliJ. It needs Java 21 and is not shipped with the plugin: each [GitHub release](https://github.com/IBRAHIMDANS/i18nSupportPlus/releases), from 1.16.0, carries it as `i18n-check-<version>.zip`.
 
 ```bash
-unzip i18n-check-1.18.0.zip
-i18n-check-1.18.0/bin/i18n-check [project] [--locales <dir> | --code] [--reference <locale>] [--format text|json|github] [--max-problems N] [--no-values]
+unzip i18n-check-<version>.zip
+i18n-check-<version>/bin/i18n-check [project] [--locales <dir> | --code] [--reference <locale>] [--format text|json|github] [--max-problems N] [--no-values]
 ```
+
+`<version>` is the number of the [latest release](https://github.com/IBRAHIMDANS/i18nSupportPlus/releases/latest), without the `v`.
 
 `./gradlew :cli:installDist` builds it from this repository instead, in `cli/build/install/i18n-check/`.
 
@@ -129,12 +131,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: IBRAHIMDANS/i18nSupportPlus@v1.18.0
+      - uses: IBRAHIMDANS/i18nSupportPlus@v<version>
         with:
           args: --code
 ```
 
-`args` takes the command line's arguments, `version` another release than the tag's.
+Replace `<version>` with the number of the [latest release](https://github.com/IBRAHIMDANS/i18nSupportPlus/releases/latest). `args` takes the command line's arguments, `version` another release than the tag's.
 
 Unless `args` sets its own `--format`, the action runs `--format github`: each problem becomes a workflow command, which GitHub shows as an annotation on the pull request's *Files changed* tab and on the run's page, followed by the text report for the log:
 

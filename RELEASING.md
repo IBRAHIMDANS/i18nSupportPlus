@@ -25,6 +25,11 @@ In every feature or fix PR, update the `[Unreleased]` section in `CHANGELOG.md`:
 
 This is the only manual editorial step — it belongs in the PR itself, not at release time.
 
+Before triggering the release, check the docs that name a version:
+
+- `docs/COMPARISON.md`: set the I18n Support Plus row to the new version and date, and recheck the version and claims of each other tool.
+- `docs/checks.md` and `docs/getting-started.md`: they write `<version>` instead of a release number, so they need no bump. `git grep -nE 'i18nSupportPlus@v[0-9]|i18n-check-[0-9]' docs/` must stay empty.
+
 ---
 
 ### 2. Trigger the "Prepare Release" workflow

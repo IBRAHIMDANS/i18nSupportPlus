@@ -84,12 +84,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: IBRAHIMDANS/i18nSupportPlus@v1.18.0
+      - uses: IBRAHIMDANS/i18nSupportPlus@v<version>
         with:
           args: --code
 ```
 
-It fails the build on a key missing from a locale, a placeholder lost in a translation or a key the code calls and no file holds, and annotates the pull request. Details, the Docker image and Qodana: [Checks: inspections, CI and the command line](checks.md).
+Replace `<version>` with the number of the [latest release](https://github.com/IBRAHIMDANS/i18nSupportPlus/releases/latest). It fails the build on a key missing from a locale, a placeholder lost in a translation or a key the code calls and no file holds, and annotates the pull request. Details, the Docker image and Qodana: [Checks: inspections, CI and the command line](checks.md).
 
 ## Where to go next
 
