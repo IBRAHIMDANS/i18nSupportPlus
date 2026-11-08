@@ -1,15 +1,100 @@
 name: Prepare Release
 
+# RELEASING.md, Cadence: one minor a week, on Tuesday, after a day of soak. Two entry points:
+#  - the Tuesday schedule only reminds: it opens an issue naming the next version, the entries
+#    waiting under Unreleased and the age of main. It publishes nothing, because the checks made
+#    before a release (the comparison page, the verifier's internal API report) run nowhere in CI.
+#  - the manual run prepares the release as before. The version may be left empty: the next minor
+#    after the latest tag is taken.
 on:
+  schedule:
+    - cron: '0 7 * * 2'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version à releaser (ex: 1.0.7)'
-        required: true
+        description: 'Version to release (1.20.0). Empty: the next minor after the latest tag.'
+        required: false
         type: string
 
 jobs:
+  remind:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Read what is waiting
+        id: waiting
+        run: |
+          # The highest version tag, not `git describe`: the tags sit on the release branches, not on main's ancestry.
+          latest=$(git tag --list 'v[0-9]*' | sort -V | tail -1)
+          IFS=. read -r major minor _ <<< "${latest#v}"
+          next="${major}.$((minor + 1)).0"
+          entries=$(awk '/^## Unreleased/{f=1; next} /^## /{f=0} f && /^- /{n++} END{print n+0}' CHANGELOG.md)
+          regressions=$(awk '/^## Unreleased/{f=1; next} /^## /{f=0} f && /^- / && /\(regression in /{n++} END{print n+0}' CHANGELOG.md)
+          age_hours=$(( ( $(date +%s) - $(git log -1 --format=%ct) ) / 3600 ))
+          {
+            echo "latest=$latest"
+            echo "next=$next"
+            echo "entries=$entries"
+            echo "regressions=$regressions"
+            echo "age_hours=$age_hours"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "## Release train $(date +%F)"
+            echo
+            echo "| Latest tag | Next version | Unreleased entries | Of which regressions | Age of main |"
+            echo "|---|---|---|---|---|"
+            echo "| $latest | $next | $entries | $regressions | ${age_hours} h |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # One open reminder at a time: a train skipped last week is not announced twice.
+      - name: Open the reminder issue
+        if: steps.waiting.outputs.entries != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST: ${{ steps.waiting.outputs.latest }}
+          NEXT: ${{ steps.waiting.outputs.next }}
+          ENTRIES: ${{ steps.waiting.outputs.entries }}
+          REGRESSIONS: ${{ steps.waiting.outputs.regressions }}
+          AGE: ${{ steps.waiting.outputs.age_hours }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/workflows/prepare-release.yml
+        run: |
+          gh label create release-train --color 0E8A16 --description "Weekly release reminder" --force >/dev/null
+          open=$(gh issue list --label release-train --state open --json number --jq 'length')
+          if [ "$open" != "0" ]; then
+            echo "A release-train issue is already open: nothing added."
+            exit 0
+          fi
+          soak="ok"
+          if [ "$AGE" -lt 20 ]; then soak="**no**: the last commit of main is ${AGE} h old, RELEASING.md asks for a day of use first"; fi
+          cat > /tmp/release-train.md <<BODY
+          Weekly reminder (RELEASING.md, Cadence). Nothing was published.
+
+          | Latest tag | Next version | Unreleased entries | Of which regressions | Soak |
+          |---|---|---|---|---|
+          | ${LATEST} | ${NEXT} | ${ENTRIES} | ${REGRESSIONS} | ${soak} |
+
+          Before running [Prepare Release](${RUN_URL}) with an empty version field:
+
+          - [ ] \`docs/COMPARISON.md\`: version and date, no stale \`next\`
+          - [ ] \`./gradlew verifyPlugin\`: read the internal and deprecated API report
+          - [ ] a day of use in a real IDE since the last merge
+
+          Close this issue once the release PR is merged.
+          BODY
+          gh issue create \
+            --title "Release train $(date +%F): v${NEXT} ready" \
+            --label release-train \
+            --body-file /tmp/release-train.md
+
   prepare:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -30,12 +115,34 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6.4.1
 
+      # An empty version is the next minor after the latest tag: v1.19.1 → 1.20.0.
+      - name: Choose the version
+        id: version
+        env:
+          INPUT: ${{ inputs.version }}
+        run: |
+          version="$INPUT"
+          if [ -z "$version" ]; then
+            latest=$(git tag --list 'v[0-9]*' | sort -V | tail -1)
+            IFS=. read -r major minor _ <<< "${latest#v}"
+            version="${major}.$((minor + 1)).0"
+            echo "No version given: ${latest} is the latest tag, releasing ${version}."
+          fi
+          case "$version" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::'${version}' is not a MAJOR.MINOR.PATCH version"; exit 1 ;;
+          esac
+          if git rev-parse -q --verify "refs/tags/v${version}" >/dev/null; then
+            echo "::error::v${version} is already tagged"; exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       # RELEASING.md, Cadence: one minor a week, on Tuesday, after a day of soak; a patch leaves the
       # train only for a Marketplace-reported crash or a blocking issue. Warnings, never a block: the
       # person running this decides, and a crash fix must not wait for a weekday.
       - name: Check the release train
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           core="${VERSION%%-*}"
           patch="${core##*.}"
@@ -50,7 +157,7 @@ jobs:
 
       - name: Bump pluginVersion in gradle.properties
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: sed -i "s/^pluginVersion = .*/pluginVersion = ${VERSION}/" gradle.properties
 
       - name: Patch CHANGELOG (Unreleased → version)
@@ -58,7 +165,7 @@ jobs:
 
       - name: Create release branch, commit, tag and push
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -74,10 +181,16 @@ jobs:
           # A PR opened with GITHUB_TOKEN triggers no workflow: its CI run is created with no job
           # and ends as a failure when the PR is merged. The PAT makes the CI run on the release PR.
           GH_TOKEN: ${{ secrets.GH_PAT }}
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
+          regressions=$(awk -v v="## ${VERSION}" 'index($0, v) == 1 {f=1; next} /^## /{f=0} f && /^- / && /\(regression in /{n++} END{print n+0}' CHANGELOG.md)
+          cat > /tmp/release-pr.md <<BODY
+          Automated release preparation for v${VERSION}. Merge after the release workflow completes.
+
+          Fix entries marked as a regression of a recent release: ${regressions} (RELEASING.md, Cadence).
+          BODY
           gh pr create \
             --title "chore(release): bump version to ${VERSION}" \
-            --body "Automated release preparation for v${VERSION}. Merge after the release workflow completes." \
+            --body-file /tmp/release-pr.md \
             --base main \
             --head "release/v${VERSION}"
