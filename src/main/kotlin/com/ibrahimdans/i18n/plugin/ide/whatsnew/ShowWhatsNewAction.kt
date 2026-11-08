@@ -43,6 +43,8 @@ class ShowWhatsNewAction : DumbAwareAction() {
                     current,
                     PluginBundle.message("whatsNew.page.title", current),
                     PluginBundle.message("whatsNew.page.fullChangelog"),
+                    PluginBundle.message("whatsNew.page.feedback"),
+                    PluginBundle.message("whatsNew.page.review"),
                 )
             }
             if (html == null || !openInEditor(project, html)) BrowserUtil.browse(WhatsNewPage.CHANGELOG_URL)

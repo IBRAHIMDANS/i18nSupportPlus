@@ -73,6 +73,19 @@ class WhatsNewPageTest {
     }
 
     @Test
+    fun `the page asks for feedback and a review under the notes, each link only when labelled`() {
+        val html = WhatsNewPage.build(sections, "1.8.0", "1.10.0", "T", "Full", "Which <framework>?", "Review us")!!
+        assertTrue("href=\"${WhatsNewPage.FEEDBACK_URL}\">Which &lt;framework&gt;?</a>" in html, html)
+        assertTrue("href=\"${WhatsNewPage.REVIEWS_URL}\">Review us</a>" in html, html)
+        assertTrue(html.indexOf(WhatsNewPage.CHANGELOG_URL) < html.indexOf(WhatsNewPage.FEEDBACK_URL))
+        assertTrue(html.indexOf(WhatsNewPage.FEEDBACK_URL) < html.indexOf(WhatsNewPage.REVIEWS_URL))
+
+        val bare = WhatsNewPage.build(sections, "1.8.0", "1.10.0", "T", "Full")!!
+        assertFalse(WhatsNewPage.FEEDBACK_URL in bare)
+        assertFalse(WhatsNewPage.REVIEWS_URL in bare)
+    }
+
+    @Test
     fun `scripts and inline handlers are dropped from the notes`() {
         val notes = listOf(Section("1.0.0", "<p onclick=\"alert(1)\">a</p><SCRIPT>alert(2)</script >b"))
         val html = WhatsNewPage.build(notes, null, "1.0.0", "T", "F")!!

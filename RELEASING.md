@@ -25,6 +25,12 @@ In every feature or fix PR, update the `[Unreleased]` section in `CHANGELOG.md`:
 
 This is the only manual editorial step — it belongs in the PR itself, not at release time.
 
+When a fix undoes something a recent release introduced, say so in the entry: end it with
+`(regression in 1.18.0)`. At release time, count those entries in the section being promoted and
+write the count in the release PR. The plugin collects no usage data, so this count is the one
+measure that says whether releases are going out faster than they are being used: when half of a
+version's fixes are regressions of the versions before, slow down.
+
 Before triggering the release, check the docs that name a version:
 
 - `docs/COMPARISON.md`: set the I18n Support Plus row to the new version and date, and recheck the version and claims of each other tool.

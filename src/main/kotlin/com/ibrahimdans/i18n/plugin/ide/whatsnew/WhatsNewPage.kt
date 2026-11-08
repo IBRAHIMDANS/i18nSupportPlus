@@ -11,6 +11,15 @@ object WhatsNewPage {
 
     const val CHANGELOG_URL = "https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/CHANGELOG.md"
 
+    /**
+     * Where a user says which framework, format and IDE they use. The plugin collects no usage data,
+     * by design: this question, asked once per update, is what stands in for it.
+     */
+    const val FEEDBACK_URL = "https://github.com/IBRAHIMDANS/i18nSupportPlus/discussions/907"
+
+    /** The plugin's reviews on the Marketplace. */
+    const val REVIEWS_URL = "https://plugins.jetbrains.com/plugin/30971-i18n-support-plus/reviews"
+
     private const val RESOURCE = "/com/ibrahimdans/i18n/whats-new.html"
     private val MARKER = Regex("""<!-- whats-new-version: (\S+) -->\r?\n?""")
 
@@ -60,18 +69,34 @@ object WhatsNewPage {
      * The page for [currentVersion], or null when there is nothing to show in it — the resource is
      * missing or the version absent from it — so that the caller falls back to [CHANGELOG_URL].
      */
-    fun build(previousVersion: String?, currentVersion: String, title: String, fullChangelog: String): String? =
-        build(sections ?: return null, previousVersion, currentVersion, title, fullChangelog)
+    fun build(
+        previousVersion: String?,
+        currentVersion: String,
+        title: String,
+        fullChangelog: String,
+        feedback: String = "",
+        review: String = "",
+    ): String? =
+        build(sections ?: return null, previousVersion, currentVersion, title, fullChangelog, feedback, review)
 
+    /**
+     * [feedback] and [review] label the links to [FEEDBACK_URL] and [REVIEWS_URL] under the notes;
+     * an empty label leaves its link out.
+     */
     fun build(
         sections: List<Section>,
         previousVersion: String?,
         currentVersion: String,
         title: String,
         fullChangelog: String,
+        feedback: String = "",
+        review: String = "",
     ): String? {
         val shown = select(sections, previousVersion, currentVersion).ifEmpty { return null }
         val body = shown.joinToString("\n") { "<section data-version=\"${escape(it.version)}\">\n${sanitize(it.html)}\n</section>" }
+        val footer = listOf(feedback to FEEDBACK_URL, review to REVIEWS_URL)
+            .filter { (label, _) -> label.isNotBlank() }
+            .joinToString("") { (label, url) -> "\n<p class=\"ask\"><a href=\"$url\">${escape(label)}</a></p>" }
         return """
             |<!DOCTYPE html>
             |<html>
@@ -84,12 +109,13 @@ object WhatsNewPage {
             |  body { font-family: system-ui, sans-serif; line-height: 1.5; max-width: 60em; margin: 1.5em auto; padding: 0 1.5em; }
             |  section { border-bottom: 1px solid rgba(128, 128, 128, 0.3); padding-bottom: 1em; }
             |  code { font-family: monospace; }
+            |  .ask { margin-top: 1.5em; }
             |</style>
             |</head>
             |<body>
             |<h1>${escape(title)}</h1>
             |$body
-            |<p><a href="$CHANGELOG_URL">${escape(fullChangelog)}</a></p>
+            |<p><a href="$CHANGELOG_URL">${escape(fullChangelog)}</a></p>$footer
             |</body>
             |</html>
             |""".trimMargin()
