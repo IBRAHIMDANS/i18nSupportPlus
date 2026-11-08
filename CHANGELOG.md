@@ -23,6 +23,7 @@
 - [Editor] **Ctrl+click and *Find Usages* from a translation key reach its calls whatever the key**: a key written in many files had no link to the code, so the most used keys were the ones you could not navigate from. Every key now leads to its calls.
 - [Editor] **A translation file open while the plugin reads the code gets its usage counts**: the counts above its keys appeared only after closing and reopening the file. They now show as soon as the code is read.
 - [Twig] ***Show Translations Inline* and *Switch Preview Locale* are offered in Twig templates**: the editor's *i18n* submenu left them out of a `.twig` file, although its keys fold to their values. They now show wherever the plugin reads keys.
+- [Editor] **No more error report while the editor checks a key passed through a constant**: with `t(KEYS.save)` or `t(SAVE_KEY)` in a project of several files, the inspections could stop on a `ConcurrentModificationException` and ask to report it. The search for the constant's uses now runs safely across files.
 
 
 ## 1.19.1 - 2026-11-06

@@ -44,7 +44,8 @@ import com.intellij.psi.search.SearchScope
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
-import java.util.Collections
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Keys a call names through a constant: `t(SAVE_KEY)`, `t(KEYS.save)`, `t(Keys.Save)`.
@@ -246,22 +247,32 @@ internal object ConstantKeyResolver {
         return namedIn(scope, name, variable).none { detector.getExpressionAccess(it) != ReadWriteAccessDetector.Access.Read }
     }
 
-    /** The references named [name] in [scope]'s code that resolve to [owner], an import followed. */
+    /**
+     * The references named [name] in [scope]'s code that resolve to [owner], an import followed;
+     * the search ends at the first one matching [stop].
+     *
+     * The search runs the processor on several files at once: each match is tested against [stop]
+     * as it is added, never by reading what the other threads are adding (a concurrent modification).
+     */
     private fun namedIn(scope: SearchScope, name: String, owner: PsiElement, stop: (JSReferenceExpression) -> Boolean = { false }): List<JSReferenceExpression> {
-        val found = Collections.synchronizedList(mutableListOf<JSReferenceExpression>())
+        val found = ConcurrentLinkedQueue<JSReferenceExpression>()
+        val stopped = AtomicBoolean(false)
         PsiSearchHelper.getInstance(owner.project).processElementsWithWord(
             { element, _ ->
                 if (element is JSReferenceExpression && element.referenceName == name &&
                     element.resolve()?.let(::declarationOf) == owner
-                ) found += element
-                found.none(stop)
+                ) {
+                    found += element
+                    if (stop(element)) stopped.set(true)
+                }
+                !stopped.get()
             },
             scope,
             name,
             UsageSearchContext.IN_CODE,
             true,
         )
-        return found
+        return found.toList()
     }
 
     /**
