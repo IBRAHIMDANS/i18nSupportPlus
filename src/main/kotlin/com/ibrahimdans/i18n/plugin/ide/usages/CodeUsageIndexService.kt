@@ -113,6 +113,10 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
     @TestOnly
     fun filesRead(): Long = filesRead.get()
 
+    /** How many places the index holds: the code's call sites, then those in translation values. */
+    @TestOnly
+    fun sitesHeld(): Pair<Int, Int> = synchronized(this) { sites.sites().count() to linked.size }
+
     /** Drops what was read: the next question reads the project again, as after opening it. */
     @TestOnly
     fun forget() {
