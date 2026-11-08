@@ -53,6 +53,8 @@ class UsageCountBenchmarkTest : PlatformBaseTest() {
             val index = IdeKeyUsageIndex(project)
 
             val (counts, tableMs) = timed { index.usageCounts(keys) }
+            // Asked again: what a count costs once the code has been read.
+            val (_, warmMs) = timed { index.usageCounts(keys) }
             val orphans = counts.filterValues { it == 0 }.keys
             val (reached, dynamicMs) = timed { index.dynamicallyReached(orphans) }
             val (vision, visionMs) = timed { codeVisionCounts() }
@@ -67,6 +69,7 @@ class UsageCountBenchmarkTest : PlatformBaseTest() {
                 |  mismatches against the generated truth: $mismatches
                 |  project loaded and indexed: $loadMs ms
                 |  table: usageCounts over ${keys.size} keys: $tableMs ms (${"%.1f".format(tableMs.toDouble() / keys.size)} ms per key)
+                |  table: usageCounts again: $warmMs ms
                 |  table: dynamicallyReached over ${orphans.size} orphans: $dynamicMs ms
                 |  code vision: indirectCount + reachedDynamically over ${vision.size} distinct keys: $visionMs ms (${"%.1f".format(visionMs.toDouble() / vision.size)} ms per key)
                 |

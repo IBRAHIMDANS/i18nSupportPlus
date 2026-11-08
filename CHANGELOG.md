@@ -6,6 +6,10 @@
 
 - [AI agents] **An agent translating through the tools keeps your terminology**: `i18n_missing_translations` now gives, with the keys to translate, the project's glossary and the translations already in place that share a word with them, so a term you left in English or translated a given way stays so.
 
+### Improvements
+
+- [Tool window] ***Count Key Usages* reads the code once for all the keys**: on a large project the count takes seconds instead of minutes, and counting again after an edit only reads the files that changed.
+
 ### Fixes
 
 - [AI agents] **The translation tools see the files an agent just wrote**: after an agent edited the translation files itself, or reset them with git, `i18n_missing_translations` and the other tools answered from what the IDE had seen before, for example 92 keys still missing right after they were all written. The tools now reload the translation folders from disk first.

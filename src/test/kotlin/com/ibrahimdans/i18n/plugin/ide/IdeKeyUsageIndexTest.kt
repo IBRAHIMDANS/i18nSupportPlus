@@ -2,7 +2,6 @@ package com.ibrahimdans.i18n.plugin.ide
 
 import com.ibrahimdans.i18n.plugin.KeyUsage
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
-import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.utils.generator.code.TsxCodeGenerator
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.command.WriteCommandAction
@@ -100,8 +99,8 @@ class IdeKeyUsageIndexTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `a count over several batches, off the EDT and interrupted by a write, counts every key`() {
-        val keys = (0 until IdeKeyUsageIndex.BATCH_SIZE * 2 + 1).map { "common:section$it.title$it" }
+    fun `a count off the EDT, interrupted by a write, counts every key`() {
+        val keys = (0 until 101).map { "common:section$it.title$it" }
         myFixture.addFileToProject("src/Keys.ts", keys.joinToString("\n") { "i18n.t('$it');" })
         val edited = myFixture.addFileToProject("src/Other.ts", "export const a = 1;")
 
@@ -112,17 +111,6 @@ class IdeKeyUsageIndexTest : PlatformBaseTest() {
         val counts = counting.get(60, TimeUnit.SECONDS)
 
         assertEquals(keys.associateWith { 1 }, counts)
-    }
-
-    @Test
-    fun `the keys searching the same word stay in one batch`() {
-        val titles = (0 until IdeKeyUsageIndex.BATCH_SIZE + 5).map { "common:page$it.title" }
-        val others = (0 until 3).map { "common:menu.item$it" }
-
-        val batches = IdeKeyUsageIndex.batchesOf(others + titles, Config())
-
-        assertEquals(listOf(others, titles), batches)
-        assertEquals(others + titles, batches.flatten())
     }
 
     /**
