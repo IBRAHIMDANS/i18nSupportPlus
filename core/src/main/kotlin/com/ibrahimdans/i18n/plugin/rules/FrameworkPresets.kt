@@ -99,6 +99,24 @@ object FrameworkPresets {
     fun byId(id: String?): FrameworkRules? = ALL.firstOrNull { it.id == id }
 
     /**
+     * The names of every framework's hooks, or of those whose first argument means [gives] only:
+     * `useTranslation`, `useI18n` give namespaces, `useTranslations`, `getTranslations` a key prefix.
+     * The single list the extractors, the rename and *Internationalize…* read, so an alias added to
+     * a preset reaches them all.
+     */
+    fun hookNames(gives: HookGives? = null): Set<String> =
+        ALL.flatMap { it.hooks }.filter { gives == null || it.gives == gives }.map { it.name }.toSet()
+
+    /** react-i18next's hook, `useTranslation`: the one *Internationalize…* inserts and a `keyPrefix` belongs to. */
+    val I18NEXT_HOOK: String = I18NEXT.hooks.single().name
+
+    /**
+     * i18next's other calls whose strings are namespaces, not messages: the `withTranslation` HOC,
+     * `i18n.getFixedT`, `loadNamespaces` and `setDefaultNamespace`.
+     */
+    val I18NEXT_NAMESPACE_CALLS: Set<String> = setOf("withTranslation", "getFixedT", "loadNamespaces", "setDefaultNamespace")
+
+    /**
      * The bare names read only in a file importing a framework, with the packages that do: `msg` →
      * `@lingui/`. A name another framework reads unconditionally is not one — svelte-i18n's `$t` is
      * gated, vue-i18n's is not, so `$t` is read everywhere and the gate is svelte-i18n's own to apply.
