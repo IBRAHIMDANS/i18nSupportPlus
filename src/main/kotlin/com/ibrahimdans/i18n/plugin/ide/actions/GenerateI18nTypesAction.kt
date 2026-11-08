@@ -11,6 +11,7 @@ import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.readableFile
 import com.ibrahimdans.i18n.plugin.utils.sourcesOf
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginCoroutineScope
 import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
 import com.ibrahimdans.i18n.plugin.utils.hasRecognizedLocale
 import com.ibrahimdans.i18n.plugin.utils.localeLabel
@@ -18,19 +19,23 @@ import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
+import com.intellij.openapi.progress.coroutineToIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.psi.search.FilenameIndex
+import com.intellij.platform.ide.progress.withBackgroundProgress
 import com.intellij.psi.search.GlobalSearchScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Writes an `i18next.d.ts` per i18next module, typing `t('key')` from the reference locale's keys
@@ -69,7 +74,7 @@ class GenerateI18nTypesAction : AnAction() {
     }
 
     /** What was read for a target, and the hand-written declarations of its module it would contradict. */
-    private data class Plan(val reading: Reading, val competing: List<String>)
+    internal data class Plan(val reading: Reading, val competing: List<String>)
 
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
 
@@ -82,99 +87,114 @@ class GenerateI18nTypesAction : AnAction() {
         val project = e.project ?: return
         val targets = targetsOf(project)
         if (targets.isEmpty()) return
-
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("action.generate.types.progress"), false) {
-            override fun run(indicator: ProgressIndicator) {
-                // Waits for smart mode like the deprecated `DumbService.runReadActionInSmartMode`, but
-                // yields to a write action and starts the reading over instead of holding it back.
-                val contents = ReadAction.nonBlocking<Map<Target, Plan>> {
-                    targets.associateWith { target ->
-                        val reading = readReference(project, target)
-                        // Nothing will be written without a reference: no reason to ask about the others.
-                        val competing = if (reading is Reading.Declaration) competingDeclarations(project, target) else emptyList()
-                        Plan(reading, competing)
-                    }
-                }.inSmartMode(project).executeSynchronously()
-                ApplicationManager.getApplication().invokeLater {
-                    if (!project.isDisposed) write(project, contents)
-                }
-            }
-        })
-    }
-
-    /**
-     * Writes each declaration, asking before replacing a file the plugin did not generate, and
-     * before writing next to a hand-written declaration: two `CustomTypeOptions` contradict
-     * each other, and only the user knows which one to keep — nothing is deleted for them.
-     *
-     * A target whose reference locale could not be read is skipped, and a warning says why: the
-     * file it would get, or keep, must never be a declaration without keys.
-     */
-    private fun write(project: Project, contents: Map<Target, Plan>) {
-        val written = mutableListOf<String>()
-        val unread = mutableListOf<String>()
-        val skipped = mutableListOf<String>()
-        for ((target, plan) in contents) {
-            val path = targetFileOf(target)
-            val relativePath = path.removePrefix("${project.basePath}/")
-            val declaration = when (val reading = plan.reading) {
-                is Reading.Declaration -> reading
-                is Reading.NoReference -> {
-                    skipped += PluginBundle.message(
-                        "action.generate.types.no.reference",
-                        relativePath,
-                        reading.wanted,
-                        reading.available.joinToString(", ").ifEmpty { "—" }
-                    )
-                    continue
-                }
-            }
-            if (plan.competing.isNotEmpty()) {
-                val answer = Messages.showYesNoDialog(
-                    project,
-                    PluginBundle.message(
-                        "action.generate.types.competing",
-                        plan.competing.joinToString("\n") { it.removePrefix("${project.basePath}/") }
-                    ),
-                    PluginBundle.message("action.generate.types.title"),
-                    Messages.getWarningIcon()
-                )
-                if (answer != Messages.YES) continue
-            }
-            val existing = LocalFileSystem.getInstance().refreshAndFindFileByPath(path)
-            if (existing != null && !VfsUtilCore.loadText(existing).startsWith(I18nextTypesGenerator.GENERATED_BY)) {
-                val answer = Messages.showYesNoDialog(
-                    project,
-                    PluginBundle.message("action.generate.types.overwrite", path),
-                    PluginBundle.message("action.generate.types.title"),
-                    Messages.getWarningIcon()
-                )
-                if (answer != Messages.YES) continue
-            }
-            WriteCommandAction.runWriteCommandAction(project, PluginBundle.message("action.generate.types.title"), null, {
-                val directory = VfsUtil.createDirectoryIfMissing(path.substringBeforeLast('/')) ?: return@runWriteCommandAction
-                val file = directory.findChild(FILE_NAME) ?: directory.createChildData(this, FILE_NAME)
-                VfsUtil.saveText(file, declaration.text)
-                written += relativePath
-                if (declaration.unread.isNotEmpty()) {
-                    unread += PluginBundle.message("action.generate.types.unread", relativePath, declaration.unread.joinToString(", "))
-                }
-            })
-        }
-        if (skipped.isNotEmpty()) notify(project, skipped.joinToString("<br/>"), NotificationType.WARNING)
-        if (written.isEmpty()) return
-        val done = PluginBundle.message("action.generate.types.done", written.joinToString("<br/>"))
-        if (unread.isEmpty()) notify(project, done, NotificationType.INFORMATION)
-        else notify(project, (listOf(done) + unread).joinToString("<br/><br/>"), NotificationType.WARNING)
-    }
-
-    private fun notify(project: Project, content: String, type: NotificationType) {
-        PluginNotifications.notify(project, content, type, PluginBundle.message("action.generate.types.title"))
+        run(project, targets)
     }
 
     internal companion object {
         const val FILE_NAME = "i18next.d.ts"
         private const val I18NEXT = "i18next"
+
+        /**
+         * [planning] in the background, then the dialogs and the writes on the EDT. Its job, cancelled
+         * with the progress: cancelling the reading writes nothing, since every write comes after it.
+         * [planning] is [plan]; a test replaces it with one that never ends.
+         */
+        fun run(
+            project: Project,
+            targets: List<Target>,
+            planning: (Project, List<Target>, ProgressIndicator) -> Map<Target, Plan> = ::plan,
+        ): Job = PluginCoroutineScope.of(project).launch {
+            val contents = withBackgroundProgress(project, PluginBundle.message("action.generate.types.progress"), cancellable = true) {
+                coroutineToIndicator { indicator -> planning(project, targets, indicator) }
+            }
+            withContext(Dispatchers.EDT) { write(project, contents) }
+        }
+
+        /**
+         * What each target's reference locale gives, and the hand-written declarations it would
+         * contradict. Waits for smart mode like the deprecated `DumbService.runReadActionInSmartMode`,
+         * but yields to a write action and starts the reading over instead of holding it back.
+         */
+        fun plan(project: Project, targets: List<Target>, indicator: ProgressIndicator): Map<Target, Plan> =
+            ReadAction.nonBlocking<Map<Target, Plan>> {
+                targets.associateWith { target ->
+                    val reading = readReference(project, target)
+                    // Nothing will be written without a reference: no reason to ask about the others.
+                    val competing = if (reading is Reading.Declaration) competingDeclarations(project, target) else emptyList()
+                    Plan(reading, competing)
+                }
+            }.inSmartMode(project).wrapProgress(indicator).executeSynchronously()
+
+        /**
+         * Writes each declaration, asking before replacing a file the plugin did not generate, and
+         * before writing next to a hand-written declaration: two `CustomTypeOptions` contradict
+         * each other, and only the user knows which one to keep — nothing is deleted for them.
+         *
+         * A target whose reference locale could not be read is skipped, and a warning says why: the
+         * file it would get, or keep, must never be a declaration without keys.
+         */
+        private fun write(project: Project, contents: Map<Target, Plan>) {
+            val written = mutableListOf<String>()
+            val unread = mutableListOf<String>()
+            val skipped = mutableListOf<String>()
+            for ((target, plan) in contents) {
+                val path = targetFileOf(target)
+                val relativePath = path.removePrefix("${project.basePath}/")
+                val declaration = when (val reading = plan.reading) {
+                    is Reading.Declaration -> reading
+                    is Reading.NoReference -> {
+                        skipped += PluginBundle.message(
+                            "action.generate.types.no.reference",
+                            relativePath,
+                            reading.wanted,
+                            reading.available.joinToString(", ").ifEmpty { "—" }
+                        )
+                        continue
+                    }
+                }
+                if (plan.competing.isNotEmpty()) {
+                    val answer = Messages.showYesNoDialog(
+                        project,
+                        PluginBundle.message(
+                            "action.generate.types.competing",
+                            plan.competing.joinToString("\n") { it.removePrefix("${project.basePath}/") }
+                        ),
+                        PluginBundle.message("action.generate.types.title"),
+                        Messages.getWarningIcon()
+                    )
+                    if (answer != Messages.YES) continue
+                }
+                val existing = LocalFileSystem.getInstance().refreshAndFindFileByPath(path)
+                if (existing != null && !VfsUtilCore.loadText(existing).startsWith(I18nextTypesGenerator.GENERATED_BY)) {
+                    val answer = Messages.showYesNoDialog(
+                        project,
+                        PluginBundle.message("action.generate.types.overwrite", path),
+                        PluginBundle.message("action.generate.types.title"),
+                        Messages.getWarningIcon()
+                    )
+                    if (answer != Messages.YES) continue
+                }
+                WriteCommandAction.runWriteCommandAction(project, PluginBundle.message("action.generate.types.title"), null, {
+                    val directory = VfsUtil.createDirectoryIfMissing(path.substringBeforeLast('/')) ?: return@runWriteCommandAction
+                    val file = directory.findChild(FILE_NAME) ?: directory.createChildData(this, FILE_NAME)
+                    VfsUtil.saveText(file, declaration.text)
+                    written += relativePath
+                    if (declaration.unread.isNotEmpty()) {
+                        unread += PluginBundle.message("action.generate.types.unread", relativePath, declaration.unread.joinToString(", "))
+                    }
+                })
+            }
+            if (skipped.isNotEmpty()) notify(project, skipped.joinToString("<br/>"), NotificationType.WARNING)
+            if (written.isEmpty()) return
+            val done = PluginBundle.message("action.generate.types.done", written.joinToString("<br/>"))
+            if (unread.isEmpty()) notify(project, done, NotificationType.INFORMATION)
+            else notify(project, (listOf(done) + unread).joinToString("<br/><br/>"), NotificationType.WARNING)
+        }
+
+        private fun notify(project: Project, content: String, type: NotificationType) {
+            PluginNotifications.notify(project, content, type, PluginBundle.message("action.generate.types.title"))
+        }
+
 
         /**
          * The modules to write a declaration for: every i18next module with a root directory, or
