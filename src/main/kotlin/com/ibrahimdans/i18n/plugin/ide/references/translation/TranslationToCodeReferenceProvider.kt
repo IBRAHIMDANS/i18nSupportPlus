@@ -170,9 +170,12 @@ class TranslationToCodeReference(
 ) : PsiReferenceBase<PsiElement>(element, textRange), PsiPolyVariantReference {
 
     /**
-     * The call sites naming [composedKey], read from the index of the code's usages
-     * ([CodeUsageIndexService]) and found again in their files: one look-up per key, where each
-     * resolve searched the project for the key's words.
+     * What uses [composedKey], read from the index of the code's usages ([CodeUsageIndexService])
+     * and found again in their files: one look-up per key, where each resolve searched the project
+     * for the key's words. The same places Code Vision counts — the calls naming it, those reading it
+     * through a hook's key prefix, a key scope or an i18next context, and the translation values
+     * linking to it —, so a key showing a usage leads to it. A Symfony key ([namespaces] given) is
+     * read from its domain, an argument of the call: only the calls naming it are looked up.
      *
      * Before the index was ever built, on the event dispatch thread — a Ctrl+click in the
      * translation file opening the project —, the key's words are searched for instead: building
@@ -193,7 +196,9 @@ class TranslationToCodeReference(
         }
         // In a monorepo, the code of the module owning this translation file only.
         val module = ModuleSources.ownerOf(project, element.containingFile?.virtualFile)
-        return index.elementsOf(index.calls(bareKey, readFrom, module)).distinct()
+        val usages = if (namespaces != null) index.calls(bareKey, readFrom, module)
+            else index.usages(listOf(composedKey), module)[composedKey]?.all.orEmpty()
+        return index.elementsOf(usages).distinct()
     }
 
     /**

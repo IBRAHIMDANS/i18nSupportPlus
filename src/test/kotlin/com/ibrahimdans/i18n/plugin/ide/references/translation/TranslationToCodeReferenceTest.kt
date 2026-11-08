@@ -92,6 +92,50 @@ class TranslationToCodeTestBase: PlatformBaseTest() {
         assertEquals(POPULAR_FILES, files.size, "$files")
     }
 
+    /** Code Vision counted `t('title')` under `keyPrefix: 'header'` for `header.title`, while Ctrl+click led nowhere. */
+    @Test
+    fun testKeyUnderAHookPrefixResolvesToItsCall() {
+        myFixture.addFileToProject(
+            "Header.tsx",
+            """
+            import { useTranslation } from 'react-i18next';
+            export default function Header() {
+                const { t } = useTranslation('dashboard', { keyPrefix: 'header' });
+                return t('title');
+            }
+            """.trimIndent()
+        )
+        myFixture.configureByText("dashboard.json", """{"header": {"tit<caret>le": "Hi"}}""")
+
+        assertEquals(setOf("Header.tsx" to "'title'"), resolvedAtCaret())
+    }
+
+    /** A key no code names but another translation nests with `$t(...)` leads to that value. */
+    @Test
+    fun testKeyNestedByAnotherTranslationResolvesToTheValue() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        myFixture.addFileToProject("locales/en/translation.json", """{"button": "${'$'}t(common:save) now"}""")
+        myFixture.configureByText("common.json", """{"sa<caret>ve": "Save"}""")
+
+        assertEquals(setOf("translation.json"), resolvedAtCaret().map { it.first }.toSet())
+    }
+
+    /** A plural form leads to the call naming its key without the suffix, as Code Vision counts it. */
+    @Test
+    fun testPluralFormResolvesToTheCallOfItsKey() {
+        myFixture.addFileToProject("Cart.js", "export const label = (t, count) => t('cart:item', { count });")
+        myFixture.configureByText("cart.json", """{"item_one": "{{count}} item", "item_ot<caret>her": "{{count}} items"}""")
+
+        assertEquals(setOf("Cart.js" to "'cart:item'"), resolvedAtCaret())
+    }
+
+    /** The files and texts the reference at the caret resolves to, once the index is built as off the event dispatch thread. */
+    private fun resolvedAtCaret(): Set<Pair<String, String>> {
+        CodeUsageIndexService.getInstance(project).calls("", emptyList(), null)
+        val element = myFixture.file.findElementAt(myFixture.caretOffset)?.parent!!
+        val reference = element.references.filterIsInstance<TranslationToCodeReference>().single()
+        return reference.multiResolve(false).mapNotNull { it.element }.map { it.containingFile.name to it.text }.toSet()
+    }
+
     /**
      * A search for the references to a translation key meets this reference in every locale file:
      * another locale's key is no target of it, answered without resolving.
