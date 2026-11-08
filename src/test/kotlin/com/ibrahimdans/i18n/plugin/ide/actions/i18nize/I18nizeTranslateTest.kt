@@ -24,7 +24,9 @@ import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import com.intellij.testFramework.PlatformTestUtil
@@ -142,6 +144,33 @@ class I18nizeTranslateTest : PlatformBaseTest() {
         Assertions.assertEquals(before, textOf(menu), "the code is left as it was")
         Assertions.assertEquals("{}", textOf(en), "no reference value written")
         Assertions.assertEquals("{}", textOf(fr), "no translation written")
+    }
+
+    @Test
+    fun aPlanCancelledWhileItIsComputedOpensNothingAndWritesNothing() = myFixture.runWithConfig(config) {
+        val en = myFixture.addFileToProject("locales/en/common.json", "{}")
+        val menu = menu()
+        val before = textOf(menu)
+        val started = CountDownLatch(1)
+        // A plan that never ends, checking for the cancel between two files as the real one does.
+        fun neverEnding(indicator: ProgressIndicator): Nothing {
+            started.countDown()
+            while (true) {
+                indicator.checkCanceled()
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10))
+            }
+        }
+        val endless: (Project, List<VirtualFile>, ProgressIndicator) -> I18nizeAction.Preview = { _, _, indicator -> neverEnding(indicator) }
+
+        val job = I18nizeAction.run(project, listOf(menu.virtualFile), endless)
+        PlatformTestUtil.waitWithEventsDispatching("the plan was never computed", { started.count == 0L }, 30)
+        job.cancel()
+        PlatformTestUtil.waitWithEventsDispatching("the cancelled plan never ended", { job.isCompleted }, 30)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        Assertions.assertTrue(job.isCancelled, "the job ends cancelled, before the preview")
+        Assertions.assertEquals(before, textOf(menu), "the code is left as it was")
+        Assertions.assertEquals("{}", textOf(en), "no reference value written")
     }
 
     @Test
