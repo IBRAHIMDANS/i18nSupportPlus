@@ -1,7 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.references.translation
 
 import com.ibrahimdans.i18n.Extensions
-import com.ibrahimdans.i18n.extensions.lang.js.extractors.AngularI18nMetadata
 import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideOutdir
 import com.ibrahimdans.i18n.extensions.technology.symfony.SymfonyCatalogue
 import com.ibrahimdans.i18n.extensions.technology.symfony.SymfonyTranslations
@@ -102,7 +101,7 @@ class ReferencesAccumulator(
         val generated = entry.containingFile?.virtualFile?.let(ParaglideOutdir::contains) == true
         val languages = Extensions.LANG.extensionList
         // An Angular marker names its key inside metadata (`:@@home.title:Welcome`): its id is compared.
-        val angularId = AngularI18nMetadata.keyOf(entry)
+        val angularId = languages.firstNotNullOfOrNull { it.metadataKeyOf(entry) }
         val text = angularId ?: entry.text.unQuote()
         if (!generated && namesKey(text) && underExpectedNamespace(entry, text, languages)) {
             if (angularId != null) res.add(entry)

@@ -51,6 +51,13 @@ interface Lang : CodeLang {
      */
     fun isFunctionBoundary(element: PsiElement): Boolean = false
 
+    /**
+     * The key [element] names in metadata rather than in its text — the `@@id` of an Angular `i18n`
+     * attribute or `$localize` template — or null when [element] is no such marker, or the language
+     * has none, which is the default.
+     */
+    fun metadataKeyOf(element: PsiElement): String? = null
+
     override fun canExtractKey(node: CodeNode, translationFunctionNames: List<String>): Boolean =
         node is PsiCodeNode && canExtractKey(node.element, translationFunctionNames)
 

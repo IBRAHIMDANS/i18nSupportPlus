@@ -3,7 +3,7 @@ package com.ibrahimdans.i18n.plugin.ide.inspection
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideOutdir
 import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideTechnology
-import com.ibrahimdans.i18n.extensions.technology.typesafei18n.TypesafeI18nTechnology
+import com.ibrahimdans.i18n.extensions.technology.typesafei18n.TypesafeI18nOutput
 import com.ibrahimdans.i18n.plugin.ide.references.translation.LinkedMessages
 import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumulator
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
@@ -87,7 +87,7 @@ internal object IndirectKeyUsages {
         CachedValuesManager.getManager(project).getCachedValue(project) {
             val scope = GlobalSearchScope.projectScope(project)
             val found = ParaglideTechnology.projects(project).isNotEmpty() ||
-                TypesafeI18nTechnology.outputFolders(project).isNotEmpty() ||
+                TypesafeI18nOutput.folders(project).isNotEmpty() ||
                 FilenameIndex.getVirtualFilesByName("runtime.js", scope).any { "/node_modules/" !in it.path && ParaglideOutdir.contains(it) } ||
                 importsIdentifierKeyLibrary(project, scope)
             CachedValueProvider.Result.create(

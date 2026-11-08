@@ -1,7 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.usages
 
 import com.ibrahimdans.i18n.Extensions
-import com.ibrahimdans.i18n.extensions.lang.js.extractors.AngularI18nMetadata
 import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideOutdir
 import com.ibrahimdans.i18n.plugin.KeyUsage
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationKeyUsages
@@ -110,7 +109,7 @@ internal class CodeUsageIndexer(private val project: Project, private val config
 
     private fun read(element: PsiElement, generated: Boolean, host: String, literals: MutableSet<PsiElement>, sites: MutableList<CodeSite>) {
         // An Angular marker names its key inside metadata (`:@@home.title:Welcome`): its id is compared.
-        val angularId = AngularI18nMetadata.keyOf(element)
+        val angularId = languages.firstNotNullOfOrNull { it.metadataKeyOf(element) }
         val literal = languages.firstNotNullOfOrNull { it.resolveLiteral(element) }
         if (angularId == null && literal == null) return
         // Read once when the element is its own literal, as a JS string is: the hook is resolved for both reads.

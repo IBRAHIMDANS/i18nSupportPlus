@@ -14,13 +14,10 @@ import com.intellij.lang.javascript.psi.JSObjectLiteralExpression
 import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
-import com.intellij.psi.search.FilenameIndex
-import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
@@ -60,17 +57,10 @@ class TypesafeI18nTechnology : Technology {
 
         private val INDEX_FILES = listOf("index.ts", "index.js", "index.mjs")
 
-        /** The files typesafe-i18n's generator writes next to the locale folders. */
-        private val GENERATED_FILES = listOf("i18n-types.ts", "i18n-util.ts", "i18n-util.js")
-
-        private const val CONFIG_FILE = ".typesafe-i18n.json"
-        private const val DEFAULT_OUTPUT = "src/i18n"
-        private val OUTPUT_PATH = Regex(""""outputPath"\s*:\s*"([^"]+)"""")
-
         private fun computeSources(project: Project): List<LocalizationSource> {
             val localization = Extensions.LOCALIZATION.extensionList.firstOrNull { it.config().id() == "ts" } ?: return emptyList()
             val basePath = project.basePath.orEmpty()
-            return outputFolders(project).flatMap { folder ->
+            return TypesafeI18nOutput.folders(project).flatMap { folder ->
                 folder.children.filter { it.isDirectory && LocalizationSourceService.looksLikeLocale(it.name) }
                     .mapNotNull { localeFolder -> sourceOf(project, localeFolder, localization, basePath) }
             }
@@ -90,18 +80,6 @@ class TypesafeI18nTechnology : Technology {
                 localization,
                 locale = localeFolder.name,
             )
-        }
-
-        /** Every output folder of [project]: named by a `.typesafe-i18n.json`, or holding the generated files. */
-        internal fun outputFolders(project: Project): List<VirtualFile> {
-            val scope = GlobalSearchScope.projectScope(project)
-            val configured = FilenameIndex.getVirtualFilesByName(CONFIG_FILE, scope).mapNotNull { config ->
-                val text = runCatching { VfsUtilCore.loadText(config) }.getOrNull() ?: return@mapNotNull null
-                val output = OUTPUT_PATH.find(text)?.groupValues?.get(1) ?: DEFAULT_OUTPUT
-                config.parent?.findFileByRelativePath(output.removePrefix("./").trimEnd('/'))
-            }
-            val generated = GENERATED_FILES.flatMap { FilenameIndex.getVirtualFilesByName(it, scope) }.mapNotNull { it.parent }
-            return (configured + generated).filter { "/node_modules/" !in it.path }.distinct().sortedBy { it.path }
         }
 
         /**
