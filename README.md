@@ -79,7 +79,7 @@ The reference, one page per topic, in [`docs/`](docs):
 
 ## Installation
 
-In the IDE, **Settings › Plugins › Marketplace**, search for **I18n Support Plus** (plugin ID `com.ibrahimdans.i18n`) and install it, or click *Install* on its [Marketplace page](https://plugins.jetbrains.com/plugin/30971-i18n-support-plus). It needs WebStorm, IntelliJ IDEA Ultimate or PhpStorm 2025.2 or later ([Requirements](#requirements)).
+In the IDE, **Settings › Plugins › Marketplace**, search for **I18n Support Plus** (plugin ID `com.ibrahimdans.i18n`) and install it, or click *Install* on its [Marketplace page](https://plugins.jetbrains.com/plugin/30971-i18n-support-plus). It installs in any IntelliJ-based IDE 2025.2 or later; the keys in your code need the JavaScript plugin, bundled with WebStorm, IntelliJ IDEA Ultimate and PhpStorm ([Requirements](#requirements)).
 On first launch, the setup wizard detects the framework and the translation files and configures the rest.
 First steps, from the wizard to your first keys: [Getting started](docs/getting-started.md).
 
@@ -176,7 +176,8 @@ The keys are read in JS, TS, JSX, TSX, Vue SFC, Svelte, Astro, Angular templates
 
 ## Requirements
 
-- IntelliJ IDEA 2025.2+ (build 252–263.*), verified against 2025.2, 2025.3, 2026.1, 2026.2 and 2026.3
+- Any IntelliJ-based IDE 2025.2+ (build 252–263.*), verified against 2025.2, 2025.3, 2026.1, 2026.2 and 2026.3
+- Without the JavaScript plugin (IntelliJ IDEA Community, Android Studio, PyCharm, an unlicensed IntelliJ IDEA 2025.3+): the tool window, the inspections of the translation files, machine translation and the AI agent tools; no key in the code
 - On 2025.1, the last compatible version is 1.11.1
 - Java 21+
 
@@ -184,7 +185,7 @@ The keys are read in JS, TS, JSX, TSX, Vue SFC, Svelte, Astro, Angular templates
 
 | Plugin | Required | Enables |
 |--------|:--------:|---------|
-| JavaScript | Yes | Core JS/TS support |
+| JavaScript | No | Keys in JS, TS, JSX and TSX code: highlighting, completion, navigation, extraction, the frameworks' calls, TypeScript translation files (WebStorm, IntelliJ IDEA Ultimate, PhpStorm) |
 | Vue.js | No | vue-i18n support (`$t`, `$tc`, `$te`, `<i18n-t keypath>`, `v-t`) |
 | YAML | No | `.yaml`/`.yml` translation files |
 | PHP | No | PHP language support |

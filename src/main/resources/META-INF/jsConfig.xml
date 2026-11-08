@@ -1,7 +1,8 @@
 <idea-plugin>
     <!-- What the JavaScript plugin gives: the languages, the technologies reading their configuration in
          JavaScript, the TypeScript translation files, and the refactorings editing JavaScript code. Kept
-         apart from plugin.xml so that no class of it is reachable from the trunk (TASK-JS-OPTIONAL). -->
+         apart from plugin.xml so that no class of it is reachable from the trunk: the dependency is optional,
+         and an IDE without the JavaScript plugin loads plugin.xml alone. -->
     <extensions defaultExtensionNs="com.intellij">
         <!-- Angular's `$localize`:@@id:text``: a tagged template, matched by no call-based contributor. -->
         <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.lang.js.extractors.LocalizeReferenceContributor"/>
@@ -110,8 +111,9 @@
         <localization implementation="com.ibrahimdans.i18n.extensions.localization.js.TsLocalization"/>
         <lang implementation="com.ibrahimdans.i18n.extensions.lang.js.JsLang"/>
         <lang implementation="com.ibrahimdans.i18n.extensions.lang.js.JsxLang"/>
-        <technology implementation="com.ibrahimdans.i18n.extensions.technology.i18next.I18NextTechnology"/>
-        <technology implementation="com.ibrahimdans.i18n.extensions.technology.vuei18n.VueI18nIdeTechnology"/>
+        <!-- What the trunk's i18next and vue-i18n technologies read in JavaScript: the init files, fallbackNS, the settings and wizard. -->
+        <codeReader implementation="com.ibrahimdans.i18n.extensions.technology.i18next.I18nextJsReader"/>
+        <codeReader implementation="com.ibrahimdans.i18n.extensions.technology.vuei18n.VueI18nJsReader"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.tscatalog.TsCatalogTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.typesafei18n.TypesafeI18nTechnology"/>
     </extensions>

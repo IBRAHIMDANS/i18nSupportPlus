@@ -1,18 +1,19 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
+import com.ibrahimdans.i18n.CodeReader
 import com.ibrahimdans.i18n.Extensions
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiFile
 
 /**
- * A technology that reads, in the project's code, what the settings leave blank and what the setup
- * wizard proposes. The trunk names no technology: it asks the registered ones, through
- * [Extensions.TECHNOLOGY], and takes the first answer. That is what keeps a language's PSI behind
- * its technology — the settings never see JavaScript.
+ * A [CodeReader] of what the settings leave blank and what the setup wizard proposes, read in the
+ * project's code. The trunk names no language: it asks the registered readers, through
+ * [Extensions.CODE_READER], and takes the first answer. That is what keeps a language's PSI behind
+ * its plugin — the settings never see JavaScript, and read nothing without it.
  *
- * Every method answers null by default: a technology implements the ones it has a file for.
+ * Every method answers null by default: a reader implements the ones it has a file for.
  */
-interface CodeSettingsReader {
+interface CodeSettingsReader : CodeReader {
 
     /**
      * The settings [CodeDefaults] fills, read from the code under [config]: null when the code says
@@ -36,10 +37,10 @@ interface CodeSettingsReader {
 
     companion object {
 
-        /** The registered technologies reading the code, in registration order. */
-        fun all(): List<CodeSettingsReader> = Extensions.TECHNOLOGY.extensionList.filterIsInstance<CodeSettingsReader>()
+        /** The registered readers, in registration order: none without a language plugin. */
+        fun all(): List<CodeSettingsReader> = Extensions.CODE_READER.extensionList.filterIsInstance<CodeSettingsReader>()
 
-        /** The first [codeDefaults] a registered technology reads under [config], null when none does. */
+        /** The first [codeDefaults] a registered reader reads under [config], null when none does. */
         fun codeDefaults(project: Project, config: Config): CodeDefaults? =
             all().firstNotNullOfOrNull { it.codeDefaults(project, config) }
     }

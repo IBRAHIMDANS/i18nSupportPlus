@@ -68,7 +68,7 @@ a notification offers the setup wizard when the project opens.
 
 | | I18n Support Plus | Easy I18n | i18n Ally (JetBrains) | i18n Ally (VS Code) |
 |---|---|---|---|---|
-| Editor | WebStorm, IntelliJ IDEA Ultimate, PhpStorm 2025.2+ (needs the bundled JavaScript plugin) | Any IntelliJ-based IDE 2025.2+ | IntelliJ-based IDEs 2024.1–2024.2 | VS Code |
+| Editor | Any IntelliJ-based IDE 2025.2+; the keys in code need the JavaScript plugin (WebStorm, IntelliJ IDEA Ultimate, PhpStorm) | Any IntelliJ-based IDE 2025.2+ | IntelliJ-based IDEs 2024.1–2024.2 | VS Code |
 | Code languages | JS, TS, JSX, TSX, Vue SFC, Angular templates, Svelte, PHP, Blade, Twig, Astro with the Astro plugin | HTML/XML, JS(X), TS(X), Vue, Svelte, PHP, Ruby, Rust, Go, Dart, Python, Kotlin, Java ([Marketplace](https://plugins.jetbrains.com/plugin/16316-easy-i18n)) | JS, TS, React, Vue, PHP, Blade, Twig ([Marketplace](https://plugins.jetbrains.com/plugin/17212-i18n-ally)) | Per framework, including Flutter, Rails and Ember ([wiki](https://github.com/lokalise/i18n-ally/wiki/Supported-Frameworks)) |
 | Translation files | JSON, JSON5, YAML, PO/POT, TS/JS catalogues, Laravel PHP arrays, Flutter ARB, Java `.properties` bundles, XLIFF 1.2 and 2.0 in an Angular or Symfony project | JSON, JSON5, YAML, Properties | JSON, JS/TS, PHP, PO/POT, XLIFF 1/2, YAML | JSON, YAML, JSON5; INI, properties, POT and read-only JS/TS/PHP when enabled ([wiki](https://github.com/lokalise/i18n-ally/wiki/Locale-Formats)) |
 | Laravel PHP array files (`lang/en/*.php`) | Yes, read and written, the file name as namespace; package keys (`package::file.key`) read from the overrides in `lang/vendor/` | Preset reads `resources/lang/{locale}.json` ([presets](https://marhali.github.io/easy-i18n/configuration/presets/)) | Yes | Read-only |
@@ -203,8 +203,9 @@ what that page does not mention.
   framework definition.
 - **Easy I18n works outside JavaScript**: Java, Kotlin, Python, Go, Rust, Ruby, Dart, with a Spring Boot preset and
   `.properties` files, in any IntelliJ-based IDE including those without the JavaScript plugin.
-  I18n Support Plus needs WebStorm, IntelliJ IDEA Ultimate or PhpStorm; it reads `.properties` bundles and leaves Java calls
-  to IntelliJ IDEA's own support.
+  I18n Support Plus installs there too, with the tool window, the inspections and the agent tools on the translation
+  files; its keys in code need the JavaScript plugin. It reads `.properties` bundles and leaves Java calls to IntelliJ
+  IDEA's own support.
 - **i18n Ally for JetBrains reads XLIFF translation files in any project.** I18n Support Plus reads XLIFF as a
   translation source in an Angular project, the files `angular.json` lists, and in a Symfony project, the catalogues of
   `translations/`; elsewhere it exports and imports XLIFF.

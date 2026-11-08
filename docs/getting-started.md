@@ -18,7 +18,7 @@ When an app is translated into several languages, every text in the code becomes
 
 ## 1. Install the plugin
 
-In the IDE, **Settings › Plugins › Marketplace**, search for **I18n Support Plus** and install it, or click *Install* on its [Marketplace page](https://plugins.jetbrains.com/plugin/30971-i18n-support-plus). It needs WebStorm, IntelliJ IDEA Ultimate or PhpStorm 2025.2 or later ([Requirements](../README.md#requirements)); Vue, PHP, YAML, Svelte and Astro files need their own plugin, listed under [Plugin Dependencies](../README.md#plugin-dependencies).
+In the IDE, **Settings › Plugins › Marketplace**, search for **I18n Support Plus** and install it, or click *Install* on its [Marketplace page](https://plugins.jetbrains.com/plugin/30971-i18n-support-plus). It installs in any IntelliJ-based IDE 2025.2 or later ([Requirements](../README.md#requirements)); the keys in JavaScript and TypeScript code need the JavaScript plugin (WebStorm, IntelliJ IDEA Ultimate, PhpStorm), and Vue, PHP, YAML, Svelte and Astro files their own, listed under [Plugin Dependencies](../README.md#plugin-dependencies).
 
 No project at hand? Open [examples/react-multi-namespace](../examples/react-multi-namespace), a React application with two locales and three namespaces, the one the steps below are written for.
 
