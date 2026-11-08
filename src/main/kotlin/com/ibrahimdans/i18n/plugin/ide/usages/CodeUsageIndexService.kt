@@ -30,7 +30,6 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.fileTypes.FileTypeManager
-import com.intellij.openapi.fileTypes.LanguageFileType
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
@@ -518,16 +517,11 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
         fun getInstance(project: Project): CodeUsageIndexService = project.service()
 
         /**
-         * The languages the [com.ibrahimdans.i18n.Lang]s read a key from, a dialect counting for its
-         * base: JavaScript and TypeScript, PHP, Twig, and the templates embedding them (HTML, so Vue,
-         * Angular and Svelte; Blade, Astro).
+         * Whether the files of [type] are read: one of the [com.ibrahimdans.i18n.Lang]s says it reads a key
+         * from them ([com.ibrahimdans.i18n.Lang.indexes]). A language whose plugin is absent registers no
+         * `Lang`, so its files are not read.
          */
-        private val CODE_LANGUAGES = setOf("JavaScript", "PHP", "HTML", "Twig", "Blade", "Vue", "Astro")
-
-        fun isCodeType(type: FileType): Boolean {
-            val language = (type as? LanguageFileType)?.language ?: return false
-            return generateSequence(language) { it.baseLanguage }.any { it.id in CODE_LANGUAGES }
-        }
+        fun isCodeType(type: FileType): Boolean = Extensions.LANG.extensionList.any { it.indexes(type) }
 
         private fun translationValueTypes(): List<FileType> =
             listOfNotNull(JsonFileType.INSTANCE, FileTypeManager.getInstance().findFileTypeByName("YAML"))

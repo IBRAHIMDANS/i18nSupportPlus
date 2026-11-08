@@ -1,10 +1,15 @@
 package com.ibrahimdans.i18n.plugin.ide.usages
 
+import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.Lang
+import com.ibrahimdans.i18n.extensions.lang.js.JsLang
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.IdeKeyUsageIndex
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.fileTypes.FileType
+import com.intellij.openapi.fileTypes.PlainTextFileType
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import org.junit.jupiter.api.Assertions
@@ -131,5 +136,22 @@ class CodeUsageIndexServiceTest : PlatformBaseTest() {
         }
 
         Assertions.assertTrue(reads >= 2, "every file read again, read $reads")
+    }
+
+    /** The files read are those a [Lang] says it reads: a language the plugin learns has its files read, with no list to edit. */
+    @Test
+    fun `the files read are those a language declares`() {
+        menu()
+        myFixture.addFileToProject("src/notes.txt", "i18n.t('menu.home')")
+
+        Assertions.assertEquals(1, readsDuring { count("menu.home") }, "a text file is read by no language")
+
+        val readsText = object : Lang by JsLang() {
+            override fun indexes(type: FileType): Boolean = type == PlainTextFileType.INSTANCE
+        }
+        Extensions.LANG.point.registerExtension(readsText, testRootDisposable)
+        service.forget()
+
+        Assertions.assertEquals(2, readsDuring { count("menu.home") }, "the text file read once a language declares it")
     }
 }
