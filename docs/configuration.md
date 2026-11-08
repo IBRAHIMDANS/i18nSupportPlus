@@ -35,6 +35,7 @@ You can reopen it at any time from **Tools > i18n Support Plus > Run Setup Wizar
 - A setting the file names wins over the IDE's, and is greyed out on the settings page: change it in the file, which **Edit i18n-check.json** opens. The others — folding, the gutter, the preview locale, inspections — stay on each machine.
 - A module's *Active* box stays on each machine too: *Focus on This Module* sets an application aside for you only. A module the file sets aside (`"enabled": false`) stays aside for everyone.
 - The file is read again as soon as it is saved. A name it does not know, or a file that does not parse, is reported in a notification, and the IDE keeps its own settings until it is fixed.
+- The file is named after the command line check that first read it, and keeps that name although the IDE reads it too: renaming it would break the projects that already have one, for a name no clearer. A project without `i18n-check` in its CI uses it all the same, as the settings its team shares.
 
 ### Namespaces and separators
 
