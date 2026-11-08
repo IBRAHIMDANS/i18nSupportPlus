@@ -12,7 +12,7 @@ import com.google.gson.JsonPrimitive
  *
  * It takes the names of the IDE's settings — `{ "keySeparator": "/", "modules": [{ "name": "web",
  * "rootDirectory": "apps/web" }] }` — and only the ones a team shares: where the translations are,
- * how keys are written, which locales are checked. What belongs to one machine (folding, the gutter,
+ * how keys are written and ordered, which locales are checked. What belongs to one machine (folding, the gutter,
  * the preview locale shown in the status bar) stays in `.idea/i18nSettings.xml`. A name it does not
  * know is refused rather than ignored: it is most likely a typo, and a setting silently left at its
  * default is worse than an error.
@@ -35,6 +35,8 @@ object ProjectConfigFile {
         val get: (Config) -> String,
         val set: (Config, String) -> Config,
         val flag: Boolean = false,
+        /** The values the setting takes, null when any string does: another one is refused by [parse]. */
+        val choices: Set<String>? = null,
     )
 
     /**
@@ -44,6 +46,7 @@ object ProjectConfigFile {
     private val FIELDS: Map<String, Field> = linkedMapOf(
         "translationsRoot" to Field({ it.translationsRoot }, { c, v -> c.copy(translationsRoot = v) }),
         "excludedDirectories" to Field({ it.excludedDirectories }, { c, v -> c.copy(excludedDirectories = v) }),
+        "excludedFileExtensions" to Field({ it.excludedFileExtensions }, { c, v -> c.copy(excludedFileExtensions = v) }),
         "jsConfiguration" to Field({ it.jsConfiguration }, { c, v -> c.copy(jsConfiguration = v) }),
         "defaultNs" to Field({ it.defaultNs }, { c, v -> c.copy(defaultNs = v) }),
         "fallbackNs" to Field({ it.fallbackNs }, { c, v -> c.copy(fallbackNs = v) }),
@@ -59,6 +62,14 @@ object ProjectConfigFile {
         "regionalFallback" to Field({ it.regionalFallback.toString() }, { c, v -> c.copy(regionalFallback = v.toBoolean()) }, flag = true),
         "localeAliases" to Field({ it.localeAliases }, { c, v -> c.copy(localeAliases = v) }),
         "keptKeys" to Field({ it.keptKeys }, { c, v -> c.copy(keptKeys = v) }),
+        // How the shared catalogues are ordered: two values here, and every extraction reorders them.
+        "extractSorted" to Field({ it.extractSorted.toString() }, { c, v -> c.copy(extractSorted = v.toBoolean()) }, flag = true),
+        "sortKeysAlphabetically" to Field({ it.sortKeysAlphabetically.toString() }, { c, v -> c.copy(sortKeysAlphabetically = v.toBoolean()) }, flag = true),
+        "keyOrder" to Field(
+            { it.keyOrder.name },
+            { c, v -> c.copy(keyOrder = KeyOrder.valueOf(v)) },
+            choices = KeyOrder.entries.map { it.name }.toSet(),
+        ),
         PREVIEW_LOCALE to Field({ it.previewLocale }, { c, v -> c.copy(previewLocale = v) }),
     )
 
@@ -146,7 +157,12 @@ object ProjectConfigFile {
                 moduleOf(stringsOf(bean, MODULE_FIELDS.keys))
             }
         }
-        return Content(stringsOf(root, FIELDS.keys), modules)
+        val options = stringsOf(root, FIELDS.keys)
+        options.forEach { (name, value) ->
+            val choices = FIELDS.getValue(name).choices ?: return@forEach
+            if (value !in choices) throw IllegalArgumentException("'$name' must be one of ${choices.sorted()}, not '$value'")
+        }
+        return Content(options, modules)
     }
 
     /**

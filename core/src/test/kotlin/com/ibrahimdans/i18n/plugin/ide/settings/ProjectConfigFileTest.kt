@@ -175,4 +175,26 @@ class ProjectConfigFileTest {
         assertEquals(team, ProjectConfigFile.names - ProjectConfigFile.PREVIEW_LOCALE + ProjectConfigFile.MODULES)
         assertEquals(SettingScope.MACHINE, Config.SCOPES[ProjectConfigFile.PREVIEW_LOCALE])
     }
+
+    @Test
+    fun `the key order and the excluded extensions are read, exported and read back`() {
+        val content = ProjectConfigFile.parse(
+            """{ "keyOrder": "NATURAL", "sortKeysAlphabetically": true, "extractSorted": true, "excludedFileExtensions": "php,vue" }"""
+        )
+        val config = content.applyTo(Config())
+
+        assertEquals(
+            Config(keyOrder = KeyOrder.NATURAL, sortKeysAlphabetically = true, extractSorted = true, excludedFileExtensions = "php,vue"),
+            config,
+        )
+        assertEquals(config, ProjectConfigFile.parse(ProjectConfigFile.export(config)).applyTo(Config()))
+        assertEquals(Config(), content.applyTo(Config(), ignored = content.names))
+    }
+
+    @Test
+    fun `a key order the file does not know is refused, naming the ones it takes`() {
+        val error = assertThrows<IllegalArgumentException> { ProjectConfigFile.parse("""{ "keyOrder": "natural" }""") }
+
+        assertTrue(error.message!!.contains("keyOrder") && error.message!!.contains("NATURAL"), error.message)
+    }
 }

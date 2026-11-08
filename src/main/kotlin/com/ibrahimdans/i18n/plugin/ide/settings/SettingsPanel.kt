@@ -313,7 +313,7 @@ class SettingsPanel(val settings: Settings, val project: Project, private val co
     private fun keyOrderField(label: String, property: KMutableProperty0<KeyOrder>): JComboBox<KeyOrder> {
         val control = JComboBox(KeyOrder.entries.toTypedArray())
         control.name = label
-        control.selectedItem = property.get()
+        control.selectedItem = configFile.held[property.name]?.let { held -> KeyOrder.entries.firstOrNull { it.name == held } } ?: property.get()
         control.renderer = object : DefaultListCellRenderer() {
             override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component {
                 val text = when (value as? KeyOrder) {
@@ -326,7 +326,7 @@ class SettingsPanel(val settings: Settings, val project: Project, private val co
             }
         }
         control.addItemListener { _ -> (control.selectedItem as? KeyOrder)?.let(property::set) }
-        return control
+        return control.heldBy(property)
     }
 
     /** A separator field and, beside it, why its last value was refused: blank while the value passes. */
