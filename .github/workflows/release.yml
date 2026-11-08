@@ -72,8 +72,11 @@ jobs:
           name: cli-zip
           path: cli/build/distributions/*.zip
 
-  # The native binaries and their npm packages, built and compared with the JVM on each platform.
+  # The native binaries and their npm packages, built and compared with the JVM on each platform. Only
+  # when npm publishing is on (NPM_PUBLISH), which it is not until someone asks for `npx`: five runners
+  # for forty minutes otherwise, for packages that go nowhere.
   cli-native:
+    if: vars.NPM_PUBLISH == 'true'
     uses: ./.github/workflows/cli-native.yml
     permissions:
       contents: read
@@ -107,9 +110,12 @@ jobs:
         run: npm/publish.sh "$RUNNER_TEMP/npm" --provenance
 
   # `ghcr.io/ibrahimdans/i18n-check`, for CI systems other than GitHub Actions. A job of its own, after the
-  # release: an image that fails to build or to start leaves the plugin and the zip published.
+  # release: an image that fails to build or to start leaves the plugin and the zip published. Off until
+  # the repository variable DOCKER_PUBLISH is `true`: the image was published from 1.17.0 to 1.19.1 and
+  # no pull or issue asked for it; `:latest` stays at the last published version until someone does.
   cli-image:
     needs: release
+    if: vars.DOCKER_PUBLISH == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
