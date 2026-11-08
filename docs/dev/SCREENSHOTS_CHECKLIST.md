@@ -30,6 +30,10 @@
 `completion.png`, `extraction-intent.png`, `folding-{before,after}.png`, `gutter-icons.png`, `hover-hint.png`.
 `gutter-icons-tooltip.png` montre encore l'ancienne icône : à refaire à la main.
 
+`folding-{before,after}.png` (section *Code Folding*) et `extraction-translation-value.png` (dialogue de
+*Create missing key*, section *Quick Fixes*) sont citées par `docs/editor.md` depuis le 2026-11-08 ; elles ont
+leur scénario dans `EditorScreenshots.kt`.
+
 **Sans scénario : `gutter-icons-tooltip.png`** (recette manuelle). Sous Xvfb, aucun survol de l'icône de
 gouttière, ni `GutterUiComponent.hoverOverIcon` (ligne comptée à partir de 0), ni un mouvement `Robot` par
 petits pas, n'a ouvert l'infobulle (2026-11-01). Attendre « `i18n:` » ne prouve rien : la barre d'état
