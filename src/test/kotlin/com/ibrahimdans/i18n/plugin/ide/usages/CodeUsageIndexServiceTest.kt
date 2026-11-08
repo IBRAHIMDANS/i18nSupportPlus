@@ -7,12 +7,20 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.IdeKeyUsageIndex
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ProjectConfigFile
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.editor.Document
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.fileTypes.PlainTextFileType
+import com.intellij.openapi.project.guessProjectDir
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
 /**
@@ -34,6 +42,14 @@ class CodeUsageIndexServiceTest : PlatformBaseTest() {
         val before = service.filesRead()
         block()
         return service.filesRead() - before
+    }
+
+    @AfterEach
+    fun deleteConfigFile() {
+        val file = project.guessProjectDir()?.findChild(ProjectConfigFile.PATH) ?: return
+        val documents = FileDocumentManager.getInstance()
+        documents.getCachedDocument(file)?.let { ApplicationManager.getApplication().invokeAndWait { documents.reloadFromDisk(it) } }
+        WriteAction.runAndWait<Exception> { file.delete(this) }
     }
 
     @Test
@@ -153,5 +169,78 @@ class CodeUsageIndexServiceTest : PlatformBaseTest() {
         service.forget()
 
         Assertions.assertEquals(2, readsDuring { count("menu.home") }, "the text file read once a language declares it")
+    }
+
+    /**
+     * `i18n-check.json` open in the editor is read again at each keystroke, unsaved ([com.ibrahimdans.i18n.plugin.ide.settings.Settings]).
+     * A keystroke that leaves the settings as they were costs the index nothing.
+     */
+    @Test
+    fun `a keystroke in the open config file that leaves the settings as they were reads no code`() {
+        menu()
+        profile()
+        val document = openConfigFile()
+        count("menu.home")
+
+        val reads = readsDuring {
+            edit(document, "{", "{ ")
+            Assertions.assertEquals(1, count("menu.home"))
+        }
+
+        Assertions.assertEquals(0, reads)
+    }
+
+    /**
+     * A keystroke in a value that changes no file the index reads: a directory excluded that the project does not have.
+     * Today [CodeUsageIndexService] compares the whole [Config]: any setting that changes rebuilds, so typing
+     * `node_modules` into `excludedDirectories` reads the whole project once per keystroke.
+     */
+    @Disabled("2026-11-08: reads 2 of 2 code files — the index rebuilds on any change of Config, not only on the settings it reads with")
+    @Test
+    fun `a keystroke in the open config file that excludes no code file reads no code`() {
+        menu()
+        profile()
+        val document = openConfigFile()
+        count("menu.home")
+
+        val reads = readsDuring {
+            edit(document, "\"x\"", "\"xy\"")
+            Assertions.assertEquals(1, count("menu.home"))
+        }
+
+        Assertions.assertEquals(0, reads)
+    }
+
+    /** A keystroke that changes a setting the index reads with — a separator — reads the code again, all of it. */
+    @Test
+    fun `a keystroke in the open config file that changes a separator reads the code again`() {
+        menu()
+        profile()
+        val document = openConfigFile()
+        count("menu.home")
+
+        val reads = readsDuring {
+            edit(document, "\"keySeparator\": \".\"", "\"keySeparator\": \"/\"")
+            count("menu.home")
+        }
+
+        Assertions.assertTrue(reads >= 2, "every file read again, read $reads")
+    }
+
+    private fun openConfigFile(): Document {
+        val file = addFileToProject(ProjectConfigFile.PATH, """{ "excludedDirectories": "x", "keySeparator": "." }""").virtualFile
+        myFixture.openFileInEditor(file)
+        return FileDocumentManager.getInstance().getDocument(file)!!
+    }
+
+    /** Replaces [from] by [to] in [document] without saving it, as typing does. */
+    private fun edit(document: Document, from: String, to: String) {
+        WriteCommandAction.runWriteCommandAction(project) {
+            val at = document.text.indexOf(from)
+            check(at >= 0) { "$from not in ${document.text}" }
+            document.replaceString(at, at + from.length, to)
+            PsiDocumentManager.getInstance(project).commitDocument(document)
+        }
+        Assertions.assertTrue(FileDocumentManager.getInstance().isDocumentUnsaved(document))
     }
 }
