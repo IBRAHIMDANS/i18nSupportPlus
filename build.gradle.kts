@@ -368,10 +368,18 @@ if (webStormPath != null && File(webStormPath, "product-info.json").isFile) {
 //
 // These tasks deliberately sit outside `check`: each starts a licensed WebStorm and takes minutes
 // on a cold cache. They share the uiTest source set; each task runs its own test class.
-fun registerUiTest(taskName: String, taskDescription: String, testClass: String, configure: Test.() -> Unit) {
+fun registerUiTest(
+    taskName: String,
+    taskDescription: String,
+    testClass: String,
+    ideType: IntelliJPlatformType = IntelliJPlatformType.WebStorm,
+    ideVersion: String = uiTestWebStormVersion,
+    projectSource: String = "examples/react-multi-namespace",
+    configure: Test.() -> Unit,
+) {
     intellijPlatformTesting.testIdeUi.register(taskName) {
-        type = IntelliJPlatformType.WebStorm
-        version = uiTestWebStormVersion
+        type = ideType
+        version = ideVersion
         testFramework(TestFrameworkType.Starter, uiTestStarterVersion)
         task {
             val uiTestSourceSet = sourceSets.named("uiTest")
@@ -387,7 +395,7 @@ fun registerUiTest(taskName: String, taskDescription: String, testClass: String,
             // environment sends java.awt.Robot through the screencast portal, which refuses.
             systemProperty("awt.robot.screenshotMethod", "x11")
             systemProperty("i18n.ui.screenshots.ideVersion", uiTestWebStormVersion)
-            systemProperty("i18n.ui.screenshots.projectSource", layout.projectDirectory.dir("examples/react-multi-namespace").asFile.absolutePath)
+            systemProperty("i18n.ui.screenshots.projectSource", layout.projectDirectory.dir(projectSource).asFile.absolutePath)
             testLogging { events("passed", "skipped", "failed") }
             configure()
         }
@@ -415,6 +423,22 @@ registerUiTest(
     "*.VerifiedFlowsTest",
 ) {
     systemProperty("i18n.ui.flows.output", layout.buildDirectory.dir("ui-flows").get().asFile.absolutePath)
+}
+
+// IntelliJ IDEA Community needs no license, so this one runs in CI (Plugin Compatibility). 2025.2.6.4 is the
+// last Community release the IntelliJ repository publishes (no 2025.3.x); later Community users run the
+// unified IntelliJ IDEA without a licence, where the JavaScript plugin is off just the same.
+val uiTestCommunityVersion = "2025.2.6.4"
+registerUiTest(
+    "verifyCommunityFlows",
+    "Opens examples/simple in IntelliJ IDEA Community, without the JavaScript plugin, and checks the tool window shows its keys.",
+    "*.CommunityFlowsTest",
+    ideType = IntelliJPlatformType.IntellijIdeaCommunity,
+    ideVersion = uiTestCommunityVersion,
+    projectSource = "examples/simple",
+) {
+    systemProperty("i18n.ui.community.ideVersion", uiTestCommunityVersion)
+    systemProperty("i18n.ui.flows.output", layout.buildDirectory.dir("ui-flows-community").get().asFile.absolutePath)
 }
 
 changelog {

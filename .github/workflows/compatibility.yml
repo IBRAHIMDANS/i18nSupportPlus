@@ -73,3 +73,35 @@ jobs:
         with:
           name: compatibility-report
           path: build/reports/pluginVerifier/
+
+  # The plugin without the JavaScript plugin, in use: IntelliJ IDEA Community opens examples/simple and the
+  # tool window lists its keys. Community needs no license, unlike the WebStorm UI tests (ui-screenshots.yml).
+  community-ui:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6.4.1
+
+      - name: Open the tool window in IntelliJ IDEA Community, without the JavaScript plugin
+        run: |
+          xvfb-run -a --server-args="-screen 0 1920x1440x24" \
+            ./gradlew verifyCommunityFlows --no-daemon --stacktrace
+
+      - name: Upload Community flow artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: community-ui
+          path: |
+            build/ui-flows-community/
+            build/reports/tests/verifyCommunityFlows/
+            build/test-results/verifyCommunityFlows/
