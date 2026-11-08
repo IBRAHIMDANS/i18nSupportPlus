@@ -17,15 +17,20 @@ import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.of
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginCoroutineScope
+import com.intellij.openapi.application.EDT
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.asContextElement
 import com.intellij.openapi.components.service
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
+import com.intellij.openapi.progress.coroutineToIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
+import com.intellij.platform.ide.progress.withModalProgress
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
@@ -37,6 +42,10 @@ import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.table.DefaultTableModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * The translation changes as a table — key, locale, change, before, after — with a switch to the
@@ -213,34 +222,41 @@ internal object LaggingRetranslation {
 
     /**
      * The lagging keys of [found] translated by [provider] under a modal progress — it runs from the
-     * changes dialog, itself modal — then previewed and written module by module.
+     * changes dialog, itself modal — then previewed and written module by module. Its job, cancelled
+     * with the progress: cancelling the translation previews nothing and writes nothing.
+     *
+     * The coroutine keeps the caller's modality: launched from the changes dialog, the progress and
+     * the previews show over it, not once it is closed.
      */
-    fun run(project: Project, found: TranslationChanges, provider: TranslationProvider) {
-        val reference = found.referenceLocale ?: return
+    fun run(
+        project: Project,
+        found: TranslationChanges,
+        provider: TranslationProvider,
+        translating: (List<Batch>, TranslationProvider, String, ProgressIndicator) -> List<Preview>? = ::translate,
+    ): Job? {
+        val reference = found.referenceLocale ?: return null
         val title = PluginBundle.message("diff.translation.retranslate.title")
-        ProgressManager.getInstance().run(object : Task.Modal(project, title, true) {
-            private var previews: List<Preview>? = null
-            private var otherReference: List<ModuleConfig> = emptyList()
-
-            override fun run(indicator: ProgressIndicator) {
-                val plan = planOf(project, found)
-                otherReference = plan.otherReference
-                previews = translate(plan.batches, provider, reference, indicator)
+        return PluginCoroutineScope.of(project).launch(ModalityState.current().asContextElement()) {
+            val (previews, otherReference) = withModalProgress(project, title) {
+                coroutineToIndicator { indicator ->
+                    val planned = planOf(project, found)
+                    translating(planned.batches, provider, reference, indicator) to planned.otherReference
+                }
             }
-
-            override fun onSuccess() {
-                val ready = previews ?: return
+            // Null when the user cancelled: nothing is then previewed, nor written.
+            val ready = previews ?: return@launch
+            withContext(Dispatchers.EDT) {
                 if (otherReference.isNotEmpty()) {
                     val names = otherReference.joinToString(", ") { moduleName(it) }
                     Messages.showInfoMessage(project, PluginBundle.message("diff.translation.retranslate.other.reference", reference, names), title)
                 }
                 if (ready.isEmpty()) {
                     Messages.showInfoMessage(project, PluginBundle.message("diff.translation.retranslate.nothing", reference), title)
-                    return
+                    return@withContext
                 }
                 ready.forEach { preview -> previewAndWrite(project, preview, reference, several = ready.size > 1) }
             }
-        })
+        }
     }
 
     /** Each batch translated, in the order given; null when the user cancelled. */
