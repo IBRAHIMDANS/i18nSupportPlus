@@ -1,10 +1,12 @@
 package com.ibrahimdans.i18n.extensions.lang.twig
 
 import com.ibrahimdans.i18n.Lang
+import com.ibrahimdans.i18n.isOfLanguage
 import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
+import com.intellij.openapi.fileTypes.FileType
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiReference
 
@@ -16,6 +18,8 @@ import com.intellij.psi.PsiReference
  * technologies publish. A text of the template's HTML is extracted into `{{ 'key'|trans }}` ([TwigMarkupTextExtractor]).
  */
 class TwigLang : Lang {
+
+    override fun indexes(type: FileType): Boolean = type.isOfLanguage(INDEXED_LANGUAGES)
 
     override fun canExtractKey(element: PsiElement, translationFunctionNames: List<String>): Boolean = TwigTrans.keyOf(element) != null
 
@@ -32,4 +36,8 @@ class TwigLang : Lang {
 
     /** A key of the template found by a text search — what usage counts and *Unused key* add up. */
     override fun resolveLiteral(entry: PsiElement): PsiElement? = entry.takeIf { TwigTrans.keyOf(it) != null }
+
+    private companion object {
+        val INDEXED_LANGUAGES = setOf("Twig")
+    }
 }

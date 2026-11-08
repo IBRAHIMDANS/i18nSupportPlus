@@ -6,6 +6,8 @@ import com.ibrahimdans.i18n.plugin.ide.actions.KeyRenameSites
 import com.ibrahimdans.i18n.plugin.parser.CodeNode
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.utils.PsiCodeNode
+import com.intellij.openapi.fileTypes.FileType
+import com.intellij.openapi.fileTypes.LanguageFileType
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiReference
 
@@ -62,8 +64,21 @@ interface Lang : CodeLang {
     /** Where this language writes a key outside a translation call's literal, for a rename; null when nowhere, the default. */
     fun renameSites(): KeyRenameSites? = null
 
+    /**
+     * Whether the index of the code's usages reads the files of [type] for this language: those
+     * carrying its language, directly or through an injection into a template. False by default — a
+     * language that says nothing has its files read by no one, so a new one has to say it here.
+     */
+    fun indexes(type: FileType): Boolean = false
+
     override fun canExtractKey(node: CodeNode, translationFunctionNames: List<String>): Boolean =
         node is PsiCodeNode && canExtractKey(node.element, translationFunctionNames)
 
     override fun extractRawKey(node: CodeNode): RawKey? = (node as? PsiCodeNode)?.let { extractRawKey(it.element) }
+}
+
+/** Whether [this] is of one of the languages of [ids], a dialect counting for its base: TypeScript for JavaScript. */
+fun FileType.isOfLanguage(ids: Set<String>): Boolean {
+    val language = (this as? LanguageFileType)?.language ?: return false
+    return generateSequence(language) { it.baseLanguage }.any { it.id in ids }
 }

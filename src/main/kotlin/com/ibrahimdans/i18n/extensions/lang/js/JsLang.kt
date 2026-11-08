@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.extensions.lang.js
 
 import com.ibrahimdans.i18n.Lang
+import com.ibrahimdans.i18n.isOfLanguage
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.*
 import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
 import com.ibrahimdans.i18n.plugin.ide.actions.KeyRenameSites
@@ -15,6 +16,7 @@ import com.ibrahimdans.i18n.plugin.utils.ModulePresets
 import com.ibrahimdans.i18n.plugin.utils.hostFile
 import com.ibrahimdans.i18n.plugin.utils.type
 import com.intellij.lang.javascript.patterns.JSPatterns
+import com.intellij.openapi.fileTypes.FileType
 import com.intellij.patterns.ElementPattern
 import com.intellij.lang.javascript.psi.JSFunction
 import com.intellij.lang.javascript.psi.JSCallExpression
@@ -27,7 +29,12 @@ import java.util.concurrent.ConcurrentHashMap
 
 open class JsLang : Lang {
 
+    /** JavaScript and TypeScript, and the templates JavaScript is injected into: HTML (so Angular and Svelte), Vue, Astro. */
+    override fun indexes(type: FileType): Boolean = type.isOfLanguage(INDEXED_LANGUAGES)
+
     companion object {
+        private val INDEXED_LANGUAGES = setOf("JavaScript", "HTML", "Vue", "Astro")
+
         private val REACT_INTL_EXTRACTOR = ReactIntlExtractor()
 
         private val FIRST_ARGUMENT_PATTERNS = ConcurrentHashMap<String, ElementPattern<*>>()

@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.extensions.lang.php
 
 import com.ibrahimdans.i18n.Lang
+import com.ibrahimdans.i18n.isOfLanguage
 import com.ibrahimdans.i18n.extensions.lang.php.extractors.PhpStringLiteralKeyExtractor
 import com.ibrahimdans.i18n.extensions.localization.php.LaravelJsonPhrases
 import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
@@ -10,6 +11,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.rules.RuleCalls
 import com.ibrahimdans.i18n.plugin.rules.RuleDecision
+import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -18,6 +20,9 @@ import com.jetbrains.php.lang.psi.elements.FunctionReference
 import com.jetbrains.php.lang.psi.elements.ParameterList
 
 class PhpLang: Lang {
+    /** PHP, and Blade, whose echoes and directives hold PHP. */
+    override fun indexes(type: FileType): Boolean = type.isOfLanguage(INDEXED_LANGUAGES)
+
     override fun canExtractKey(element: PsiElement, translationFunctionNames: List<String>): Boolean {
         // The one test only a PHP quoted-string token passes, so it goes first: every Lang is asked of
         // every element of every file, and on a JS element the rest allocated a Config, walked up to
@@ -55,6 +60,7 @@ class PhpLang: Lang {
 
     private companion object {
         val KEY_EXTRACTOR = PhpStringLiteralKeyExtractor()
+        val INDEXED_LANGUAGES = setOf("PHP", "Blade")
     }
 }
 
