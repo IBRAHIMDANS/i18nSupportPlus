@@ -153,8 +153,10 @@
     ]]>
     </change-notes>
 
-    <!-- Every JavaScript-side extension is in jsConfig.xml, loaded with the plugin: the trunk keeps no class of it. -->
-    <depends config-file="jsConfig.xml">JavaScript</depends>
+    <!-- Optional: without the JavaScript plugin (IntelliJ IDEA Community, Android Studio, PyCharm, an unlicensed IDEA 2025.3+)
+         the plugin loads with the translation files alone. Every JavaScript-side extension is in jsConfig.xml: no class
+         the trunk registers reaches the JavaScript PSI, which the Plugin Verifier checks on IntelliJ IDEA Community. -->
+    <depends optional="true" config-file="jsConfig.xml">JavaScript</depends>
     <depends optional="true" config-file="ymlConfig.xml">org.jetbrains.plugins.yaml</depends>
     <depends optional="true" config-file="phpConfig.xml">com.jetbrains.php</depends>
     <depends optional="true" config-file="vueConfig.xml">org.jetbrains.plugins.vue</depends>
@@ -171,6 +173,8 @@
         <extensionPoint interface="com.ibrahimdans.i18n.Lang" name="lang" dynamic="true"/>
         <extensionPoint interface="com.ibrahimdans.i18n.TranslationTechnology" name="technology" dynamic="true"/>
         <extensionPoint interface="com.ibrahimdans.i18n.ComponentSourceProvider" name="componentSources" dynamic="true"/>
+        <!-- What a language plugin reads in the code: registered by its config file (jsConfig.xml), absent without it. -->
+        <extensionPoint interface="com.ibrahimdans.i18n.CodeReader" name="codeReader" dynamic="true"/>
     </extensionPoints>
     <projectListeners>
         <!-- i18n-check.json read again as soon as it changes. -->
@@ -452,6 +456,9 @@
     </actions>
     <extensions defaultExtensionNs="com.ibrahimdans.i18n">
         <localization implementation="com.ibrahimdans.i18n.extensions.localization.json.JsonLocalization"/>
+        <!-- i18next and vue-i18n stay here, without JavaScript: their names, and the files the settings name. jsConfig.xml adds what their code says. -->
+        <technology implementation="com.ibrahimdans.i18n.extensions.technology.i18next.I18NextTechnology"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.technology.vuei18n.VueI18nTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.lingui.LinguiTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.reactintl.ReactIntlTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.ngxtranslate.NgxTranslateTechnology"/>
