@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.awt.Component
 import java.awt.Container
+import javax.swing.JCheckBox
 import javax.swing.JComboBox
 import javax.swing.JLabel
 import javax.swing.JTextField
@@ -31,6 +32,30 @@ class SettingsPanelLayoutTest {
     private fun named(root: Container, name: String): Component? = descendants(root).firstOrNull { it.name == name }
 
     private fun labels(root: Container): List<String> = descendants(root).mapNotNull { (it as? JLabel)?.text }
+
+    @Test
+    fun `the key order and the excluded extensions the file sets are greyed out, the file's values shown`() {
+        val settings = Settings().apply { preferredLocalization = "json" }
+        val held = mapOf(
+            "keyOrder" to KeyOrder.NATURAL.name,
+            "extractSorted" to "true",
+            "sortKeysAlphabetically" to "true",
+            "excludedFileExtensions" to "php",
+        )
+        val root = SettingsPanel(settings, mockk(), ConfigFileView(held = held)).getRootPanel()
+
+        val keyOrder = named(root, PluginBundle.message("settings.key.order")) as JComboBox<*>
+        assertFalse(keyOrder.isEnabled)
+        assertEquals(KeyOrder.NATURAL, keyOrder.selectedItem)
+        val extensions = named(root, PluginBundle.message("settings.excluded.file.extensions")) as JTextField
+        assertFalse(extensions.isEnabled)
+        assertEquals("php", extensions.text)
+        listOf("settings.extraction.sorted", "settings.sort.keys.alphabetically").forEach { key ->
+            val box = named(root, PluginBundle.message(key)) as JCheckBox
+            assertFalse(box.isEnabled, "$key is set by the file")
+            assertTrue(box.isSelected, "$key shows the file's value")
+        }
+    }
 
     @Test
     fun `modules and rules are no longer on the main page`() {

@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.cli
 
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.KeyOrder
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -31,6 +32,19 @@ class SettingsFileTest {
         )
         val config = SettingsFile.read(project)
         assertEquals(Config().copy(keySeparator = "/", flatKeys = true, modules = listOf(ModuleConfig(name = "web", rootDirectory = "locales", referenceLocale = "fr"))), config)
+    }
+
+    @Test
+    fun `reads the key order and the excluded extensions from i18n-check json`(@TempDir project: Path) {
+        Files.writeString(
+            project.resolve(SettingsFile.JSON_PATH),
+            """{ "keyOrder": "CHARACTER_CODE", "sortKeysAlphabetically": true, "extractSorted": true, "excludedFileExtensions": "php" }""",
+        )
+        val config = SettingsFile.read(project)
+        assertEquals(
+            Config().copy(keyOrder = KeyOrder.CHARACTER_CODE, sortKeysAlphabetically = true, extractSorted = true, excludedFileExtensions = "php"),
+            config,
+        )
     }
 
     @Test
