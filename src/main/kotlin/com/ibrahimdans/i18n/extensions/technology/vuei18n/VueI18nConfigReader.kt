@@ -1,5 +1,6 @@
-package com.ibrahimdans.i18n.plugin.ide.settings
+package com.ibrahimdans.i18n.extensions.technology.vuei18n
 
+import com.ibrahimdans.i18n.plugin.ide.settings.VueI18nConfig
 import com.intellij.lang.ecmascript6.psi.ES6ImportDeclaration
 import com.intellij.lang.javascript.psi.JSArrayLiteralExpression
 import com.intellij.lang.javascript.psi.JSCallExpression

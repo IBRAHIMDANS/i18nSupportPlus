@@ -524,7 +524,7 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         cliConfig = runReadAction {
             files.firstNotNullOfOrNull { (name, file) ->
                 PsiManager.getInstance(project).findFile(file)?.let { psi ->
-                    I18nextCliConfigReader.readForWizard(psi, name) { File(base, it).isDirectory }
+                    CodeSettingsReader.all().firstNotNullOfOrNull { reader -> reader.wizardCliConfig(psi, name) { File(base, it).isDirectory } }
                 }
             }
         }
@@ -532,7 +532,7 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
 
     /**
      * Reads the project's Nuxt configuration (`i18n` options of `nuxt.config`) or, failing one, the
-     * `createI18n` call of a plain Vue project: see [VueI18nConfigReader].
+     * `createI18n` call of a plain Vue project, through the technology reading them ([CodeSettingsReader.wizardVueConfig]).
      */
     private fun readVueConfig() {
         val base = File(project.basePath ?: return)
@@ -543,7 +543,7 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         vueConfig = runReadAction {
             files.firstNotNullOfOrNull { (name, file) ->
                 PsiManager.getInstance(project).findFile(file)?.let { psi ->
-                    VueI18nConfigReader.read(psi, name) { File(base, it).isDirectory }
+                    CodeSettingsReader.all().firstNotNullOfOrNull { reader -> reader.wizardVueConfig(psi, name) { File(base, it).isDirectory } }
                 }
             }
         }

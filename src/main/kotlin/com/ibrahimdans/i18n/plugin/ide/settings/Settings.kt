@@ -1,7 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
 import com.ibrahimdans.i18n.Extensions
-import com.ibrahimdans.i18n.extensions.technology.i18next.I18NextTechnology
 import com.ibrahimdans.i18n.plugin.ide.settings.rules.EditorRuleState
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
@@ -139,7 +138,7 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
     fun codeDefaults(config: Config = fileConfig()): CodeDefaults? {
         if (!config.leavesBlankForCode()) return null
         val project = project?.takeUnless { it.isDisposed } ?: return null
-        return I18NextTechnology.codeDefaultsOf(project, config)
+        return CodeSettingsReader.codeDefaults(project, config)
     }
 
     /** The settings `i18n-check.json` sets, as it reads them — empty without the file. */
