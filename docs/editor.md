@@ -21,6 +21,7 @@ Each i18n key is highlighted by its status, in the code and as an icon in the gu
 
 Hovering a gutter icon lists the locales; clicking a yellow or red one opens the quick fix creating the missing key. *Show gutter icons* in the settings turns the icons off.
 
+![A green, a yellow and a red gutter icon next to the keys they describe](img/gutter-icons.png)
 ![Annotation resolved](img/annotation-resolved.png)
 ![Annotation unresolved](img/annotation-unresolved.png)
 ![Annotation missing file](img/annotation-missing-file.png)
@@ -66,6 +67,8 @@ Replaces i18n keys with their translation values inline for better readability. 
 
 ![Ctrl+clicking a key opens its value in the translation file](img/marketplace/navigation.gif)
 
+![The caret on the value of navigation:menu.home in navigation.json, each key with its usage count](img/navigation.png)
+
 ### Code Completion
 
 Autocomplete i18n keys as you type, with full namespace support. Suggestions are drawn from all translation files in the project.
@@ -79,6 +82,12 @@ Autocomplete i18n keys as you type, with full namespace support. Suggestions are
 Extract hard-coded strings into translation files with the **Extract i18n key** intention (**Alt+Enter**). The dialog proposes a key, shows one field per locale and writes the value into every translation file; variables become interpolations, and one Ctrl+Z undoes the files and the code. *Insert new keys in key order* keeps the files sorted.
 
 ![Extracting a JSX text into a key](img/marketplace/extract-i18n-key.gif)
+
+Step by step: **Alt+Enter** on the text offers *Extract i18n key*; the dialog proposes the namespace, the key and one value per locale; **+** next to the namespace creates a new one.
+
+![Alt+Enter on a JSX text offers Extract i18n key](img/extraction-intent.png)
+![The extraction dialog: namespace, key, one value per locale, and the code it writes](img/extraction.png)
+![The + button next to the namespace asks for the name of a new namespace](img/extraction-add-namespace.png)
 
 In a react-intl project — a module on the `react-intl` preset, or, without modules, a file importing `react-intl` — a JSX text becomes `<FormattedMessage id="key" />` (variables in `values`), and an attribute or a string `intl.formatMessage({ id: 'key' })`, with the name the component gives `useIntl()`. `FormattedMessage` is imported from `react-intl`, merged into the file's import when it has one. Without a `useIntl()` in scope, a string is not extracted — the hint asks for one, and *Batch Extract* lists it unchecked with that reason — while *Internationalize…* gives the component `const intl = useIntl()` and its import. *Write the default value in the call* adds `defaultMessage`; a module's call template still wins.
 
