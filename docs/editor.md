@@ -50,8 +50,8 @@ Replaces i18n keys with their translation values inline for better readability. 
 
 ![Switching the preview locale to fr, then folding the keys into their values](img/marketplace/folding.gif)
 
-![Keys folded into their values](img/folding-before.png)
-![The key under the caret unfolds, with its value as a hint](img/folding-after.png)
+![Keys folded into their values](img/folding-folded.png)
+![The key under the caret unfolds, with its value as a hint](img/folding-unfolded.png)
 
 ## Navigate
 

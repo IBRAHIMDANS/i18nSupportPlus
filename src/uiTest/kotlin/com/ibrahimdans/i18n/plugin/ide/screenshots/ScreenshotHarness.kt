@@ -186,7 +186,7 @@ object ScreenshotHarness {
             stopCaretBlinking()
             stopSmoothScrolling()
             // The bulb shows once a file's analysis ends, in one session and not the next, and widens
-            // the gutter when it does: hover-hint, completion, folding-after and navigation differed.
+            // the gutter when it does: hover-hint, completion, folding-unfolded and navigation differed.
             hideIntentionBulb()
             ideFrame {
                 // Without a window manager under Xvfb the frame keeps its default size, which

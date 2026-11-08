@@ -27,12 +27,16 @@
 `gutter-icons-tooltip.png`, `hover-hint.png`, `inlay-hints.png`, `navigation.png`.
 
 **Refaites le 2026-11-03** (icônes New UI de #826, visibles dans la gouttière) : `annotation-{resolved,unresolved}.png`,
-`completion.png`, `extraction-intent.png`, `folding-{before,after}.png`, `gutter-icons.png`, `hover-hint.png`.
+`completion.png`, `extraction-intent.png`, `folding-{folded,unfolded}.png`, `gutter-icons.png`, `hover-hint.png`.
 `gutter-icons-tooltip.png` montre encore l'ancienne icône : à refaire à la main.
 
-`folding-{before,after}.png` (section *Code Folding*) et `extraction-translation-value.png` (dialogue de
+`folding-{folded,unfolded}.png` (section *Code Folding*) et `extraction-translation-value.png` (dialogue de
 *Create missing key*, section *Quick Fixes*) sont citées par `docs/editor.md` depuis le 2026-11-08 ; elles ont
-leur scénario dans `EditorScreenshots.kt`.
+leur scénario dans `EditorScreenshots.kt`. Les deux captures de folding s'appelaient `folding-{before,after}.png`
+jusqu'au 2026-11-08 : la première montre les clés repliées, la seconde la clé dépliée sous le curseur.
+
+`extraction.png`, `extraction-intent.png`, `extraction-add-namespace.png`, `gutter-icons.png` et `navigation.png` ont
+leur scénario mais ne sont citées par aucune page de `docs/` ni par le README.
 
 **Sans scénario : `gutter-icons-tooltip.png`** (recette manuelle). Sous Xvfb, aucun survol de l'icône de
 gouttière, ni `GutterUiComponent.hoverOverIcon` (ligne comptée à partir de 0), ni un mouvement `Robot` par
@@ -99,14 +103,16 @@ est remplacé par `stats.users.count` le temps de l'enregistrement, et *Partiall
 ## À vérifier
 - `gutter-icons-tooltip.png` (2026-10-25) : sans scénario, à refaire à la main (recette plus haut)
 
-### Captures supplémentaires disponibles (référencées ni par le README ni par `docs/`)
-- `annotation-partial.png` — Code JSX avec icônes gutter orange (partial translation)
-- `annotation-quickfix.png` — Quick fix popup "Create i18n key" sur clé non résolue
+`annotation-partial.png` et `annotation-quickfix.png` sont supprimées le 2026-11-08 : citées nulle part, sans
+scénario, prises le 2026-03-28 avec des icônes de gouttière qui ne sont plus celles du plugin. Le statut partiel est montré par
+`gutter-icons-tooltip.png`, le quick fix par `marketplace/create-key-quickfix.gif` et `extraction-translation-value.png`.
 
 ## Récapitulatif
 
+Compté sur `docs/img/` le 2026-11-08 (37 fichiers).
+
 | Statut | Nombre |
 |--------|--------|
-| Refaites le 2026-10-25 | 15 |
-| Refaites le 2026-10-26 | 13 (fenêtre d'outil 9, réglages 4) |
-| À vérifier | 4 |
+| Avec scénario (`generateUiScreenshots`) | 31 (éditeur et assistant 17, fenêtre d'outil 10, réglages 4) |
+| Sans scénario, recette manuelle | 1 (`gutter-icons-tooltip.png`) |
+| GIF de la page Marketplace (`marketplace/`) | 5 |
