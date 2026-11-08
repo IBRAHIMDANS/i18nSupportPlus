@@ -214,27 +214,50 @@ jobs:
           mismatched=$(grep -c "does not match" report.log || true)
           echo "Classes whose coverage data does not match the compiled class: $mismatched"
 
+      # test-retry reruns a failed test once in CI, and a test that passes on its second run leaves
+      # the shard green. Gradle writes each run as its own <testcase> (failure, then success), so a
+      # (class, name) pair holding both a failed and a passed run is a test that only passed on
+      # retry: counted in its own column and named in a warning, so a new flake shows up instead
+      # of hiding behind the retry. <flakyFailure> covers the merged form (junitXml.mergeReruns).
       - name: Summarise the shards
         run: |
-          {
-            echo "| Shard | Test classes | Tests | Failures | Skipped | Time (s) |"
-            echo "|---|---|---|---|---|---|"
-            for dir in results/test-results-*; do
-              shard=${dir##*-}
-              awk -v shard="$shard" '
-                /<testsuite / {
-                  classes++
-                  for (i = 1; i <= NF; i++) {
-                    if ($i ~ /^tests=/)    { gsub(/[^0-9]/, "", $i); tests += $i }
-                    if ($i ~ /^failures=/) { gsub(/[^0-9]/, "", $i); failures += $i }
-                    if ($i ~ /^skipped=/)  { gsub(/[^0-9]/, "", $i); skipped += $i }
-                    if ($i ~ /^time=/)     { gsub(/[^0-9.]/, "", $i); time += $i }
-                  }
-                }
-                END { printf "| %s | %d | %d | %d | %d | %.0f |\n", shard, classes, tests, failures, skipped, time }
-              ' "$dir"/*.xml
-            done
-          } >> "$GITHUB_STEP_SUMMARY"
+          python3 - <<'EOF'
+          import glob, os
+          import xml.etree.ElementTree as ET
+
+          summary = open(os.environ["GITHUB_STEP_SUMMARY"], "a")
+          print("| Shard | Test classes | Tests | Failures | Skipped | Passed on retry | Time (s) |", file=summary)
+          print("|---|---|---|---|---|---|---|", file=summary)
+          retried = []
+          for directory in sorted(glob.glob("results/test-results-*")):
+              shard = directory.rsplit("-", 1)[-1]
+              classes = tests = failures = skipped = 0
+              time = 0.0
+              runs = {}
+              for path in glob.glob(os.path.join(directory, "*.xml")):
+                  suite = ET.parse(path).getroot()
+                  classes += 1
+                  tests += int(suite.get("tests", 0))
+                  failures += int(suite.get("failures", 0))
+                  skipped += int(suite.get("skipped", 0))
+                  time += float(suite.get("time", 0))
+                  for case in suite.iter("testcase"):
+                      key = (case.get("classname"), case.get("name"))
+                      failed, passed = runs.get(key, (False, False))
+                      if case.find("failure") is not None or case.find("error") is not None:
+                          failed = True
+                      elif case.find("skipped") is None:
+                          passed = True
+                          if case.find("flakyFailure") is not None or case.find("flakyError") is not None:
+                              failed = True
+                      runs[key] = (failed, passed)
+              flaky = sorted(key for key, (failed, passed) in runs.items() if failed and passed)
+              retried += [(shard, key) for key in flaky]
+              print(f"| {shard} | {classes} | {tests} | {failures} | {skipped} | {len(flaky)} | {time:.0f} |", file=summary)
+          # Workflow commands are read from the step's output, not from the summary file.
+          for shard, (classname, name) in retried:
+              print(f"::warning title=Passed on retry::{classname}.{name} failed, then passed on retry (shard {shard})")
+          EOF
 
       - name: Upload coverage report
         if: always()
