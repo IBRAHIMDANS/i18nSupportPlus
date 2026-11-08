@@ -93,6 +93,8 @@ object ScreenshotHarness {
     private const val STABLE_CAPTURE_INTERVAL_MS = 500
 
     private val ideVersion: String = System.getProperty("i18n.ui.screenshots.ideVersion")
+    /** The IntelliJ IDEA Community build of the flows without the JavaScript plugin: free, so they run in CI. */
+    private val communityVersion: String? = System.getProperty("i18n.ui.community.ideVersion")
     val projectSource: Path = Path.of(System.getProperty("i18n.ui.screenshots.projectSource"))
     // Not .idea: the example ignores it, so it exists only on the machine that last opened it.
     private val REFERENCE_PROJECT_ENTRIES =
@@ -153,10 +155,17 @@ object ScreenshotHarness {
      * Opens [project] in a fresh, licensed WebStorm with the plugin installed, waits for indexing,
      * puts its frame at [FRAME_BOUNDS] and runs [block] on it; the IDE is closed afterwards.
      */
-    fun withIde(contextName: String, project: Path, block: ScreenshotScope.() -> Unit) {
+    /**
+     * Opens [project] in a fresh WebStorm, licensed, with the plugin installed — or, with [community],
+     * in IntelliJ IDEA Community, which needs no license and has no JavaScript plugin — waits for
+     * indexing, and runs [block] on the frame.
+     */
+    fun withIde(contextName: String, project: Path, community: Boolean = false, block: ScreenshotScope.() -> Unit) {
+        val ide = if (community) IdeProductProvider.IC else IdeProductProvider.WS
+        val version = if (community) requireNotNull(communityVersion) { "i18n.ui.community.ideVersion is required for Community flows" } else ideVersion
         Starter.newContext(
             contextName,
-            TestCase(IdeProductProvider.WS, LocalProjectInfo(project)).withVersion(ideVersion)
+            TestCase(ide, LocalProjectInfo(project)).withVersion(version)
         ).apply {
             applyVMOptionsPatch {
                 addSystemProperty("idea.trust.all.projects", "true")
@@ -167,7 +176,7 @@ object ScreenshotHarness {
                 addSystemProperty("user.country", "US")
                 addSystemProperty("sun.java2d.uiScale", "1")
             }
-            setLicense(licenseKey())
+            if (!community) setLicense(licenseKey())
             PluginConfigurator(this).installPluginFromPath(Path.of(System.getProperty("path.to.build.plugin")))
         }.runIdeWithDriver().useDriverAndCloseIde {
             waitForIndicators(5.minutes)
@@ -234,7 +243,8 @@ object ScreenshotHarness {
         return normalized
     }
 
-    private fun writePluginSettings(project: Path, options: Map<String, String>) {
+    /** Writes the plugin's `.idea/i18nSettings.xml` of [project] with [options]: the examples do not version their `.idea`. */
+    fun writePluginSettings(project: Path, options: Map<String, String>) {
         val lines = options.entries.joinToString("\n") { (name, value) -> """    <option name="$name" value="$value" />""" }
         val xml = """
             |<?xml version="1.0" encoding="UTF-8"?>
