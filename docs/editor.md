@@ -50,6 +50,9 @@ Replaces i18n keys with their translation values inline for better readability. 
 
 ![Switching the preview locale to fr, then folding the keys into their values](img/marketplace/folding.gif)
 
+![Keys folded into their values](img/folding-before.png)
+![The key under the caret unfolds, with its value as a hint](img/folding-after.png)
+
 ## Navigate
 
 ### Navigation
@@ -108,6 +111,8 @@ With the caret on an intermediate level of a key (`button` in `common:button.sav
 | Create namespace on the fly | `+` button in Create Translation dialog |
 
 ![Creating an unknown key with its values](img/marketplace/create-key-quickfix.gif)
+
+![The Create Translation dialog opened by Create missing key](img/extraction-translation-value.png)
 
 ## Dynamic keys
 
