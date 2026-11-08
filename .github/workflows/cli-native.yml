@@ -1,0 +1,199 @@
+name: i18n-check native
+
+# The native `i18n-check` of each platform npm installs, built on a runner of that platform, compared
+# with the JVM one on the examples and the CLI's fixtures, then packed as the npm packages and run with
+# `npx` on a machine without Java. A JNI or reflection lookup the configuration misses crashes the binary
+# instead of failing a check, so every change that reaches the CLI's classes runs it. release.yml calls
+# it to build what it publishes.
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'cli/**'
+      - 'core/**'
+      - 'core-treesitter/**'
+      - 'npm/**'
+      - 'examples/**'
+      - 'gradle.properties'
+      - 'settings.gradle'
+      - 'gradle/**'
+      - '.github/workflows/cli-native.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'cli/**'
+      - 'core/**'
+      - 'core-treesitter/**'
+      - 'npm/**'
+      - 'examples/**'
+      - 'gradle.properties'
+      - 'settings.gradle'
+      - 'gradle/**'
+      - '.github/workflows/cli-native.yml'
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  group: cli-native-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  binary:
+    name: binary ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: linux-x64, runner: ubuntu-latest }
+          - { platform: linux-arm64, runner: ubuntu-24.04-arm }
+          - { platform: linux-x64-musl, runner: ubuntu-latest, musl: true }
+          - { platform: darwin-x64, runner: macos-15-intel }
+          - { platform: darwin-arm64, runner: macos-latest }
+          - { platform: win32-x64, runner: windows-latest, exe: .exe }
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # GraalVM CE for JDK 21, what the spike measured. JAVA_HOME points to it: Gradle builds the jars
+      # with it, and compare.sh runs them on it.
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          native-image-musl: ${{ matrix.musl == true }}
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6.4.1
+
+      - name: Build the CLI's jars
+        run: ./gradlew :cli:installDist
+
+      - name: Build the native binary
+        run: cli/native/build.sh "build/native/i18n-check${{ matrix.exe }}" ${{ matrix.musl && '--musl' || '' }}
+
+      - name: Size
+        run: |
+          binary="build/native/i18n-check${{ matrix.exe }}"
+          echo "${{ matrix.platform }}: $(wc -c < "$binary") bytes, $(gzip -9c "$binary" | wc -c) gzipped" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The musl binary is static and cannot load tree-sitter's libraries: it is compared without
+      # `--code`, and `--code` must fail with an error, not crash.
+      - name: Compare with the JVM
+        run: cli/native/compare.sh "build/native/i18n-check${{ matrix.exe }}" ${{ matrix.musl && '--no-code' || '' }}
+
+      - name: --code on musl fails cleanly
+        if: matrix.musl
+        run: |
+          set +e
+          build/native/i18n-check examples/simple --code > /dev/null 2> code.err
+          exit=$?
+          cat code.err
+          echo "exit code $exit"
+          [ "$exit" = 2 ]
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: i18n-check-${{ matrix.platform }}
+          path: build/native/i18n-check${{ matrix.exe }}
+          if-no-files-found: error
+
+  npm:
+    needs: binary
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: i18n-check-*
+          path: ${{ runner.temp }}/binaries
+
+      # Under the plugin's version: a release publishes these very tarballs.
+      - name: Pack the npm packages
+        run: |
+          version=$(grep '^pluginVersion' gradle.properties | cut -d= -f2 | tr -d ' ')
+          node npm/assemble.mjs "$version" "$RUNNER_TEMP/binaries" "$RUNNER_TEMP/packages" --all
+          mkdir -p "$RUNNER_TEMP/npm"
+          for package in "$RUNNER_TEMP"/packages/*/; do (cd "$RUNNER_TEMP/npm" && npm pack "$package"); done
+          ls -l "$RUNNER_TEMP/npm" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: npm-packages
+          path: ${{ runner.temp }}/npm/*.tgz
+          if-no-files-found: error
+
+  # The packed packages installed in a project and run with `npx`. The Linux ones run in a Node image,
+  # which has no Java: the binary is all it runs. The macOS and Windows runners have a Java, which the
+  # binary does not use.
+  npx:
+    needs: npm
+    name: npx ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: linux-x64, runner: ubuntu-latest, container: 'node:24-bookworm-slim', code: true }
+          - { platform: linux-arm64, runner: ubuntu-24.04-arm, container: 'node:24-bookworm-slim', code: true }
+          - { platform: linux-x64-musl, runner: ubuntu-latest, container: 'node:24-alpine', code: false }
+          - { platform: darwin-x64, runner: macos-15-intel, code: true }
+          - { platform: darwin-arm64, runner: macos-latest, code: true }
+          - { platform: win32-x64, runner: windows-latest, code: true }
+    defaults:
+      run:
+        shell: ${{ matrix.container && 'sh' || 'bash' }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        if: ${{ !matrix.container }}
+        with:
+          node-version: '24'
+
+      # In the workspace, not in runner.temp: in a container job, that context names the host's path.
+      - uses: actions/download-artifact@v8
+        with:
+          name: npm-packages
+          path: npx-test/npm
+
+      - name: No Java
+        if: matrix.container
+        run: if command -v java; then echo "java is on the PATH" && exit 1; fi
+
+      # Both tarballs given, the platform's and the main one: the main one's optional dependencies are
+      # not on the registry yet for this version, and npm skips an optional one it cannot fetch.
+      - name: Install
+        run: |
+          mkdir npx-test/project
+          cd npx-test/project
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund ../npm/i18n-support-plus-${{ matrix.platform }}-[0-9]*.tgz ../npm/i18n-support-plus-[0-9]*.tgz
+
+      # The example's problems are not the point: --max-problems lets it exit 0, while a missing binary
+      # or a crash does not.
+      - name: npx i18n-support-plus
+        working-directory: npx-test/project
+        run: |
+          npx --no-install i18n-support-plus --help > /dev/null
+          npx --no-install i18n-support-plus ../../examples/simple --max-problems 100000
+          if [ "${{ matrix.code }}" = true ]; then
+            npx --no-install i18n-support-plus ../../examples/react-multi-namespace --code --max-problems 100000
+          fi

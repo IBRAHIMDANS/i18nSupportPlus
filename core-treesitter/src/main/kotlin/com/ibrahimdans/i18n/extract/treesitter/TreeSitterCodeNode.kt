@@ -78,6 +78,19 @@ class TreeSitterCodeNode private constructor(
             cursor?.apply { reset(node) } ?: TSTreeCursor(node).also { cursor = it }
     }
 
+    /**
+     * Hands [bytes] to the parser. A class of its own, not a lambda nor an anonymous object: the native
+     * library looks `read` up on the reader's class, which a native image registers by its name
+     * (`cli/src/main/resources/META-INF/native-image/`), and only a declared class keeps the same one.
+     */
+    private class BytesReader(private val bytes: ByteArray) : TSReader {
+        override fun read(buffer: ByteArray, offset: Int, position: TSPoint?): Int {
+            val count = minOf(buffer.size, bytes.size - offset).coerceAtLeast(0)
+            System.arraycopy(bytes, offset, buffer, 0, count)
+            return count
+        }
+    }
+
     companion object {
 
         private val TSX: TSLanguage by lazy { TreeSitterTsx() }
@@ -92,18 +105,9 @@ class TreeSitterCodeNode private constructor(
             // Parsed from bytes encoded here rather than with parseString, whose offsets would count
             // the JNI's modified UTF-8: a character outside the BMP is 6 bytes there, 4 in real UTF-8.
             val bytes = text.toByteArray(Charsets.UTF_8)
-            // A named class, not a lambda: the native library looks `read` up on the reader's own class,
-            // which a native image only registers for a class that has a name.
-            val reader = object : TSReader {
-                override fun read(buffer: ByteArray, offset: Int, position: TSPoint?): Int {
-                    val count = minOf(buffer.size, bytes.size - offset).coerceAtLeast(0)
-                    System.arraycopy(bytes, offset, buffer, 0, count)
-                    return count
-                }
-            }
             val tree = TSParser().use { parser ->
                 parser.setLanguage(TSX)
-                parser.parse(ByteArray(BUFFER_SIZE), null, reader, TSInputEncoding.TSInputEncodingUTF8)
+                parser.parse(ByteArray(BUFFER_SIZE), null, BytesReader(bytes), TSInputEncoding.TSInputEncodingUTF8)
             } ?: error("tree-sitter returned no tree")
             // The tree outlives the parser, and each node keeps its tree alive.
             return TreeSitterCodeNode(tree.rootNode, Source(text, file, bytes))

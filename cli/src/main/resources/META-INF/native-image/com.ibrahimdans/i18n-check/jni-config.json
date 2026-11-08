@@ -1,6 +1,6 @@
 [
  {
-  "name": "com.ibrahimdans.i18n.extract.treesitter.TreeSitterCodeNode$Companion$parseTsx$reader$1",
+  "name": "com.ibrahimdans.i18n.extract.treesitter.TreeSitterCodeNode$BytesReader",
   "methods": [
    {
     "name": "read",

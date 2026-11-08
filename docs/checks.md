@@ -46,6 +46,12 @@ i18n-check-1.18.0/bin/i18n-check [project] [--locales <dir> | --code] [--referen
 
 `./gradlew :cli:installDist` builds it from this repository instead, in `cli/build/install/i18n-check/`.
 
+Without Java, the same check runs from npm, as a native binary for Linux x64 and arm64, macOS x64 and arm64, Windows x64 and Alpine: `npx i18n-support-plus` takes the arguments above, and a project can add it to its `devDependencies` for a script or a pre-commit hook (`"i18n": "i18n-support-plus --code"`). The command is `i18n-support-plus`, not `i18n-check`, which the unrelated `@lingual/i18n-check` package also installs. npm installs only the binary of the machine, as an optional dependency: an install with `--omit=optional` leaves it out, and the command then says which package it lacks. On Alpine (musl), `--code` stops with exit `2`: that binary is linked statically and cannot load tree-sitter, which reads the code; the translation files are checked as elsewhere, and the zip or the Docker image check the code there.
+
+```bash
+npx i18n-support-plus --code
+```
+
 It runs the plugin's own checks in CI, with the plugin's settings, whatever the framework. An i18next project that also wants to write the keys the code uses into its files, sync its locales or generate types can pair it with the official [i18next-cli](https://github.com/i18next/i18next-cli) (`extract`, `sync`, `types`).
 
 - `project` (the current directory by default) is searched for translation files as the plugin finds them: a folder or file named after a locale (`locales/en/common.json`, `i18n/fr.yml`), keys of a namespace file reported as `common:key`. `node_modules`, `build`, `dist` and the like are never searched.

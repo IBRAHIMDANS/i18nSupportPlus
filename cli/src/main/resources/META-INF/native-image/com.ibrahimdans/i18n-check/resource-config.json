@@ -8,10 +8,6 @@
     "pattern":"\\QMETA-INF/services/javax.xml.parsers.DocumentBuilderFactory\\E"
   }, {
     "pattern":"\\QMETA-INF/services/javax.xml.stream.XMLInputFactory\\E"
-  }, {
-    "pattern":"\\Qlib/x86_64-linux-gnu-tree-sitter-tsx.so\\E"
-  }, {
-    "pattern":"\\Qlib/x86_64-linux-gnu-tree-sitter.so\\E"
   }]},
   "bundles":[]
 }

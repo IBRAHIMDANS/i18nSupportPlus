@@ -4,6 +4,7 @@
 
 ### Features
 
+- [CLI] **Check your translations with `npx`, without Java**: `npx i18n-support-plus --code` runs `i18n-check` as a native binary on Linux, macOS, Windows and Alpine, and starts in a fraction of a second, which suits a pre-commit hook. Alpine checks the translation files but not the code.
 - [AI agents] **An agent translating through the tools keeps your terminology**: `i18n_missing_translations` now gives, with the keys to translate, the project's glossary and the translations already in place that share a word with them, so a term you left in English or translated a given way stays so.
 
 ### Fixes
