@@ -57,20 +57,28 @@ object TranslationEngines {
 
     private class BatchEntry(val body: String?, val listPath: String?, val itemField: String?, val jsonText: Boolean?, val maxSize: Int?)
 
-    private fun load(): List<Pair<EngineConfig, LanguageCodes?>> {
-        val text = TranslationEngines::class.java.getResourceAsStream(RESOURCE)?.bufferedReader()?.use { it.readText() }
-            ?: return emptyList()
+    private fun load(): List<Pair<EngineConfig, LanguageCodes?>> =
+        TranslationEngines::class.java.getResourceAsStream(RESOURCE)?.bufferedReader()?.use { parse(it.readText()) }.orEmpty()
+
+    /** The engines written in [text], in the format of [RESOURCE]. */
+    internal fun parse(text: String): List<Pair<EngineConfig, LanguageCodes?>> {
         val type = object : TypeToken<List<Entry>>() {}.type
         return Gson().fromJson<List<Entry>>(text, type).map {
             EngineConfig(
                 id = it.id.orEmpty(), name = it.name.orEmpty(), url = it.url.orEmpty(), headers = it.headers.orEmpty(),
                 body = it.body.orEmpty(), responsePath = it.responsePath.orEmpty(),
                 unescapeHtml = it.unescapeHtml == true, local = it.local == true, nativeGlossary = it.nativeGlossary?.takeIf(String::isNotBlank),
-                batch = it.batch?.takeIf { b -> !b.body.isNullOrBlank() && !b.listPath.isNullOrBlank() && (b.maxSize ?: 0) > 1 }?.let { b ->
-                    BatchConfig(b.body!!, b.listPath!!, b.itemField.orEmpty(), b.jsonText == true, b.maxSize!!)
-                }
+                batch = it.batch?.toConfig()
             ) to LanguageCodes.entries.firstOrNull { c -> c.name.equals(it.languageCodes, ignoreCase = true) }
         }
+    }
+
+    /** The batch an entry describes, or null — the engine then sends one text per request — when a field it needs is missing. */
+    private fun BatchEntry.toConfig(): BatchConfig? {
+        val body = body?.takeIf(String::isNotBlank) ?: return null
+        val listPath = listPath?.takeIf(String::isNotBlank) ?: return null
+        val maxSize = maxSize?.takeIf { it > 1 } ?: return null
+        return BatchConfig(body, listPath, itemField.orEmpty(), jsonText == true, maxSize)
     }
 }
 
