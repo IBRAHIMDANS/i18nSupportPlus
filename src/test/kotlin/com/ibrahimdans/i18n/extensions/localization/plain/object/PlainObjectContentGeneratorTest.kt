@@ -1,6 +1,5 @@
-package com.ibrahimdans.i18n.extensions.localization.po
+package com.ibrahimdans.i18n.extensions.localization.plain.`object`
 
-import com.ibrahimdans.i18n.extensions.localization.plain.`object`.PlainObjectContentGenerator
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
