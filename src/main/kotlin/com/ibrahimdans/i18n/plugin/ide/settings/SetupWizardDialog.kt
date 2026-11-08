@@ -1,7 +1,5 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
-import com.google.gson.JsonParseException
-import com.google.gson.JsonParser
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.ide.wizard.AbstractWizard
@@ -18,7 +16,6 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiManager
 import com.intellij.ui.EditorNotificationPanel
 import com.intellij.ui.InlineBanner
-import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
@@ -29,10 +26,7 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.Dimension
-import java.awt.FlowLayout
 import java.io.File
-import java.nio.file.FileSystems
-import java.nio.file.Path
 import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.DefaultListModel
@@ -102,7 +96,7 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         scanTranslationFiles()
         readCliConfig()
         readVueConfig()
-        workspacePackages = project.basePath?.let { workspacePackagesIn(File(it)) }.orEmpty()
+        workspacePackages = project.basePath?.let { ManifestDetection.workspacePackagesIn(File(it)) }.orEmpty()
     }
 
     /** The wizard's own panel, with the step rail above it. */
@@ -479,11 +473,9 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
 
     // -- Detection logic
 
-    /**
-     * Reads the manifests at the project root and pre-checks framework checkboxes accordingly.
-     */
+    /** Reads the manifests at the project root ([ManifestDetection]) and pre-checks the framework checkboxes. */
     private fun detectFrameworks() {
-        for (key in detectFrameworksIn(File(project.basePath ?: return))) {
+        for (key in ManifestDetection.detectFrameworksIn(File(project.basePath ?: return))) {
             frameworkCheckboxes[key]?.isSelected = true
         }
     }
@@ -501,7 +493,7 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
             fileListModel.addElement(relative)
         }
         appManifests.clear()
-        appManifests.putAll(manifestsAbove(base, TranslationRootDetector.candidates(foundFiles)))
+        appManifests.putAll(ManifestDetection.manifestsAbove(base, TranslationRootDetector.candidates(foundFiles)))
         // A monorepo's root manifest seldom declares the applications' libraries: theirs do.
         for (key in appManifests.values.flatMap { FrameworkDetector.detect(it) }) {
             frameworkCheckboxes[key]?.isSelected = true
@@ -600,134 +592,8 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
     // No doCancelAction override: skipping the wizard says nothing about wanting it gone. Only
     // "Don't show again", and the settings checkbox behind it, switch the suggestion off.
 
-    /**
-     * The step rail: every step named at once, the current one picked out.
-     *
-     * "Step 2 of 3" told the user where they were and nothing about where they were going.
-     */
-    private class StepRail(private val titles: List<String>) : JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)) {
-
-        private val labels = titles.mapIndexed { index, title ->
-            JBLabel("${index + 1}. $title").apply { border = JBUI.Borders.empty(8, 12) }
-        }
-
-        init {
-            border = JBUI.Borders.emptyLeft(4)
-            labels.forEach { add(it) }
-            select(0)
-        }
-
-        fun select(index: Int) {
-            labels.forEachIndexed { position, label ->
-                label.foreground = if (position == index) ACTIVE else INACTIVE
-                label.font = label.font.deriveFont(if (position == index) 1 else 0)
-            }
-        }
-
-        private companion object {
-            // From the IDE scheme rather than hand-picked RGB, as the stats bar does since #209.
-            val ACTIVE = JBColor.namedColor("Label.foreground", 0x000000, 0xBBBBBB)
-            val INACTIVE = JBColor.namedColor("Label.disabledForeground", 0x8C8C8C, 0x777777)
-        }
-    }
-
     companion object {
         /** How many of the found files the summary names before falling back to the count. */
         private const val SAMPLE_SIZE = 5
-
-        /**
-         * Manifests whose dependencies give the frameworks away: `package.json` for the JS
-         * libraries, `composer.json` for Laravel, a Maven or Gradle build for Spring. [FrameworkDetector]
-         * holds one table for all, and reads Angular's own i18n from an `angular.json` listing its translations.
-         */
-        private val MANIFESTS = listOf("package.json", "composer.json", "angular.json", "pom.xml", "build.gradle", "build.gradle.kts")
-
-        /**
-         * Frameworks declared by the manifests found directly in [base]. Kept out of the dialog
-         * instance so it runs headlessly in tests.
-         */
-        internal fun detectFrameworksIn(base: File): Set<String> =
-            MANIFESTS
-                .map { File(base, it) }
-                .filter { it.isFile }
-                .flatMapTo(mutableSetOf()) { FrameworkDetector.detect(it.readText()) }
-
-        /**
-         * Project-relative folder -> the text of its manifests, for each folder holding one between
-         * [base] (left out: a monorepo's root manifest names no application) and each of [roots],
-         * the folders the catalogues sit in. What [WizardPlan.modulesFor] roots the modules at.
-         */
-        internal fun manifestsAbove(base: File, roots: List<String>): Map<String, String> {
-            val folders = roots.flatMap { root ->
-                val segments = root.replace('\\', '/').split('/').filter { it.isNotEmpty() }
-                (1..segments.size).map { segments.take(it).joinToString("/") }
-            }.distinct()
-            return folders.mapNotNull { folder ->
-                val texts = MANIFESTS.map { File(base, "$folder/$it") }.filter { it.isFile }.map { it.readText() }
-                if (texts.isEmpty()) null else folder to texts.joinToString("\n")
-            }.toMap()
-        }
-
-        /**
-         * Project-relative folder -> `package.json` text, for each package of the workspace [base]
-         * declares: the `packages` globs of `pnpm-workspace.yaml`, else the `workspaces` of the root
-         * `package.json` (npm, Yarn). Empty without a workspace. What [WizardPlan.codeRootsOf] reads
-         * the dependencies from.
-         */
-        internal fun workspacePackagesIn(base: File): Map<String, String> {
-            val globs = workspaceGlobs(base)
-            if (globs.isEmpty()) return emptyMap()
-            val (excluded, included) = globs.partition { it.startsWith("!") }
-            val fileSystem = FileSystems.getDefault()
-            val includes = included.map { fileSystem.getPathMatcher("glob:${it.trim('/')}") }
-            val excludes = excluded.map { fileSystem.getPathMatcher("glob:${it.removePrefix("!").trim('/')}") }
-            return base.walkTopDown()
-                .maxDepth(WORKSPACE_DEPTH)
-                .onEnter { it == base || (it.name != "node_modules" && !it.name.startsWith(".")) }
-                .filter { it != base && it.isDirectory && File(it, "package.json").isFile }
-                .mapNotNull { folder ->
-                    val relative = folder.relativeTo(base).invariantSeparatorsPath
-                    val path = Path.of(relative)
-                    relative.takeIf { includes.any { it.matches(path) } && excludes.none { it.matches(path) } }
-                        ?.let { it to File(folder, "package.json").readText() }
-                }
-                .toMap()
-        }
-
-        /** The workspace globs [base] declares, `!` exclusions included. */
-        private fun workspaceGlobs(base: File): List<String> {
-            val pnpm = File(base, "pnpm-workspace.yaml")
-            if (pnpm.isFile) return pnpmPackages(pnpm.readLines())
-            val manifest = File(base, "package.json").takeIf { it.isFile } ?: return emptyList()
-            val workspaces = try {
-                JsonParser.parseString(manifest.readText()).takeIf { it.isJsonObject }?.asJsonObject?.get("workspaces")
-            } catch (_: JsonParseException) {
-                null
-            }
-            // npm and Yarn 1 take an array; Yarn also takes `{ "packages": [...] }`.
-            val array = when {
-                workspaces == null -> null
-                workspaces.isJsonArray -> workspaces.asJsonArray
-                workspaces.isJsonObject -> workspaces.asJsonObject.get("packages")?.takeIf { it.isJsonArray }?.asJsonArray
-                else -> null
-            } ?: return emptyList()
-            return array.filter { it.isJsonPrimitive }.map { it.asString }
-        }
-
-        /** The items of the top-level `packages:` list of a `pnpm-workspace.yaml`. */
-        private fun pnpmPackages(lines: List<String>): List<String> {
-            val start = lines.indexOfFirst { it.trimEnd() == "packages:" }
-            if (start < 0) return emptyList()
-            return lines.drop(start + 1)
-                .filterNot { it.isBlank() || it.trimStart().startsWith("#") }
-                .takeWhile { it.startsWith(" ") || it.startsWith("-") }
-                .map { it.trim() }
-                .filter { it.startsWith("-") }
-                .map { it.removePrefix("-").substringBefore(" #").trim().trim('\'', '"') }
-                .filter { it.isNotEmpty() }
-        }
-
-        /** How deep below the project root a workspace package is looked for. */
-        private const val WORKSPACE_DEPTH = 4
     }
 }
