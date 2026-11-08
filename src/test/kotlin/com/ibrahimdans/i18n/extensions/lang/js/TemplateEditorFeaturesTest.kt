@@ -1,13 +1,17 @@
 package com.ibrahimdans.i18n.extensions.lang.js
 
+import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.elementAt
+import com.ibrahimdans.i18n.plugin.ide.runVue
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.codeInsight.completion.CompletionType
 import com.intellij.codeInsight.hints.declarative.impl.inlayRenderer.DeclarativeInlayRenderer
+import com.intellij.lang.javascript.psi.ecma6.JSStringTemplateExpression
 import com.intellij.openapi.application.ReadAction
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.EditorTestUtil
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
@@ -146,5 +150,31 @@ class TemplateEditorFeaturesTest : PlatformBaseTest() {
         )
         val hints = renderedHints()
         Assertions.assertEquals(2, hints.size, "one hint per key, frontmatter and template: $hints")
+    }
+
+    // ── vue-i18n: a template literal key after `useI18n()` ────────────────────────
+
+    private val composable = "import { useI18n } from 'vue-i18n';\nconst { t } = useI18n();\nconst label = t(`order.status.\${status}`);\n"
+
+    /** The key the plugin reads from the file's only template literal, its interpolation kept as written. */
+    private fun templateKey(): String? = ReadAction.compute<String?, RuntimeException> {
+        val template = PsiTreeUtil.findChildOfType(myFixture.file, JSStringTemplateExpression::class.java)
+        Assertions.assertNotNull(template, "no template literal in the file")
+        val names = Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() }
+        val lang = JsLang()
+        if (!lang.canExtractKey(template!!, names)) return@compute null
+        lang.extractRawKey(template)?.keyElements?.joinToString("") { it.text }
+    }
+
+    @Test
+    fun `a template literal key after useI18n reads its static prefix in a TypeScript file`() {
+        open("order.ts", composable, "TypeScript")
+        Assertions.assertEquals("order.status.\${status}", templateKey())
+    }
+
+    @Test
+    fun `a template literal key reads its static prefix in a Vue script setup block`() = runVue {
+        myFixture.configureByText("Order.vue", "<script setup lang=\"ts\">\n$composable</script>\n<template><p>{{ label }}</p></template>\n")
+        Assertions.assertEquals("order.status.\${status}", templateKey())
     }
 }
