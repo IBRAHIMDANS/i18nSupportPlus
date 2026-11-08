@@ -1,0 +1,34 @@
+name: Docs
+
+# Relative links, orphan images and pinned releases of the guides (scripts/check-docs.sh).
+# ci.yml skips documentation-only changes, so this is the only check they get.
+on:
+  pull_request:
+    paths:
+      - '**.md'
+      - '**.html'
+      - 'docs/**'
+      - 'src/uiTest/**'
+      - 'scripts/check-docs.sh'
+      - '.github/workflows/docs.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - '**.md'
+      - '**.html'
+      - 'docs/**'
+      - 'src/uiTest/**'
+      - 'scripts/check-docs.sh'
+      - '.github/workflows/docs.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check the documentation
+        run: bash scripts/check-docs.sh
