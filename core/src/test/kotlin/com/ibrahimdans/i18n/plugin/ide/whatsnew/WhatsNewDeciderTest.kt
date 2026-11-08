@@ -23,6 +23,25 @@ class WhatsNewDeciderTest {
     }
 
     @Test
+    fun `a patch of the minor already announced is recorded, not announced`() {
+        assertEquals(Decision.RECORD_ONLY, WhatsNewDecider.decide("1.19.0", "1.19.1"))
+        assertEquals(Decision.RECORD_ONLY, WhatsNewDecider.decide("1.19.1", "1.19.2"))
+    }
+
+    @Test
+    fun `a patch of a later minor is announced, with the minor it belongs to`() {
+        assertEquals(Decision.NOTIFY, WhatsNewDecider.decide("1.18.1", "1.19.1"))
+        assertEquals(Decision.NOTIFY, WhatsNewDecider.decide("1.19.1", "2.0.0"))
+        assertEquals(Decision.NOTIFY, WhatsNewDecider.decide("1.19.1", "1.20.0-beta.1"))
+    }
+
+    @Test
+    fun `a version that does not parse is announced as before`() {
+        assertEquals(Decision.NOTIFY, WhatsNewDecider.decide("dev", "1.19.1"))
+        assertEquals(Decision.NOTIFY, WhatsNewDecider.decide("1.19.0", "dev"))
+    }
+
+    @Test
     fun `a muted user is not announced a new version, which is still recorded`() {
         assertEquals(Decision.RECORD_ONLY, WhatsNewDecider.decide("1.3.3", "1.4.0", muted = true))
         assertEquals(Decision.NONE, WhatsNewDecider.decide("1.4.0", "1.4.0", muted = true))
