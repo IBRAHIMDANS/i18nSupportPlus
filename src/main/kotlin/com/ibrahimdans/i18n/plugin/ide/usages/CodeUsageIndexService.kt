@@ -41,6 +41,7 @@ import com.intellij.psi.PsiTreeChangeEvent
 import com.intellij.psi.search.FileTypeIndex
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.UsageSearchContext
+import org.jetbrains.annotations.TestOnly
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -88,6 +89,12 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
     /** The files to read again, each with the generation it was marked at: a read started before a later mark is dropped. */
     private val dirty = ConcurrentHashMap<VirtualFile, Long>()
     private val generation = AtomicLong()
+
+    /** How many code files were read so far: what the tests count to tell a refresh from a rebuild. */
+    private val filesRead = AtomicLong()
+
+    @TestOnly
+    fun filesRead(): Long = filesRead.get()
 
     init {
         PsiManager.getInstance(project).addPsiTreeChangeListener(object : PsiTreeChangeAdapter() {
@@ -287,6 +294,7 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
                 if (!file.isValid || !config.searchScope(project).contains(file)) null
                 else PsiManager.getInstance(project).findFile(file)?.let(indexer::sitesOf)
             }
+            if (read != null) filesRead.incrementAndGet()
             synchronized(this) {
                 // Marked again while it was read: the next question reads it again.
                 if (!dirty.remove(file, marked)) return@synchronized
