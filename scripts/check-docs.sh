@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Checks the documentation, with nothing but bash, git, grep and awk:
 #   1. every relative link of the guides points to a file of the repository;
-#   2. every image of docs/img is cited by a .md (the screenshot checklist aside), a .html or a UI
-#      screenshot scenario (src/uiTest);
+#   2. every image of docs/img is shown by a .md (the screenshot checklist aside) or a .html; a UI
+#      screenshot scenario (src/uiTest) that produces an image is not a use of it;
 #   3. no install instruction pins a release of the plugin (zip name, Action tag, image tag, download URL).
 # Only tracked files are read. Exits 1 on the first run that finds anything, naming each finding.
 set -uo pipefail
@@ -10,10 +10,7 @@ cd "$(dirname "$0")/.."
 
 # Images known to be orphans on main, each with the task that removes it from this list.
 # A listed image that is cited again only raises a warning: drop it from the list then.
-ORPHAN_IMAGE_EXCEPTIONS=(
-  annotation-partial.png   # TASK-CADRAGE-DOC-IMAGES-2: cited in docs/editor.md or deleted
-  annotation-quickfix.png  # TASK-CADRAGE-DOC-IMAGES-2: cited in docs/editor.md or deleted
-)
+ORPHAN_IMAGE_EXCEPTIONS=()
 
 problems=0
 
@@ -78,16 +75,22 @@ while IFS= read -r doc; do
 done < <(git ls-files -- 'README.md' 'CONTRIBUTING.md' 'RELEASING.md' 'docs/*.md' 'examples/*/README.md')
 
 # --- 2. Orphan images --------------------------------------------------------------------------
-# The screenshot checklist is the inventory of every capture: being listed there is not a use.
-mapfile -t citing < <(git ls-files -- '*.md' '*.html' 'src/uiTest/*' ':!docs/dev/SCREENSHOTS_CHECKLIST.md')
+# The screenshot checklist is the inventory of every capture: being listed there is not a use. A UI
+# screenshot scenario only produces the image: a capture nobody sees is still an orphan.
+mapfile -t citing < <(git ls-files -- '*.md' '*.html' ':!docs/dev/SCREENSHOTS_CHECKLIST.md')
+mapfile -t scenarios < <(git ls-files -- 'src/uiTest/*')
 while IFS= read -r image; do
   name=$(basename "$image")
   excepted=false
   for e in "${ORPHAN_IMAGE_EXCEPTIONS[@]}"; do [ "$e" = "$name" ] && excepted=true; done
   if grep -qF -- "$name" "${citing[@]}"; then
     $excepted && warning "$image" "cited again: remove it from ORPHAN_IMAGE_EXCEPTIONS in scripts/check-docs.sh"
-  elif ! $excepted; then
-    error "$image" 1 "image cited by no .md, .html or src/uiTest file"
+  elif $excepted; then
+    :
+  elif [ "${#scenarios[@]}" -gt 0 ] && grep -qF -- "$name" "${scenarios[@]}"; then
+    error "$image" 1 "image produced by a scenario, shown nowhere: show it in a .md or drop the image and its scenario"
+  else
+    error "$image" 1 "image cited by no .md or .html file"
   fi
 done < <(git ls-files -- 'docs/img/*')
 for e in "${ORPHAN_IMAGE_EXCEPTIONS[@]}"; do

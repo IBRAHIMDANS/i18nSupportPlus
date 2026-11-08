@@ -35,8 +35,10 @@
 leur scénario dans `EditorScreenshots.kt`. Les deux captures de folding s'appelaient `folding-{before,after}.png`
 jusqu'au 2026-11-08 : la première montre les clés repliées, la seconde la clé dépliée sous le curseur.
 
-`extraction.png`, `extraction-intent.png`, `extraction-add-namespace.png`, `gutter-icons.png` et `navigation.png` ont
-leur scénario mais ne sont citées par aucune page de `docs/` ni par le README.
+`extraction-intent.png`, `extraction.png` et `extraction-add-namespace.png` (section *Key Extraction*, dans cet ordre),
+`gutter-icons.png` (section *Key status*) et `navigation.png` (section *Navigation*, sous `navigation.gif`) sont citées
+par `docs/editor.md` depuis le 2026-11-08. Un scénario ne compte plus comme une citation : `scripts/check-docs.sh` refuse
+une capture produite par un scénario et montrée par aucune page (« produced by a scenario, shown nowhere »).
 
 **Sans scénario : `gutter-icons-tooltip.png`** (recette manuelle). Sous Xvfb, aucun survol de l'icône de
 gouttière, ni `GutterUiComponent.hoverOverIcon` (ligne comptée à partir de 0), ni un mouvement `Robot` par
@@ -116,3 +118,4 @@ Compté sur `docs/img/` le 2026-11-08 (37 fichiers).
 | Avec scénario (`generateUiScreenshots`) | 31 (éditeur et assistant 17, fenêtre d'outil 10, réglages 4) |
 | Sans scénario, recette manuelle | 1 (`gutter-icons-tooltip.png`) |
 | GIF de la page Marketplace (`marketplace/`) | 5 |
+| Montrées par une page (`.md` hors cette checklist, `.html`) | 37 sur 37, vérifié par `scripts/check-docs.sh` |
