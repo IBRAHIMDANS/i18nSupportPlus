@@ -7,6 +7,30 @@
 
 ---
 
+## Cadence
+
+One minor release a week, on a fixed day (Tuesday), carrying everything merged since the previous one.
+Between two trains, nothing is released because it is ready: a fix waits for the train, six days at most.
+
+Before the tag, a day of soak: the `main` of the day before runs in a real IDE (`runWebStorm` on two of
+the `examples/`, or the plugin's own use for a working day). A release has gone out before being used
+at all three times in three weeks (1.17.1, 1.18.1, 1.19.1 each followed its minor within 48 hours).
+
+A patch leaves the train on two triggers only:
+
+- a crash reported by the Marketplace (Exceptions or Freezes tab) in the current release
+- an issue that blocks someone from working
+
+The count of `(regression in x.y.z)` entries, written in each release PR, sets the pace: a month at
+zero allows two trains a week; a rising count means the soak gets longer, not the week shorter.
+The plugin collects no usage data, and this count is what stands in for it.
+
+Why not slower: the Marketplace exceptions and the few issues are the only feedback there is, and
+they arrive within days of a release. A monthly release would leave a crash with every user for a
+month and make the What's New too long to read.
+
+---
+
 ## Release flow
 
 ### 1. Keep `[Unreleased]` up to date as you work
@@ -24,6 +48,12 @@ In every feature or fix PR, update the `[Unreleased]` section in `CHANGELOG.md`:
 ```
 
 This is the only manual editorial step — it belongs in the PR itself, not at release time.
+
+When a fix undoes something a recent release introduced, say so in the entry: end it with
+`(regression in 1.18.0)`. At release time, count those entries in the section being promoted and
+write the count in the release PR. The plugin collects no usage data, so this count is the one
+measure that says whether releases are going out faster than they are being used: when half of a
+version's fixes are regressions of the versions before, slow down.
 
 Before triggering the release, check the docs that name a version:
 
