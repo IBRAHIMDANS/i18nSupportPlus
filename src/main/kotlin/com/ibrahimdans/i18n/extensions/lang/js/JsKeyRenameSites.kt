@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.extensions.lang.js.extractors.ParaglideMessageExtrac
 import com.ibrahimdans.i18n.plugin.ide.actions.KeyRenameSites
 import com.ibrahimdans.i18n.plugin.ide.actions.KeyRenameSites.Rewrite
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
 import com.ibrahimdans.i18n.plugin.utils.ModulePresets
 import com.intellij.lang.javascript.psi.JSArrayLiteralExpression
 import com.intellij.lang.javascript.psi.JSCallExpression
@@ -22,7 +23,7 @@ import com.intellij.psi.PsiElement
 object JsKeyRenameSites : KeyRenameSites {
 
     private const val KEY_PREFIX = "keyPrefix"
-    private const val USE_TRANSLATION = "useTranslation"
+    private val USE_TRANSLATION = FrameworkPresets.I18NEXT_HOOK
     private const val PARAGLIDE = "paraglide"
     private val PARAGLIDE_MESSAGE = ParaglideMessageExtractor()
     private val IDENTIFIER = Regex("[A-Za-z_$][\\w$]*")
