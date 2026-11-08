@@ -311,8 +311,26 @@ intellijPlatform {
             recommended()
             create(IntelliJPlatformType.IntellijIdeaUltimate, "2025.2")
             create(IntelliJPlatformType.IntellijIdeaUltimate, "2025.3")
+            // No JavaScript plugin: every class plugin.xml registers must load without it (the dependency is
+            // optional). The last Community release; 2025.3 and later are the unified IntelliJ IDEA.
+            create(IntelliJPlatformType.IntellijIdeaCommunity, "2025.2.6.4")
         }
     }
+}
+
+// ── runIdeCommunity ───────────────────────────────────────────────────────────
+//
+// The plugin as an IDE without the JavaScript plugin loads it — IntelliJ IDEA Community, Android
+// Studio, PyCharm, an unlicensed IntelliJ IDEA 2025.3+: the dependency is optional and jsConfig.xml
+// stays out, so the tool window, the translation files' inspections, machine translation and the
+// agent tools are all there is. Compiled against IntelliJ IDEA Ultimate as always; only the sandbox
+// changes. 2025.2.6.4 is the last Community release: 2025.3 and later are the unified IntelliJ IDEA,
+// Community being that IDEA without a licence.
+intellijPlatformTesting.runIde.register("runIdeCommunity") {
+    type = IntelliJPlatformType.IntellijIdeaCommunity
+    version = "2025.2.6.4"
+    // -PideProject=examples/react-multi-namespace opens that project at once, for a smoke check under Xvfb.
+    task { providers.gradleProperty("ideProject").orNull?.let { args(file(it).absolutePath) } }
 }
 
 // ── runWebStorm ───────────────────────────────────────────────────────────────

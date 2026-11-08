@@ -3,8 +3,10 @@ package com.ibrahimdans.i18n.plugin.ide.usages
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.IdeKeyUsageIndex
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationKeyUsages
+import com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.json.psi.JsonProperty
 import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.openapi.application.ReadAction
@@ -49,13 +51,28 @@ class UsageCountBenchmarkTest : PlatformBaseTest() {
         assumeTrue(System.getProperty(PROPERTY).toBoolean(), "timings run with -Pi18nBenchmark=true only")
         myFixture.runWithConfig(Config()) {
             val (generated, loadMs) = timed { load(UsageBenchmarkProject(keysPerNamespace = 1000, files = 300)) }
+            myFixture.addFileToProject(DEAD_FILE, (0 until DEAD_KEYS).joinToString(prefix = "{", postfix = "}") { "\"zzDead$it\": \"Dead\"" })
             val keys = generated.expectedCounts.keys.toList()
             val index = IdeKeyUsageIndex(project)
+            myFixture.enableInspections(UnusedTranslationKeyInspection::class.java)
+
+            // What the first pass over a translation file costs the highlighting before anything read the index:
+            // the build itself runs in the background, held here so that the pass is measured alone.
+            val service = CodeUsageIndexService.getInstance(project)
+            service.forget()
+            service.holdBuilds = true
+            val (coldWarnings, coldInspectionMs) = try { timed { highlight(COMMON_FILE) } } finally { service.holdBuilds = false }
 
             val (counts, tableMs) = timed { index.usageCounts(keys) }
+            // Asked again: what a count costs once the code has been read.
+            val (_, warmMs) = timed { index.usageCounts(keys) }
             val orphans = counts.filterValues { it == 0 }.keys
             val (reached, dynamicMs) = timed { index.dynamicallyReached(orphans) }
             val (vision, visionMs) = timed { codeVisionCounts() }
+            val (_, warmInspectionMs) = timed { highlight(COMMON_FILE) }
+            // A file whose keys the code never names: each one falls back to the platform's reference search.
+            val (_, deadVisionMs) = timed { codeVisionCounts(DEAD_FILE, DEAD_KEYS) }
+            val (deadWarnings, deadInspectionMs) = timed { highlight(DEAD_FILE) }
 
             // Correctness is the small test's job: here a mismatch is reported, not asserted, so that
             // a long run always ends with its timings.
@@ -67,8 +84,13 @@ class UsageCountBenchmarkTest : PlatformBaseTest() {
                 |  mismatches against the generated truth: $mismatches
                 |  project loaded and indexed: $loadMs ms
                 |  table: usageCounts over ${keys.size} keys: $tableMs ms (${"%.1f".format(tableMs.toDouble() / keys.size)} ms per key)
+                |  table: usageCounts again: $warmMs ms
                 |  table: dynamicallyReached over ${orphans.size} orphans: $dynamicMs ms
                 |  code vision: indirectCount + reachedDynamically over ${vision.size} distinct keys: $visionMs ms (${"%.1f".format(visionMs.toDouble() / vision.size)} ms per key)
+                |  unused key inspection over $COMMON_FILE, index not built yet (built in the background): $coldInspectionMs ms ($coldWarnings reported)
+                |  unused key inspection over $COMMON_FILE, index built: $warmInspectionMs ms
+                |  code vision over $DEAD_KEYS unused keys: $deadVisionMs ms
+                |  unused key inspection over $DEAD_KEYS unused keys: $deadInspectionMs ms ($deadWarnings reported)
                 |
             """.trimMargin()
             println(report)
@@ -82,10 +104,17 @@ class UsageCountBenchmarkTest : PlatformBaseTest() {
         return generated
     }
 
-    /** The leaf properties Code Vision would count in the first namespace's file, as many as it shows. */
-    private fun codeVisionProperties(): List<JsonProperty> {
-        val file = PsiManager.getInstance(project).findFile(myFixture.findFileInTempDir("locales/en/common.json"))!!
-        return PsiTreeUtil.findChildrenOfType(file, JsonProperty::class.java).filter { it.value is JsonStringLiteral }.take(CODE_VISION_KEYS)
+    /** The leaf properties Code Vision would count in [path]: the first [keys], as measured before. */
+    private fun codeVisionProperties(path: String, keys: Int): List<JsonProperty> {
+        val file = PsiManager.getInstance(project).findFile(myFixture.findFileInTempDir(path))!!
+        return PsiTreeUtil.findChildrenOfType(file, JsonProperty::class.java).filter { it.value is JsonStringLiteral }.take(keys)
+    }
+
+    /** How many keys *Unused translation key* reports in [path], one highlighting pass of it. */
+    private fun highlight(path: String): Int {
+        myFixture.configureFromExistingVirtualFile(myFixture.findFileInTempDir(path))
+        val message = PluginBundle.getMessage("inspection.unused.message")
+        return myFixture.doHighlighting().count { it.description == message }
     }
 
     /**
@@ -93,15 +122,12 @@ class UsageCountBenchmarkTest : PlatformBaseTest() {
      * key at zero, whether a dynamic literal reaches it (-1: a key nothing names, shown as dynamic
      * rather than at zero).
      */
-    private fun codeVisionCounts(): Map<String, Int> = ReadAction.compute<Map<String, Int>, RuntimeException> {
+    private fun codeVisionCounts(path: String = COMMON_FILE, keys: Int = CODE_VISION_KEYS): Map<String, Int> = ReadAction.compute<Map<String, Int>, RuntimeException> {
         val config = Config()
-        val heads = mutableMapOf<String, Set<String>>()
-        codeVisionProperties().associate { property ->
-            val named = property.nameElement
-            val count = TranslationKeyUsages.indirectCount(named)
-            val shown = if (count == 0 && TranslationKeyUsages.reachedDynamically(named, heads)) -1 else count
-            TranslationKeyUsages.keyOf(named, config) to shown
-        }
+        val names = codeVisionProperties(path, keys).map { it.nameElement }
+        val counts = TranslationKeyUsages.indirectCounts(names)
+        val reached = TranslationKeyUsages.reachedDynamically(names.filter { counts[it] == 0 })
+        names.associate { named -> TranslationKeyUsages.keyOf(named, config) to if (named in reached) -1 else counts.getValue(named) }
     }
 
     /** [block]'s result and how many milliseconds it took. */
@@ -114,7 +140,11 @@ class UsageCountBenchmarkTest : PlatformBaseTest() {
     private companion object {
         const val PROPERTY = "i18n.benchmark"
         const val OUTPUT = "i18n.benchmark.output"
-        /** As many keys as Code Vision shows per file. */
+        /** As many keys as Code Vision showed per file before it read the index: the measures stay comparable. */
         const val CODE_VISION_KEYS = 100
+        const val COMMON_FILE = "locales/en/common.json"
+        /** A file of keys nothing uses, as large as the provider's former limit times five. */
+        const val DEAD_FILE = "locales/en/dead.json"
+        const val DEAD_KEYS = 500
     }
 }

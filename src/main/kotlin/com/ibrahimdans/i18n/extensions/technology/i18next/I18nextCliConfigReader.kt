@@ -1,7 +1,6 @@
-package com.ibrahimdans.i18n.plugin.ide.settings
+package com.ibrahimdans.i18n.extensions.technology.i18next
 
-import com.ibrahimdans.i18n.extensions.technology.i18next.I18nextInitOptions
-import com.ibrahimdans.i18n.extensions.technology.i18next.I18nextInitReader
+import com.ibrahimdans.i18n.plugin.ide.settings.I18nextCliConfig
 import com.intellij.lang.javascript.psi.JSArrayLiteralExpression
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.lang.javascript.psi.JSObjectLiteralExpression

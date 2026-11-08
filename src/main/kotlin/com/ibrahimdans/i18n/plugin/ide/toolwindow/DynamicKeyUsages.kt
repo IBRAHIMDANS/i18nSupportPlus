@@ -1,12 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
-import com.ibrahimdans.i18n.Extensions
-import com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages
 import com.ibrahimdans.i18n.plugin.usages.DynamicReach
-import com.ibrahimdans.i18n.plugin.utils.unQuote
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.search.PsiSearchHelper
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Which keys are reached by a key the code builds at runtime.
@@ -27,85 +21,14 @@ import java.util.concurrent.ConcurrentHashMap
  * resolves onto the *key literal* of the JSON property, while `ReferencesSearch` on that
  * property compares against the property itself and finds nothing. That is what the cleanup's
  * own guard did, so it never protected anything.
+ *
+ * The literals themselves are read once, by the index of the code's usages
+ * (`CodeUsageIndexService.dynamicallyReached`): what is left here is which words stand for a key.
  */
 object DynamicKeyUsages {
 
     /** The text a dynamic literal must hold for its search word to be worth searching: see [prefixesOf]. */
     private const val INTERPOLATION = "\${"
-
-    /**
-     * The subset of [keys] some dynamic key literal can reach.
-     *
-     * One search per distinct prefix or suffix rather than per key: the three `status.*` keys
-     * share the single word `deposit-box:status`, and the scan runs over every key a project holds.
-     * [perWord] runs each word's search: the caller's own read action, one per word.
-     */
-    fun reachedKeys(
-        keys: List<String>,
-        scope: GlobalSearchScope,
-        searchHelper: PsiSearchHelper,
-        nsSeparator: String,
-        keySeparator: String,
-        perWord: (() -> Set<String>) -> Set<String> = { it() },
-    ): Set<String> {
-        if (keys.isEmpty()) return emptySet()
-        val shapes = searchWords(keys, nsSeparator, keySeparator)
-            .flatMapTo(mutableSetOf()) { word -> perWord { dynamicLiterals(word, scope, searchHelper) } }
-            .mapNotNullTo(mutableSetOf(), DynamicReach::shapeOf)
-        if (shapes.isEmpty()) return emptySet()
-
-        return keys.filterTo(mutableSetOf()) { key ->
-            val bare = key.substringAfter(nsSeparator, key)
-            shapes.any { it.reaches(key, bare, nsSeparator, keySeparator) }
-        }
-    }
-
-    /**
-     * Whether one key is reachable, for a caller holding one key at a time.
-     *
-     * [literals] is the caller's own cache of the dynamic literals each word leads to, kept
-     * across the keys of one pass: an inspection visits every property of a translation file, and
-     * they share their prefixes almost entirely — the whole of `status.*` asks the same single
-     * word. Without it the same search would run once per property, on every keystroke.
-     */
-    fun isReached(
-        key: String,
-        scope: GlobalSearchScope,
-        searchHelper: PsiSearchHelper,
-        nsSeparator: String,
-        keySeparator: String,
-        literals: MutableMap<String, Set<String>>,
-    ): Boolean {
-        val bare = key.substringAfter(nsSeparator, key)
-        return wordsOf(key, nsSeparator, keySeparator).any { word ->
-            literals.getOrPut(word) { dynamicLiterals(word, scope, searchHelper) }
-                .any { DynamicReach.shapeOf(it)?.reaches(key, bare, nsSeparator, keySeparator) == true }
-        }
-    }
-
-    /** The text of every dynamic key literal [word] leads to that has a static part. */
-    private fun dynamicLiterals(
-        word: String,
-        scope: GlobalSearchScope,
-        searchHelper: PsiSearchHelper,
-    ): Set<String> {
-        // The search calls the processor from several threads at once: a plain set lost hits.
-        val literals: MutableSet<String> = ConcurrentHashMap.newKeySet()
-        val languages = Extensions.LANG.extensionList
-        searchHelper.processElementsWithWord(
-            { element, _ ->
-                val literal = languages.firstNotNullOfOrNull { it.resolveLiteral(element) }
-                val text = literal?.text?.unQuote()
-                if (text != null && DynamicReach.shapeOf(text) != null) literals.add(text)
-                true
-            },
-            scope,
-            word,
-            IndirectKeyUsages.keySearchContext(scope.project),
-            true
-        )
-        return literals
-    }
 
     /** The distinct words to search for, on behalf of all of [keys]. */
     internal fun searchWords(keys: List<String>, nsSeparator: String, keySeparator: String): List<String> =

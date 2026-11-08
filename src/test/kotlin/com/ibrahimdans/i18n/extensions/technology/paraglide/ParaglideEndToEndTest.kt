@@ -9,7 +9,7 @@ import com.ibrahimdans.i18n.plugin.ide.hint.HintProvider
 import com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages
 import com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection
 import com.ibrahimdans.i18n.plugin.ide.launchActionAndWait
-import com.ibrahimdans.i18n.plugin.ide.references.code.ParaglideGotoDeclarationHandler
+import com.ibrahimdans.i18n.extensions.lang.js.ParaglideGotoDeclarationHandler
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig

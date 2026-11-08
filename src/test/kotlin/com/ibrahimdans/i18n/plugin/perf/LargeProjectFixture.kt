@@ -1,6 +1,5 @@
 package com.ibrahimdans.i18n.plugin.perf
 
-import com.ibrahimdans.i18n.plugin.ide.codevision.TranslationUsagesCodeVisionProvider
 
 /**
  * A project the size of a real multi-namespace app: [LOCALES] × [NAMESPACES] JSON files laid out
@@ -56,8 +55,8 @@ internal object LargeProjectFixture {
         """.trimMargin()
     }
 
-    /** Keys of [catalog], at the code vision's limit: past it, the provider shows nothing. */
-    const val CATALOG_KEYS = TranslationUsagesCodeVisionProvider.MAX_KEYS
+    /** Keys of [catalog]: the code vision's former limit, kept so the measures stay comparable. */
+    const val CATALOG_KEYS = 100
     /** How many times [catalogComponent] calls the first catalog key, well past the code vision's cap. */
     const val POPULAR_KEY_CALLS = 300
 

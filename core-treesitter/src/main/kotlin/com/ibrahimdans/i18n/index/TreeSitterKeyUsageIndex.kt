@@ -14,6 +14,7 @@ import com.ibrahimdans.i18n.plugin.parser.KeyResolver
 import com.ibrahimdans.i18n.plugin.tree.ContextKey
 import com.ibrahimdans.i18n.plugin.tree.ContextOption
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
+import com.ibrahimdans.i18n.plugin.usages.CallSiteIndex
 import com.ibrahimdans.i18n.plugin.usages.DynamicReach
 import com.ibrahimdans.i18n.plugin.utils.TextSpan
 import com.ibrahimdans.i18n.plugin.utils.unQuote
@@ -52,16 +53,12 @@ class TreeSitterKeyUsageIndex(
     private val context = KeyContext(config, keyScopes = { keyScopes }, fallbackNamespaces = { fallbackNamespaces })
     private val defaultNamespaces = config.defaultNamespaces()
 
-    /** The call sites of each indexed file. */
-    private val files = mutableMapOf<String, List<CallSite>>()
-
-    /** The call sites under each key path, the paths above it included. */
-    private val byPath = mutableMapOf<List<String>, MutableSet<CallSite>>()
+    /** The call sites of each indexed file, under their key paths. */
+    private val sites = CallSiteIndex<CallSite>()
 
     /** (Re)indexes the file at [path], whose content is [text]. */
     @Synchronized
     fun update(path: String, text: String) {
-        remove(path)
         val root = TreeSitterCodeNode.parseTsx(text, path)
         val sites = ConstantKeys.findKeys(text, root, extractors, imports).mapNotNull { (node, rawKey) ->
             val key = KeyResolver.parse(rawKey, context) ?: return@mapNotNull null
@@ -75,23 +72,12 @@ class TreeSitterKeyUsageIndex(
                 key.context,
             )
         }
-        files[path] = sites
-        for (site in sites) for (depth in 1..site.path.size) {
-            byPath.getOrPut(site.path.subList(0, depth)) { mutableSetOf() } += site
-        }
+        this.sites.update(path, sites)
     }
 
     /** Drops the file at [path] from the index, if it was indexed. */
     @Synchronized
-    fun remove(path: String) {
-        val sites = files.remove(path) ?: return
-        for (site in sites) for (depth in 1..site.path.size) {
-            val prefix = site.path.subList(0, depth)
-            val left = byPath[prefix] ?: continue
-            left -= site
-            if (left.isEmpty()) byPath -= prefix
-        }
-    }
+    fun remove(path: String) = sites.remove(path)
 
     /**
      * [key] spelled as [KeyUsageIndex] states, `common:menu.home`; a plural form stands for the key
@@ -103,9 +89,9 @@ class TreeSitterKeyUsageIndex(
     override fun usages(key: String): List<KeyUsage> {
         val namespace = KeySpelling.namespaceOf(key)
         val path = pathOf(key)
-        val own = pathsOf(key).flatMap { byPath[it].orEmpty() }
+        val own = pathsOf(key).flatMap { sites.under(it) }
         val variantOf = variantOf(path)?.let { (basePath, context) ->
-            byPath[basePath].orEmpty().filter { it.path == basePath && ContextKey.reads(it.context, context) }
+            sites.at(basePath).filter { ContextKey.reads(it.context, context) }
         }.orEmpty()
         return (own + variantOf).filter { it.worksIn(namespace) }.map { it.usage }.distinct()
     }
@@ -142,12 +128,8 @@ class TreeSitterKeyUsageIndex(
      */
     @Synchronized
     override fun dynamicallyReached(keys: Collection<String>): Set<String> {
-        val shapes = files.values.flatMapTo(mutableSetOf()) { sites -> sites.mapNotNull { it.shape } }
-        if (shapes.isEmpty()) return emptySet()
-        return keys.filterTo(mutableSetOf()) { key ->
-            val bare = key.substringAfter(config.nsSeparator, key)
-            shapes.any { it.reaches(key, bare, config.nsSeparator, config.keySeparator) }
-        }
+        val shapes = sites.sites().mapNotNullTo(mutableSetOf()) { it.shape }
+        return DynamicReach.reached(keys, shapes, config.nsSeparator, config.keySeparator)
     }
 
     /**
@@ -167,12 +149,13 @@ class TreeSitterKeyUsageIndex(
             for (written in pathsOf(key)) for (depth in 1..written.size) known.getOrPut(written.subList(0, depth)) { mutableSetOf() } += namespace
             variantOf(path)?.let { (basePath, context) -> variants.getOrPut(basePath) { mutableSetOf() } += context to namespace }
         }
-        return files.values.flatten()
+        return sites.sites()
             .filter { site ->
                 site.key != null && known[site.path].orEmpty().none(site::worksIn) &&
                     variants[site.path].orEmpty().none { (context, namespace) -> ContextKey.reads(site.context, context) && site.worksIn(namespace) }
             }
             .map { KeyCall(it.key!!, it.usage) }
+            .toList()
     }
 
     /**
@@ -182,12 +165,12 @@ class TreeSitterKeyUsageIndex(
      */
     private inner class CallSite(
         val usage: KeyUsage,
-        val path: List<String>,
+        override val path: List<String>,
         val namespaces: List<String>,
         val key: String?,
         val shape: DynamicReach.Shape?,
         val context: ContextOption?,
-    ) {
+    ) : CallSiteIndex.Site {
 
         /**
          * True when the call site works in [namespace], or in a default one for a key spelled

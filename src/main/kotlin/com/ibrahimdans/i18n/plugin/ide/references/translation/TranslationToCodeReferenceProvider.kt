@@ -1,7 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.references.translation
 
 import com.ibrahimdans.i18n.Extensions
-import com.ibrahimdans.i18n.extensions.lang.js.extractors.AngularI18nMetadata
 import com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideOutdir
 import com.ibrahimdans.i18n.extensions.technology.symfony.SymfonyCatalogue
 import com.ibrahimdans.i18n.extensions.technology.symfony.SymfonyTranslations
@@ -10,11 +9,14 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.tree.KeyComposer
 import com.ibrahimdans.i18n.plugin.tree.Separators
+import com.ibrahimdans.i18n.plugin.ide.usages.CodeUsageIndexService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
+import com.ibrahimdans.i18n.plugin.utils.ownerOf
 import com.ibrahimdans.i18n.plugin.utils.keyScopeOf
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.ibrahimdans.i18n.plugin.utils.usageScope
 import com.intellij.codeInsight.daemon.impl.DaemonProgressIndicator
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.Computable
@@ -102,7 +104,7 @@ class ReferencesAccumulator(
         val generated = entry.containingFile?.virtualFile?.let(ParaglideOutdir::contains) == true
         val languages = Extensions.LANG.extensionList
         // An Angular marker names its key inside metadata (`:@@home.title:Welcome`): its id is compared.
-        val angularId = AngularI18nMetadata.keyOf(entry)
+        val angularId = languages.firstNotNullOfOrNull { it.metadataKeyOf(entry) }
         val text = angularId ?: entry.text.unQuote()
         if (!generated && namesKey(text) && underExpectedNamespace(entry, text, languages)) {
             if (angularId != null) res.add(entry)
@@ -171,37 +173,47 @@ class TranslationToCodeReference(
 ) : PsiReferenceBase<PsiElement>(element, textRange), PsiPolyVariantReference {
 
     /**
-     * Finds usages of json translation
+     * The call sites naming [composedKey], read from the index of the code's usages
+     * ([CodeUsageIndexService]) and found again in their files: one look-up per key, where each
+     * resolve searched the project for the key's words.
+     *
+     * Before the index was ever built, on the event dispatch thread — a Ctrl+click in the
+     * translation file opening the project —, the key's words are searched for instead: building
+     * the index there would freeze the IDE for as long as reading the whole project takes.
      */
     fun findRefs(): Collection<PsiElement> {
-        return ProgressManager.getInstance().runProcess (
+        val project = element.project
+        val config = Settings.getInstance(project).config()
+        val separators = Separators(config.nsSeparator, config.keySeparator, config.pluralSeparator)
+        // The composed key carries its namespace only when it is not a default one; a key composed
+        // without a namespace is one of the defaults — which is what a bare call site works under.
+        val namespace = composedKey.substringBefore(separators.ns, "")
+        val (bareKey, readFrom) = if (namespaces != null) composedKey to namespaces
+            else composedKey.substringAfter(separators.ns) to (if (namespace.isEmpty()) config.defaultNamespaces() else listOf(namespace))
+        val index = CodeUsageIndexService.getInstance(project)
+        if (!index.isBuilt && ApplicationManager.getApplication().isDispatchThread) return searchRefs(bareKey, separators, readFrom)
+        // In a monorepo, the code of the module owning this translation file only.
+        val module = ModuleSources.ownerOf(project, element.containingFile?.virtualFile)
+        return index.elementsOf(index.calls(bareKey, readFrom, module)).distinct()
+    }
+
+    /** [findRefs] by a search of the key's words. */
+    private fun searchRefs(bareKey: String, separators: Separators, readFrom: List<String>): Collection<PsiElement> =
+        ProgressManager.getInstance().runProcess(
             Computable {
                 val project = element.project
-                val config = Settings.getInstance(project).config()
-                val separators = Separators(config.nsSeparator, config.keySeparator, config.pluralSeparator)
-                // The composed key carries its namespace only when it is not a default one;
-                // the accumulator wants the two apart, and a key composed without a namespace
-                // is one of the defaults — which is what a bare call site works under.
-                val namespace = composedKey.substringBefore(separators.ns, "")
-                val referencesAccumulator = if (namespaces != null) ReferencesAccumulator(composedKey, separators, namespaces)
-                    else ReferencesAccumulator(
-                        composedKey.substringAfter(separators.ns),
-                        separators,
-                        if (namespace.isEmpty()) config.defaultNamespaces() else listOf(namespace),
-                    )
-                // In a monorepo, the code of the module owning this translation file only.
+                val accumulator = ReferencesAccumulator(bareKey, separators, readFrom)
                 PsiSearchHelper.getInstance(project).processElementsWithWord(
-                    referencesAccumulator.process(),
+                    accumulator.process(),
                     ModuleSources.usageScope(project, element.containingFile?.virtualFile),
                     composedKey,
                     IndirectKeyUsages.keySearchContext(project),
                     true
                 )
-                referencesAccumulator.entries()
+                accumulator.entries()
             },
             DaemonProgressIndicator()
         )
-    }
 
     override fun resolve(): PsiElement? = multiResolve(false).firstOrNull()?.element
 

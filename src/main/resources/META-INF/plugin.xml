@@ -153,7 +153,10 @@
     ]]>
     </change-notes>
 
-    <depends>JavaScript</depends>
+    <!-- Optional: without the JavaScript plugin (IntelliJ IDEA Community, Android Studio, PyCharm, an unlicensed IDEA 2025.3+)
+         the plugin loads with the translation files alone. Every JavaScript-side extension is in jsConfig.xml: no class
+         the trunk registers reaches the JavaScript PSI, which the Plugin Verifier checks on IntelliJ IDEA Community. -->
+    <depends optional="true" config-file="jsConfig.xml">JavaScript</depends>
     <depends optional="true" config-file="ymlConfig.xml">org.jetbrains.plugins.yaml</depends>
     <depends optional="true" config-file="phpConfig.xml">com.jetbrains.php</depends>
     <depends optional="true" config-file="vueConfig.xml">org.jetbrains.plugins.vue</depends>
@@ -170,6 +173,8 @@
         <extensionPoint interface="com.ibrahimdans.i18n.Lang" name="lang" dynamic="true"/>
         <extensionPoint interface="com.ibrahimdans.i18n.TranslationTechnology" name="technology" dynamic="true"/>
         <extensionPoint interface="com.ibrahimdans.i18n.ComponentSourceProvider" name="componentSources" dynamic="true"/>
+        <!-- What a language plugin reads in the code: registered by its config file (jsConfig.xml), absent without it. -->
+        <extensionPoint interface="com.ibrahimdans.i18n.CodeReader" name="codeReader" dynamic="true"/>
     </extensionPoints>
     <projectListeners>
         <!-- i18n-check.json read again as soon as it changes. -->
@@ -189,34 +194,15 @@
         <fileType name="XLIFF" language="XML" extensions="xlf;xliff" fieldName="INSTANCE"
                   implementationClass="com.ibrahimdans.i18n.extensions.localization.xliff.XliffFileType"/>
         <psi.referenceContributor language="XML" implementation="com.ibrahimdans.i18n.extensions.localization.xliff.XliffReferenceContributor"/>
-        <!-- Angular's `$localize`:@@id:text``: a tagged template, matched by no call-based contributor. -->
-        <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.lang.js.extractors.LocalizeReferenceContributor"/>
         <errorHandler implementation="com.ibrahimdans.i18n.plugin.ide.diagnostic.GitHubErrorReportSubmitter"/>
         <codeInsight.daemonBoundCodeVisionProvider implementation="com.ibrahimdans.i18n.plugin.ide.codevision.TranslationUsagesCodeVisionProvider"/>
         <notificationGroup id="i18n Support Plus" displayType="STICKY_BALLOON"/>
         <notificationGroup id="i18n Support Plus results" displayType="BALLOON"/>
-        <!-- One annotator for every JS dialect: annotators are inherited, so JSX, TypeScript and TSX
-             get it through JavaScript. The JSX one is used because its language is a superset of
-             JsLang, whose markup extractors need XML PSI that plain JS/TS files never hold. A
-             declaration per dialect annotated a .tsx key once per class. -->
-        <annotator language="JavaScript" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsxCompositeKeyAnnotator"/>
         <gotoDeclarationHandler implementation="com.ibrahimdans.i18n.plugin.ide.references.code.I18nGotoDeclarationHandler"/>
-        <gotoDeclarationHandler order="first" implementation="com.ibrahimdans.i18n.plugin.ide.references.code.ParaglideGotoDeclarationHandler"/>
-        <gotoDeclarationHandler order="first" implementation="com.ibrahimdans.i18n.extensions.lang.js.ConstantKeyGotoDeclarationHandler"/>
-        <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.lang.js.JsReferenceContributor"/>
-        <!-- JavaScript, not JSX Harmony alone: a .tsx file is TypeScript JSX, a dialect of JavaScript, never of JSX Harmony. -->
-        <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.lang.js.JsxReferenceContributor"/>
-        <psi.referenceContributor language="JavaScript" implementation="com.ibrahimdans.i18n.extensions.localization.js.TsLocalizationReferenceContributor"/>
         <psi.referenceContributor language="JSON" implementation="com.ibrahimdans.i18n.extensions.localization.json.JsonReferenceContributor"/>
         <!-- vue-i18n's linked messages (`@:key`) in a translation value: navigation and unknown keys -->
         <psi.referenceContributor language="JSON" implementation="com.ibrahimdans.i18n.plugin.ide.references.translation.LinkedMessageReferenceContributor"/>
         <annotator language="JSON" implementationClass="com.ibrahimdans.i18n.plugin.ide.references.translation.LinkedMessageAnnotator"/>
-        <!-- One completion contributor for every JS dialect: contributors are inherited, so JSX,
-             TypeScript and TSX get it through JavaScript. A declaration per dialect ran it twice
-             in a .tsx file. -->
-        <completion.contributor language="JavaScript" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsCompletionContributor"/>
-        <completion.contributor language="JavaScript" order="first" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.ParaglideCompletionContributor"/>
-        <completion.contributor language="JavaScript" order="first" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.TypesafeI18nCompletionContributor"/>
         <projectService serviceImplementation="com.ibrahimdans.i18n.plugin.ide.settings.Settings"/>
         <projectConfigurable groupId="tools" displayName="i18n Support Plus" instance="com.ibrahimdans.i18n.plugin.ide.settings.Configurable"/>
         <projectConfigurable parentId="preference.i18nPlugin" id="preference.i18nPlugin.modules"
@@ -235,27 +221,6 @@
         <intentionAction>
             <className>com.ibrahimdans.i18n.plugin.ide.actions.ExtractI18nIntentionAction</className>
         </intentionAction>
-        <lang.foldingBuilder language="TypeScript" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder"/>
-        <lang.foldingBuilder language="JavaScript" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder"/>
-        <lang.foldingBuilder language="TypeScript JSX" implementationClass="com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder"/>
-        <!-- First: on Paraglide's `m.hello` the IDE's JavaScript documentation of the generated function
-             answered instead. HintProvider returns null on anything but a key, so nothing else changes. -->
-        <lang.documentationProvider language="JavaScript" order="first" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
-        <lang.documentationProvider language="JSX Harmony" order="first" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
-        <lang.documentationProvider language="TypeScript" order="first" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
-        <lang.documentationProvider language="TypeScript JSX" order="first" implementationClass="com.ibrahimdans.i18n.plugin.ide.hint.HintProvider"/>
-        <!-- codeInsight.declarativeInlayProvider, not declarativeInlayHintsProvider: the latter names no
-             extension point, and the platform ignores an unknown one without a word — the provider was
-             never registered, so no hint ever showed and the settings page never listed it. `group` is
-             required: the settings model calls requiredGroup(), which refuses a missing one. Declared on
-             JavaScript only, like the line marker below: a .tsx collects the providers of its base
-             languages too, and one declaration per dialect rendered the same hint three times. -->
-        <codeInsight.declarativeInlayProvider language="JavaScript"
-            implementationClass="com.ibrahimdans.i18n.plugin.ide.inlay.I18nInlayHintsProvider"
-            providerId="i18n.translations.inlay"
-            group="OTHER_GROUP"
-            bundle="messages.I18nBundle"
-            nameKey="inlay.hints.name"/>
         <!-- The reference locale's value after each value of a JSON translation file. Declared on JSON
              only: JSON5 is a dialect of it and inherits the provider. YAML is in ymlConfig.xml. -->
         <codeInsight.declarativeInlayProvider language="JSON"
@@ -264,9 +229,6 @@
             group="OTHER_GROUP"
             bundle="messages.I18nBundle"
             nameKey="inlay.reference.name"/>
-        <!-- Declared on JavaScript only: JSX, TypeScript and TSX are dialects of it and inherit the
-             provider. One declaration per dialect made a .tsx collect the same marker several times. -->
-        <codeInsight.lineMarkerProvider language="JavaScript" implementationClass="com.ibrahimdans.i18n.plugin.ide.I18nGutterIconProvider"/>
         <!-- Review state of each value of a JSON translation file (JSON5 and ARB included), with its decisions on click. -->
         <codeInsight.lineMarkerProvider language="JSON" implementationClass="com.ibrahimdans.i18n.plugin.review.ui.ReviewLineMarkerProvider"/>
         <postStartupActivity implementation="com.ibrahimdans.i18n.plugin.ide.settings.StartupAction"/>
@@ -280,7 +242,6 @@
                 implementation="com.ibrahimdans.i18n.plugin.ide.search.TranslationSearchEverywhereContributor$Factory"/>
         <renameHandler implementation="com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler"/>
         <renamePsiElementProcessor implementation="com.ibrahimdans.i18n.extensions.localization.arb.ArbRenameProcessor" order="first"/>
-        <renamePsiElementProcessor implementation="com.ibrahimdans.i18n.plugin.ide.actions.RenameNamespaceProcessor" order="first"/>
         <automaticRenamerFactory implementation="com.ibrahimdans.i18n.plugin.ide.actions.RenameNamespaceOption"/>
         <statusBarWidgetFactory id="com.ibrahimdans.i18n.previewLocale"
                                 implementation="com.ibrahimdans.i18n.plugin.ide.preview.PreviewLocaleWidgetFactory"
@@ -390,50 +351,6 @@
             enabledByDefault="true"
             level="WEAK WARNING"
             implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.StaleTranslationInspection"/>
-        <localInspection
-            language="JavaScript"
-            groupName="i18n Support Plus"
-            key="inspection.interpolation.arguments.display.name"
-            shortName="I18nInterpolationArguments"
-            enabledByDefault="true"
-            level="WARNING"
-            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.InterpolationArgumentsInspection"/>
-        <localInspection
-            language="JavaScript"
-            groupName="i18n Support Plus"
-            key="inspection.hardcoded.jsx.text.display.name"
-            shortName="I18nHardcodedJsxText"
-            enabledByDefault="false"
-            level="WEAK WARNING"
-            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedJsxTextInspection"/>
-        <localInspection
-            language="JavaScript"
-            groupName="i18n Support Plus"
-            key="inspection.hardcoded.js.string.display.name"
-            shortName="I18nHardcodedJsString"
-            enabledByDefault="false"
-            level="WEAK WARNING"
-            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedJsStringInspection"/>
-        <!-- Svelte is no dependency of the plugin: its markup is a dialect of HTML, which the
-             inspection reads only in a .svelte file the Svelte plugin parses. -->
-        <localInspection
-            language="HTML"
-            groupName="i18n Support Plus"
-            key="inspection.hardcoded.svelte.text.display.name"
-            shortName="I18nHardcodedSvelteText"
-            enabledByDefault="false"
-            level="WEAK WARNING"
-            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedSvelteTextInspection"/>
-        <!-- Astro is no dependency of the plugin either: its language is a dialect of JavaScript, which
-             the inspection reads only in a .astro file the Astro plugin parses. -->
-        <localInspection
-            language="JavaScript"
-            groupName="i18n Support Plus"
-            key="inspection.hardcoded.astro.text.display.name"
-            shortName="I18nHardcodedAstroText"
-            enabledByDefault="false"
-            level="WEAK WARNING"
-            implementationClass="com.ibrahimdans.i18n.extensions.lang.js.HardcodedAstroTextInspection"/>
     </extensions>
     <actions>
         <!-- One family per section: configuration, keys, machine translation, exchange, generation;
@@ -477,16 +394,6 @@
         <action id="com.ibrahimdans.i18n.ToggleFolding"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.ToggleFoldingAction"
                 icon="AllIcons.General.InspectionsEye"/>
-        <!-- No default shortcut: ctrl alt shift B is Surround With in the Linux keymaps (GNOME, KDE, XWin). -->
-        <action id="com.ibrahimdans.i18n.BatchExtractI18n"
-                class="com.ibrahimdans.i18n.plugin.ide.actions.BatchExtractI18nAction">
-            <add-to-group group-id="CodeMenu" anchor="last"/>
-        </action>
-        <!-- Files and folders of the Project view, or the file of the editor: hidden elsewhere by its update(). -->
-        <action id="com.ibrahimdans.i18n.Internationalize"
-                class="com.ibrahimdans.i18n.plugin.ide.actions.i18nize.I18nizeAction">
-            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
-        </action>
         <!-- No default shortcut (see SyncKeys); the status bar widget is the click path. -->
         <action id="com.ibrahimdans.i18n.SwitchPreviewLocale"
                 class="com.ibrahimdans.i18n.plugin.ide.actions.SwitchPreviewLocaleAction"/>
@@ -526,7 +433,7 @@
             <reference ref="com.ibrahimdans.i18n.MoveI18nKey"/>
             <reference ref="com.ibrahimdans.i18n.DeleteI18nKey"/>
             <separator/>
-            <reference ref="com.ibrahimdans.i18n.Internationalize"/>
+            <!-- Internationalize sits here too, added by jsConfig.xml where the action is declared. -->
             <reference ref="com.ibrahimdans.i18n.SortI18nKeys"/>
             <separator/>
             <reference ref="com.ibrahimdans.i18n.ToggleFolding"/>
@@ -549,9 +456,7 @@
     </actions>
     <extensions defaultExtensionNs="com.ibrahimdans.i18n">
         <localization implementation="com.ibrahimdans.i18n.extensions.localization.json.JsonLocalization"/>
-        <localization implementation="com.ibrahimdans.i18n.extensions.localization.js.TsLocalization"/>
-        <lang implementation="com.ibrahimdans.i18n.extensions.lang.js.JsLang"/>
-        <lang implementation="com.ibrahimdans.i18n.extensions.lang.js.JsxLang"/>
+        <!-- i18next and vue-i18n stay here, without JavaScript: their names, and the files the settings name. jsConfig.xml adds what their code says. -->
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.i18next.I18NextTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.vuei18n.VueI18nTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.lingui.LinguiTechnology"/>
@@ -560,11 +465,9 @@
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.transloco.TranslocoTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.sveltei18n.SvelteI18nTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.paraglide.ParaglideTechnology"/>
-        <technology implementation="com.ibrahimdans.i18n.extensions.technology.tscatalog.TsCatalogTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.i18njs.I18nJsTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.localization.arb.ArbCatalogues"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.nextintl.NextIntlTechnology"/>
-        <technology implementation="com.ibrahimdans.i18n.extensions.technology.typesafei18n.TypesafeI18nTechnology"/>
         <!-- Angular's native i18n: the XLIFF files angular.json lists, read as sources. -->
         <localization implementation="com.ibrahimdans.i18n.extensions.localization.xliff.XliffLocalization"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.angulari18n.AngularI18nTechnology"/>

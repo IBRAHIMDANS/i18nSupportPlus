@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n
 
 import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
+import com.ibrahimdans.i18n.plugin.ide.actions.KeyRenameSites
 import com.ibrahimdans.i18n.plugin.parser.CodeNode
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.utils.PsiCodeNode
@@ -43,6 +44,23 @@ interface Lang : CodeLang {
      * contributors never reach — a Twig string, whose token asks none — and the language gives them.
      */
     fun references(literal: PsiElement): List<PsiReference> = literal.references.toList()
+
+    /**
+     * Whether [element] bounds a function: the markup above it does not show what the function
+     * computes, so a call inside one has no UI role. False for a language without functions in
+     * its PSI, which is the default.
+     */
+    fun isFunctionBoundary(element: PsiElement): Boolean = false
+
+    /**
+     * The key [element] names in metadata rather than in its text — the `@@id` of an Angular `i18n`
+     * attribute or `$localize` template — or null when [element] is no such marker, or the language
+     * has none, which is the default.
+     */
+    fun metadataKeyOf(element: PsiElement): String? = null
+
+    /** Where this language writes a key outside a translation call's literal, for a rename; null when nowhere, the default. */
+    fun renameSites(): KeyRenameSites? = null
 
     override fun canExtractKey(node: CodeNode, translationFunctionNames: List<String>): Boolean =
         node is PsiCodeNode && canExtractKey(node.element, translationFunctionNames)

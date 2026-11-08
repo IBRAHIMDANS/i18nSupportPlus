@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test
 class I18NextTechnologyTest : PlatformBaseTest() {
 
     private val technology = I18NextTechnology()
+    private val reader = I18nextJsReader()
 
     @Test
     fun findInitObject_returnsNull_whenConfigHasNoInlineResources() {
@@ -38,7 +39,7 @@ class I18NextTechnologyTest : PlatformBaseTest() {
             """.trimIndent()
         )
 
-        val init = ReadAction.compute<Any?, RuntimeException> { technology.findInitObject(file) }
+        val init = ReadAction.compute<Any?, RuntimeException> { reader.findInitObject(file) }
 
         Assertions.assertNull(init, "must return null, not throw, when no inline resources object exists")
     }
@@ -58,7 +59,7 @@ class I18NextTechnologyTest : PlatformBaseTest() {
             """.trimIndent()
         )
 
-        val init = ReadAction.compute<Any?, RuntimeException> { technology.findInitObject(file) }
+        val init = ReadAction.compute<Any?, RuntimeException> { reader.findInitObject(file) }
 
         Assertions.assertNotNull(init, "the init object holding `resources` must be found")
     }
@@ -75,7 +76,7 @@ class I18NextTechnologyTest : PlatformBaseTest() {
             """.trimIndent()
         )
 
-        val files = ReadAction.compute<List<String>, RuntimeException> { technology.configFiles(project, Settings.getInstance(project).config()).map { it.name } }
+        val files = ReadAction.compute<List<String>, RuntimeException> { reader.configFiles(project, Settings.getInstance(project).config()).map { it.name } }
 
         Assertions.assertEquals(listOf("i18n.js"), files)
     }

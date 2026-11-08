@@ -35,6 +35,21 @@ gouttière, ni `GutterUiComponent.hoverOverIcon` (ligne comptée à partir de 0)
 petits pas, n'a ouvert l'infobulle (2026-11-01). Attendre « `i18n:` » ne prouve rien : la barre d'état
 affiche `i18n: en · 100 %`.
 
+Piste clavier essayée le 2026-11-08 (WebStorm 2025.3.4, Starter), abandonnée. Ce qu'on sait, pour ne pas le refaire :
+- `EditorFocusGutter` (*Focus Gutter*, `Alt+Shift+6 F`) est désactivé tant que `ScreenReader.isActive()` est faux :
+  « action is disabled (early check) ». `ScreenReader.setActive(true)` par un `@Remote` sur la classe l'active.
+- Sous Xvfb sans gestionnaire de fenêtres, la fenêtre n'a aucun propriétaire de focus
+  (`KeyboardFocusManager.getFocusOwner()` = null) : *Focus Gutter* ne focalise rien. Un `editor.click()` avant le
+  rétablit. Le premier élément de la ligne est le numéro de ligne ; une flèche droite passe à l'icône du plugin.
+- `EditorShowGutterIconTooltip` (`Alt+Shift+6 T`) ouvre alors la bonne infobulle, au bon endroit, avec la nouvelle icône.
+  Mais l'infobulle prend le focus et affiche un curseur de texte après « fr ». `waitForText` ne la lit pas :
+  c'est un `LimitedWidthJBHtmlPane`, et son `getText()` coupe « 1/<wbr>2 ».
+- Échec final : une fois l'infobulle ouverte en mode lecteur d'écran, le Driver échoue sur
+  `javax.swing.text.html.AccessibleHTML$RootHTMLAccessibleContext`. L'erreur sort après la détection de l'infobulle et
+  avant la capture. Aucune capture n'a été produite, donc pas de paire identique.
+- Le mode lecteur d'écran élargit aussi la gouttière (les numéros de ligne se décalent) : le cadrage ne serait pas
+  celui de `gutter-icons.png`.
+
 ## Captures de la fenêtre d'outil et des réglages — refaites le 2026-11-02
 
 Vues *Tree / Table / Stats* dans la barre d'outils (#669), libellés et sous-pages de #666 / #667, WebStorm 2025.3.4 (Starter).

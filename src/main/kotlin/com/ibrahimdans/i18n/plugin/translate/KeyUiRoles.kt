@@ -1,9 +1,9 @@
 package com.ibrahimdans.i18n.plugin.translate
 
+import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.plugin.ide.IdeKeyUsageIndex
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.intellij.lang.injection.InjectedLanguageManager
-import com.intellij.lang.javascript.psi.JSFunction
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -48,12 +48,13 @@ object KeyUiRoles {
      */
     fun roleOf(element: PsiElement): String? {
         val injections = InjectedLanguageManager.getInstance(element.project)
+        val langs = Extensions.LANG.extensionList
         var current: PsiElement? = element
         while (current != null) {
+            if (langs.any { it.isFunctionBoundary(current) }) return null
             when (current) {
                 is XmlAttribute -> return attributeRole(current)
                 is XmlTag -> return nameOf(current)?.let { "text of <$it>" }
-                is JSFunction -> return null
                 is PsiFile -> current = injections.getInjectionHost(current)
                 else -> current = current.parent
             }

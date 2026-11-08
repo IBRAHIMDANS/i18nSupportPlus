@@ -1,26 +1,25 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
 import com.ibrahimdans.i18n.Extensions
-import com.ibrahimdans.i18n.IdeI18nRegistry
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
-import com.ibrahimdans.i18n.plugin.ide.toolwindow.DynamicKeyUsages
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.ide.usages.CodeUsageIndexService
 import com.ibrahimdans.i18n.plugin.tree.KeyComposer
 import com.ibrahimdans.i18n.plugin.tree.Separators
-import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
-import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.ibrahimdans.i18n.plugin.utils.keyScopeOf
+import com.ibrahimdans.i18n.plugin.utils.ownerOf
 import com.ibrahimdans.i18n.plugin.utils.usageScope
 import com.intellij.json.psi.JsonProperty
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.parents
 import com.intellij.util.Processor
@@ -28,8 +27,9 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Where the code uses a key of a translation file: the references found on its declaration, the
- * call sites naming it without a reference ([IndirectKeyUsages]), the keys the code builds at
- * runtime that may reach it, and the keys the project keeps. Shared by *Unused translation key* and
+ * call sites naming it without a reference and the keys the code builds at runtime that may reach
+ * it — both read from the index of the code's usages ([CodeUsageIndexService]) —, and the keys the
+ * project keeps. Shared by *Unused translation key* and
  * the usage count shown above each key, so both agree on what "used" means.
  *
  * In a monorepo, only the code of the module owning the key's file counts ([ModuleSources.usageScope]):
@@ -66,59 +66,72 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
      * A reference search does not see such a call site: `t(`common:status.${'$'}{kind}`)` writes no
      * name to search for, and the reference it does carry resolves onto the property's *key
      * literal*, which is not what `ReferencesSearch` on the property compares against. So the
-     * `status.*` keys were underlined as never used, with a *Delete* quick fix one click away —
-     * the same defect the tool window's scan carried, and here with no preview standing between
-     * the user and the deletion. [DynamicKeyUsages] answers for both places now.
+     * `status.*` keys were underlined as never used, with a *Delete* quick fix one click away.
+     * The index of the code's usages ([CodeUsageIndexService]) answers for the table and here.
      *
      * The key is composed here rather than read back from the element's own reference: the
      * provider attaches one only when the key already occurs somewhere in the sources, which by
      * definition is never the case for the keys this inspection is about to report.
      */
-    fun reachedDynamically(element: PsiElement, heads: MutableMap<String, Set<String>>): Boolean =
-        ReadAction.compute<Boolean, RuntimeException> {
-            val project = element.project
-            val config = Settings.getInstance(project).config()
-            DynamicKeyUsages.isReached(
-                keyOf(element, config),
-                scopeOf(element),
-                PsiSearchHelper.getInstance(project),
-                config.nsSeparator,
-                config.keySeparator,
-                heads,
-            )
-        }
+    fun reachedDynamically(element: PsiElement): Boolean = element in reachedDynamically(listOf(element))
+
+    /** Those of [elements] — of one file — that a key the code builds at runtime may reach: one question for them all. */
+    fun reachedDynamically(elements: List<PsiElement>): Set<PsiElement> {
+        val first = elements.firstOrNull() ?: return emptySet()
+        val (keys, module) = keysOf(elements)
+        val reached = CodeUsageIndexService.getInstance(first.project).dynamicallyReached(keys.values.toSet(), module)
+        return keys.filterValues { it in reached }.keys
+    }
 
     /**
-     * How many call sites use this key, found by searching the code for its words rather than by
-     * its references: the calls naming it, with or without its namespace (`t('common:menu.home')`,
-     * `useTranslation('common')` + `t('menu.home')`), a constant holding it, a Paraglide `m.key`,
-     * a translation value linking to it; then the calls under a hook's key prefix
-     * (`useTranslation('common', { keyPrefix: 'profile' })` + `t('name')`) or with a `{ ns }`
-     * option (`t('label', { ns: 'other' })`). The orphan scan has always counted them this way, and
-     * every call site the plugin's reference of [count] resolves to is among them — so this is the
+     * How many call sites use this key, read from the index of the code's usages
+     * ([CodeUsageIndexService]): the calls naming it, with or without its namespace
+     * (`t('common:menu.home')`, `useTranslation('common')` + `t('menu.home')`), a constant holding
+     * it, a Paraglide `m.key`, an Angular `@@id`, a translation value linking to it, the calls under a
+     * hook's key prefix (`useTranslation('common', { keyPrefix: 'profile' })` + `t('name')`) or reading
+     * it as an i18next context — what the table's *Usage* column counts, so the two agree. It is the
      * count shown above a key, and the inspection asks it of a key [count] left at zero.
      *
-     * Last, for a key none of these searches finds, the platform's reference search on the key's
+     * Last, for a key the index does not find, the platform's reference search on the key's
      * declaration: nothing of the plugin's resolves onto it (see [count]), but a reference another
      * plugin contributes might. It is kept to the code: the same-named properties of the other
      * locales, which the JSON plugin gives a name reference, were most of its candidates.
      *
-     * Two word searches, then a prefix search, then the reference search, each only when the
-     * previous one found nothing.
+     * At most [MAX_PLATFORM_SEARCHES] of these per question, the others left at what the index says:
+     * for a key spelled with a common word (`title`), the search reads every file holding the word —
+     * 200 such keys of one file held a highlighting pass for 194 s on the benchmark, 5.5 s once warm.
      */
-    fun indirectCount(element: PsiElement): Int =
-        ReadAction.compute<Int, RuntimeException> {
-            val project = element.project
+    fun indirectCount(element: PsiElement): Int = indirectCounts(listOf(element)).getValue(element)
+
+    /** [indirectCount] of each of [elements] — of one file —, the index asked once for them all. */
+    fun indirectCounts(elements: List<PsiElement>): Map<PsiElement, Int> {
+        val first = elements.firstOrNull() ?: return emptyMap()
+        val (keys, module) = keysOf(elements)
+        val found = CodeUsageIndexService.getInstance(first.project).usages(keys.values.toSet(), module)
+        var searches = 0
+        return keys.mapValues { (element, key) ->
+            found[key]?.count?.takeIf { it > 0 }
+                ?: if (searches++ >= MAX_PLATFORM_SEARCHES) 0
+                else ReadAction.compute<Int, RuntimeException> { platformReferenceCount(element, scopeOf(element)) }
+        }
+    }
+
+    /** How many keys of one question the platform's reference search is run for, when the index finds none. */
+    internal const val MAX_PLATFORM_SEARCHES = 20
+
+    /**
+     * Whether a highlighting pass may count now: the index of the code's usages is built. Until it is,
+     * it is built in the background and the pass shows nothing — a key counted from a half-read
+     * project would be reported unused while the code uses it.
+     */
+    fun readyForHighlighting(project: Project): Boolean = CodeUsageIndexService.getInstance(project).readyForHighlighting()
+
+    /** The key each of [elements] declares, and the module owning their file, whose code alone counts. */
+    private fun keysOf(elements: List<PsiElement>): Pair<Map<PsiElement, String>, ModuleConfig?> =
+        ReadAction.compute<Pair<Map<PsiElement, String>, ModuleConfig?>, RuntimeException> {
+            val project = elements.first().project
             val config = Settings.getInstance(project).config()
-            val key = keyOf(element, config)
-            val scope = scopeOf(element)
-            IndirectKeyUsages.textCount(
-                key, config, scope, PsiSearchHelper.getInstance(project),
-                FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry),
-            )
-                .takeIf { it > 0 }
-                ?: IndirectKeyUsages.prefixedUsages(project, listOf(key), config)[key].orEmpty().count { it.isIn(scope) }.takeIf { it > 0 }
-                ?: platformReferenceCount(element, scope)
+            elements.associateWith { keyOf(it, config) } to ModuleSources.ownerOf(project, elements.first().containingFile?.virtualFile)
         }
 
     /**
@@ -189,7 +202,3 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
         TranslationFileScope.sourceOf(file)?.let { TranslationDataLoader.extractNamespace(it, config.defaultNamespaces().first()) }
             ?: file.name.substringBeforeLast(".")
 }
-
-/** True when [this] lies in a file [scope] holds: the prefix scan searches the whole project. */
-internal fun PsiElement.isIn(scope: GlobalSearchScope): Boolean =
-    containingFile?.virtualFile?.let(scope::contains) == true

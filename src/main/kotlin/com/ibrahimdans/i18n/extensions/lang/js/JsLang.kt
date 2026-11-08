@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.extensions.lang.js
 import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.*
 import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
+import com.ibrahimdans.i18n.plugin.ide.actions.KeyRenameSites
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.ide.settings.FrameworkDetector
 import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
@@ -15,6 +16,7 @@ import com.ibrahimdans.i18n.plugin.utils.hostFile
 import com.ibrahimdans.i18n.plugin.utils.type
 import com.intellij.lang.javascript.patterns.JSPatterns
 import com.intellij.patterns.ElementPattern
+import com.intellij.lang.javascript.psi.JSFunction
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.lang.javascript.psi.JSThisExpression
@@ -186,6 +188,12 @@ open class JsLang : Lang {
         NEXT_INTL_RAW.canExtract(element) || SVELTE_I18N_JSON.canExtract(element)
 
     override fun foldingProvider(): FoldingProvider = JsFoldingProvider()
+
+    override fun isFunctionBoundary(element: PsiElement): Boolean = element is JSFunction
+
+    override fun metadataKeyOf(element: PsiElement): String? = AngularI18nMetadata.keyOf(element)
+
+    override fun renameSites(): KeyRenameSites = JsKeyRenameSites
 
     override fun translationExtractor(): TranslationExtractor = JsTranslationExtractor()
 

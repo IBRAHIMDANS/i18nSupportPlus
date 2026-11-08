@@ -5,7 +5,14 @@
 ### Features
 
 - [CLI] **Check your translations with `npx`, without Java**: `npx i18n-support-plus --code` runs `i18n-check` as a native binary on Linux, macOS, Windows and Alpine, and starts in a fraction of a second, which suits a pre-commit hook. Alpine checks the translation files but not the code.
+- [Installation] **The plugin installs without the JavaScript plugin**: IntelliJ IDEA Community, Android Studio, PyCharm and an unlicensed IntelliJ IDEA 2025.3+ get the tool window, the inspections of the translation files, machine translation and the AI agent tools. The keys in your code, their completion and extraction still need the JavaScript plugin, bundled with WebStorm, IntelliJ IDEA Ultimate and PhpStorm.
 - [AI agents] **An agent translating through the tools keeps your terminology**: `i18n_missing_translations` now gives, with the keys to translate, the project's glossary and the translations already in place that share a word with them, so a term you left in English or translated a given way stays so.
+
+### Improvements
+
+- [Tool window] ***Count Key Usages* reads the code once for all the keys**: on a large project the count takes seconds instead of minutes, and counting again after an edit only reads the files that changed.
+- [Editor] **The usage count shows above every key, whatever the size of the file**: it stopped past 100 keys and read "99+" for a popular key. It now gives the exact count on every key, read from the same index as the tool window, and *Unused translation key* and *Find Usages* on a key no longer search the project for each key.
+- [Editor] **Opening a translation file no longer holds the editor while the plugin reads the code**: the code's key usages are read in the background, with a progress bar, and the counts and *Unused translation key* warnings appear once they are read. No key is reported unused in the meantime.
 
 ### Fixes
 
