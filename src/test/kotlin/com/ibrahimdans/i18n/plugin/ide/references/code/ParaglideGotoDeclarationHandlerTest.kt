@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.references.code
 
+import com.ibrahimdans.i18n.extensions.lang.js.ParaglideGotoDeclarationHandler
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config

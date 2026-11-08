@@ -1,6 +1,9 @@
-package com.ibrahimdans.i18n.plugin.ide.references.code
+package com.ibrahimdans.i18n.extensions.lang.js
 
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.ParaglideMessageExtractor
+import com.ibrahimdans.i18n.plugin.ide.references.code.I18nGotoDeclarationHandler
+import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
+import com.ibrahimdans.i18n.plugin.ide.references.code.ReferenceDescriptor
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver

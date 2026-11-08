@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.extensions.lang.js
 import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.*
 import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
+import com.ibrahimdans.i18n.plugin.ide.actions.KeyRenameSites
 import com.ibrahimdans.i18n.plugin.factory.TranslationExtractor
 import com.ibrahimdans.i18n.plugin.ide.settings.FrameworkDetector
 import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
@@ -191,6 +192,8 @@ open class JsLang : Lang {
     override fun isFunctionBoundary(element: PsiElement): Boolean = element is JSFunction
 
     override fun metadataKeyOf(element: PsiElement): String? = AngularI18nMetadata.keyOf(element)
+
+    override fun renameSites(): KeyRenameSites = JsKeyRenameSites
 
     override fun translationExtractor(): TranslationExtractor = JsTranslationExtractor()
 
