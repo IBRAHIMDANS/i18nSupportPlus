@@ -80,14 +80,27 @@ internal fun phpRawKey(element: PsiElement, rawKey: RawKey): RawKey {
 private val PHRASE_SEPARATORS = listOf('.', ':')
 
 /**
- * The functions a PHP key may be passed to: the GetText aliases in GetText mode, otherwise the
- * names the technologies publish that PHP can call — plus Laravel's helpers in a Laravel project.
+ * The functions a PHP key may be passed to: the GetText aliases and GetText's plural call in GetText
+ * mode, otherwise the names the technologies publish that PHP can call — plus Laravel's helpers in a
+ * Laravel project. A key is the first argument of each of them.
  */
 internal fun phpTranslationFunctionNames(project: Project, config: Config, technologyNames: List<String>): List<String> {
-    if (config.gettext) return config.gettextAliases.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    if (config.gettext) {
+        val aliases = config.gettextAliases.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        return (aliases + GETTEXT_PLURAL_CALLS).distinct()
+    }
     val published = technologyNames.filter { PhpPatternsExt.isValidPhpFunctionName(it) }
     return if (LaravelProject.isLaravel(project)) published + LARAVEL_TRANSLATION_FUNCTIONS else published
 }
+
+/**
+ * GetText's plural call, read without a setting: `ngettext('apple', 'apples', $n)` is the entry whose
+ * msgid is `apple`. Only its first argument is a key — the second is that entry's `msgid_plural`, not
+ * an entry of its own. `dngettext($domain, $singular, $plural, $n)` is left out: its msgid is the
+ * second argument, looked up in the catalogue its domain names, which the aliases do not model either
+ * (`dgettext` is not read).
+ */
+private val GETTEXT_PLURAL_CALLS = listOf("ngettext")
 
 /** The name of the function or method called with [element] among its arguments, or null. */
 internal fun phpCalleeOf(element: PsiElement): String? =

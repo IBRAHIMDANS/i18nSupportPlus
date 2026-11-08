@@ -24,6 +24,7 @@
 - [Editor] **A translation file open while the plugin reads the code gets its usage counts**: the counts above its keys appeared only after closing and reopening the file. They now show as soon as the code is read.
 - [Twig] ***Show Translations Inline* and *Switch Preview Locale* are offered in Twig templates**: the editor's *i18n* submenu left them out of a `.twig` file, although its keys fold to their values. They now show wherever the plugin reads keys.
 - [Editor] **No more error report while the editor checks a key passed through a constant**: with `t(KEYS.save)` or `t(SAVE_KEY)` in a project of several files, the inspections could stop on a `ConcurrentModificationException` and ask to report it. The search for the constant's uses now runs safely across files.
+- [PHP] **`ngettext()` is read in GetText mode**: `ngettext('apple', 'apples', $n)` was ignored unless you added it to the GetText aliases. Its first argument is now checked and Ctrl+clickable like a `gettext()` key, and the plural form is left alone, since it belongs to the same `.po` entry.
 
 
 ## 1.19.1 - 2026-11-06
