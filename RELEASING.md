@@ -25,6 +25,9 @@ The count of `(regression in x.y.z)` entries, written in each release PR, sets t
 zero allows two trains a week; a rising count means the soak gets longer, not the week shorter.
 The plugin collects no usage data, and this count is what stands in for it.
 
+*Prepare Release* warns, without blocking, when a minor is tagged on another day than Tuesday or when
+the last commit of `main` is less than 20 hours old. It is a reminder: the person running it decides.
+
 Why not slower: the Marketplace exceptions and the few issues are the only feedback there is, and
 they arrive within days of a release. A monthly release would leave a crash with every user for a
 month and make the What's New too long to read.
