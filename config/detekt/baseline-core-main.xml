@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>TooGenericExceptionCaught:HttpTranslationProvider.kt:HttpTranslationProvider$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:HttpTranslationProvider.kt:HttpTranslationProvider.Companion$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ProjectConfigFile.kt:ProjectConfigFile$e: Exception</ID>
+    <ID>UnsafeCallOnNullableType:CompositeKeyResolver.kt:CompositeKeyResolver$parent.element!!</ID>
+    <ID>UnsafeCallOnNullableType:PhpArrayTranslationTree.kt:PhpArrayTranslationTree.Parser$following!!</ID>
+    <ID>UnsafeCallOnNullableType:PhpArrayTranslationTree.kt:PhpArrayTranslationTree.Parser$next()!!</ID>
+    <ID>UnsafeCallOnNullableType:PhpArrayTranslationTree.kt:PhpArrayTranslationTree.Parser$peek()!!</ID>
+    <ID>UnsafeCallOnNullableType:SymfonyXliffTree.kt:SymfonyXliffTree.Reader$it.value().key!!</ID>
+    <ID>UnsafeCallOnNullableType:TranslationEditor.kt:node.value().keySpan!!</ID>
+  </CurrentIssues>
+</SmellBaseline>

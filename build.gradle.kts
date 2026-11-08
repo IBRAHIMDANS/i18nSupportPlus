@@ -52,7 +52,29 @@ plugins {
     id("org.jetbrains.intellij.platform") version "2.19.0"
     id("org.jetbrains.changelog") version "2.5.0"
     id("org.gradle.test-retry") version "1.6.6"
+    // 2.0 is the first line built on Kotlin 2.4: 1.23 parses with Kotlin 2.0 and refuses to run beside 2.4.
+    id("dev.detekt") version "2.0.0-alpha.6"
     id("jacoco")
+}
+
+// Static analysis of the four modules, against config/detekt/detekt.yml only. What the code already breaks is
+// frozen per module in config/detekt/baseline-<module>-main.xml: `detektMain` fails on new findings only.
+// Regenerate a baseline with `detektBaselineMain` after fixing entries, never to hide a new finding.
+allprojects {
+    apply(plugin = "dev.detekt")
+    extensions.configure<dev.detekt.gradle.extensions.DetektExtension> {
+        buildUponDefaultConfig.set(false)
+        config.setFrom(rootProject.file("config/detekt/detekt.yml"))
+        val module = if (this@allprojects == rootProject) "plugin" else this@allprojects.name
+        baseline.set(rootProject.file("config/detekt/baseline-$module.xml"))
+    }
+    // The plain `detekt` task reads no types, so UnsafeCallOnNullableType never runs, and it has no baseline
+    // of its own: `check` runs the analysis the CI runs instead.
+    // Hooked once Kotlin is applied: a module's build script applies it after this block runs.
+    pluginManager.withPlugin("org.jetbrains.kotlin.jvm") {
+        tasks.named("detekt") { enabled = false }
+        tasks.named("check") { dependsOn("detektMain") }
+    }
 }
 
 group = properties("pluginGroup").get()

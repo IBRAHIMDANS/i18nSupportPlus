@@ -275,6 +275,42 @@ jobs:
           min-coverage-overall: 60
           min-coverage-changed-files: 70
 
+  # detekt over the main sources of the four modules, with type resolution (config/detekt/detekt.yml).
+  # Fails on a finding its module's baseline does not hold: the code that predates the rules passes,
+  # new code is held to them. Apart from the shards, so a lint failure reads as such.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    # The shards' cache holds the IDE the plugin's analysis resolves types against. Read-only: the
+    # shards write it on main.
+    env:
+      GRADLE_BUILD_ACTION_CACHE_KEY_JOB: test
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6.4.1
+        with:
+          cache-read-only: true
+
+      - name: Run detekt
+        run: ./gradlew detektMain --continue
+
+      - name: Upload detekt reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: detekt-reports
+          path: '**/build/reports/detekt/'
+
   # The descriptor the *next* release would ship, not the one on this branch.
   #
   # Checking the branch as it stands proves nothing: pluginVersion still points at the last

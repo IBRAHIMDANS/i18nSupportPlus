@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>TooGenericExceptionCaught:Main.kt:I18nCheck$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SettingsFile.kt:SettingsFile$e: Exception</ID>
+    <ID>UnsafeCallOnNullableType:LocaleDirectory.kt:LocaleDirectory$CheckFormats.PROPERTIES.parse(TextFiles.readBundle(file))!!</ID>
+    <ID>UnsafeCallOnNullableType:LocaleDirectory.kt:LocaleDirectory$CheckFormats.unreadable(CheckFormats.ARB, file)!!</ID>
+    <ID>UnsafeCallOnNullableType:ProjectSources.kt:ProjectSources$source.tree!!</ID>
+  </CurrentIssues>
+</SmellBaseline>

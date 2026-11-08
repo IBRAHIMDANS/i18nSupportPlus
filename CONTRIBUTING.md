@@ -99,6 +99,10 @@ The former `runWebStorm` + xdotool process remains the fallback for an image no 
 ./gradlew check
 ```
 
+Lint: `./gradlew detektMain` runs detekt on the four modules (`check` runs it too); the CI `lint` job
+fails on a finding absent from `config/detekt/baseline-<module>-main.xml`, so only new code is held to
+the rules of `config/detekt/detekt.yml`. Fix the finding rather than regenerating a baseline.
+
 CI splits the plugin's suite into four shards, each test class assigned by a hash of its name.
 To rerun the shard that failed, pass its number: `./gradlew :test -PtestShard=2/4`.
 
