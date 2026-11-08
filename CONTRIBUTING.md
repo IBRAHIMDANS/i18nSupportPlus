@@ -102,6 +102,10 @@ The former `runWebStorm` + xdotool process remains the fallback for an image no 
 CI splits the plugin's suite into four shards, each test class assigned by a hash of its name.
 To rerun the shard that failed, pass its number: `./gradlew :test -PtestShard=2/4`.
 
+`./gradlew verifyPlugin` checks `plugin.xml` and binary compatibility against the IDEs the
+Marketplace recommends. It downloads several IDEs (tens of GB): rather than running it locally,
+start the *Plugin Compatibility* workflow on your branch (`gh workflow run compatibility.yml --ref <branch>`).
+
 Test fixtures live in `src/test/resources/` (`keyExtraction/`, `references/`, `folding/`…). Most
 plugin tests extend `PlatformBaseTest`; `TestsCommon.kt` holds the shared helpers
 (`runWithConfig`, `launchActionAndWait`).
@@ -123,10 +127,14 @@ plugin tests extend `PlatformBaseTest`; `TestsCommon.kt` holds the shared helper
   bumped at release time only
 - Pull requests target `main`, which is protected (no direct push), and reference the issue
   they close: `Fixes #123`
-- New code runs long work in coroutines; `Task.Backgroundable` and `invokeAndWait` are not used.
-  Launch in the project's `PluginCoroutineScope`, report with `withBackgroundProgress`, read with
-  `readAction` (or `coroutineToIndicator` for code that expects a `ProgressIndicator`), and come
-  back to the EDT with `withContext(Dispatchers.EDT)` for dialogs and write commands
+- New code runs long work in coroutines: launch in the project's `PluginCoroutineScope`, report
+  with `withBackgroundProgress` (or `coroutineToIndicator` for code that expects a
+  `ProgressIndicator`), and come back to the EDT with `withContext(Dispatchers.EDT)` for dialogs
+  and write commands. Do not add `Task.Backgroundable`, `Task.Modal` or `invokeAndWait`; the few
+  existing `Task.*` are tolerated and migrated when their code is touched
+- Reads: `readAction { }` inside a coroutine, `ReadAction.nonBlocking { }` outside one. Leave the
+  existing `ReadAction.compute` calls as they are: their replacement does not exist in build 252,
+  the oldest one the plugin supports
 - To report a problem, use the [issue templates](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/new/choose)
 
 ## Optional plugin dependencies and test sandbox notes

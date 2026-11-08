@@ -11,7 +11,6 @@ on:
     paths-ignore:
       - 'docs/**'
       - '.github/ISSUE_TEMPLATE/**'
-      - 'BUILDING.md'
       - 'CONTRIBUTING.md'
       - 'RELEASING.md'
       - 'LICENSE'
@@ -20,7 +19,6 @@ on:
     paths-ignore:
       - 'docs/**'
       - '.github/ISSUE_TEMPLATE/**'
-      - 'BUILDING.md'
       - 'CONTRIBUTING.md'
       - 'RELEASING.md'
       - 'LICENSE'
