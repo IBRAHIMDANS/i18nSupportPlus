@@ -5,6 +5,8 @@ import com.ibrahimdans.i18n.extensions.lang.js.ReactIntlCall
 import com.ibrahimdans.i18n.extensions.lang.js.TranslationHookInScope
 import com.ibrahimdans.i18n.extensions.lang.js.formatMessageInScope
 import com.ibrahimdans.i18n.plugin.factory.CallTemplate
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
+import com.ibrahimdans.i18n.plugin.rules.HookGives
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSExpression
 import com.intellij.lang.javascript.psi.JSFunction
@@ -35,10 +37,10 @@ internal data class CodeEdit(val range: TextRange, val text: String)
  */
 internal object HookInsertion {
 
-    const val HOOK = "useTranslation"
+    val HOOK = FrameworkPresets.I18NEXT_HOOK
     const val MODULE = "react-i18next"
 
-    private val HOOKS = setOf(HOOK, "useI18n")
+    private val HOOKS = FrameworkPresets.hookNames(HookGives.NAMESPACES)
     private const val GLOBAL_CALL = "i18n.t("
 
     const val USE_INTL = "useIntl"
