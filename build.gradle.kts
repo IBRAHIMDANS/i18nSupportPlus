@@ -314,6 +314,10 @@ intellijPlatform {
             // No JavaScript plugin: every class plugin.xml registers must load without it (the dependency is
             // optional). The last Community release; 2025.3 and later are the unified IntelliJ IDEA.
             create(IntelliJPlatformType.IntellijIdeaCommunity, "2025.2.6.4")
+            // Android Studio has no JavaScript nor YAML plugin either, and its own version numbers: Panda 4
+            // (2025.3.4.6, Release) sits on platform 253.32098.37, the reference IntelliJ IDEA 2025.3.4's.
+            // To move it, pick a Release of the wanted platform in https://jb.gg/android-studio-releases-list.xml.
+            create(IntelliJPlatformType.AndroidStudio, "2025.3.4.6")
         }
     }
 }
