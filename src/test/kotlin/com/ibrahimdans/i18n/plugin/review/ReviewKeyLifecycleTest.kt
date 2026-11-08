@@ -14,6 +14,8 @@ import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.command.undo.UndoManager
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.TestDialog
@@ -26,6 +28,7 @@ import com.intellij.testFramework.PlatformTestUtil
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
+import java.util.concurrent.CountDownLatch
 
 /**
  * The reviews of a key follow it when it is renamed, moved to another namespace or deleted, in the
@@ -234,5 +237,31 @@ class ReviewKeyLifecycleTest : PlatformBaseTest() {
         Assertions.assertEquals(0, scan.count)
         Assertions.assertEquals(1, scan.skipped.size, "the module is reported, not cleaned")
         Assertions.assertEquals(setOf(ReviewKey("common", "button.save")), reviews("en").keys)
+    }
+
+    @Test
+    fun aCleanupCancelledWhileItScansOpensNothingAndDeletesNothing() {
+        addFileToProject("locales/en/common.json", """{"button": {"save": "Save"}}""")
+        approve("en", mapOf(ReviewKey("common", "button.save") to "Save", ReviewKey("common", "gone.key") to "Gone"))
+        val before = reviews("en").keys
+        val started = CountDownLatch(1)
+        // A scan that ends only once cancelled, checking for it as the real one does between modules.
+        fun endless(@Suppress("UNUSED_PARAMETER") project: Project): CleanupReviewsAction.Scan {
+            started.countDown()
+            while (true) {
+                ProgressManager.checkCanceled()
+                Thread.onSpinWait()
+            }
+        }
+        TestDialogManager.setTestDialog { message -> throw AssertionError("Unexpected modal: $message") }
+
+        val job = CleanupReviewsAction.run(project, ::endless)
+        PlatformTestUtil.waitWithEventsDispatching("the scan never started", { started.count == 0L }, 30)
+        job.cancel()
+        PlatformTestUtil.waitWithEventsDispatching("the cancelled scan never ended", { job.isCompleted }, 30)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        Assertions.assertTrue(job.isCancelled, "the job ends cancelled")
+        Assertions.assertEquals(before, reviews("en").keys, "no review deleted")
     }
 }
