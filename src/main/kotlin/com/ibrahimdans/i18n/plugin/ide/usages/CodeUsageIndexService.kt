@@ -57,11 +57,11 @@ import java.util.concurrent.atomic.AtomicLong
  * the file being read, which is read again, never the pass. Then kept up to date per file: an edited
  * file is read again ([PsiTreeChangeAdapter], [BulkFileListener] for a change from outside the IDE),
  * an added, moved or deleted one is found by listing the files again when the file structure or the
- * project roots changed. A change of [Settings] — separators, namespaces, function names — drops it
- * all: the next question rebuilds it.
+ * project roots changed. A change of [Settings] — separators, namespaces, function names — or of the
+ * key scopes the technologies declare drops it all: the next question rebuilds it.
  *
- * What depends on the module asked, the key scopes, the `fallbackNS` and whether the code names keys
- * as identifiers is applied when asking, never when indexing.
+ * What depends on the module asked, the `fallbackNS` and whether the code names keys as identifiers
+ * is applied when asking, never when indexing.
  */
 @Service(Service.Level.PROJECT)
 internal class CodeUsageIndexService(private val project: Project) : Disposable {
@@ -75,9 +75,9 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
     /** The translation values linking to a key, read again whole whenever a translation file changes. */
     private var linked: List<LinkedSite> = emptyList()
 
-    /** The settings the index was built with. */
+    /** The settings and key scopes the index was built with. */
     @Volatile
-    private var builtWith: Config? = null
+    private var builtWith: Pair<Config, Set<String>>? = null
 
     /** The file structure and project roots the files were last listed under. */
     @Volatile
@@ -247,15 +247,15 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
      * returns the settings it now holds. Reads off the lock, writes under it.
      */
     private fun refresh(): Config {
-        val config = readStep { Settings.getInstance(project).config() }
-        if (config != builtWith) {
+        val (config, keyScopes) = readStep { Settings.getInstance(project).config() to keyScopesOf(project) }
+        if (config to keyScopes != builtWith) {
             synchronized(this) {
                 sites.clear()
                 hosts.clear()
                 linked = emptyList()
             }
             dirty.clear()
-            builtWith = config
+            builtWith = config to keyScopes
             listedAt = -1
             linkedStale = true
         }
@@ -269,11 +269,11 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
             listed.filter { it.path !in known }.forEach { dirty.putIfAbsent(it, generation.incrementAndGet()) }
             listedAt = stamp
         }
-        indexDirty(config)
+        indexDirty(config, keyScopes)
         if (linkedStale) {
             linkedStale = false
             val read = readStep {
-                val indexer = CodeUsageIndexer(project, config)
+                val indexer = CodeUsageIndexer(project, config, keyScopes)
                 translationValueFiles(config).mapNotNull { PsiManager.getInstance(project).findFile(it) }.flatMap(indexer::linkedSitesOf)
             }
             synchronized(this) { linked = read }
@@ -281,12 +281,12 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
         return config
     }
 
-    private fun indexDirty(config: Config) {
+    private fun indexDirty(config: Config, keyScopes: Set<String>) {
         val pending = dirty.entries.map { it.key to it.value }
         if (pending.isEmpty()) return
         val indicator = ProgressManager.getInstance().progressIndicator
         indicator?.isIndeterminate = false
-        val indexer = CodeUsageIndexer(project, config)
+        val indexer = CodeUsageIndexer(project, config, keyScopes)
         pending.forEachIndexed { done, (file, marked) ->
             ProgressManager.checkCanceled()
             indicator?.fraction = done.toDouble() / pending.size

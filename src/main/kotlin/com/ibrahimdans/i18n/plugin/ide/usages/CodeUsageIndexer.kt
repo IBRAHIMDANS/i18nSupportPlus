@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.KeyUsage
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationKeyUsages
 import com.ibrahimdans.i18n.plugin.ide.references.translation.LinkedMessages
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.ContextOption
 import com.ibrahimdans.i18n.plugin.usages.CallSiteIndex
@@ -47,7 +48,7 @@ internal class TextSite(
 /**
  * A call reading its key through what it does not write: a hook's key prefix, a key scope, an i18next
  * context — what `IndirectKeyUsages.prefixedUsages` matches. [path] is the key resolved, prefix applied;
- * [scope] the single namespace that is a key scope when the project declares it one.
+ * [scope] the single namespace of its hook when the project declares it a key scope.
  */
 internal class PrefixedSite(
     override val path: List<String>,
@@ -74,9 +75,9 @@ internal class LinkedSite(val key: String, val text: String, val usage: KeyUsage
 /**
  * Reads the key usages of one file from its PSI, the way the usage searches read the elements they
  * find: every element of the file and of the languages injected into it, once, whatever key is asked
- * later. Settings-dependent: an indexer reads with the [config] it was made with.
+ * later. Settings-dependent: an indexer reads with the [config] and the [keyScopes] it was made with.
  */
-internal class CodeUsageIndexer(private val project: Project, private val config: Config) {
+internal class CodeUsageIndexer(private val project: Project, private val config: Config, private val keyScopes: Set<String>) {
 
     private val languages = Extensions.LANG.extensionList
     private val parser = RawKeyParser(project)
@@ -111,29 +112,41 @@ internal class CodeUsageIndexer(private val project: Project, private val config
         // An Angular marker names its key inside metadata (`:@@home.title:Welcome`): its id is compared.
         val angularId = AngularI18nMetadata.keyOf(element)
         val literal = languages.firstNotNullOfOrNull { it.resolveLiteral(element) }
-        if (!generated && (angularId != null || literal != null)) {
-            textSite(element, angularId ?: element.text.unQuote(), angularId?.let { element } ?: literal!!, host)?.let(sites::add)
+        if (angularId == null && literal == null) return
+        // Read once when the element is its own literal, as a JS string is: the hook is resolved for both reads.
+        val ownKey = lazy { rawKeyOf(element) }
+        if (!generated) {
+            textSite(element, angularId ?: element.text.unQuote(), angularId?.let { element } ?: literal!!, host, ownKey)?.let(sites::add)
         }
         if (literal != null && literals.add(literal)) {
-            prefixedSite(literal, host)?.let(sites::add)
+            prefixedSite(literal, host, if (literal === element) ownKey.value else rawKeyOf(literal))?.let(sites::add)
             DynamicReach.shapeOf(literal.text.unQuote())?.let { sites += DynamicSite(literal.text.unQuote(), it, host) }
         }
     }
 
-    private fun textSite(entry: PsiElement, text: String, counted: PsiElement, host: String): TextSite? {
+    private fun rawKeyOf(element: PsiElement): RawKey? = languages.firstNotNullOfOrNull { it.extractRawKey(element) }
+
+    private fun textSite(entry: PsiElement, text: String, counted: PsiElement, host: String, rawKey: Lazy<RawKey?>): TextSite? {
         val ns = config.nsSeparator
         val namespaced = text.contains(ns)
         val written = if (namespaced) text.substringAfter(ns) else text
         if (written.isEmpty()) return null
         val usage = usageOf(counted) ?: return null
-        val declared = if (namespaced) null else languages.firstNotNullOfOrNull { it.extractRawKey(entry)?.arguments?.ifEmpty { null } }
+        val declared = if (namespaced) null else rawKey.value?.arguments?.ifEmpty { null }
         val identifier = entry is LeafPsiElement && entry.node.elementType.toString().endsWith("IDENTIFIER")
         return TextSite(pathOf(written, config), written, if (namespaced) text.substringBefore(ns) else null, declared, identifier, usage, host)
     }
 
-    private fun prefixedSite(literal: PsiElement, host: String): PrefixedSite? {
-        val fullKey = languages.firstNotNullOfOrNull { it.extractRawKey(literal) }?.let { parser.parse(it) } ?: return null
-        val scope = fullKey.namespaces?.singleOrNull()?.takeIf { fullKey.ns == null }
+    /**
+     * Parsed only when the call reads through what it does not write — a key prefix, a context, a hook
+     * naming a key scope: the parse is most of what reading a file costs, and every other call is
+     * the text scan's.
+     */
+    private fun prefixedSite(literal: PsiElement, host: String, rawKey: RawKey?): PrefixedSite? {
+        if (rawKey == null) return null
+        if (rawKey.keyPrefix.isEmpty() && rawKey.context == null && rawKey.arguments.singleOrNull() !in keyScopes) return null
+        val fullKey = parser.parse(rawKey) ?: return null
+        val scope = fullKey.namespaces?.singleOrNull()?.takeIf { fullKey.ns == null && it in keyScopes }
         val keyPrefixed = fullKey.keyPrefix.isNotEmpty()
         if (!keyPrefixed && fullKey.context == null && scope == null) return null
         val usage = usageOf(literal) ?: return null
