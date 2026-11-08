@@ -67,11 +67,24 @@ Before triggering the release, check the docs that name a version:
 
 ### 2. Trigger the "Prepare Release" workflow
 
-Go to **GitHub → Actions → Prepare Release → Run workflow**, enter the target version and click **Run**.
+Go to **GitHub → Actions → Prepare Release → Run workflow** and click **Run**. The version field may
+stay empty: the next minor after the latest tag is taken (`v1.19.1` → `1.20.0`). Type one for a patch
+or a pre-release.
 
 | Field | Example |
 |---|---|
-| Version | `1.0.7` |
+| Version | empty, or `1.19.2`, or `1.20.0-beta.1` |
+
+Every Tuesday morning the same workflow runs on its own and only reminds: it opens an issue labelled
+`release-train` with the next version, the entries waiting under `Unreleased`, how many of them are
+marked as regressions, and whether `main` has had its day of soak. It publishes nothing, because the
+checks below are made by hand. Close the issue when the release PR is merged.
+
+Before running it:
+
+- `docs/COMPARISON.md`: the plugin's version and date, no stale `next`
+- `./gradlew verifyPlugin`: read the internal and deprecated API report, the Marketplace refuses an
+  upload on an internal API and the CI does not block it
 
 The workflow automatically:
 - Sets `pluginVersion = 1.0.7` in `gradle.properties`
