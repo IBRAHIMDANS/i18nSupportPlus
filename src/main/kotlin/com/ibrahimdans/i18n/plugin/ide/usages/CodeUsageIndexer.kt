@@ -130,6 +130,9 @@ internal class CodeUsageIndexer(private val project: Project, private val config
         val namespaced = text.contains(ns)
         val written = if (namespaced) text.substringAfter(ns) else text
         if (written.isEmpty()) return null
+        // Under a hook's key prefix, `t('title')` reads `header.title` only, never a key `title`: the
+        // prefixed site counts it.
+        if (!namespaced && rawKey.value?.keyPrefix?.isNotEmpty() == true) return null
         val usage = usageOf(counted) ?: return null
         val declared = if (namespaced) null else rawKey.value?.arguments?.ifEmpty { null }
         val identifier = entry is LeafPsiElement && entry.node.elementType.toString().endsWith("IDENTIFIER")
