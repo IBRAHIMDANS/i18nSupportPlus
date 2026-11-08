@@ -3,13 +3,20 @@ package com.ibrahimdans.i18n.plugin.ide.diff.git
 import com.ibrahimdans.i18n.plugin.ide.diff.TranslationChanges
 import com.ibrahimdans.i18n.plugin.ide.diff.TranslationChangesDialog
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginCoroutineScope
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.Task
+import com.intellij.openapi.application.EDT
+import com.intellij.openapi.progress.coroutineToIndicator
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import com.intellij.platform.ide.progress.withBackgroundProgress
 import git4idea.repo.GitRepositoryManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * *Compare Translations with Branch…*: the keys the working tree adds, removes or changes against a
@@ -37,24 +44,31 @@ class CompareTranslationsWithBranchAction : AnAction() {
             BranchTranslationChanges.defaultBase(names, BranchTranslationChanges.trackedBranch(project)),
             null,
         )?.trim()?.takeIf { it in names } ?: return
+        run(project, branch)
+    }
 
-        object : Task.Backgroundable(project, PluginBundle.message("diff.branch.progress", branch), true) {
-            private var found: TranslationChanges? = null
+    internal companion object {
 
-            override fun run(indicator: ProgressIndicator) {
-                found = BranchTranslationChanges.collect(project, branch)
+        /**
+         * Collects the changes against [branch] in the background, cancellable, then shows them on the EDT:
+         * a message when there is none, the changes dialog otherwise. Closing the project cancels it.
+         */
+        fun run(
+            project: Project,
+            branch: String,
+            collect: (Project, String) -> TranslationChanges = BranchTranslationChanges::collect,
+        ): Job = PluginCoroutineScope.of(project).launch {
+            val found = withBackgroundProgress(project, PluginBundle.message("diff.branch.progress", branch), cancellable = true) {
+                coroutineToIndicator { collect(project, branch) }
             }
-
-            override fun onSuccess() {
-                val result = found ?: return
-                if (result.changes.isEmpty()) {
-                    Messages.showInfoMessage(
-                        project, PluginBundle.message("diff.branch.none", branch), PluginBundle.message("diff.branch.title", branch)
-                    )
+            withContext(Dispatchers.EDT) {
+                val title = PluginBundle.message("diff.branch.title", branch)
+                if (found.changes.isEmpty()) {
+                    Messages.showInfoMessage(project, PluginBundle.message("diff.branch.none", branch), title)
                 } else {
-                    TranslationChangesDialog(project, result, PluginBundle.message("diff.branch.title", branch)).show()
+                    TranslationChangesDialog(project, found, title).show()
                 }
             }
-        }.queue()
+        }
     }
 }
