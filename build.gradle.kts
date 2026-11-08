@@ -546,8 +546,9 @@ tasks {
         // trips over its own teardown — a listener already disposed, an editor already closed —
         // and takes down whichever test was running at the time. A single retry separates that
         // from a real defect: a real defect fails twice. Off locally, so a flake you introduce
-        // while writing a test stays visible instead of being quietly retried away; the CI run
-        // still reports the retried tests as flaky rather than passing them off as green.
+        // while writing a test stays visible instead of being quietly retried away. A test that
+        // passes on retry leaves the build green: the CI's "Summarise the shards" step counts it
+        // and names it in a warning, so it is seen without failing the run.
         retry {
             maxRetries = if (providers.environmentVariable("CI").isPresent) 1 else 0
             failOnPassedAfterRetry = false
