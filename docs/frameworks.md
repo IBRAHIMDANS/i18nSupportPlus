@@ -31,7 +31,7 @@ No framework or file format is added without an issue or a [discussion](https://
 | [Laravel / Blade](#laravel-and-blade) | Supported | `__('key')`, `trans('key')`, `trans_choice('key', 2)`, `Lang::get`, `@lang('key')`, `@choice('key', n)` | No | [laravel](../examples/laravel/README.md) |
 | [Symfony / Twig](#symfony-and-twig) (`symfony/translation`) | Read | `$translator->trans('key', [], 'admin')`, `t('key')`, `new TranslatableMessage('key')`; in Twig `{{ 'key'\|trans }}`, `'key'\|trans({}, 'admin')`, `trans(domain='admin')`, `{% trans %}key{% endtrans %}`, `{% trans from 'admin' %}`, `{% trans_default_domain 'admin' %}` | No | [symfony](../examples/symfony/README.md) |
 
-Also ready to open: [flutter-arb](../examples/flutter-arb/README.md) (Flutter ARB catalogues), [spring-messages](../examples/spring-messages/README.md) (Java resource bundles), [php](../examples/php) (PHP gettext) and [simple](../examples/simple) (a single-namespace JSON project).
+Also ready to open: [flutter-arb](../examples/flutter-arb/README.md) (Flutter ARB catalogues), [spring-messages](../examples/spring-messages/README.md) (Java resource bundles), [php](../examples/php/README.md) (PHP gettext) and [simple](../examples/simple/README.md) (a single-namespace JSON project).
 
 ### i18next / react-i18next
 
