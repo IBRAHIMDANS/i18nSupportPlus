@@ -173,6 +173,47 @@ class UsageScanTest : PlatformBaseTest() {
         assertEquals(0, usagesOf("dashboard:unused"), "a genuinely unused key must stay an orphan")
     }
 
+    /**
+     * Under a hook key prefix, `t('title')` reads `header.title` only: it used to count for a top-level
+     * `title` too, which nothing reads, so *Cleanup unused keys* never offered to delete it.
+     */
+    @Test
+    fun `a call under a keyPrefix does not count for the bare key it writes`() {
+        myFixture.addFileToProject("locales/en/dashboard.json", """{"header": {"title": "Hi"}, "title": "Dead"}""")
+        myFixture.configureByText(
+            "Header.tsx",
+            """
+            import { useTranslation } from 'react-i18next';
+            export default function Header() {
+                const { t } = useTranslation('dashboard', { keyPrefix: 'header' });
+                return t('title');
+            }
+            """.trimIndent()
+        )
+
+        assertEquals(1, usagesOf("dashboard:header.title"))
+        assertEquals(0, usagesOf("dashboard:title"), "the bare key the prefixed call writes")
+    }
+
+    /** The same call under a hook without a prefix names the bare key. */
+    @Test
+    fun `a call under a hook without keyPrefix still counts for the key it writes`() {
+        myFixture.addFileToProject("locales/en/dashboard.json", """{"header": {"title": "Hi"}, "title": "Used"}""")
+        myFixture.configureByText(
+            "Title.tsx",
+            """
+            import { useTranslation } from 'react-i18next';
+            export default function Title() {
+                const { t } = useTranslation('dashboard');
+                return t('title');
+            }
+            """.trimIndent()
+        )
+
+        assertEquals(1, usagesOf("dashboard:title"))
+        assertEquals(0, usagesOf("dashboard:header.title"))
+    }
+
     @Test
     fun `a key used under a next-intl namespace is counted`() {
         myFixture.addFileToProject("messages/en.json", """{"Home": {"title": "Welcome"}}""")
