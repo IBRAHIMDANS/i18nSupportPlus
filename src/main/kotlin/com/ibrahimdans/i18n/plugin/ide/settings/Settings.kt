@@ -13,6 +13,7 @@ import com.intellij.openapi.components.Storage
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.guessProjectDir
 import com.intellij.openapi.vfs.VfsUtilCore
@@ -178,6 +179,8 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
         unsavedContent(file)?.let { return ConfigFileState(file, stamp, it, documentStamp) }
         return try {
             ConfigFileState(file, stamp, ProjectConfigFile.parse(VfsUtilCore.loadText(file)), documentStamp)
+        } catch (e: ProcessCanceledException) {
+            throw e
         } catch (e: Exception) {
             LOG.info("${ProjectConfigFile.PATH} is not read: ${e.message}")
             // Read again at each keystroke of an unsaved document: the file itself is reported once.
@@ -206,6 +209,8 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
         val document = documents.getCachedDocument(file)?.takeIf { documents.isDocumentUnsaved(it) } ?: return null
         return try {
             ProjectConfigFile.parse(runReadAction { document.text })
+        } catch (e: ProcessCanceledException) {
+            throw e
         } catch (e: Exception) {
             null
         }

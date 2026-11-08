@@ -28,6 +28,7 @@ import com.intellij.openapi.command.UndoConfirmationPolicy
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -182,6 +183,8 @@ class DialogViewModel(private val project: Project) : CompositeKeyResolver<PsiEl
             // An existing file is the user's: never overwritten.
             if (dir.findChild(fileName) != null) return
             dir.createChildData(this, fileName).setBinaryContent(emptyContentFor(fileName).toByteArray())
+        } catch (e: ProcessCanceledException) {
+            throw e
         } catch (e: Exception) {
             log.error("createNamespace: failed to create $path", e)
         }

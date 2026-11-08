@@ -1,17 +1,25 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.intellij.notification.Notification
+import com.intellij.notification.Notifications
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.project.guessProjectDir
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VfsUtilCore
+import com.intellij.testFramework.PlatformTestUtil
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -164,6 +172,56 @@ class ProjectConfigFileSettingsTest : PlatformBaseTest() {
         val view = ProjectConfigFileExport.viewFor(project)
         assertTrue(view.edit != null)
         assertEquals(mapOf("keySeparator" to "/"), view.held)
+    }
+
+    @Test
+    fun `a read of the file cancelled on the way is cancelled, not reported as a file that does not read`() {
+        addFileToProject(ProjectConfigFile.PATH, """{ "keySeparator": "/" }""")
+
+        val notifications = notified {
+            whileParsing({ true }) {
+                assertThrows(ProcessCanceledException::class.java) { settings.configFileChanged() }
+            }
+        }
+
+        assertTrue(notifications.isEmpty(), "a cancelled read must not be reported: $notifications")
+        assertEquals("/", settings.config().keySeparator)
+    }
+
+    @Test
+    fun `a read of the unsaved document cancelled on the way is cancelled, not left to the file`() {
+        addFileToProject(ProjectConfigFile.PATH, """{ "keySeparator": "/" }""")
+        editUnsaved("""{ "keySeparator": "#" }""")
+
+        whileParsing({ "#" in it }) {
+            assertThrows(ProcessCanceledException::class.java) { settings.configFileChanged() }
+        }
+
+        assertEquals("#", settings.config().keySeparator)
+    }
+
+    /** Runs [block] while [ProjectConfigFile.parse] is cancelled for the texts that match [cancelled]. */
+    private fun whileParsing(cancelled: (String) -> Boolean, block: () -> Unit) {
+        mockkObject(ProjectConfigFile)
+        try {
+            every { ProjectConfigFile.parse(match(cancelled)) } throws ProcessCanceledException()
+            block()
+        } finally {
+            unmockkObject(ProjectConfigFile)
+        }
+    }
+
+    /** The notifications posted while [run] runs. */
+    private fun notified(run: () -> Unit): List<Notification> {
+        val seen = mutableListOf<Notification>()
+        project.messageBus.connect(testRootDisposable).subscribe(Notifications.TOPIC, object : Notifications {
+            override fun notify(notification: Notification) {
+                seen += notification
+            }
+        })
+        run()
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+        return seen
     }
 
     /** Changes the document of `i18n-check.json` without saving it, as an undo does. */
