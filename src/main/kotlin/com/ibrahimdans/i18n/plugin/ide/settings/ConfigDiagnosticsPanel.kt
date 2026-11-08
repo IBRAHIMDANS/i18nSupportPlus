@@ -1,6 +1,5 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
-import com.ibrahimdans.i18n.extensions.technology.i18next.I18NextTechnology
 import com.ibrahimdans.i18n.plugin.ide.preview.EditorRefresh
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
@@ -216,7 +215,7 @@ fun namespaceFacts(project: Project, config: Config): NamespaceFacts {
             val byLocale = sources.filter { it.namespace != null || !it.isLocaleNamedFile() }
                 .groupBy({ it.localeLabel() }, { TranslationDataLoader.extractNamespace(it, default) })
                 .mapValues { (_, namespaces) -> namespaces.toSet() }
-            val code = I18NextTechnology.codeDefaultsOf(project, config)
+            val code = CodeSettingsReader.codeDefaults(project, config)
             val settings = Settings.getInstance(project)
             val applied = settings.codeDefaults()?.takeIf { settings.defaultNs.isBlank() && it.defaultNs.isNotEmpty() }
             NamespaceFacts(

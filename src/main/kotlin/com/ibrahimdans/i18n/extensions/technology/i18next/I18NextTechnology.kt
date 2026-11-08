@@ -4,8 +4,9 @@ import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
 
 import com.ibrahimdans.i18n.*
 import com.ibrahimdans.i18n.plugin.ide.settings.CodeDefaults
+import com.ibrahimdans.i18n.plugin.ide.settings.CodeSettingsReader
+import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.I18nextCliConfig
-import com.ibrahimdans.i18n.plugin.ide.settings.I18nextCliConfigReader
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.settings.searchScope
 import com.intellij.openapi.project.IndexNotReadyException
@@ -30,6 +31,7 @@ import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiReference
 import com.intellij.psi.search.FileTypeIndex
@@ -46,7 +48,7 @@ import com.intellij.util.containers.ContainerUtil
 import java.util.concurrent.ConcurrentHashMap
 import java.util.Collections
 
-class I18NextTechnology : Technology {
+class I18NextTechnology : Technology, CodeSettingsReader {
 
     private val MAX_RESOLVE_DEPTH = 10
 
@@ -176,7 +178,7 @@ class I18NextTechnology : Technology {
      * `i18next.config.*` the project holds ([discoveredFiles]), then the ones [initialize] found by
      * searching the word `translation`, looked up by name among TypeScript files.
      */
-    internal fun configFiles(project: Project, config: com.ibrahimdans.i18n.plugin.ide.settings.Config): List<VirtualFile> {
+    internal fun configFiles(project: Project, config: Config): List<VirtualFile> {
         val configured = config.jsConfiguration.split(',').map { it.trim().trim('/') }.filter { it.isNotEmpty() }
         if (configured.isNotEmpty()) {
             return configured.mapNotNull { path -> roots(project).firstNotNullOfOrNull { it.findFileByRelativePath(path) } }
@@ -252,7 +254,7 @@ class I18NextTechnology : Technology {
      * JavaScript or TypeScript file changes — per [Config.jsConfiguration] and search scope, the
      * only settings it depends on.
      */
-    fun codeDefaults(project: Project, config: com.ibrahimdans.i18n.plugin.ide.settings.Config): CodeDefaults? {
+    override fun codeDefaults(project: Project, config: Config): CodeDefaults? {
         if (project.isDisposed || DumbService.isDumb(project)) return null
         val answers = codeDefaultsCaches.computeIfAbsent(project) {
             CachedValuesManager.getManager(project).createCachedValue {
@@ -280,7 +282,7 @@ class I18NextTechnology : Technology {
     private val codeDefaultsCaches =
         ContainerUtil.createConcurrentWeakMap<Project, CachedValue<ConcurrentHashMap<Pair<String, Boolean>, CodeDefaultsAnswer>>>()
 
-    private fun readCodeDefaults(project: Project, config: com.ibrahimdans.i18n.plugin.ide.settings.Config): CodeDefaults? {
+    private fun readCodeDefaults(project: Project, config: Config): CodeDefaults? {
         val psiManager = PsiManager.getInstance(project)
         val fileIndex = ProjectFileIndex.getInstance(project)
         val read = configFiles(project, config).mapNotNull { file ->
@@ -332,11 +334,10 @@ class I18NextTechnology : Technology {
         return if(!(expr is PsiReference)) expr else resolveReferenceExpression(expr.resolve(), maxDepth-1)
     }
 
+    override fun wizardCliConfig(file: PsiFile, relativePath: String, isDirectory: (String) -> Boolean): I18nextCliConfig? =
+        I18nextCliConfigReader.readForWizard(file, relativePath, isDirectory)
+
     companion object {
         private const val NODE_MODULES = "/node_modules/"
-
-        /** [codeDefaults] of the registered i18next technology: what the settings use for their blanks. */
-        fun codeDefaultsOf(project: Project, config: com.ibrahimdans.i18n.plugin.ide.settings.Config): CodeDefaults? =
-            Extensions.TECHNOLOGY.extensionList.filterIsInstance<I18NextTechnology>().firstOrNull()?.codeDefaults(project, config)
     }
 }

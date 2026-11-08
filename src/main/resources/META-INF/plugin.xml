@@ -553,7 +553,7 @@
         <lang implementation="com.ibrahimdans.i18n.extensions.lang.js.JsLang"/>
         <lang implementation="com.ibrahimdans.i18n.extensions.lang.js.JsxLang"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.i18next.I18NextTechnology"/>
-        <technology implementation="com.ibrahimdans.i18n.extensions.technology.vuei18n.VueI18nTechnology"/>
+        <technology implementation="com.ibrahimdans.i18n.extensions.technology.vuei18n.VueI18nIdeTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.lingui.LinguiTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.reactintl.ReactIntlTechnology"/>
         <technology implementation="com.ibrahimdans.i18n.extensions.technology.ngxtranslate.NgxTranslateTechnology"/>

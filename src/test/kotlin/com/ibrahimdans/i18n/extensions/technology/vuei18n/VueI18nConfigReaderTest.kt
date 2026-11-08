@@ -1,5 +1,6 @@
-package com.ibrahimdans.i18n.plugin.ide.settings
+package com.ibrahimdans.i18n.extensions.technology.vuei18n
 
+import com.ibrahimdans.i18n.plugin.ide.settings.VueI18nConfig
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.intellij.openapi.application.runReadAction
 import org.junit.jupiter.api.Assertions.assertEquals
