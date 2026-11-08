@@ -44,7 +44,9 @@ class I18nMcpToolset : McpToolset {
             "the locale needs are listed one by one; 'pluralFromOther' means the source has no form of that category " +
             "and gives its 'other'. An ICU message ({count, plural, …}, select, selectordinal) is listed whole: write it " +
             "with the branches the locale needs. Items with 'skipped' (an ICU form the plugin does not handle) cannot " +
-            "be written by i18n_write_translations."
+            "be written by i18n_write_translations. 'glossary' (term → translation, a term mapped to itself stays as " +
+            "it is) and 'examples' (reference text → translation already in the locale) give the terminology in " +
+            "place: translate with the same words."
     )
     suspend fun i18n_missing_translations(
         @McpDescription(description = "Locale to fill, as listed by i18n_list_modules, e.g. 'de'") locale: String,

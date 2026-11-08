@@ -8,6 +8,8 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.review.Review
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
+import com.ibrahimdans.i18n.plugin.translate.GlossaryTerm
+import com.ibrahimdans.i18n.plugin.translate.MachineTranslationSettings
 import com.ibrahimdans.i18n.plugin.translate.PlaceholderMask
 import com.ibrahimdans.i18n.plugin.translate.PluralTranslationPlan
 import com.ibrahimdans.i18n.plugin.utils.IcuPluralRewriter
@@ -44,7 +46,20 @@ class TranslationAgentTools(private val project: Project) {
 
     data class Missing(val key: String, val source: String, val pluralFromOther: Boolean, val skipped: String?)
 
-    data class MissingPage(val module: String, val sourceLocale: String, val locale: String, val total: Int, val items: List<Missing>)
+    /**
+     * [glossary]: the project's glossary for [locale], `term -> translation`, a term kept as it is mapped to itself.
+     * [examples]: translations [locale] already has, `reference text -> translation`, whose reference text shares a
+     * word with one of [items] — the terminology in place. Both left out of the answer when there is none.
+     */
+    data class MissingPage(
+        val module: String,
+        val sourceLocale: String,
+        val locale: String,
+        val total: Int,
+        val items: List<Missing>,
+        val glossary: Map<String, String>? = null,
+        val examples: Map<String, String>? = null,
+    )
 
     data class Stale(val key: String, val source: String, val current: String, val skipped: String?)
 
@@ -65,12 +80,21 @@ class TranslationAgentTools(private val project: Project) {
         ModuleInfo(name, sourceOf(module, locales).orEmpty(), locales, reviewsOn(module) != null, locales.filter(config::ignoresLocale))
     }
 
-    /** The first [limit] values [locale] lacks in [moduleName], with the source text to translate. */
+    /**
+     * The first [limit] values [locale] lacks in [moduleName], with the source text to translate, the
+     * project's glossary for [locale] and the translations already there that share a word with the page.
+     */
     fun missing(moduleName: String?, locale: String, limit: Int): MissingPage {
         val (name, module) = scope(moduleName)
-        val (source, _, items) = snapshot(module, locale)
+        val (source, translations, items) = snapshot(module, locale)
         val page = items.take(limit.coerceAtLeast(1)).map { Missing(it.key, it.sent, it.needsReview, it.skipped) }
-        return MissingPage(name, source, locale, items.size, page)
+        val existing = translations.values.mapNotNull { values ->
+            val text = values[source]?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            values[locale]?.takeIf { it.isNotBlank() }?.let { text to it }
+        }
+        val glossary = Terminology.glossary(MachineTranslationSettings.getInstance(project).state.glossary, locale)
+        val examples = Terminology.examples(page.map { it.source }, existing)
+        return MissingPage(name, source, locale, items.size, page, glossary.ifEmpty { null }, examples.ifEmpty { null })
     }
 
     /**
@@ -208,4 +232,42 @@ class TranslationAgentTools(private val project: Project) {
         const val ICU_UNPARSED = "Not a valid ICU message, its braces do not balance. Source:"
         const val PLACEHOLDERS = "Placeholders differ from the source:"
     }
+}
+
+/**
+ * The terminology a page of missing values is translated with, so that an agent keeps the words a
+ * locale already uses (a term left in English, one translated a given way) rather than its own.
+ */
+internal object Terminology {
+
+    /** At most this many translations in place joined to a page: enough to show its terms, few tokens. */
+    const val MAX_EXAMPLES = 10
+
+    /** Shorter words — articles, prepositions, placeholder tags once masked — tell nothing of a term. */
+    private const val MIN_WORD = 4
+
+    private val WORD = Regex("""[\p{L}\p{N}]+""")
+
+    /** [text]'s words in lower case, its placeholders and tags left out. */
+    fun words(text: String): Set<String> =
+        WORD.findAll(PlaceholderMask.mask(text).text).map { it.value.lowercase() }.filter { it.length >= MIN_WORD }.toSet()
+
+    /**
+     * Of [existing] (`reference text to translation`), at most [max] whose reference text shares a word
+     * with one of [page]; a word shared by few of them weighs more, as a term does against a common word.
+     */
+    fun examples(page: List<String>, existing: List<Pair<String, String>>, max: Int = MAX_EXAMPLES): Map<String, String> {
+        val wanted = page.flatMapTo(HashSet(), ::words)
+        if (wanted.isEmpty()) return emptyMap()
+        val sharing = existing.map { it to (words(it.first) intersect wanted) }.filter { it.second.isNotEmpty() }
+        val frequency = sharing.flatMap { it.second }.groupingBy { it }.eachCount()
+        return sharing.sortedByDescending { (_, shared) -> shared.sumOf { 1.0 / frequency.getValue(it) } }
+            .asSequence().map { it.first }.distinctBy { it.first }.take(max).toMap()
+    }
+
+    /** [terms] for [locale], `term -> translation`: a term kept as it is maps to itself, one not translated there is left out. */
+    fun glossary(terms: List<GlossaryTerm>, locale: String): Map<String, String> =
+        GlossaryTerm.glossary(terms).terms.mapNotNull { term ->
+            if (term.kept) term.term to term.term else term.translationFor(locale)?.let { term.term to it }
+        }.toMap()
 }

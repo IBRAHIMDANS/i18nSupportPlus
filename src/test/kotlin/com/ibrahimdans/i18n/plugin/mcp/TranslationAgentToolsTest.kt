@@ -7,6 +7,8 @@ import com.ibrahimdans.i18n.plugin.review.ReviewKey
 import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
+import com.ibrahimdans.i18n.plugin.translate.GlossaryTerm
+import com.ibrahimdans.i18n.plugin.translate.MachineTranslationSettings
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.fileEditor.FileDocumentManager
@@ -342,5 +344,51 @@ class TranslationAgentToolsTest : PlatformBaseTest() {
         val text = text(de)
         Assertions.assertTrue("\"Alles abbrechen\"" in text && "\"Alle {{what}} speichern\"" in text, text)
         Assertions.assertEquals(ReviewState.APPROVED, store().reviews(root, "de").getValue(ReviewKey("common", "cancel")).state, "not marked")
+    }
+
+    private fun terms() {
+        myFixture.addFileToProject(
+            "locales/en/common.json",
+            """{"invite": "Invite a trustee", "dashboard": "Dashboard", "remove": "Remove the trustee", "home": "Back to the dashboard",
+               "close": "Close"}"""
+        )
+        myFixture.addFileToProject("locales/fr/common.json", """{"invite": "Inviter un trustee", "dashboard": "Panel", "close": "Fermer"}""")
+    }
+
+    /** The benchmark of the DEV article: an agent reading only the source text wrote « fiduciaires » for a term French keeps in English. */
+    @Test
+    fun `a page of missing values comes with the translations in place that share its words`() = myFixture.runWithConfig(config) {
+        terms()
+
+        val page = tools().missing(null, "fr", 100)
+
+        Assertions.assertEquals(listOf("common:home", "common:remove"), page.items.map { it.key })
+        Assertions.assertEquals(mapOf("Invite a trustee" to "Inviter un trustee", "Dashboard" to "Panel"), page.examples)
+        Assertions.assertNull(page.glossary, "no glossary in the project")
+    }
+
+    @Test
+    fun `a page whose words no translation in place shares comes without examples`() = myFixture.runWithConfig(config) {
+        seed()
+
+        Assertions.assertNull(tools().missing(null, "de", 100).examples, "« Titel » shares no word with the page")
+    }
+
+    @Test
+    fun `a page of missing values comes with the project's glossary for its locale`() = myFixture.runWithConfig(config) {
+        terms()
+        val settings = MachineTranslationSettings.getInstance(project)
+        settings.loadState(
+            MachineTranslationSettings.Settings(
+                glossary = mutableListOf(
+                    GlossaryTerm("Acme"), GlossaryTerm("cart", linkedMapOf("fr" to "panier")), GlossaryTerm("bag", linkedMapOf("de" to "Tasche"))
+                )
+            )
+        )
+        try {
+            Assertions.assertEquals(mapOf("Acme" to "Acme", "cart" to "panier"), tools().missing(null, "fr", 100).glossary)
+        } finally {
+            settings.loadState(MachineTranslationSettings.Settings())
+        }
     }
 }
