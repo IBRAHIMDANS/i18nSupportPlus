@@ -21,6 +21,7 @@ import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.keyScopesOf
 import com.ibrahimdans.i18n.plugin.utils.searchScope
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
+import com.intellij.codeInsight.hints.codeVision.ModificationStampUtil
 import com.intellij.json.JsonFileType
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.Disposable
@@ -31,6 +32,8 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.editor.EditorFactory
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
@@ -52,6 +55,7 @@ import com.intellij.psi.search.FileTypeIndex
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.UsageSearchContext
 import com.intellij.psi.util.parents
+import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.jetbrains.annotations.TestOnly
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
@@ -210,9 +214,23 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
 
             // Only after a build: a failed one restarting the highlighting would ask for the same build again, and fail again.
             override fun onSuccess() {
-                if (built && !project.isDisposed) DaemonCodeAnalyzer.getInstance(project).restart()
+                if (built && !project.isDisposed) rerunHighlighting()
             }
         })
+    }
+
+    /**
+     * Runs the highlighting again once the index is built, Code Vision included. A Code Vision pass
+     * runs again only after the PSI changed since the editor's last one, and a build changes none:
+     * the translation file open while it ran kept the empty lenses of that pass until reopened.
+     */
+    @RequiresEdt
+    internal fun rerunHighlighting() {
+        val documents = FileDocumentManager.getInstance()
+        EditorFactory.getInstance().allEditors
+            .filter { it.project == project && documents.getFile(it.document)?.fileType == JsonFileType.INSTANCE }
+            .forEach { ModificationStampUtil.clearModificationStamp(it) }
+        DaemonCodeAnalyzer.getInstance(project).restart()
     }
 
     /**

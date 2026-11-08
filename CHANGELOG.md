@@ -21,6 +21,7 @@
 - [Editor] **A key named only under a hook's `keyPrefix` is reported unused**: with `useTranslation('ns', { keyPrefix: 'header' })`, `t('title')` counted for `header.title` and for a top-level `title` too, which i18next never reads from that call, so the dead `title` escaped *Unused translation key* and *Cleanup unused keys*. It now counts for `header.title` only.
 - [Editor] **Ctrl+click from a translation key leads wherever its usage count comes from**: a key read through a hook's `keyPrefix` (`t('title')` under `keyPrefix: 'header'`), a plural form such as `item_other`, or a key another translation nests with `$t(...)` or `@:` showed a usage but led nowhere. Ctrl+click and *Find Usages* now reach those calls and values too.
 - [Editor] **Ctrl+click and *Find Usages* from a translation key reach its calls whatever the key**: a key written in many files had no link to the code, so the most used keys were the ones you could not navigate from. Every key now leads to its calls.
+- [Editor] **A translation file open while the plugin reads the code gets its usage counts**: the counts above its keys appeared only after closing and reopening the file. They now show as soon as the code is read.
 - [Twig] ***Show Translations Inline* and *Switch Preview Locale* are offered in Twig templates**: the editor's *i18n* submenu left them out of a `.twig` file, although its keys fold to their values. They now show wherever the plugin reads keys.
 
 
