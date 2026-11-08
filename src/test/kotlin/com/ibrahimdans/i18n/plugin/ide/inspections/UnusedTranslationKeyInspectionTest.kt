@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.ide.usages.CodeUsageIndexService
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.intellij.openapi.application.ReadAction
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -51,6 +52,28 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
             service.holdBuilds = false
         }
         assertEquals(1, unusedWarnings("""{"greeting": "Hello!"}""").size)
+    }
+
+    /** A build that fails is not tried again on every pass: once, until the code or the settings change. */
+    @Test
+    fun testAFailingBuildIsTriedOnce() {
+        val service = CodeUsageIndexService.getInstance(project)
+        service.forget()
+        service.failBuilds = true
+        try {
+            myFixture.enableInspections(UnusedTranslationKeyInspection::class.java)
+            myFixture.configureByText("en.json", """{"greeting": "Hello!"}""")
+            assertTrue(myFixture.doHighlighting().none { it.description == UNUSED_MSG })
+            // Asked again with nothing changed, as the next passes would: the failed build is not tried again.
+            val before = service.buildsTried()
+            repeat(3) { assertFalse(ReadAction.compute<Boolean, RuntimeException> { service.readyForHighlighting() }) }
+            assertEquals(0, service.buildsTried() - before)
+        } finally {
+            service.failBuilds = false
+        }
+        // The code changes: the build is tried again, and succeeds.
+        myFixture.addFileToProject("src/App.js", "export const a = (t) => t('other');")
+        assertEquals(1, myFixture.doHighlighting().count { it.description == UNUSED_MSG })
     }
 
     // JSON — leaf strings are flagged

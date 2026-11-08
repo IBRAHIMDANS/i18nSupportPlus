@@ -31,6 +31,8 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.fileTypes.LanguageFileType
+import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
@@ -183,7 +185,7 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
         val application = ApplicationManager.getApplication()
         // A test reads what the counts decide: built here, in the pass that asks.
         if (application.isUnitTestMode) {
-            refresh()
+            tryBuild()
             return isReady()
         }
         // Started from the event dispatch thread: a task cannot start from the read action the pass holds.
@@ -193,19 +195,70 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
 
     private fun build() {
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("usages.index.progress.title"), false) {
+            private var built = false
+
             override fun run(indicator: ProgressIndicator) {
                 try {
-                    refresh()
+                    built = tryBuild()
                 } finally {
                     building.set(false)
                 }
             }
 
-            override fun onFinished() {
-                if (!project.isDisposed) DaemonCodeAnalyzer.getInstance(project).restart()
+            // Only after a build: a failed one restarting the highlighting would ask for the same build again, and fail again.
+            override fun onSuccess() {
+                if (built && !project.isDisposed) DaemonCodeAnalyzer.getInstance(project).restart()
             }
         })
     }
+
+    /**
+     * Builds the index, unless the last build failed on the same settings, key scopes and code: it would
+     * fail again, and each highlighting pass would ask for it. A change of any of them tries once more.
+     */
+    private fun tryBuild(): Boolean {
+        val state = buildState()
+        if (state == failedOn) return false
+        builds.incrementAndGet()
+        return try {
+            if (failBuilds) throw IllegalStateException("build failed for the test")
+            refresh()
+            failedOn = null
+            true
+        } catch (e: ProcessCanceledException) {
+            throw e
+        } catch (e: Exception) {
+            LOG.warn("Reading the code's key usages failed; not tried again before the settings or the code change", e)
+            failedOn = state
+            false
+        }
+    }
+
+    /**
+     * What a build reads: the settings and key scopes, the files present (the stamp [refresh] lists them
+     * under) and the code files edited since ([generation] moves with each).
+     */
+    private fun buildState(): Any = readStep {
+        listOf(Settings.getInstance(project).config(), keyScopesOf(project), filesStamp(), generation.get())
+    }
+
+    private fun filesStamp(): Long =
+        VirtualFileManager.getInstance().structureModificationCount + ProjectRootManager.getInstance(project).modificationCount
+
+    /** The [buildState] the last build failed on, null after a build that did not fail. */
+    @Volatile
+    private var failedOn: Any? = null
+
+    /** How many builds were tried: a failing one is tried once, not once per highlighting pass. */
+    private val builds = AtomicLong()
+
+    @TestOnly
+    fun buildsTried(): Long = builds.get()
+
+    /** Set by a test to make every build fail, as a file the indexer cannot read would. */
+    @Volatile
+    @TestOnly
+    var failBuilds = false
 
     private fun isReady(): Boolean {
         val built = builtWith ?: return false
@@ -395,7 +448,7 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
             listedAt = -1
             linkedStale = true
         }
-        val stamp = VirtualFileManager.getInstance().structureModificationCount + ProjectRootManager.getInstance(project).modificationCount
+        val stamp = filesStamp()
         if (stamp != listedAt) {
             val listed = readStep { codeFiles(config) }
             val known = synchronized(this) {
@@ -480,6 +533,8 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
             listOfNotNull(JsonFileType.INSTANCE, FileTypeManager.getInstance().findFileTypeByName("YAML"))
 
         private fun isTranslationValueType(type: FileType): Boolean = type in translationValueTypes()
+
+        private val LOG = logger<CodeUsageIndexService>()
 
         /** How long a question waits for another one's refresh before checking it was not cancelled. */
         private const val WAIT_MS = 50L
