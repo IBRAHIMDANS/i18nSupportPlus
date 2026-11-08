@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.actions.i18nize
 
 import com.ibrahimdans.i18n.extensions.lang.js.HardcodedTextRules
+import com.ibrahimdans.i18n.plugin.rules.FrameworkPresets
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.lang.javascript.psi.JSArgumentList
 import com.intellij.lang.javascript.psi.JSArrayLiteralExpression
@@ -51,11 +52,12 @@ internal object TranslatableText {
      * Calls whose arguments are never messages: translation hooks, whose strings are namespaces
      * (`useTranslation('ns')`, `useTranslations('Home')`, `getTranslations('Home')`), translation
      * functions, whose strings are keys or options (`t('key', { ns: 'x' })`), and module loaders.
-     * Matched on the callee's last name, so `i18n.getFixedT` and `this.$t` count.
+     * Matched on the callee's last name, so `i18n.getFixedT` and `this.$t` count. Every framework's
+     * hooks and i18next's namespace calls come from the presets; the rest is this list's own, read
+     * whatever the module's preset: a string passed to any translation call is never a message.
      */
-    private val CODE_CALLS = setOf(
-        "useTranslation", "useTranslations", "getTranslations", "useI18n", "withTranslation",
-        "getFixedT", "loadNamespaces", "changeLanguage",
+    private val CODE_CALLS = FrameworkPresets.hookNames() + FrameworkPresets.I18NEXT_NAMESPACE_CALLS + setOf(
+        "changeLanguage",
         "t", "\$t", "\$tc", "\$te", "_", "\$_", "formatMessage",
         "require", "import",
     )
