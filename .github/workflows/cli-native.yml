@@ -5,31 +5,11 @@ name: i18n-check native
 # `npx` on a machine without Java. A JNI or reflection lookup the configuration misses crashes the binary
 # instead of failing a check, so every change that reaches the CLI's classes runs it. release.yml calls
 # it to build what it publishes.
+# Built by hand (workflow_dispatch) or by the release when the repository variable NPM_PUBLISH is `true`.
+# Not on every pull request or push any more: five runners for forty minutes, for a binary no one has
+# asked for yet (release assets: 0 to 2 downloads a version, npm not published). The JVM `i18n-check`
+# keeps its tests in `ci.yml`; a change to the native build is checked by running this by hand.
 on:
-  pull_request:
-    branches: [ main ]
-    paths:
-      - 'cli/**'
-      - 'core/**'
-      - 'core-treesitter/**'
-      - 'npm/**'
-      - 'examples/**'
-      - 'gradle.properties'
-      - 'settings.gradle'
-      - 'gradle/**'
-      - '.github/workflows/cli-native.yml'
-  push:
-    branches: [ main ]
-    paths:
-      - 'cli/**'
-      - 'core/**'
-      - 'core-treesitter/**'
-      - 'npm/**'
-      - 'examples/**'
-      - 'gradle.properties'
-      - 'settings.gradle'
-      - 'gradle/**'
-      - '.github/workflows/cli-native.yml'
   workflow_call:
   workflow_dispatch:
 

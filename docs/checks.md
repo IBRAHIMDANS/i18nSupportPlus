@@ -48,11 +48,7 @@ i18n-check-<version>/bin/i18n-check [project] [--locales <dir> | --code] [--refe
 
 `./gradlew :cli:installDist` builds it from this repository instead, in `cli/build/install/i18n-check/`.
 
-Without Java, the same check runs from npm, as a native binary for Linux x64 and arm64 (glibc), macOS x64 and arm64 and Windows x64: `npx i18n-support-plus` takes the arguments above, and a project can add it to its `devDependencies` for a script or a pre-commit hook (`"i18n": "i18n-support-plus --code"`). The command is `i18n-support-plus`, not `i18n-check`, which the unrelated `@lingual/i18n-check` package also installs. npm installs only the binary of the machine, as an optional dependency: an install with `--omit=optional` leaves it out, and the command then says which package it lacks. There is no binary for Alpine (musl): the Docker image or the zip run there.
-
-```bash
-npx i18n-support-plus --code
-```
+A native binary, installed by `npx i18n-support-plus` without Java, is built but not published: no one has asked for it yet. Ask in an [issue](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/new/choose) if a pre-commit hook or a machine without Java needs it; the zip above and the Docker image below run everywhere Java 21 or Docker does.
 
 It runs the plugin's own checks in CI, with the plugin's settings, whatever the framework. An i18next project that also wants to write the keys the code uses into its files, sync its locales or generate types can pair it with the official [i18next-cli](https://github.com/i18next/i18next-cli) (`extract`, `sync`, `types`).
 
@@ -153,7 +149,7 @@ Unless `args` sets its own `--format`, the action runs `--format github`: each p
 
 ### Other CI systems
 
-Each release, from 1.17.0, also publishes `i18n-check` as a Docker image with Java 21 included, for Linux x86_64 and arm64: `ghcr.io/ibrahimdans/i18n-check:<version>`, and `:latest`. It checks the directory mounted on `/work` and takes the same arguments:
+`i18n-check` is also available as a Docker image with Java 21 included, for Linux x86_64 and arm64: `ghcr.io/ibrahimdans/i18n-check:<version>` for the versions 1.17.0 to 1.19.1, and `:latest`. The image is published on request: ask in an [issue](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/new/choose) for a newer version, and it will be. It checks the directory mounted on `/work` and takes the same arguments:
 
 ```bash
 docker run --rm -v "$PWD:/work" ghcr.io/ibrahimdans/i18n-check:latest --code

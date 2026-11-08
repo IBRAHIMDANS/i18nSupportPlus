@@ -74,7 +74,7 @@ The reference, one page per topic, in [`docs/`](docs):
 - [In the editor](docs/editor.md): key status, navigation, completion, extraction, hints, folding, renaming, quick fixes
 - [Tool window and bulk actions](docs/tool-window.md): tree and table, reviews, stats, keys synchronizer, export and import
 - [Machine translation and AI agents](docs/translation.md): engines, glossary, tone, MCP tools
-- [Checks: inspections, CI and the command line](docs/checks.md): inspections, Qodana, `i18n-check`, GitHub Action, Docker, npm
+- [Checks: inspections, CI and the command line](docs/checks.md): inspections, Qodana, `i18n-check`, GitHub Action, Docker
 - [Setup and configuration](docs/configuration.md): setup wizard, modules, every setting, `i18n-check.json`
 
 ## Installation
@@ -140,7 +140,7 @@ Details: [Machine translation and AI agents](docs/translation.md).
 
 ### Catch the problems in the IDE and in CI
 
-Twenty-four inspections check the translations and the code: missing, orphan, empty and duplicate keys, placeholders, markup, ICU messages, plural forms, stale translations and hard-coded text. `i18n-check` runs the same checks in CI, as a GitHub Action, a Docker image or `npx i18n-support-plus` without Java, and annotates the pull request.
+Twenty-four inspections check the translations and the code: missing, orphan, empty and duplicate keys, placeholders, markup, ICU messages, plural forms, stale translations and hard-coded text. `i18n-check` runs the same checks in CI, as a GitHub Action or a Docker image, and annotates the pull request.
 
 Details: [Checks: inspections, CI and the command line](docs/checks.md).
 
