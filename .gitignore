@@ -5,6 +5,8 @@
 /core/build/**
 /core-treesitter/build/**
 /cli/build/**
+/examples/*/build/
+/examples/*/dist/
 /out/**
 /examples/simple/.idea/**
 /examples/react-i18n-using-hooks/node_modules/**
