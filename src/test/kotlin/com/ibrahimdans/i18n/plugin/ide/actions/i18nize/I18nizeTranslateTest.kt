@@ -27,8 +27,12 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.util.Disposer
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
+import com.intellij.testFramework.PlatformTestUtil
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.LockSupport
 
 /**
  * *Internationalize…* with machine translation: the other locales get the new keys translated, in
@@ -106,6 +110,38 @@ class I18nizeTranslateTest : PlatformBaseTest() {
         Assertions.assertEquals(before, textOf(menu))
         Assertions.assertEquals("{}", textOf(en))
         Assertions.assertEquals("{}", textOf(fr))
+    }
+
+    @Test
+    fun aTranslationCancelledWhileTheEngineTranslatesWritesNothing() = myFixture.runWithConfig(config) {
+        val en = myFixture.addFileToProject("locales/en/common.json", "{}")
+        val fr = myFixture.addFileToProject("locales/fr/common.json", "{}")
+        val menu = menu()
+        val before = textOf(menu)
+        val preview = preview(menu)
+        val sent = CountDownLatch(1)
+        // An engine that answers only once cancelled, checking for it as a real one does between its waits.
+        val slow = object : TranslationProvider {
+            override fun translate(request: TranslationRequest, cancellation: Cancellation?): List<Translation> {
+                sent.countDown()
+                while (true) {
+                    cancellation?.check()
+                    if (Thread.currentThread().isInterrupted) return request.texts.map { Translation.Done("trop tard") }
+                    LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10))
+                }
+            }
+        }
+
+        val job = I18nizeAction.translateThenApply(project, preview.plan, preview.existing, slow)
+        PlatformTestUtil.waitWithEventsDispatching("the engine was never called", { sent.count == 0L }, 30)
+        job.cancel()
+        PlatformTestUtil.waitWithEventsDispatching("the cancelled translation never ended", { job.isCompleted }, 30)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        Assertions.assertTrue(job.isCancelled, "the job ends cancelled")
+        Assertions.assertEquals(before, textOf(menu), "the code is left as it was")
+        Assertions.assertEquals("{}", textOf(en), "no reference value written")
+        Assertions.assertEquals("{}", textOf(fr), "no translation written")
     }
 
     @Test
