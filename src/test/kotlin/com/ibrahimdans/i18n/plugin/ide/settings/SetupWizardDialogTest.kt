@@ -302,7 +302,7 @@ class SetupWizardDialogTest : PlatformBaseTest() {
         val tempDir = createTempDir("wizard-manifests")
         try {
             manifests.forEach { (name, content) -> File(tempDir, name).writeText(content) }
-            return SetupWizardDialog.detectFrameworksIn(tempDir)
+            return ManifestDetection.detectFrameworksIn(tempDir)
         } finally {
             tempDir.deleteRecursively()
         }
@@ -380,7 +380,7 @@ class SetupWizardDialogTest : PlatformBaseTest() {
     private fun scanExample(example: String, withFrameworks: Boolean): List<String> {
         val base = File("examples/$example")
         assertTrue(base.isDirectory, "missing example project ${base.absolutePath}")
-        val frameworks = if (withFrameworks) SetupWizardDialog.detectFrameworksIn(base) else emptySet()
+        val frameworks = if (withFrameworks) ManifestDetection.detectFrameworksIn(base) else emptySet()
         return TranslationFileScanner.scan(base, TranslationFileScanner.folderNamesFor(frameworks))
             .map { it.replace(File.separatorChar, '/') }
     }
@@ -492,7 +492,7 @@ class SetupWizardDialogTest : PlatformBaseTest() {
             File(base, "apps/api/lang").mkdirs()
             File(base, "apps/api/composer.json").writeText("""{"require": {"laravel/framework": "11"}}""")
 
-            val manifests = SetupWizardDialog.manifestsAbove(base, listOf("apps/shop/public/locales", "apps/api/lang"))
+            val manifests = ManifestDetection.manifestsAbove(base, listOf("apps/shop/public/locales", "apps/api/lang"))
 
             assertEquals(setOf("apps/shop", "apps/api"), manifests.keys)
             assertEquals(setOf("i18next"), FrameworkDetector.detect(manifests.getValue("apps/shop")))
@@ -521,7 +521,7 @@ class SetupWizardDialogTest : PlatformBaseTest() {
     }
 
     private fun suggestedCodeRoots(base: File): String =
-        WizardPlan.codeRootsOf("packages/i18n", SetupWizardDialog.workspacePackagesIn(base))
+        WizardPlan.codeRootsOf("packages/i18n", ManifestDetection.workspacePackagesIn(base))
 
     @org.junit.jupiter.api.Test
     fun `a pnpm workspace suggests the packages depending on the shared one`() {
@@ -529,7 +529,7 @@ class SetupWizardDialogTest : PlatformBaseTest() {
             File(it, "pnpm-workspace.yaml").writeText("packages:\n  - 'apps/*'\n  - \"packages/*\"\n  - '!**/test/**'\n")
         }
         try {
-            assertEquals(setOf("apps/web", "apps/admin", "packages/i18n"), SetupWizardDialog.workspacePackagesIn(base).keys)
+            assertEquals(setOf("apps/web", "apps/admin", "packages/i18n"), ManifestDetection.workspacePackagesIn(base).keys)
             assertEquals("apps/admin, apps/web", suggestedCodeRoots(base))
         } finally {
             base.deleteRecursively()
@@ -552,7 +552,7 @@ class SetupWizardDialogTest : PlatformBaseTest() {
     fun `a project without a workspace suggests nothing`() {
         val base = sharedPackageWorkspace { File(it, "package.json").writeText("""{"name": "monorepo"}""") }
         try {
-            assertEquals(emptyMap<String, String>(), SetupWizardDialog.workspacePackagesIn(base))
+            assertEquals(emptyMap<String, String>(), ManifestDetection.workspacePackagesIn(base))
             assertEquals("", suggestedCodeRoots(base))
         } finally {
             base.deleteRecursively()
