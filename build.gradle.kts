@@ -330,9 +330,14 @@ intellijPlatform {
         // task and fails on any internal API usage but those three.
         failureLevel.set(listOf(FailureLevel.COMPATIBILITY_PROBLEMS, FailureLevel.OVERRIDE_ONLY_API_USAGES))
         ides {
+            // recommended() only lists releases of the target platform's own type (IU, from productInfo) within
+            // pluginSinceBuild..pluginUntilBuild: it never adds another product.
             recommended()
             create(IntelliJPlatformType.IntellijIdeaUltimate, "2025.2")
             create(IntelliJPlatformType.IntellijIdeaUltimate, "2025.3")
+            // The two IDEs the README targets first, named so that recommended() leaving them out cannot go unnoticed.
+            create(IntelliJPlatformType.WebStorm, "2025.3")
+            create(IntelliJPlatformType.PhpStorm, "2025.3")
             // No JavaScript plugin: every class plugin.xml registers must load without it (the dependency is
             // optional). The last Community release; 2025.3 and later are the unified IntelliJ IDEA.
             create(IntelliJPlatformType.IntellijIdeaCommunity, "2025.2.6.4")
