@@ -13,6 +13,7 @@ import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.of
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginCoroutineScope
 import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.intellij.notification.NotificationType
@@ -21,12 +22,12 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
+import com.intellij.openapi.progress.coroutineToIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.vfs.VfsUtilCore
@@ -34,7 +35,12 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileVisitor
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
+import com.intellij.platform.ide.progress.withBackgroundProgress
 import com.intellij.util.concurrency.AppExecutorUtil
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * *Internationalize…*: every hard-coded text of the selected files and folders, previewed, then
@@ -65,66 +71,67 @@ class I18nizeAction : AnAction() {
         val project = e.project ?: return
         val selection = selection(e).toList()
         if (selection.isEmpty()) return
-        val title = PluginBundle.message("action.i18nize.title")
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, title, true) {
-            private var preview: Preview? = null
-
-            override fun run(indicator: ProgressIndicator) {
-                preview = ReadAction.nonBlocking<Preview> { compute(project, selection, indicator) }
-                    .inSmartMode(project)
-                    .wrapProgress(indicator)
-                    .executeSynchronously()
-            }
-
-            override fun onSuccess() {
-                val preview = preview ?: return
-                if (preview.plan.files.isEmpty()) {
-                    notify(project, PluginBundle.message("action.i18nize.nothing"), NotificationType.INFORMATION)
-                    return
-                }
-                val provider = FillMissingTranslationsAction.machineTranslator(project)
-                val model = I18nizePreviewModel(preview.plan, preview.existing, Settings.getInstance(project).config())
-                val dialog = I18nizePreviewDialog(project, model, translatable = provider != null)
-                if (!dialog.showAndGet()) return
-                val plan = dialog.accepted()
-                if (provider != null && dialog.translateOthers()) translateThenApply(project, plan, preview.existing, provider)
-                else apply(project, plan)
-            }
-        })
-    }
-
-    /**
-     * [plan]'s new keys translated in the background, previewed, then written with the reference
-     * values in the same command. Cancelling the translation or its preview writes nothing.
-     */
-    private fun translateThenApply(project: Project, plan: I18nizePlan, existing: Map<PsiFile, Map<String, String>>, provider: TranslationProvider) {
-        val title = PluginBundle.message("action.i18nize.title")
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, title, true) {
-            private var proposals: List<MachineFill.Proposal>? = null
-
-            override fun run(indicator: ProgressIndicator) {
-                indicator.text = PluginBundle.message("action.i18nize.progress.existing")
-                val items = ReadAction.nonBlocking<Map<Pair<String, String>, List<MachineFill.Item>>> { translationItems(project, plan, existing) }
-                    .inSmartMode(project)
-                    .wrapProgress(indicator)
-                    .executeSynchronously()
-                proposals = translate(items, provider, indicator)
-            }
-
-            override fun onSuccess() {
-                val proposals = proposals ?: return
-                if (proposals.isEmpty()) return apply(project, plan)
-                val locales = proposals.map { it.locale }.distinct().joinToString(", ")
-                val dialog = MachineTranslationPreviewDialog(project, locales, proposals, reviewRoots(project, plan))
-                if (dialog.showAndGet()) apply(project, plan, dialog.acceptedByLocale(), dialog.reviewOrigins())
-            }
-        })
+        run(project, selection)
     }
 
     /** A plan and, per planned file, the keys its module holds in the reference locale with their values. */
     internal class Preview(val plan: I18nizePlan, val existing: Map<PsiFile, Map<String, String>>)
 
     internal companion object {
+
+        /**
+         * [selection]'s plan computed in the background, previewed, then written, or first
+         * translated, see [translateThenApply]. Its job, cancelled with the progress: nothing is written then.
+         */
+        fun run(project: Project, selection: List<VirtualFile>): Job = PluginCoroutineScope.of(project).launch {
+            val preview = withBackgroundProgress(project, PluginBundle.message("action.i18nize.title"), cancellable = true) {
+                coroutineToIndicator { indicator ->
+                    ReadAction.nonBlocking<Preview> { compute(project, selection, indicator) }
+                        .inSmartMode(project)
+                        .wrapProgress(indicator)
+                        .executeSynchronously()
+                }
+            }
+            if (preview.plan.files.isEmpty()) {
+                notify(project, PluginBundle.message("action.i18nize.nothing"), NotificationType.INFORMATION)
+                return@launch
+            }
+            withContext(Dispatchers.EDT) {
+                val provider = FillMissingTranslationsAction.machineTranslator(project)
+                val model = I18nizePreviewModel(preview.plan, preview.existing, Settings.getInstance(project).config())
+                val dialog = I18nizePreviewDialog(project, model, translatable = provider != null)
+                if (!dialog.showAndGet()) return@withContext
+                val plan = dialog.accepted()
+                if (provider != null && dialog.translateOthers()) translateThenApply(project, plan, preview.existing, provider)
+                else apply(project, plan)
+            }
+        }
+
+        /**
+         * [plan]'s new keys translated in the background, previewed, then written with the reference
+         * values in the same command. Its job, cancelled with the progress: cancelling the translation
+         * or its preview writes nothing.
+         */
+        fun translateThenApply(project: Project, plan: I18nizePlan, existing: Map<PsiFile, Map<String, String>>, provider: TranslationProvider): Job =
+            PluginCoroutineScope.of(project).launch {
+                // Null when the user cancelled: nothing is then proposed, nor written.
+                val proposals = withBackgroundProgress(project, PluginBundle.message("action.i18nize.title"), cancellable = true) {
+                    coroutineToIndicator { indicator ->
+                        indicator.text = PluginBundle.message("action.i18nize.progress.existing")
+                        val items = ReadAction.nonBlocking<Map<Pair<String, String>, List<MachineFill.Item>>> { translationItems(project, plan, existing) }
+                            .inSmartMode(project)
+                            .wrapProgress(indicator)
+                            .executeSynchronously()
+                        translate(items, provider, indicator)
+                    }
+                } ?: return@launch
+                withContext(Dispatchers.EDT) {
+                    if (proposals.isEmpty()) return@withContext apply(project, plan)
+                    val locales = proposals.map { it.locale }.distinct().joinToString(", ")
+                    val dialog = MachineTranslationPreviewDialog(project, locales, proposals, reviewRoots(project, plan))
+                    if (dialog.showAndGet()) apply(project, plan, dialog.acceptedByLocale(), dialog.reviewOrigins())
+                }
+            }
 
         /** The extensions *Internationalize…* reads texts from: those *Batch Extract* handles, Vue and Svelte components, Angular templates. */
         private val EXTENSIONS = setOf("js", "jsx", "ts", "tsx", "vue", "html", "svelte")
