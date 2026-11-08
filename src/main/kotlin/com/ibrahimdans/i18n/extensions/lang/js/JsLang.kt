@@ -190,6 +190,8 @@ open class JsLang : Lang {
 
     override fun isFunctionBoundary(element: PsiElement): Boolean = element is JSFunction
 
+    override fun metadataKeyOf(element: PsiElement): String? = AngularI18nMetadata.keyOf(element)
+
     override fun translationExtractor(): TranslationExtractor = JsTranslationExtractor()
 
     override fun resolveLiteral(entry: PsiElement): PsiElement? {

@@ -1,6 +1,5 @@
 package com.ibrahimdans.i18n.extensions.technology.angulari18n
 
-import com.ibrahimdans.i18n.extensions.lang.js.extractors.AngularI18nMetadata
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -67,34 +66,34 @@ class AngularI18nConfigTest {
 
     @Test
     fun theIdIsWhatFollowsTheMarkerOfTheMetadata() {
-        assertEquals("introductionHeader", AngularI18nMetadata.idOf("site header|An introduction header@@introductionHeader"))
-        assertEquals("home.title", AngularI18nMetadata.idOf("@@home.title"))
-        assertEquals("home.title", AngularI18nMetadata.idOf(" @@home.title "))
+        assertEquals("introductionHeader", AngularI18nIds.idOf("site header|An introduction header@@introductionHeader"))
+        assertEquals("home.title", AngularI18nIds.idOf("@@home.title"))
+        assertEquals("home.title", AngularI18nIds.idOf(" @@home.title "))
     }
 
     /** Without a custom id, `ng extract-i18n` computes one from the text: the code names no key. */
     @Test
     fun aMarkerWithoutCustomIdNamesNoKey() {
-        assertNull(AngularI18nMetadata.idOf("site header|An introduction header"))
-        assertNull(AngularI18nMetadata.idOf(""))
-        assertNull(AngularI18nMetadata.idOf("@@"))
-        assertNull(AngularI18nMetadata.idOf("@@two words"))
+        assertNull(AngularI18nIds.idOf("site header|An introduction header"))
+        assertNull(AngularI18nIds.idOf(""))
+        assertNull(AngularI18nIds.idOf("@@"))
+        assertNull(AngularI18nIds.idOf("@@two words"))
     }
 
     @Test
     fun theLocalizeIdIsInTheMetadataBlock() {
-        assertEquals("home.title", AngularI18nMetadata.localizeIdOf("`:@@home.title:Welcome`"))
-        assertEquals("greeting", AngularI18nMetadata.localizeIdOf("`:meaning|description@@greeting:Hello \${name}!`"))
-        assertNull(AngularI18nMetadata.localizeIdOf("`Welcome`"))
-        assertNull(AngularI18nMetadata.localizeIdOf("`:meaning|description:Welcome`"))
-        assertNull(AngularI18nMetadata.localizeIdOf("`:@@unterminated`"))
+        assertEquals("home.title", AngularI18nIds.localizeIdOf("`:@@home.title:Welcome`"))
+        assertEquals("greeting", AngularI18nIds.localizeIdOf("`:meaning|description@@greeting:Hello \${name}!`"))
+        assertNull(AngularI18nIds.localizeIdOf("`Welcome`"))
+        assertNull(AngularI18nIds.localizeIdOf("`:meaning|description:Welcome`"))
+        assertNull(AngularI18nIds.localizeIdOf("`:@@unterminated`"))
     }
 
     @Test
     fun theI18nAttributesAreTheMarkerAndItsAttributeForms() {
-        assertTrue(AngularI18nMetadata.isI18nAttribute("i18n"))
-        assertTrue(AngularI18nMetadata.isI18nAttribute("i18n-title"))
-        assertTrue(!AngularI18nMetadata.isI18nAttribute("i18nTitle"))
-        assertTrue(!AngularI18nMetadata.isI18nAttribute("title"))
+        assertTrue(AngularI18nIds.isI18nAttribute("i18n"))
+        assertTrue(AngularI18nIds.isI18nAttribute("i18n-title"))
+        assertTrue(!AngularI18nIds.isI18nAttribute("i18nTitle"))
+        assertTrue(!AngularI18nIds.isI18nAttribute("title"))
     }
 }

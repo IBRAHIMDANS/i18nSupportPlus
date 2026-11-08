@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.extensions.lang.js.extractors
 
+import com.ibrahimdans.i18n.extensions.technology.angulari18n.AngularI18nIds
 import com.ibrahimdans.i18n.plugin.factory.ReferenceAssistant
 import com.ibrahimdans.i18n.plugin.ide.references.code.ReferenceContributorBase
 import com.ibrahimdans.i18n.plugin.key.FullKey
@@ -30,7 +31,7 @@ class LocalizeTaggedTemplateExtractor : KeyExtractor {
         val template = element as? JSStringTemplateExpression ?: return null
         val tagged = template.parent as? ES6TaggedTemplateExpression ?: return null
         if (tagged.firstChild?.text != TAG) return null
-        return AngularI18nMetadata.localizeIdOf(template.text)
+        return AngularI18nIds.localizeIdOf(template.text)
     }
 
     private companion object {

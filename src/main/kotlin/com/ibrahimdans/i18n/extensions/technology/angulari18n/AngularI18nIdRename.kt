@@ -1,6 +1,6 @@
 package com.ibrahimdans.i18n.extensions.technology.angulari18n
 
-import com.ibrahimdans.i18n.extensions.lang.js.extractors.AngularI18nMetadata
+import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.extensions.localization.xliff.XliffDocument
 import com.ibrahimdans.i18n.extensions.localization.xliff.XliffTree
 import com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler
@@ -61,7 +61,7 @@ internal object AngularI18nIdRename {
         val title = PluginBundle.message("action.rename.title")
         val newId = Messages.showInputDialog(project, PluginBundle.message("action.rename.key.prompt", id), title, Messages.getQuestionIcon(), id, null)
             ?.trim() ?: return
-        if (newId == id || AngularI18nMetadata.idOf("$MARKER$newId") != newId) return
+        if (newId == id || AngularI18nIds.idOf("$MARKER$newId") != newId) return
         val plan = ProgressManager.getInstance().runProcessWithProgressSynchronously<Pair<List<RenameI18nKeyHandler.Edit>, List<ReviewMove>>?, RuntimeException>(
             {
                 ReadAction.compute<Pair<List<RenameI18nKeyHandler.Edit>, List<ReviewMove>>?, RuntimeException> {
@@ -108,8 +108,12 @@ internal object AngularI18nIdRename {
     }
 
     /** The id [element] or one of its two parents names: a code marker's, or a unit's `id` in an XLIFF file. */
+    /** The id [element] names as an Angular marker, asked of the languages: the JavaScript PSI stays behind [Lang]. */
+    private fun metadataKeyOf(element: PsiElement): String? =
+        Extensions.LANG.extensionList.firstNotNullOfOrNull { it.metadataKeyOf(element) }
+
     private fun idAround(element: PsiElement): String? =
-        generateSequence(element) { it.parent }.take(3).firstNotNullOfOrNull { AngularI18nMetadata.keyOf(it) ?: unitIdOf(it) }
+        generateSequence(element) { it.parent }.take(3).firstNotNullOfOrNull { metadataKeyOf(it) ?: unitIdOf(it) }
 
     private fun unitIdOf(element: PsiElement): String? {
         val value = element as? XmlAttributeValue ?: return null
@@ -138,7 +142,7 @@ internal object AngularI18nIdRename {
             { element, offset ->
                 val injected = injections.findInjectedElementAt(element.containingFile, element.textRange.startOffset + offset)
                 listOfNotNull(element, injected).forEach { leaf ->
-                    generateSequence(leaf) { it.parent }.take(3).firstOrNull { AngularI18nMetadata.keyOf(it) == id }?.let { marker ->
+                    generateSequence(leaf) { it.parent }.take(3).firstOrNull { metadataKeyOf(it) == id }?.let { marker ->
                         val start = marker.text.indexOf(MARKER + id)
                         if (start >= 0) found += marker to TextRange.from(marker.textRange.startOffset + start + MARKER.length, id.length)
                     }
