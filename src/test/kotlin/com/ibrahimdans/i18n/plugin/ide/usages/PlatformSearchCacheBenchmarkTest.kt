@@ -84,6 +84,13 @@ class PlatformSearchCacheBenchmarkTest : PlatformBaseTest() {
      * `EditorCodeVisionContext.resubmitThings` → `CodeVisionView.runWithReusingLenses` →
      * `CodeVisionVisualVerticalPositionKeeper.keep`, on the event dispatch thread: the platform placing
      * the 500 lenses in the editor the fixture just opened, about 110 ms each, once per editor.
+     *
+     * That cost belongs to the test's editor, which is never laid out on screen. Checked on 2026-11-08 in
+     * WebStorm 2026.3 (`runWebStorm` on a virtual display, the usage index built): reopening a file of 500
+     * keys, the event dispatch thread was busy in 7 of 199 samples (one every ~450 ms), 1 of them in
+     * `CodeVisionVisualVerticalPositionKeeper.keep`; a file of 2 000 keys showed all its lenses within
+     * 25 s with none in `keep`, and the IDE recorded no freeze. So Code Vision keeps a lens on every key,
+     * however large the file: nothing to cap.
      */
     @Test
     fun `first pass of the unused key inspection, step by step`() {
