@@ -6,8 +6,11 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.usages.CodeUsageIndexService
 import com.intellij.codeInsight.codeVision.ui.model.ClickableTextCodeVisionEntry
+import com.intellij.codeInsight.hints.codeVision.ModificationStampUtil
 import com.intellij.openapi.application.ReadAction
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -170,6 +173,25 @@ class TranslationUsagesCodeVisionProviderTest : PlatformBaseTest() {
             service.holdBuilds = false
         }
         assertEquals("1 usage", labelsOf("locales/en/common.json")["home"])
+    }
+
+    /**
+     * The file open while the usages were read had its Code Vision pass then, with no lenses. The
+     * platform runs that pass again only once the PSI changed, which the build does not: it must
+     * ask for the pass itself, or the file shows no count until reopened.
+     */
+    @Test
+    fun theFileOpenWhileTheUsagesWereReadIsCountedOnceTheyAre() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        addFileToProject("locales/en/common.json", """{"menu": {"home": "Home"}}""")
+        myFixture.configureFromExistingVirtualFile(myFixture.findFileInTempDir("locales/en/common.json"))
+        // What the Code Vision pass leaves on the editor once applied, here while the index was built:
+        // its factory makes no other pass while the PSI's modification count still equals it.
+        ModificationStampUtil.putCurrentModificationStamp(myFixture.editor, myFixture.file)
+        assertNotNull(ModificationStampUtil.getModificationStamp(myFixture.editor))
+
+        CodeUsageIndexService.getInstance(project).rerunHighlighting()
+
+        assertNull(ModificationStampUtil.getModificationStamp(myFixture.editor), "the next highlighting runs Code Vision again")
     }
 
     @Test
