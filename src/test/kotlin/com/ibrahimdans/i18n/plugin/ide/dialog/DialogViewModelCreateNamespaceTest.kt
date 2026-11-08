@@ -3,8 +3,12 @@ package com.ibrahimdans.i18n.plugin.ide.dialog
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
+import io.mockk.every
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import org.junit.jupiter.api.Assertions.*
 import java.io.File
 import java.nio.file.Files
@@ -74,6 +78,28 @@ class DialogViewModelCreateNamespaceTest : PlatformBaseTest() {
         val name = "my-feature"
         val fileName = "$name.json"
         assertTrue(fileName.matches(Regex("[a-zA-Z0-9-]+\\.json")))
+    }
+
+    /**
+     * A file creation cancelled on the way is cancelled: the cancellation leaves createNamespace
+     * instead of being logged as an error, which the platform reports as a plugin failure.
+     */
+    @org.junit.jupiter.api.Test
+    fun `a file creation cancelled on the way is cancelled, not logged as a failure`() {
+        val viewModel = DialogViewModel(project)
+        var thrown: Throwable? = null
+
+        mockkStatic(VfsUtil::class)
+        try {
+            every { VfsUtil.createDirectoryIfMissing(any<String>()) } throws ProcessCanceledException()
+            ApplicationManager.getApplication().invokeAndWait {
+                thrown = runCatching { viewModel.createNamespace("auth") }.exceptionOrNull()
+            }
+        } finally {
+            unmockkStatic(VfsUtil::class)
+        }
+
+        assertInstanceOf(ProcessCanceledException::class.java, thrown)
     }
 
     // -----------------------------------------------------------------------
