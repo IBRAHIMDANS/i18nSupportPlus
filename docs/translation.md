@@ -29,7 +29,7 @@ On IntelliJ-based IDEs 2025.2.6 and later, the plugin adds ten tools to the IDE'
 | Tool | What it does |
 |------|--------------|
 | `i18n_list_modules` | The translation modules, their reference locale, locales, the locales not checked for missing keys, and whether reviews are on |
-| `i18n_missing_translations` | The keys a locale lacks, with the reference text to translate and the plural forms the locale needs |
+| `i18n_missing_translations` | The keys a locale lacks, with the reference text to translate and the plural forms the locale needs. Each page also carries the terminology in place: the project's glossary for that locale (`glossary`) and up to 10 translations the locale already has whose reference text shares a word with the page (`examples`), so that a term left in English or translated a given way stays so |
 | `i18n_stale_translations` | The stale translations of a locale — values still the ones reviewed while their key's reference text changed since — with that text as it reads now and the value to replace. Only in a module keeping reviews |
 | `i18n_write_translations` | Writes translations in one undoable command: fills a missing value, or replaces one that is stale when written — never any other existing value — and a value losing a placeholder or tag of its reference is refused with the reason. Marked *to review* (`machine:<agent>`) with the reference text it was translated from when the module keeps reviews |
 | `i18n_check` | The check of `i18n-check`, per module: the keys each locale lacks, holds in excess or leaves blank, and the keys of the reference locale no code uses — those of the keep list, and keys a dynamic key may build, left out |
