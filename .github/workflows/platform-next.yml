@@ -7,6 +7,7 @@ name: Next Platform Tests
 #
 # Not on pull requests: it never blocks a merge. Weekly, an hour after Plugin Compatibility, and by
 # hand on any branch: `gh workflow run platform-next.yml --ref <branch> -f platformVersion=2026.2.4`.
+# One class alone, to read its failure without the whole suite: add `-f tests=ArbCataloguesTest`.
 on:
   schedule:
     - cron: '0 9 * * 1'
@@ -16,6 +17,10 @@ on:
         description: 'IntelliJ IDEA Ultimate version to compile and test against'
         required: false
         default: '2026.2.4'
+      tests:
+        description: 'Test filter passed to --tests (for example ArbCataloguesTest); empty runs the whole suite'
+        required: false
+        default: ''
 
 jobs:
   test:
@@ -27,6 +32,7 @@ jobs:
       contents: read
     env:
       PLATFORM_VERSION: ${{ inputs.platformVersion || '2026.2.4' }}
+      TEST_FILTER: ${{ inputs.tests }}
     steps:
       - name: Free disk space
         uses: jlumbroso/free-disk-space@main
@@ -58,7 +64,7 @@ jobs:
         run: ./gradlew compileKotlin compileTestKotlin -PplatformVersion="$PLATFORM_VERSION" --stacktrace
 
       - name: Run the plugin's tests
-        run: ./gradlew :test -PplatformVersion="$PLATFORM_VERSION" --no-configuration-cache --max-workers=1
+        run: ./gradlew :test -PplatformVersion="$PLATFORM_VERSION" --no-configuration-cache --max-workers=1 ${TEST_FILTER:+--tests "$TEST_FILTER"}
 
       - name: Upload test results
         if: always()
