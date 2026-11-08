@@ -28,7 +28,7 @@ internal sealed interface CodeSite : CallSiteIndex.Site {
 }
 
 /**
- * A literal whose text may name a key: what the word search of `IndirectKeyUsages.textUsages` matches,
+ * A literal whose text may name a key: what the word search of `IndirectKeyUsages.textCount` matches,
  * read once. [path] is the text after its namespace, split at the key separator; [namespace] the one
  * written before it; [declared] the namespaces of the hook the call sits under when it writes none.
  * An [identifier] is a Paraglide or typesafe-i18n member name, counted only in a project whose code
@@ -46,7 +46,7 @@ internal class TextSite(
 
 /**
  * A call reading its key through what it does not write: a hook's key prefix, a key scope, an i18next
- * context — what `IndirectKeyUsages.prefixedUsages` matches. [path] is the key resolved, prefix applied;
+ * context — read by [CodeUsageIndexService] for the key it resolves to. [path] is the key resolved, prefix applied;
  * [scope] the single namespace of its hook when the project declares it a key scope.
  */
 internal class PrefixedSite(
@@ -181,9 +181,17 @@ internal class CodeUsageIndexer(private val project: Project, private val config
         fun pathOf(written: String, config: Config): List<String> =
             if (config.keySeparator.isEmpty()) listOf(written) else written.split(config.keySeparator)
 
+        /**
+         * Where [element] lies, in its top-level file: an element of an injected fragment (a Blade echo,
+         * an Angular template) is placed in the file holding it, so that [CodeUsageIndexService.elementsOf]
+         * finds it again from the file and the offsets alone.
+         */
         fun usageOf(element: PsiElement): KeyUsage? {
-            val path = element.containingFile?.virtualFile?.path ?: return null
-            val range = element.textRange ?: return null
+            val file = element.containingFile ?: return null
+            val injection = InjectedLanguageManager.getInstance(file.project)
+            val top = injection.getTopLevelFile(file) ?: file
+            val path = top.viewProvider.virtualFile.path
+            val range = element.textRange?.let { injection.injectedToHost(element, it) } ?: return null
             return KeyUsage(path, TextSpan(range.startOffset, range.endOffset))
         }
     }

@@ -1,21 +1,13 @@
 package com.ibrahimdans.i18n.plugin.ide
 
-import com.ibrahimdans.i18n.IdeI18nRegistry
 import com.ibrahimdans.i18n.plugin.KeyUsage
 import com.ibrahimdans.i18n.plugin.KeyUsageIndex
-import com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages
-import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationKeyUsages
-import com.ibrahimdans.i18n.plugin.ide.inspection.isIn
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
-import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.usages.CodeUsageIndexService
-import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
-import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.searchScope
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
-import com.intellij.psi.search.PsiSearchHelper
 
 /**
  * [KeyUsageIndex] on the project's code, read once by [CodeUsageIndexService]: the call sites naming a
@@ -47,16 +39,12 @@ class IdeKeyUsageIndex(private val project: Project, private val module: ModuleC
 
     /**
      * What [read] makes of each element behind [key]'s [usages], those it reads as nothing left out:
-     * for a caller looking at the code around a usage, which a [KeyUsage] no longer holds. [read]
-     * runs in the search's read action, while the elements are valid. One key, searched for itself:
-     * the index keeps places, not elements.
+     * for a caller looking at the code around a usage, which a [KeyUsage] does not hold. The index
+     * keeps places: each is found again in its file, and [read] runs in that read action, while the
+     * elements are valid.
      */
-    fun <T : Any> readUsages(key: String, read: (PsiElement) -> T?): List<T> = CodeUsageIndexService.readStep {
-        val config = Settings.getInstance(project).config()
-        val scope = ModuleSources.searchScope(project, module)
-        val fallbacks = FallbackNamespaces.of(IdeWorkspace(project), config, IdeI18nRegistry)
-        val texts = IndirectKeyUsages.textUsages(key, config, scope, PsiSearchHelper.getInstance(project), fallbacks)
-        val prefixed = IndirectKeyUsages.prefixedUsages(project, listOf(key), config)[key].orEmpty().filter { it.isIn(scope) }
-        (texts + prefixed).distinct().mapNotNull(read)
+    fun <T : Any> readUsages(key: String, read: (PsiElement) -> T?): List<T> {
+        val found = usages(key)
+        return CodeUsageIndexService.readStep { index.elementsOf(found).distinct().mapNotNull(read) }
     }
 }
