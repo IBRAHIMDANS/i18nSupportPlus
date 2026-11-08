@@ -4,6 +4,7 @@
 
 ### Features
 
+- [CLI] **Check your translations with `npx`, without Java**: `npx i18n-support-plus --code` runs `i18n-check` as a native binary on Linux, macOS and Windows, and starts in a fraction of a second, which suits a pre-commit hook. On Alpine, the Docker image or the release zip still run it.
 - [Installation] **The plugin installs without the JavaScript plugin**: IntelliJ IDEA Community, Android Studio, PyCharm and an unlicensed IntelliJ IDEA 2025.3+ get the tool window, the inspections of the translation files, machine translation and the AI agent tools. The keys in your code, their completion and extraction still need the JavaScript plugin, bundled with WebStorm, IntelliJ IDEA Ultimate and PhpStorm.
 - [AI agents] **An agent translating through the tools keeps your terminology**: `i18n_missing_translations` now gives, with the keys to translate, the project's glossary and the translations already in place that share a word with them, so a term you left in English or translated a given way stays so.
 

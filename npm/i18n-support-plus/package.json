@@ -1,0 +1,32 @@
+{
+  "name": "i18n-support-plus",
+  "version": "0.0.0",
+  "description": "i18n-check, the translation checks of I18n Support Plus, as a native binary: missing keys, placeholders, plurals and the keys the code calls, without Java",
+  "keywords": [
+    "i18n",
+    "translations",
+    "i18next",
+    "vue-i18n",
+    "lint",
+    "ci"
+  ],
+  "homepage": "https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/docs/checks.md",
+  "bugs": "https://github.com/IBRAHIMDANS/i18nSupportPlus/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IBRAHIMDANS/i18nSupportPlus.git",
+    "directory": "npm/i18n-support-plus"
+  },
+  "license": "MIT",
+  "bin": {
+    "i18n-support-plus": "bin/i18n-support-plus.js"
+  },
+  "files": [
+    "bin",
+    "platforms.json"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {}
+}
