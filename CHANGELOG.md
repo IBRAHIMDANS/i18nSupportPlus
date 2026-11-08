@@ -15,6 +15,7 @@
 - [Tool window] ***Count Key Usages* reads the code once for all the keys**: on a large project the count takes seconds instead of minutes, and counting again after an edit only reads the files that changed.
 - [Editor] **The usage count shows above every key, whatever the size of the file**: it stopped past 100 keys and read "99+" for a popular key. It now gives the exact count on every key, read from the same index as the tool window, and *Unused translation key* and *Find Usages* on a key no longer search the project for each key.
 - [Editor] **Opening a translation file no longer holds the editor while the plugin reads the code**: the code's key usages are read in the background, with a progress bar, and the counts and *Unused translation key* warnings appear once they are read. No key is reported unused in the meantime.
+- [Settings] **Typing in an open `i18n-check.json` no longer reads the whole project at every keystroke**: each letter typed into a setting made the plugin start the key usage index over, so `node_modules` in `excludedDirectories` was twelve full readings of the code, with the CPU and the usage counts flickering. The settings now follow the document after a short pause in the typing, and a reading still running when they change again is dropped. Saving the file or undoing a change applies at once, as before.
 
 ### Fixes
 

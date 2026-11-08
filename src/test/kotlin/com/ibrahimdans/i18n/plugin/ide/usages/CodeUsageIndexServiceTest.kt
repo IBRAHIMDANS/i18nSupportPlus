@@ -8,6 +8,7 @@ import com.ibrahimdans.i18n.plugin.ide.IdeKeyUsageIndex
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ProjectConfigFile
+import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
@@ -20,7 +21,6 @@ import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
 /**
@@ -31,6 +31,7 @@ class CodeUsageIndexServiceTest : PlatformBaseTest() {
 
     private val index by lazy { IdeKeyUsageIndex(project) }
     private val service get() = CodeUsageIndexService.getInstance(project)
+    private val settings get() = Settings.getInstance(project)
 
     private fun menu(): PsiFile = myFixture.addFileToProject("src/Menu.tsx", "export const home = () => i18n.t('menu.home');")
     private fun profile(): PsiFile = myFixture.addFileToProject("src/Profile.tsx", "export const name = () => i18n.t('profile.name');")
@@ -50,6 +51,7 @@ class CodeUsageIndexServiceTest : PlatformBaseTest() {
         val documents = FileDocumentManager.getInstance()
         documents.getCachedDocument(file)?.let { ApplicationManager.getApplication().invokeAndWait { documents.reloadFromDisk(it) } }
         WriteAction.runAndWait<Exception> { file.delete(this) }
+        settings.endTypingPause()
     }
 
     @Test
@@ -172,7 +174,7 @@ class CodeUsageIndexServiceTest : PlatformBaseTest() {
     }
 
     /**
-     * `i18n-check.json` open in the editor is read again at each keystroke, unsaved ([com.ibrahimdans.i18n.plugin.ide.settings.Settings]).
+     * `i18n-check.json` open in the editor is read unsaved once the typing in it pauses ([Settings]).
      * A keystroke that leaves the settings as they were costs the index nothing.
      */
     @Test
@@ -184,6 +186,7 @@ class CodeUsageIndexServiceTest : PlatformBaseTest() {
 
         val reads = readsDuring {
             edit(document, "{", "{ ")
+            settings.endTypingPause()
             Assertions.assertEquals(1, count("menu.home"))
         }
 
@@ -191,27 +194,34 @@ class CodeUsageIndexServiceTest : PlatformBaseTest() {
     }
 
     /**
-     * A keystroke in a value that changes no file the index reads: a directory excluded that the project does not have.
-     * Today [CodeUsageIndexService] compares the whole [Config]: any setting that changes rebuilds, so typing
-     * `node_modules` into `excludedDirectories` reads the whole project once per keystroke.
+     * Typing `node_modules` into `excludedDirectories` is twelve keystrokes, each changing the settings: the
+     * index reads the project once, after the pause in the typing, not once per keystroke as #926 measured.
      */
-    @Disabled("2026-11-08: reads 2 of 2 code files — the index rebuilds on any change of Config, not only on the settings it reads with")
     @Test
-    fun `a keystroke in the open config file that excludes no code file reads no code`() {
+    fun `a burst of keystrokes in the open config file reads the code once, after the pause`() {
         menu()
         profile()
         val document = openConfigFile()
         count("menu.home")
 
-        val reads = readsDuring {
-            edit(document, "\"x\"", "\"xy\"")
+        val whileTyping = readsDuring {
+            var typed = "x"
+            for (letter in "node_modules") {
+                edit(document, "\"$typed\"", "\"$typed$letter\"")
+                typed += letter
+                Assertions.assertEquals(1, count("menu.home"))
+            }
+        }
+        val afterPause = readsDuring {
+            settings.endTypingPause()
             Assertions.assertEquals(1, count("menu.home"))
         }
 
-        Assertions.assertEquals(0, reads)
+        Assertions.assertEquals(0, whileTyping, "nothing read while the typing goes on")
+        Assertions.assertEquals(2, afterPause, "every file read once after the pause")
     }
 
-    /** A keystroke that changes a setting the index reads with — a separator — reads the code again, all of it. */
+    /** A keystroke that changes a setting the index reads with — a separator — reads the code again, all of it, after the pause. */
     @Test
     fun `a keystroke in the open config file that changes a separator reads the code again`() {
         menu()
@@ -219,12 +229,17 @@ class CodeUsageIndexServiceTest : PlatformBaseTest() {
         val document = openConfigFile()
         count("menu.home")
 
-        val reads = readsDuring {
+        val whileTyping = readsDuring {
             edit(document, "\"keySeparator\": \".\"", "\"keySeparator\": \"/\"")
             count("menu.home")
         }
+        val afterPause = readsDuring {
+            settings.endTypingPause()
+            count("menu.home")
+        }
 
-        Assertions.assertTrue(reads >= 2, "every file read again, read $reads")
+        Assertions.assertEquals(0, whileTyping, "nothing read before the pause")
+        Assertions.assertTrue(afterPause >= 2, "every file read again, read $afterPause")
     }
 
     private fun openConfigFile(): Document {

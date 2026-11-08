@@ -1,16 +1,24 @@
 package com.ibrahimdans.i18n.plugin.ide.settings
 
 import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.plugin.ide.preview.EditorRefresh
 import com.ibrahimdans.i18n.plugin.ide.settings.rules.EditorRuleState
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginCoroutineScope
 import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
 import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.runReadAction
+import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.editor.Document
+import com.intellij.openapi.editor.EditorFactory
+import com.intellij.openapi.editor.event.DocumentEvent
+import com.intellij.openapi.editor.event.DocumentListener
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.progress.ProcessCanceledException
@@ -20,6 +28,10 @@ import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.xmlb.XmlSerializerUtil
 import com.intellij.util.xmlb.annotations.Transient
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import org.jetbrains.annotations.TestOnly
 
 /**
  * Plugin settings, persisted in `.idea/i18nSettings.xml`.
@@ -28,12 +40,25 @@ import com.intellij.util.xmlb.annotations.Transient
  * come from it: [config] lays them over the ones stored here, and [setConfig] never writes them back,
  * so that the file stays the single place a team changes them. Read once, then again whenever the file
  * changes ([configFileChanged], called by [ProjectConfigFileListener]).
+ *
+ * The file's open, unsaved document counts too, so that an undo shows at once — but not while it is
+ * typed in. Every keystroke that changes a setting makes each consumer start over (the usage index
+ * reads the whole project again), so the keystrokes wait for a pause in the typing
+ * ([TYPING_PAUSE_MS]), after which the editors are refreshed. Saving and undoing apply at once.
  */
 @State(name = "i18nSettings", storages = [Storage("i18nSettings.xml")])
-class Settings(@field:Transient private val project: Project?) : PersistentStateComponent<Settings>, ConfigStore {
+class Settings(@field:Transient private val project: Project?) : PersistentStateComponent<Settings>, ConfigStore, Disposable {
 
     /** The state the platform deserializes, and the tests that build settings with no project. */
     constructor() : this(null)
+
+    init {
+        if (project != null) {
+            EditorFactory.getInstance().eventMulticaster.addDocumentListener(object : DocumentListener {
+                override fun documentChanged(event: DocumentEvent) = configDocumentChanged(event.document)
+            }, this)
+        }
+    }
 
     private val default: Config = Config()
 
@@ -99,6 +124,15 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
     @field:Transient
     @Volatile
     private var notifiedStamp: Long = -1
+
+    /** When the typing in the open `i18n-check.json` counts as paused: until then, its unsaved text waits. */
+    @field:Transient
+    @Volatile
+    private var typingUntil = 0L
+
+    /** Reads the document and refreshes the editors once the typing has paused. */
+    @field:Transient
+    private var pauseJob: Job? = null
 
     /**
      * Returns plugin configuration: the stored settings, with those `i18n-check.json` sets laid over
@@ -166,17 +200,19 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
     }
 
     private fun configFile(): ConfigFileState {
-        configFileState?.takeIf { it.isCurrent() }?.let { return it }
-        return readConfigFile().also { configFileState = it }
+        val typing = typing()
+        configFileState?.takeIf { it.isCurrent(typing) }?.let { return it }
+        return readConfigFile(typing).also { configFileState = it }
     }
 
-    private fun readConfigFile(): ConfigFileState {
+    private fun readConfigFile(typing: Boolean): ConfigFileState {
         val project = project?.takeUnless { it.isDisposed } ?: return ConfigFileState.NONE
         val file = runReadAction { project.guessProjectDir()?.findChild(ProjectConfigFile.PATH) }
             ?.takeIf { it.isValid && !it.isDirectory } ?: return ConfigFileState.NONE
         val stamp = file.modificationStamp
-        val documentStamp = ConfigFileState.documentStampOf(file)
-        unsavedContent(file)?.let { return ConfigFileState(file, stamp, it, documentStamp) }
+        // Typed in: the file is read, and the document once the typing has paused.
+        val documentStamp = if (typing) ConfigFileState.TYPED_IN else ConfigFileState.documentStampOf(file)
+        if (!typing) unsavedContent(file)?.let { return ConfigFileState(file, stamp, it, documentStamp) }
         return try {
             ConfigFileState(file, stamp, ProjectConfigFile.parse(VfsUtilCore.loadText(file)), documentStamp)
         } catch (e: ProcessCanceledException) {
@@ -216,6 +252,50 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
         }
     }
 
+    /** Whether the open `i18n-check.json` is being typed in: its unsaved text then waits for the pause. */
+    private fun typing(): Boolean = System.currentTimeMillis() < typingUntil
+
+    /**
+     * A change of a document named `i18n-check.json`: typed in, the one at this project's root starts
+     * the pause; undone or redone, it is read at once. Every other change of the file is a save.
+     */
+    private fun configDocumentChanged(document: Document) {
+        val project = project?.takeUnless { it.isDisposed } ?: return
+        val file = FileDocumentManager.getInstance().getFile(document) ?: return
+        if (file.name != ProjectConfigFile.PATH || file.parent != project.guessProjectDir()) return
+        if (UndoManager.getInstance(project).isUndoOrRedoInProgress) {
+            readDocumentNow()
+            return
+        }
+        typingUntil = System.currentTimeMillis() + TYPING_PAUSE_MS
+        pauseJob?.cancel()
+        pauseJob = PluginCoroutineScope.of(project).launch {
+            delay(TYPING_PAUSE_MS)
+            afterTypingPause(project)
+        }
+    }
+
+    /** Reads what the typing left, and shows it in the editors when it changed the settings. */
+    private fun afterTypingPause(project: Project) {
+        typingUntil = 0L
+        val before = configFileState?.content
+        if (configFile().content != before) EditorRefresh.afterSettingsChange(project)
+    }
+
+    /** Ends the pause: the next [config] reads the unsaved document. */
+    private fun readDocumentNow() {
+        pauseJob?.cancel()
+        typingUntil = 0L
+    }
+
+    /** Ends the typing pause, as the time would: the next [config] reads the unsaved document. */
+    @TestOnly
+    fun endTypingPause() = readDocumentNow()
+
+    override fun dispose() {
+        pauseJob?.cancel()
+    }
+
     /**
      * The [file] read, with its [stamp] then and what it set — null when it did not read. A file
      * deleted or saved since is read again; one created since is announced by [configFileChanged].
@@ -226,11 +306,19 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
         val content: ProjectConfigFile.Content?,
         val documentStamp: Long = NO_DOCUMENT,
     ) {
-        fun isCurrent(): Boolean =
-            file == null || (file.isValid && file.modificationStamp == stamp && documentStampOf(file) == documentStamp)
+        /** Whether what was read still holds. While the document is [typing] in, it does: the keystrokes wait. */
+        fun isCurrent(typing: Boolean): Boolean {
+            if (file == null) return true
+            if (!file.isValid || file.modificationStamp != stamp) return false
+            return typing || documentStampOf(file) == documentStamp
+        }
 
         companion object {
             private const val NO_DOCUMENT = -1L
+
+            /** Read from the file while its document was typed in: read again once the typing has paused. */
+            const val TYPED_IN = -2L
+
             val NONE = ConfigFileState(null, 0, null)
 
             /** The stamp of [file]'s loaded document, which an undo changes without touching the file. */
@@ -379,6 +467,12 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
 
         /** Read from `i18n-check.json` but not applied: the preview locale is one developer's. */
         private val IGNORED_FROM_FILE = setOf(ProjectConfigFile.PREVIEW_LOCALE)
+
+        /**
+         * How long the typing in the open `i18n-check.json` must pause before its text is read: long
+         * enough to span the keystrokes of a word, short enough for the editors to follow a finished one.
+         */
+        const val TYPING_PAUSE_MS = 750L
 
         private val LOG = logger<Settings>()
 

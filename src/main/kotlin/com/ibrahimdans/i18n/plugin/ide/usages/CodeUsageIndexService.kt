@@ -18,6 +18,7 @@ import com.ibrahimdans.i18n.plugin.utils.FallbackNamespaces
 import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.PluginCoroutineScope
 import com.ibrahimdans.i18n.plugin.utils.keyScopesOf
 import com.ibrahimdans.i18n.plugin.utils.searchScope
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
@@ -35,9 +36,8 @@ import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.progress.ProcessCanceledException
-import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
+import com.intellij.openapi.progress.coroutineToIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.TextRange
@@ -46,6 +46,7 @@ import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
+import com.intellij.platform.ide.progress.withBackgroundProgress
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
@@ -56,11 +57,13 @@ import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.UsageSearchContext
 import com.intellij.psi.util.parents
 import com.intellij.util.concurrency.annotations.RequiresEdt
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import org.jetbrains.annotations.TestOnly
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 
@@ -76,7 +79,8 @@ import java.util.concurrent.locks.ReentrantLock
  * file is read again ([PsiTreeChangeAdapter], [BulkFileListener] for a change from outside the IDE),
  * an added, moved or deleted one is found by listing the files again when the file structure or the
  * project roots changed. A change of [Settings] — separators, namespaces, function names — or of the
- * key scopes the technologies declare drops it all: the next question rebuilds it.
+ * key scopes the technologies declare drops it all: the next question rebuilds it, and a rebuild
+ * still running for the settings before is dropped with them.
  *
  * What depends on the module asked, the `fallbackNS` and whether the code names keys as identifiers
  * is applied when asking, never when indexing.
@@ -185,38 +189,57 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
      * background — one build at a time, under a progress indicator — and the highlighting runs again
      * once it is: reading the whole project from a highlighting pass held it for as long (18 s on the
      * benchmark's 300 files), and an answer read from a half-built index would call live keys unused.
+     * A build running for settings that changed since is cancelled: the pass asking for the new ones
+     * would wait for it to end, then start over.
      */
     fun readyForHighlighting(): Boolean {
-        if (isReady()) return true
+        val wanted = wantedState()
+        if (isReady(wanted)) return true
         if (holdBuilds) return false
-        val application = ApplicationManager.getApplication()
         // A test reads what the counts decide: built here, in the pass that asks.
-        if (application.isUnitTestMode) {
+        if (ApplicationManager.getApplication().isUnitTestMode) {
             tryBuild()
-            return isReady()
+            return isReady(wantedState())
         }
-        // Started from the event dispatch thread: a task cannot start from the read action the pass holds.
-        if (building.compareAndSet(false, true)) application.invokeLater({ build() }, project.disposed)
+        synchronized(buildLock) {
+            val running = build
+            if (running == null) build = Build(wanted).also { it.job = buildIn(it) }
+            else if (running.state != wanted) running.job.cancel()
+        }
         return false
     }
 
-    private fun build() {
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, PluginBundle.message("usages.index.progress.title"), false) {
-            private var built = false
+    /** A build running, with the settings and key scopes it reads with. */
+    private class Build(val state: Pair<Config, Set<String>>) {
+        lateinit var job: Job
+    }
 
-            override fun run(indicator: ProgressIndicator) {
-                try {
-                    built = tryBuild()
-                } finally {
-                    building.set(false)
-                }
-            }
+    private val buildLock = Any()
 
-            // Only after a build: a failed one restarting the highlighting would ask for the same build again, and fail again.
-            override fun onSuccess() {
-                if (built && !project.isDisposed) rerunHighlighting()
+    /** The build running, null between two. Guarded by [buildLock]. */
+    private var build: Build? = null
+
+    /**
+     * Builds the index in the background, then reruns the highlighting that asked for it. Only after a
+     * build: a failed one rerunning the highlighting would ask for the same build again, and fail again.
+     * A cancelled one reruns it too: the pass then asks for the settings that cancelled it.
+     */
+    private fun buildIn(build: Build): Job = PluginCoroutineScope.of(project).launch {
+        var rerun = false
+        try {
+            withBackgroundProgress(project, PluginBundle.message("usages.index.progress.title"), cancellable = false) {
+                coroutineToIndicator { rerun = tryBuild() }
             }
-        })
+        } catch (e: CancellationException) {
+            rerun = true
+            throw e
+        } catch (e: ProcessCanceledException) {
+            rerun = true
+            throw e
+        } finally {
+            synchronized(buildLock) { if (this@CodeUsageIndexService.build === build) this@CodeUsageIndexService.build = null }
+            if (rerun) ApplicationManager.getApplication().invokeLater({ rerunHighlighting() }, project.disposed)
+        }
     }
 
     /**
@@ -288,13 +311,10 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
     @TestOnly
     var failBuilds = false
 
-    private fun isReady(): Boolean {
-        val built = builtWith ?: return false
-        return listedAt >= 0 && readStep { Settings.getInstance(project).config() to keyScopesOf(project) } == built
-    }
+    /** The settings and key scopes in force: what the index must be built with to answer. */
+    private fun wantedState(): Pair<Config, Set<String>> = readStep { Settings.getInstance(project).config() to keyScopesOf(project) }
 
-    /** Whether a build is running. */
-    private val building = AtomicBoolean()
+    private fun isReady(wanted: Pair<Config, Set<String>>): Boolean = listedAt >= 0 && builtWith == wanted
 
     /** Set by a test to see what the highlighting does before the index is built. */
     @Volatile
@@ -464,7 +484,7 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
     }
 
     private fun refreshAlone(): Config {
-        val (config, keyScopes) = readStep { Settings.getInstance(project).config() to keyScopesOf(project) }
+        val (config, keyScopes) = wantedState()
         if (config to keyScopes != builtWith) {
             synchronized(this) {
                 sites.clear()
