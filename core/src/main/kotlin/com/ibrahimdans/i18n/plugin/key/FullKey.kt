@@ -55,12 +55,13 @@ data class FullKey(
 
     /**
      * True when a segment of the key is only known at runtime: a template expression
-     * (`` t(`status.${kind}`) ``, normalized to a `${…}` literal) or a wildcard. Such a key
-     * names no property that could be created — the gutter click on one wrote a property
-     * literally called `${status}` into a translation file.
+     * (`` t(`status.${kind}`) ``, normalized to a `${…}` literal, or held inside the one segment
+     * of a flat key, `status.${kind}`) or a wildcard. Such a key names no property that could be
+     * created — the gutter click on one wrote a property literally called `${status}` into a
+     * translation file.
      */
     val isDynamic: Boolean
-        get() = compositeKey.any { it.text == "*" || (it.text.startsWith("\${") && it.text.endsWith("}")) }
+        get() = compositeKey.any { it.text == "*" || Interpolation.isIn(it.text) }
 
     /**
      * The key to create when this one is missing: under a fixed [context], its variant —
