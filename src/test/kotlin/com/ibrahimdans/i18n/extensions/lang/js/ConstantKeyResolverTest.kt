@@ -4,9 +4,11 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.IdeKeyUsageIndex
 import com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler
 import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
+import com.intellij.concurrency.JobLauncher
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.TestDialogManager.setTestInputDialog
 import com.intellij.openapi.ui.TestInputDialog
@@ -14,6 +16,7 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * `t(SAVE_KEY)`, `t(KEYS.save)` and `t(Keys.Save)`: a key held by a constant, one hop away from the
@@ -198,6 +201,37 @@ class ConstantKeyResolverTest : PlatformBaseTest() {
         Assertions.assertEquals("export const KEYS = { save: 'common:button.store' } as const;", text("keys.ts"))
         Assertions.assertEquals("import { KEYS } from './keys';\nexport const a = (t) => [t(KEYS.save), t(KEYS.save)];", text("Form.ts"))
         Assertions.assertTrue(text("locales/en/common.json").contains("\"store\": \"Save\""), text("locales/en/common.json"))
+    }
+
+    /**
+     * The daemon runs the annotators in parallel, and the reference provider searches a constant's
+     * calls from there. The search used to spread its files over that same pool: stopping it at the
+     * first call, or a cancellation, threw `ComputationAbortedException` out of the nested search.
+     */
+    @Test
+    fun `an exported constant's call is found from a parallel task, among many files naming it`() {
+        val constants = (0 until 6).map { "KEY_$it" }
+        val keysFile = addFileToProject(
+            "keys.ts",
+            constants.joinToString("\n") { "export const $it = 'common:button.save';" }
+        )
+        val imports = "import { ${constants.joinToString()} } from './keys';"
+        repeat(12) { index ->
+            addFileToProject("Log$index.ts", "$imports\nexport const log$index = () => [${constants.joinToString()}];")
+        }
+        addFileToProject("Form.ts", "$imports\nexport const a = (t) => [${constants.joinToString { "t($it)" }}];")
+        val literals = ReadAction.compute<List<JSLiteralExpression>, RuntimeException> {
+            PsiTreeUtil.findChildrenOfType(keysFile, JSLiteralExpression::class.java).toList()
+        }
+
+        val callFiles = ConcurrentHashMap<JSLiteralExpression, String>()
+        val completed = JobLauncher.getInstance().invokeConcurrentlyUnderProgress(literals, EmptyProgressIndicator(), true, false) { literal ->
+            ConstantKeyResolver.declarationArgument(literal)?.let { callFiles[literal] = it.containingFile.name }
+            true
+        }
+
+        Assertions.assertTrue(completed)
+        Assertions.assertEquals(literals.associateWith { "Form.ts" }, callFiles.toMap())
     }
 
     private fun text(path: String): String = ReadAction.compute<String, RuntimeException> {

@@ -4,6 +4,7 @@
 
 ### Fixes
 
+- [Editor] **No more `ComputationAbortedException` report while the editor checks a key passed through a constant**: with an exported `t(KEYS.save)` or `t(SAVE_KEY)` constant, typing during the highlighting could stop the search for the constant's calls and ask to report the error. The search now reads the files one after another.
 - [Editor] **A key written between backquotes resolves in flat translation files**: with flat keys, `` t(`GenerateTour.locationHint.placeholder`) `` was reported as an unresolved key while `t('GenerateTour.locationHint.placeholder')` resolved. A template string without `${…}` now names its key like a quoted string, and `` t(`role.${role}.label`) `` is checked against the keys it can complete into, such as `role.owner.label`, instead of being always reported.
 
 ## 1.20.0 - 2026-11-09
