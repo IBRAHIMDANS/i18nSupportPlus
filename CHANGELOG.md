@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- [Editor] **No more `ComputationAbortedException` report while the editor checks a key passed through a constant**: with an exported `t(KEYS.save)` or `t(SAVE_KEY)` constant, typing during the highlighting could stop the search for the constant's calls and ask to report the error. The search now reads the files one after another.
+
 ## 1.20.0 - 2026-11-09
 
 ### Features

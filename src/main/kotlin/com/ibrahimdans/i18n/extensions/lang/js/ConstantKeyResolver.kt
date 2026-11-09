@@ -35,8 +35,11 @@ import com.intellij.lang.javascript.psi.stubs.JSImplicitElement
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiNamedElement
+import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.LocalSearchScope
 import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.UsageSearchContext
@@ -44,8 +47,6 @@ import com.intellij.psi.search.SearchScope
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
-import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Keys a call names through a constant: `t(SAVE_KEY)`, `t(KEYS.save)`, `t(Keys.Save)`.
@@ -251,28 +252,49 @@ internal object ConstantKeyResolver {
      * The references named [name] in [scope]'s code that resolve to [owner], an import followed;
      * the search ends at the first one matching [stop].
      *
-     * The search runs the processor on several files at once: each match is tested against [stop]
-     * as it is added, never by reading what the other threads are adding (a concurrent modification).
+     * One file at a time, on the calling thread: the search runs inside the reference provider and
+     * the annotators, themselves run in parallel by the daemon. A search over a global scope would
+     * spread its files over that same pool, and the exception stopping its tasks — at the first
+     * match, or when the daemon cancels — escaped the nested search (`ComputationAbortedException`).
+     * A search over a single element's local scope runs on the caller's thread.
      */
     private fun namedIn(scope: SearchScope, name: String, owner: PsiElement, stop: (JSReferenceExpression) -> Boolean = { false }): List<JSReferenceExpression> {
-        val found = ConcurrentLinkedQueue<JSReferenceExpression>()
-        val stopped = AtomicBoolean(false)
-        PsiSearchHelper.getInstance(owner.project).processElementsWithWord(
-            { element, _ ->
-                if (element is JSReferenceExpression && element.referenceName == name &&
-                    element.resolve()?.let(::declarationOf) == owner
-                ) {
-                    found += element
-                    if (stop(element)) stopped.set(true)
-                }
-                !stopped.get()
-            },
-            scope,
-            name,
-            UsageSearchContext.IN_CODE,
-            true,
-        )
-        return found.toList()
+        val helper = PsiSearchHelper.getInstance(owner.project)
+        val found = mutableListOf<JSReferenceExpression>()
+        val searchIn = { root: PsiElement ->
+            helper.processElementsWithWord(
+                { element, _ ->
+                    if (element is JSReferenceExpression && element.referenceName == name &&
+                        element.resolve()?.let(::declarationOf) == owner
+                    ) {
+                        found += element
+                        !stop(element)
+                    } else {
+                        true
+                    }
+                },
+                LocalSearchScope(root),
+                name,
+                UsageSearchContext.IN_CODE,
+                true,
+            )
+        }
+        val roots: Sequence<PsiElement> = when (scope) {
+            is LocalSearchScope -> scope.scope.asSequence()
+            is GlobalSearchScope -> candidateFiles(helper, scope, name).asSequence().mapNotNull { PsiManager.getInstance(owner.project).findFile(it) }
+            else -> emptySequence()
+        }
+        for (root in roots) {
+            if (!searchIn(root)) break
+        }
+        return found
+    }
+
+    /** The files of [scope] whose code holds the word [name], collected before any of them is read. */
+    private fun candidateFiles(helper: PsiSearchHelper, scope: GlobalSearchScope, name: String): List<VirtualFile> {
+        val files = mutableListOf<VirtualFile>()
+        helper.processCandidateFilesForText(scope, UsageSearchContext.IN_CODE, true, name) { files += it; true }
+        return files
     }
 
     /**
