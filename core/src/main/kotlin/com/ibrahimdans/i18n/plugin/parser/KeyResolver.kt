@@ -37,7 +37,10 @@ object KeyResolver {
     private fun read(rawKey: RawKey, context: KeyContext): FullKey? {
         if (rawKey.unsplit) return KeyParserBuilder.withoutTokenizer().build().parse(rawKey, emptyNamespace = true)
         val config = context.config
-        if (config.usesFlatKeys()) return KeyParserBuilder.withoutTokenizer().build().parse(rawKey, true, config.firstComponentNs)
+        // The template normalizer drops a template literal's backquotes, which the extractors keep as
+        // elements of their own: without it, `` t(`a.b`) `` was read as the three segments `` ` ``, `a.b`, `` ` ``.
+        if (config.usesFlatKeys()) return KeyParserBuilder.withoutTokenizer().withTemplateNormalizer().build()
+            .parse(rawKey, true, config.firstComponentNs)
             ?.let { flatPrefixed(it, config.keySeparator) }
 
         val syntax = context.callerSyntax

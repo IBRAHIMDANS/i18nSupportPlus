@@ -127,6 +127,15 @@ class KeyResolverTest {
         Assertions.assertNull(key?.ns)
     }
 
+    @Test
+    fun `a template literal without interpolation is one flat key`() {
+        // The JS extractors keep the backquotes as elements of their own.
+        val rawKey = RawKey(listOf("`", "GenerateTour.locationHint.placeholder", "`").map(KeyElement::literal))
+        val key = KeyResolver.parse(rawKey, KeyContext(Config(flatKeys = true)))
+        Assertions.assertEquals(listOf("GenerateTour.locationHint.placeholder"), key?.compositeKey?.map { it.text })
+        Assertions.assertEquals("GenerateTour.locationHint.placeholder", key?.source)
+    }
+
     private fun describe(key: FullKey?): String =
         if (key == null) "null"
         else "${key.ns?.text.orEmpty()}|${key.compositeKey.joinToString(".") { it.text }}|${key.fallbackNamespaces.joinToString(",")}"
