@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.20.0 - 2026-11-09
+
 ### Features
 
 - [Installation] **The plugin installs without the JavaScript plugin**: IntelliJ IDEA Community, Android Studio, PyCharm and an unlicensed IntelliJ IDEA 2025.3+ get the tool window, the inspections of the translation files, machine translation and the AI agent tools. The keys in your code, their completion and extraction still need the JavaScript plugin, bundled with WebStorm, IntelliJ IDEA Ultimate and PhpStorm.
@@ -30,7 +32,6 @@
 - [Editor] **No more error report while the editor checks a key passed through a constant**: with `t(KEYS.save)` or `t(SAVE_KEY)` in a project of several files, the inspections could stop on a `ConcurrentModificationException` and ask to report it. The search for the constant's uses now runs safely across files.
 - [PHP] **`ngettext()` is read in GetText mode**: `ngettext('apple', 'apples', $n)` was ignored unless you added it to the GetText aliases. Its first argument is now checked and Ctrl+clickable like a `gettext()` key, and the plural form is left alone, since it belongs to the same `.po` entry.
 - [vue-i18n] **A key built with a template literal is read after `useI18n()`**: in a component's `<script setup>`, or a `.ts` file, that takes `t` from `useI18n()`, ``t(`order.status.${status}`)`` was read as an empty key. It is now read as `order.status.` followed by its dynamic part, as in any other file.
-
 
 ## 1.19.1 - 2026-11-06
 
