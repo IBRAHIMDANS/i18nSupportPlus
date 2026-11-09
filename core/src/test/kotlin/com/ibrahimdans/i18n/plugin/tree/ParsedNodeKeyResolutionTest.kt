@@ -51,6 +51,23 @@ class ParsedNodeKeyResolutionTest {
     }
 
     @Test
+    fun `an interpolation inside a flat key matches every entry it can complete into`() {
+        val source = json("""{"role.owner.label": "Owner", "role.member.label": "Member", "role.owner.hint": "Hint", "roles": "Roles"}""")
+
+        val refs = resolver.resolveCompositeKeys(keyOf("role.\${role}.label"), source)
+
+        assertEquals(listOf("Owner", "Member"), refs.map { it.element?.value()?.value })
+        assertTrue(refs.all { it.unresolved.isEmpty() })
+    }
+
+    @Test
+    fun `an interpolated flat key matching no entry is unresolved`() {
+        val refs = resolver.resolveCompositeKeys(keyOf("status.\${kind}"), json("""{"state.open": "Open"}"""))
+
+        assertEquals(listOf(keyOf("status.\${kind}")), refs.map { it.unresolved })
+    }
+
+    @Test
     fun `an intermediate wildcard expands to every child`() {
         val source = json("""{"pages": {"home": {"title": "Home"}, "about": {"title": "About"}}}""")
 
