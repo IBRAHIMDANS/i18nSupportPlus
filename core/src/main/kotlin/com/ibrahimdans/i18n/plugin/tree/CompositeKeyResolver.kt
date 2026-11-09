@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.tree
 
 import com.ibrahimdans.i18n.TranslationSource
 import com.ibrahimdans.i18n.plugin.key.FullKey
+import com.ibrahimdans.i18n.plugin.key.Interpolation
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 
 /**
@@ -100,6 +101,11 @@ interface CompositeKeyResolver<T> {
                                 }
                             }
                         }
+                    } else if (Interpolation.isIn(key.text)) {
+                        // A flat key written as a template: every entry the runtime value can name.
+                        val matches = matchingChildren(propertyReference.element, key.text)
+                        if (matches.isEmpty()) listOf(propertyReference.copy(unresolved = propertyReference.unresolved + key))
+                        else matches.map { propertyReference.copy(path = propertyReference.path + key, element = it) }
                     } else {
                         val value = propertyReference.element.findChild(key.text)
                         if (value == null) listOf(propertyReference.copy(unresolved = propertyReference.unresolved + key))
@@ -108,6 +114,16 @@ interface CompositeKeyResolver<T> {
                 } else listOf(propertyReference.copy(unresolved = propertyReference.unresolved + key))
             }
         }
+    }
+
+    /**
+     * The children of [node] whose name [segment] matches, its interpolations standing for any text;
+     * by the text before the first interpolation alone for a format that cannot list its names.
+     */
+    private fun matchingChildren(node: Tree<T>, segment: String): List<Tree<T>> {
+        val matcher = Interpolation.matcher(segment)
+        return node.entries()?.filter { (name, _) -> matcher.matches(name) }?.map { it.second }
+            ?: node.findChildren(Interpolation.staticPrefix(segment))
     }
 
     /**
