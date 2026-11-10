@@ -106,3 +106,13 @@ If you can't edit the project's instruction file, Claude Code can load the serve
 - Reviews: in a module with a `.i18n-reviews/` folder, the values written are marked *to review* as `machine:<agent>`; an agent never creates that folder.
 - Renaming, creating and deleting a key are each one command: one Ctrl+Z in the IDE undoes it. A rename only changes a key's last segment; moving a key to another namespace is done with *Move i18n Key to Namespace…*.
 - Nothing appears? Check that the plugin's tools are listed by your client (`/mcp` in Claude Code), that the MCP server is enabled, and that the IDE is 2025.2.6 or later.
+
+## What leaves your machine
+
+Nothing by default: the plugin collects no usage statistics, and machine translation is off until a project turns it on. Then, and on your clicks only:
+
+- **Machine translation**: each engine configured receives the texts to translate, their source and target locales and their keys, along with up to 1,000 characters of context taken from the project's translation files (keys of the same group already translated, translations sharing words with the texts) and the names the IDE read around the texts' usages — never the source code. The glossary and the *Instruction* go to the engines whose request holds them; DeepL keeps the glossary on its side. A text the module already translates under another key is taken from there and not sent. With a local Ollama or LibreTranslate, nothing leaves the machine.
+- **API keys** are kept in the IDE's password safe (the OS keychain or KeePass) and sent only to their engine.
+- **AI agents**: the plugin's MCP tools answer the agent connected to the IDE's local MCP server. The plugin sends nothing itself, but the agent passes what the tools return (keys, values, and the file and line of code of a key's usages) to its own model provider.
+- **Error reports**: *Report to JetBrains Marketplace*, in the IDE's error dialog, sends the plugin's exception, your comment and the IDE's configuration to JetBrains and the plugin's author. *Open a GitHub Issue…* then opens a pre-filled form in your browser: nothing reaches GitHub until you submit it, and a stack trace may hold file paths.
+- **Suggest this layout as a new preset on GitHub**, in the settings, opens an issue form holding the module's framework and path, file and key templates, never its name or directory.
