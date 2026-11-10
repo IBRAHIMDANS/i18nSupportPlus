@@ -71,11 +71,13 @@ class TranslationAgentTools(private val project: Project) {
     /** Where a module keeps its reviews; a test points it at a fixture folder. */
     internal var reviewRootOf: (ModuleConfig?) -> VirtualFile? = { ReviewLocation.rootOf(project, it) }
 
+    private val scopes = ModuleScopes(project)
+
     /** Runs on the EDT between a write's plan and its command; a test edits a value there, as a user could. */
     internal var beforeWrite: () -> Unit = {}
 
     /** Every translation module, the project as one when none is configured. */
-    fun modules(): List<ModuleInfo> = scopes().map { (name, module) ->
+    fun modules(): List<ModuleInfo> = scopes.all().map { (name, module) ->
         val locales = TranslationDataLoader.discoverLocales(project, module)
         val config = Settings.getInstance(project).config()
         ModuleInfo(name, sourceOf(module, locales).orEmpty(), locales, reviewsOn(module) != null, locales.filter(config::ignoresLocale))
@@ -86,7 +88,7 @@ class TranslationAgentTools(private val project: Project) {
      * project's glossary for [locale] and the translations already there that share a word with the page.
      */
     fun missing(moduleName: String?, locale: String, limit: Int): MissingPage {
-        val (name, module) = scope(moduleName)
+        val (name, module) = scopes.named(moduleName)
         val (source, translations, items) = snapshot(module, locale)
         val page = items.take(limit.coerceAtLeast(1)).map { Missing(it.key, it.sent, it.needsReview, it.skipped) }
         val existing = translations.values.mapNotNull { values ->
@@ -105,7 +107,7 @@ class TranslationAgentTools(private val project: Project) {
      * source a translation was reviewed on is what tells it stale.
      */
     fun stale(moduleName: String?, locale: String, limit: Int): StalePage {
-        val (name, module) = scope(moduleName)
+        val (name, module) = scopes.named(moduleName)
         val (source, translations, _) = snapshot(module, locale)
         val root = reviewsOn(module) ?: throw Refused(REVIEWS_OFF)
         val items = staleOf(root, module, source, locale, translations)
@@ -121,7 +123,7 @@ class TranslationAgentTools(private val project: Project) {
      * form read from `other`. Needs a read action, off the EDT: [applyWrite] writes it.
      */
     internal fun planWrite(moduleName: String?, locale: String, values: Map<String, String>, client: String): WritePlan {
-        val (_, module) = scope(moduleName)
+        val (_, module) = scopes.named(moduleName)
         val (source, translations, items) = snapshot(module, locale)
         val root = reviewsOn(module)
         val missing = items.associateBy { it.key }
@@ -232,22 +234,6 @@ class TranslationAgentTools(private val project: Project) {
     /** The review root of [module], only when reviews are turned on there: an agent never turns them on. */
     private fun reviewsOn(module: ModuleConfig?): VirtualFile? =
         reviewRootOf(module)?.takeIf { ReviewStore.getInstance(project).isEnabled(it) }
-
-    /** The modules by name, as *Fill Missing Translations* offers them; one unnamed scope without any. */
-    private fun scopes(): List<Pair<String, ModuleConfig?>> {
-        val modules = Settings.getInstance(project).config().modules.filter { it.rootDirectory.isNotBlank() }
-        if (modules.size < 2) return listOf(PROJECT to null)
-        return modules.map { it.name.ifBlank { it.rootDirectory } to it }
-    }
-
-    private fun scope(name: String?): Pair<String, ModuleConfig?> {
-        val scopes = scopes()
-        if (name.isNullOrBlank()) {
-            return scopes.singleOrNull() ?: throw Refused("Several modules: name one of ${scopes.joinToString { it.first }}")
-        }
-        return scopes.firstOrNull { it.first == name }
-            ?: throw Refused("Unknown module '$name'. Modules: ${scopes.joinToString { it.first }}")
-    }
 
     companion object {
         const val PROJECT = "project"

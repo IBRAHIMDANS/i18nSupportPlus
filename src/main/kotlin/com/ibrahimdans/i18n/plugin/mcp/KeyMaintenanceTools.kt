@@ -27,7 +27,6 @@ import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.sourcesOf
 import com.intellij.openapi.application.runReadAction
-import com.intellij.openapi.editor.Document
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
@@ -121,9 +120,11 @@ class KeyMaintenanceTools(private val project: Project) {
     internal class DeletePlan(val module: ModuleConfig?, val keys: List<String>, val rejected: Map<String, String>, val stamps: DocumentStamps)
 
     /** A rename planned under a read action, applied on the EDT while its files are still as read. */
-    internal class RenamePlan(val result: RenameResult, val plan: KeyLevelRename.Plan, val stamps: Map<Document, Long>)
+    internal class RenamePlan(val result: RenameResult, val plan: KeyLevelRename.Plan, val stamps: DocumentStamps)
 
     private val config: Config get() = Settings.getInstance(project).config()
+
+    private val moduleScopes = ModuleScopes(project)
 
     // ── Check ───────────────────────────────────────────────────────────────
 
@@ -134,7 +135,7 @@ class KeyMaintenanceTools(private val project: Project) {
      * Needs a read action. The unused keys come from [withUnused].
      */
     fun check(moduleName: String?): List<ModuleCheck> {
-        val scopes = if (moduleName.isNullOrBlank()) scopes() else listOf(scope(moduleName))
+        val scopes = if (moduleName.isNullOrBlank()) moduleScopes.all() else listOf(moduleScopes.named(moduleName))
         val config = config
         return scopes.mapNotNull { (name, module) ->
             val locales = TranslationDataLoader.discoverLocales(project, module)
@@ -155,7 +156,7 @@ class KeyMaintenanceTools(private val project: Project) {
      */
     fun withUnused(check: ModuleCheck): ModuleCheck {
         requireSmartMode()
-        val (_, module) = scope(check.module)
+        val (_, module) = moduleScopes.named(check.module)
         val rows = TableViewModel().loadRows(project, module).filter { check.reference in it.values }
         val unused = TableViewModel().countUsages(project, rows, module).filter { it.usageCount == 0 }.map { it.key }.sorted()
         return check.copy(problems = check.problems + unused.size, unused = unused)
@@ -175,7 +176,7 @@ class KeyMaintenanceTools(private val project: Project) {
      */
     fun find(moduleName: String?, query: String, locale: String?, limit: Int): FoundKeys {
         val text = query.trim().ifEmpty { throw Refused("An empty query finds nothing: give a key, a key prefix or a text") }
-        val (name, module) = scope(moduleName)
+        val (name, module) = moduleScopes.named(moduleName)
         val locales = TranslationDataLoader.discoverLocales(project, module)
         val searched = locale?.takeIf { it.isNotBlank() } ?: referenceOf(module, locales) ?: throw Refused("No translations found")
         if (searched !in locales) throw Refused("Unknown locale '$searched'. Locales: ${locales.joinToString()}")
@@ -194,7 +195,7 @@ class KeyMaintenanceTools(private val project: Project) {
      */
     fun withUsages(found: FoundKeys): FoundKeys {
         if (found.keys.isEmpty() || DumbService.isDumb(project)) return found
-        val (_, module) = scope(found.module)
+        val (_, module) = moduleScopes.named(found.module)
         val counted = TableViewModel().countUsages(project, found.keys.map { TranslationRow(it.key, it.values) }, module)
             .associate { it.key to it.usageCount }
         return found.copy(keys = found.keys.map { key ->
@@ -238,7 +239,7 @@ class KeyMaintenanceTools(private val project: Project) {
      */
     fun usages(moduleName: String?, key: String, limit: Int): UsagePage {
         requireSmartMode()
-        val (name, module) = scope(moduleName)
+        val (name, module) = moduleScopes.named(moduleName)
         val defined = TranslationDataLoader.loadAllTranslations(project, module).containsKey(key)
         val index = IdeKeyUsageIndex(project, module)
         val found = index.readUsages(key, ::usageOf).distinct().sortedWith(compareBy({ it.file }, { it.line }))
@@ -270,7 +271,7 @@ class KeyMaintenanceTools(private val project: Project) {
      */
     internal fun planRename(moduleName: String?, key: String, newKey: String): RenamePlan {
         requireSmartMode()
-        val (_, module) = scope(moduleName)
+        val (_, module) = moduleScopes.named(moduleName)
         val config = config
         val oldPath = KeySpelling.segmentsOf(key, config)
         val newPath = KeySpelling.segmentsOf(newKey, config)
@@ -291,13 +292,13 @@ class KeyMaintenanceTools(private val project: Project) {
         val plan = level.plan(newName)
         if (plan.conflict) throw Refused("'$newKey' already exists: a key is never merged into another")
         if (plan.files == 0) throw Refused("No translation holds '$key' in this module")
-        val stamps = plan.edits.map { it.document }.distinct().associateWith { it.modificationStamp }
+        val stamps = DocumentStamps.of(plan.edits.map { it.document })
         return RenamePlan(RenameResult(key, newKey, plan.files, plan.callSites, plan.dynamicUsages), plan, stamps)
     }
 
     /** Applies [plan] in one undoable command; refused when one of its files changed since it was planned. Runs on the EDT. */
     internal fun applyRename(plan: RenamePlan): RenameResult {
-        if (plan.stamps.any { (document, stamp) -> document.modificationStamp != stamp }) throw Refused(CHANGED)
+        if (plan.stamps.changed()) throw Refused(CHANGED)
         val edits = plan.plan.edits.map { RenameI18nKeyHandler.Edit(it.document, it.range, it.text) }
         RenameI18nKeyHandler().apply(project, edits, PluginBundle.message("action.rename.title"), plan.plan.reviews)
         return plan.result
@@ -325,7 +326,7 @@ class KeyMaintenanceTools(private val project: Project) {
      * read action, off the EDT: [applyCreate] writes the plan, [created] tells what it wrote.
      */
     internal fun planCreate(moduleName: String?, key: String, values: Map<String, String>, allowDuplicate: Boolean = false): CreatePlan {
-        val (_, module) = scope(moduleName)
+        val (_, module) = moduleScopes.named(moduleName)
         val config = config
         val path = KeySpelling.segmentsOf(key, config)
         if (KeySpelling.pathOf(key).isBlank() || path.any { it.isBlank() } || key != key.trim()) throw Refused("Invalid key '$key'")
@@ -399,7 +400,7 @@ class KeyMaintenanceTools(private val project: Project) {
      */
     internal fun planDelete(moduleName: String?, keys: List<String>): DeletePlan {
         requireSmartMode()
-        val (_, module) = scope(moduleName)
+        val (_, module) = moduleScopes.named(moduleName)
         // Read before the translations: a file changed while they are read and searched is then caught.
         val stamps = runReadAction { DocumentStamps.of(project, module) }
         val translations = TranslationDataLoader.loadAllTranslations(project, module)
@@ -460,20 +461,7 @@ class KeyMaintenanceTools(private val project: Project) {
         TranslationFileRouting.filesOf(key, sources, config)
 
     /** The modules by name, as [TranslationAgentTools] lists them; one unnamed scope without any. */
-    internal fun scopes(): List<Pair<String, ModuleConfig?>> {
-        val modules = config.modules.filter { it.rootDirectory.isNotBlank() }
-        if (modules.size < 2) return listOf(TranslationAgentTools.PROJECT to null)
-        return modules.map { it.name.ifBlank { it.rootDirectory } to it }
-    }
-
-    private fun scope(name: String?): Pair<String, ModuleConfig?> {
-        val scopes = scopes()
-        if (name.isNullOrBlank()) {
-            return scopes.singleOrNull() ?: throw Refused("Several modules: name one of ${scopes.joinToString { it.first }}")
-        }
-        return scopes.firstOrNull { it.first == name }
-            ?: throw Refused("Unknown module '$name'. Modules: ${scopes.joinToString { it.first }}")
-    }
+    internal fun scopes(): List<Pair<String, ModuleConfig?>> = moduleScopes.all()
 
     companion object {
         const val MAX_CODE = 200
