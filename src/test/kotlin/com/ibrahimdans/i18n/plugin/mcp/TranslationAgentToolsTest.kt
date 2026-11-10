@@ -43,6 +43,10 @@ class TranslationAgentToolsTest : PlatformBaseTest() {
 
     private fun tools(root: VirtualFile? = null) = TranslationAgentTools(project).apply { reviewRootOf = { root } }
 
+    /** A write as `i18n_write_translations` runs it: planned under a read action off the EDT, applied on the EDT. */
+    private fun TranslationAgentTools.write(module: String?, locale: String, values: Map<String, String>, client: String) =
+        applyWrite(readOffEdt { planWrite(module, locale, values, client) })
+
     private fun store(): ReviewStore = ReviewStore.getInstance(project).apply {
         now = { Instant.parse("2026-10-15T14:02:11Z") }
         reviewer = { "Alice <alice@example.com>" }
@@ -344,6 +348,31 @@ class TranslationAgentToolsTest : PlatformBaseTest() {
         val text = text(de)
         Assertions.assertTrue("\"Alles abbrechen\"" in text && "\"Alle {{what}} speichern\"" in text, text)
         Assertions.assertEquals(ReviewState.APPROVED, store().reviews(root, "de").getValue(ReviewKey("common", "cancel")).state, "not marked")
+    }
+
+    @Test
+    fun `a missing value the user fills between the plan and the write is refused, nothing written over it`() = myFixture.runWithConfig(config) {
+        val de = seed()
+        val plan = readOffEdt { tools().planWrite(null, "de", mapOf("common:cancel" to "Abbrechen"), "codex") }
+
+        edit(de, "\"save\": \"\"" to "\"save\": \"\", \"cancel\": \"Stornieren\"")
+        val result = tools().applyWrite(plan)
+
+        Assertions.assertEquals(emptyList<String>(), result.written)
+        Assertions.assertEquals(TranslationAgentTools.CHANGED, result.rejected["common:cancel"])
+        Assertions.assertTrue("\"Stornieren\"" in text(de) && "Abbrechen" !in text(de), text(de))
+    }
+
+    @Test
+    fun `a file edited elsewhere between the plan and the write still takes the values still missing`() = myFixture.runWithConfig(config) {
+        val de = seed()
+        val plan = readOffEdt { tools().planWrite(null, "de", mapOf("common:cancel" to "Abbrechen"), "codex") }
+
+        edit(de, "\"Titel\"" to "\"Überschrift\"")
+        val result = tools().applyWrite(plan)
+
+        Assertions.assertEquals(listOf("common:cancel"), result.written, result.rejected.toString())
+        Assertions.assertTrue("\"Abbrechen\"" in text(de) && "\"Überschrift\"" in text(de), text(de))
     }
 
     private fun terms() {

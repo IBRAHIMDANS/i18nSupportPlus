@@ -86,7 +86,10 @@ class I18nMcpToolset : McpToolset {
         @McpDescription(description = "Locale to write, as listed by i18n_list_modules") locale: String,
         @McpDescription(description = "Key to translated text, keys as returned by i18n_missing_translations or i18n_stale_translations") values: Map<String, String>,
         @McpDescription(description = "Module name from i18n_list_modules; omit when there is only one") module: String? = null,
-    ): String = call { tools, client -> withContext(Dispatchers.EDT) { tools.write(module, locale, values, client) } }
+    ): String = call { tools, client ->
+        val plan = readAction { tools.planWrite(module, locale, values, client) }
+        withContext(Dispatchers.EDT) { tools.applyWrite(plan) }
+    }
 
     @McpTool(name = "i18n_check")
     @McpDescription(
