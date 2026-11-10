@@ -114,6 +114,12 @@ import kotlin.math.roundToLong
  * 500-key file: 7.2 s per pass, 6.5 s for the same searches without the 99-usage cap — the cost is
  * one reference search per key, about 14 ms each, which the cap does not touch. `MAX_KEYS` lowered
  * from 500 to 100 to bound it; (f) now measures a file at that limit: 1.2 s.
+ *
+ * TASK-HIGHLIGHT-PER-ELEMENT-COST measured the two per-element sites left after the inlay fix, on (b)
+ * (2026-11-10, load average 13 on 12 cores, (b) at 3.0 s): the translation function names rebuilt for
+ * each of the component's 2 092 elements cost 15 ms in all (7 µs a call, paid again by the gutter on
+ * its 1 266 leaves), `Settings.config()` read for each leaf 1.1 ms. About 25 ms, under 1 % of the pass,
+ * under 3 % of the 880 ms reference: below the 5 % set beforehand, so neither was changed.
  */
 @EnabledIfEnvironmentVariable(named = "I18N_PERF", matches = "true")
 class HighlightingPerformanceTest : PlatformBaseTest() {
