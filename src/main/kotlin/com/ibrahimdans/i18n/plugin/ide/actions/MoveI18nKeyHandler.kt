@@ -65,6 +65,8 @@ import javax.swing.JPanel
  *
  * The whole operation runs under a single WriteCommandAction (one undo step), the reviews of the
  * moved key included: they follow it to the target namespace ([ReviewMigration]), approval kept.
+ * Where each value goes is decided before, under a read action ([planTargets]): finding the target
+ * reads the source index, which a write action would hold the EDT for on a large project.
  *
  * The source namespace is the one of the *resolved* translation sources (not the literal text), so
  * keys whose namespace comes from a `useTranslation('ns')` hook are handled correctly. It is read
@@ -94,6 +96,23 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
 
     /** One text replacement in a code file, read before the PSI changes and applied after. */
     private data class Rewrite(val document: Document, val range: TextRange, val text: String)
+
+    /**
+     * Where a moved value goes, decided under a read action before the write ([targetSourceFor]):
+     * the write action only creates the file when missing and writes into it.
+     */
+    internal sealed interface MoveTarget {
+        /** A source of the target namespace and locale the project already has. */
+        class Existing(val source: LocalizationSource) : MoveTarget
+
+        /** The file [name] in [folder] under [anchor], created — folder included — when missing. */
+        class File(
+            val anchor: VirtualFile,
+            val folder: String,
+            val name: String,
+            val localization: Localization<PsiElement>,
+        ) : MoveTarget
+    }
 
     /**
      * BGT: [update] reads `PSI_FILE` and resolves the references under the caret, which the
@@ -166,8 +185,8 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
             if (choice != Messages.YES) return
         }
 
-        val codeUsages = ReadAction.compute<List<PsiElement>, RuntimeException> {
-            collectCodeUsages(sourceLeaves, resolved.sourceCodeElement)
+        val (codeUsages, targets) = ReadAction.compute<Pair<List<PsiElement>, Map<PsiElement, MoveTarget>>, RuntimeException> {
+            collectCodeUsages(sourceLeaves, resolved.sourceCodeElement) to planTargets(project, sourceLeaves, targetNs)
         }
 
         // Global and without confirmation: the review file it may rewrite has no editor.
@@ -175,7 +194,7 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
             .withName(PluginBundle.message("action.move.title"))
             .withGlobalUndo()
             .withUndoConfirmationPolicy(UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION)
-            .run<RuntimeException> { execute(project, sourceLeaves, codeUsages, resolved.compositeKey, targetNs) }
+            .run<RuntimeException> { execute(project, sourceLeaves, codeUsages, resolved.compositeKey, targetNs, targets) }
     }
 
     // --- Core (testable; must be called inside a write action) ---
@@ -184,7 +203,9 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
      * Performs the move: copies each source leaf value into the target namespace's file of the same
      * locale (creating it when absent), deletes the source entries, and rewrites the code references.
      *
-     * Pure of any UI; intended to be called from within a [WriteCommandAction].
+     * Pure of any UI; intended to be called from within a [WriteCommandAction]. [targets] comes from
+     * [planTargets] under a read action beforehand; a leaf without a target is not copied. Left out,
+     * the targets are planned here, inside the write action.
      */
     internal fun execute(
         project: Project,
@@ -192,6 +213,7 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
         codeUsages: List<PsiElement>,
         compositeKey: List<Literal>,
         targetNs: String,
+        targets: Map<PsiElement, MoveTarget> = planTargets(project, sourceLeaves, targetNs),
     ) {
         val config = Settings.getInstance(project).config()
 
@@ -201,7 +223,9 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
         val rewrites = codeUsages.distinct().mapNotNull { rewriteOf(it, compositeKey, targetNs, config) }
 
         // 1. Copy into the target namespace, one file per source locale (created if missing).
-        sourceLeaves.forEach { leaf -> insertIntoTarget(project, leaf, compositeKey, targetNs, config) }
+        sourceLeaves.forEach { leaf ->
+            targets[leaf]?.let { insertIntoTarget(project, leaf, it, compositeKey, targetNs, config) }
+        }
 
         // 2. Remove the source entries, separating comma included: a bare delete()
         //    leaves `{,"sibling":…}` behind and corrupts the file whenever the moved
@@ -220,6 +244,18 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
     }
 
     // --- Read-phase collection ---
+
+    /**
+     * Where each of [sourceLeaves] goes in [targetNs] — see [targetSourceFor]. Read-only: reads the
+     * source index and creates nothing, so it runs under a read action before the write.
+     */
+    internal fun planTargets(project: Project, sourceLeaves: List<PsiElement>, targetNs: String): Map<PsiElement, MoveTarget> {
+        val config = Settings.getInstance(project).config()
+        return sourceLeaves.mapNotNull { leaf ->
+            val sourceFile = leaf.containingFile ?: return@mapNotNull null
+            targetSourceFor(project, sourceFile, targetNs, config)?.let { leaf to it }
+        }.toMap()
+    }
 
     /**
      * Resolves the i18n key at the caret to its composite key and value leaves grouped by
@@ -351,13 +387,19 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
     }
 
     /**
-     * Inserts [leaf]'s value into the target namespace's source of the same locale — see
-     * [targetSourceFor] — creating the file when it does not exist yet (so no locale is silently dropped).
+     * Inserts [leaf]'s value into [moveTarget], the target namespace's source of the same locale —
+     * see [targetSourceFor] — creating the file when it does not exist yet (so no locale is silently dropped).
      */
-    private fun insertIntoTarget(project: Project, leaf: PsiElement, compositeKey: List<Literal>, targetNs: String, config: Config) {
+    private fun insertIntoTarget(
+        project: Project,
+        leaf: PsiElement,
+        moveTarget: MoveTarget,
+        compositeKey: List<Literal>,
+        targetNs: String,
+        config: Config,
+    ) {
         val value = readPsiValue(leaf) ?: return
-        val sourceFile = leaf.containingFile ?: return
-        val target = targetSourceFor(project, sourceFile, targetNs, config) ?: return
+        val target = sourceOf(project, moveTarget) ?: return
 
         val ref = resolveCompositeKey(compositeKey, target) ?: return
         val rootOrLeaf = ref.element?.value() ?: return
@@ -379,8 +421,10 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
      *
      * The sibling file used to be the only answer: in a folder-per-namespace module the key landed in
      * `locales/common/profile.json`, a file no template designates and nothing reads.
+     *
+     * Read-only: a file to create is only named here, [sourceOf] creates it in the write action.
      */
-    private fun targetSourceFor(project: Project, sourceFile: PsiFile, targetNs: String, config: Config): LocalizationSource? {
+    private fun targetSourceFor(project: Project, sourceFile: PsiFile, targetNs: String, config: Config): MoveTarget? {
         val virtualFile = sourceFile.virtualFile ?: return null
         val extension = virtualFile.extension ?: return null
         val source = TranslationFileScope.sourceOf(sourceFile)
@@ -391,11 +435,23 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
             val locale = TranslationDataLoader.extractLocale(source)
             val existing = project.service<LocalizationSourceService>().findSources(listOf(targetNs), sourceFile)
                 .filter { TranslationDataLoader.extractLocale(it) == locale }
-            (existing.firstOrNull { fileOf(it)?.parent == virtualFile.parent } ?: existing.firstOrNull())?.let { return it }
+            (existing.firstOrNull { fileOf(it)?.parent == virtualFile.parent } ?: existing.firstOrNull())
+                ?.let { return MoveTarget.Existing(it) }
         }
 
-        val directory = sourceFile.containingDirectory ?: return null
-        return sourceIn(project, directory, "$targetNs.$extension", localization)
+        val directory = virtualFile.parent ?: return null
+        return MoveTarget.File(directory, "", "$targetNs.$extension", localization)
+    }
+
+    /** The source [target] names, its file — and folder — created when missing. Inside the write action. */
+    private fun sourceOf(project: Project, target: MoveTarget): LocalizationSource? = when (target) {
+        is MoveTarget.Existing -> target.source
+        is MoveTarget.File -> {
+            val directory = if (target.folder.isEmpty()) target.anchor
+                else runCatching { VfsUtil.createDirectoryIfMissing(target.anchor, target.folder) }.getOrNull()
+            directory?.let { PsiManager.getInstance(project).findDirectory(it) }
+                ?.let { sourceIn(project, it, target.name, target.localization) }
+        }
     }
 
     /**
@@ -414,7 +470,7 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
         targetNs: String,
         config: Config,
         localization: Localization<PsiElement>,
-    ): LocalizationSource? {
+    ): MoveTarget.File? {
         val locale = source.locale ?: return null
         val ownNamespace = source.namespace ?: return null
         val path = ModuleSources.FilePath.of(virtualFile, project.basePath ?: "")
@@ -434,11 +490,7 @@ class MoveI18nKeyHandler : AnAction(), CompositeKeyResolver<PsiElement> {
         repeat(own.count { it == '/' } + 1) { anchor = anchor.parent ?: return null }
 
         val target = resolved(targetNs)
-        val folder = target.substringBeforeLast('/', "")
-        val directory = if (folder.isEmpty()) anchor
-            else runCatching { VfsUtil.createDirectoryIfMissing(anchor, folder) }.getOrNull() ?: return null
-        val psiDirectory = PsiManager.getInstance(project).findDirectory(directory) ?: return null
-        return sourceIn(project, psiDirectory, target.substringAfterLast('/'), localization)
+        return MoveTarget.File(anchor, target.substringBeforeLast('/', ""), target.substringAfterLast('/'), localization)
     }
 
     /** The source read from [name] in [directory], the file created empty when missing. */
