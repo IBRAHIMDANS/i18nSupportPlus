@@ -45,8 +45,12 @@ import com.intellij.psi.PsiElementVisitor
  * ([com.ibrahimdans.i18n.plugin.ide.settings.Config.parentLocale]): `en-GB/common.json` holding
  * `item_one` alone lacks nothing when `en/common.json` holds `item_other`.
  *
+ * An ordinal group (`place_ordinal_one`…, read by `t('place', { count, ordinal: true })`) takes the
+ * ordinal categories of the language ([PluralCategories.ordinalOf]): `ru` only has `other`, `en`
+ * has `one/two/few/other`.
+ *
  * The large-number `many` of French, Spanish, Italian, Portuguese and Catalan is only asked for
- * when [largeNumberForms] is set: real, but almost never translated.
+ * when [largeNumberForms] is set: real, but almost never translated. It is a cardinal form only.
  *
  * i18next's flat `key_one` convention only — vue-i18n's `a | b` and ICU's `{count, plural, …}`
  * hold every form in one value and are not read here.
@@ -70,7 +74,6 @@ class MissingPluralFormsInspection : LocalInspectionTool() {
         val locale = source.localeLabel()
         val config = Settings.getInstance(holder.project).config()
         if (config.ignoresLocale(locale)) return PsiElementVisitor.EMPTY_VISITOR
-        val needed = PluralCategories.of(locale, largeNumberForms)
         // The keys of the language's file a regional file inherits from, read once per file.
         val inherited by lazy(LazyThreadSafetyMode.NONE) {
             config.parentLocale(locale)
@@ -84,20 +87,20 @@ class MissingPluralFormsInspection : LocalInspectionTool() {
             override fun visitElement(element: PsiElement) {
                 val entry = TranslationPsi.entryOf(element) ?: return
                 val siblings = TranslationPsi.siblingNames(element) ?: return
-                check(entry.name, entry.keyElement, siblings, needed, locale, holder) { inherited }
+                check(entry.name, entry.keyElement, siblings, locale, holder) { inherited }
             }
         }
     }
 
     /**
      * Reports the plural group whose first form is [name], when its forms among [siblings] lack
-     * some of the [needed] categories. Any other key, and the group's other forms, pass silently.
+     * some of the categories its kind — ordinal or cardinal — needs in [locale]
+     * ([PluralKey.categoriesOf]). Any other key, and the group's other forms, pass silently.
      */
     private fun check(
         name: String,
         anchor: PsiElement,
         siblings: List<String>,
-        needed: Set<String>,
         locale: String,
         holder: ProblemsHolder,
         inherited: () -> Set<List<String>>,
@@ -107,7 +110,8 @@ class MissingPluralFormsInspection : LocalInspectionTool() {
             ?.toPair() ?: return
         if (PluralKey.bareKeyCoversForms(base, siblings)) return
         val present = forms.map { it.removePrefix(base + SUFFIX_SEPARATOR) }.toSet()
-        var missing = PluralCategories.ALL.filter { it in needed && it !in present }
+        val categories = PluralKey.categoriesOf(base, locale, largeNumberForms)
+        var missing = PluralCategories.ALL.filter { it in categories && it !in present }
         if (missing.isEmpty()) return
         val parentPath = TranslationFileKeys.pathOf(anchor).dropLast(1)
         missing = missing.filterNot { parentPath + (base + SUFFIX_SEPARATOR + it) in inherited() }
