@@ -21,12 +21,8 @@ include:
   - name: I18nMarkupConsistency       # `<1>…</1>` lost in a translation
   - name: I18nIcuFormat               # an ICU plural without `other`
   # Code
-  - name: I18nUnresolvedKey           # `t('common:does.not.exist')` in JS, TS, Vue, Svelte, Astro
+  - name: I18nUnresolvedKey           # `t('common:does.not.exist')` in JS, TS, Vue, Svelte, Astro, PHP, Blade, Twig, Angular
   - name: I18nInterpolationArguments  # `t('greeting')` without the `name` its message needs
-  # Unresolved keys of PHP, Blade, Twig and Angular templates are still reported by the plugin's
-  # annotator: Qodana runs annotators through the `Annotator` inspection, which also reports the
-  # errors of the languages themselves (TypeScript, JSON…). Drop it for a JavaScript-only project.
-  - name: Annotator
   # Opt-in: noisier on some projects.
   # - name: I18nUnusedKey             # a key no code refers to
   # - name: I18nUntranslatedValue     # a value copied from the reference locale

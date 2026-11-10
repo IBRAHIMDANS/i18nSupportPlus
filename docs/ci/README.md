@@ -9,8 +9,7 @@ The profiles below enable the checks a build should fail on; any other inspectio
 
 | What | Inspection id |
 |------|---------------|
-| A key or namespace the code uses and no file holds, in JavaScript, TypeScript, Vue, Svelte or Astro | `I18nUnresolvedKey` |
-| The same in PHP, Blade, Twig or an Angular template | `Annotator` — the plugin's annotator, run as an inspection |
+| A key or namespace the code uses and no file holds, in JavaScript, TypeScript, Vue, Svelte, Astro, PHP, Blade, Twig or an Angular template | `I18nUnresolvedKey` |
 | A key of the reference locale missing from another locale | `I18nMissingKey` |
 | A placeholder present in one locale and not in another | `I18nPlaceholderConsistency` |
 | A plural form the locale's language needs | `I18nMissingPluralForms` |
@@ -35,13 +34,14 @@ locally as in CI. Locally, with the token exported:
 docker run --rm -v "$PWD":/data/project -e QODANA_TOKEN jetbrains/qodana-js:2026.2
 ```
 
-`I18nUnresolvedKey` reports an unresolved key of JavaScript, TypeScript, Vue, Svelte and Astro code.
-`Annotator` still reports the ones of PHP, Blade, Twig and Angular templates; it also reports the
-errors of the languages themselves (TypeScript, JSON). Drop it from `include` if your project has
-none of those templates, or if those errors already fail elsewhere.
+`I18nUnresolvedKey` reports an unresolved key of every language the plugin reads: JavaScript,
+TypeScript, Vue, Svelte, Astro, PHP, Blade, Twig and Angular templates. The IDE's `Annotator`
+inspection is no longer needed for it; add it to `include` only if you also want the errors of the
+languages themselves (TypeScript, JSON).
 
-The runs below were made before `I18nUnresolvedKey` existed: the `Unresolved key` of `App.tsx` is now
-listed under `I18nUnresolvedKey` rather than `Annotator`.
+The runs below were made before `I18nUnresolvedKey` existed, when the plugin's annotator reported
+unresolved keys: the `Unresolved key` of `App.tsx` is now listed under `I18nUnresolvedKey` rather
+than `Annotator`, and the example's `Partially translated key` and `Unresolved namespace` with it.
 
 Checked with `jetbrains/qodana-js:2026.2` on `examples/react-multi-namespace/`, a key removed from
 `fr/common.json` and `t('does.not.exist')` added to `App.tsx`: the plugin is installed from the
