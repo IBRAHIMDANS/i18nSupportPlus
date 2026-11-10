@@ -250,7 +250,11 @@ internal object ConstantKeyResolver {
 
     /**
      * The references named [name] in [scope]'s code that resolve to [owner], an import followed;
-     * the search ends at the first one matching [stop].
+     * only those passing [candidate] are resolved, and the search ends at the first one matching [stop].
+     *
+     * [candidate] is a PSI-only test run before `resolve()`: in TypeScript, resolving asks the
+     * language service, and every word spelling the name (`var` in an Angular type-check block,
+     * a property of the same name) cost a request — some of which the service fails on (TS 7).
      *
      * One file at a time, on the calling thread: the search runs inside the reference provider and
      * the annotators, themselves run in parallel by the daemon. A search over a global scope would
@@ -258,13 +262,19 @@ internal object ConstantKeyResolver {
      * match, or when the daemon cancels — escaped the nested search (`ComputationAbortedException`).
      * A search over a single element's local scope runs on the caller's thread.
      */
-    private fun namedIn(scope: SearchScope, name: String, owner: PsiElement, stop: (JSReferenceExpression) -> Boolean = { false }): List<JSReferenceExpression> {
+    private fun namedIn(
+        scope: SearchScope,
+        name: String,
+        owner: PsiElement,
+        candidate: (JSReferenceExpression) -> Boolean = { true },
+        stop: (JSReferenceExpression) -> Boolean = { false },
+    ): List<JSReferenceExpression> {
         val helper = PsiSearchHelper.getInstance(owner.project)
         val found = mutableListOf<JSReferenceExpression>()
         val searchIn = { root: PsiElement ->
             helper.processElementsWithWord(
                 { element, _ ->
-                    if (element is JSReferenceExpression && element.referenceName == name &&
+                    if (element is JSReferenceExpression && element.referenceName == name && candidate(element) &&
                         element.resolve()?.let(::declarationOf) == owner
                     ) {
                         found += element
@@ -317,7 +327,7 @@ internal object ConstantKeyResolver {
         val name = (owner as? PsiNamedElement)?.name ?: return null
         val names = translationFunctionNames()
         val isKey = { reference: JSReferenceExpression -> isKeyArgument(reference, names) }
-        return namedIn(owner.useScope, name, owner, isKey).firstOrNull(isKey)
+        return namedIn(owner.useScope, name, owner, candidate = isKey, stop = isKey).firstOrNull()
     }
 }
 
