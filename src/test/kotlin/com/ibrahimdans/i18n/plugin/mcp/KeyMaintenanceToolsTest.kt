@@ -234,6 +234,32 @@ class KeyMaintenanceToolsTest : PlatformBaseTest() {
     }
 
     @Test
+    fun `a rename to a name that would break a call site or a file is refused, nothing written`() = myFixture.runWithConfig(config) {
+        val (en, fr) = seed()
+        val app = myFixture.findFileInTempDir("src/App.js")
+        val before = listOf(text(en), text(fr), FileDocumentManager.getInstance().getDocument(app)!!.text)
+
+        fun plan(newKey: String) = ReadAction.compute<KeyMaintenanceTools.RenamePlan, RuntimeException> { tools().planRename(null, "common:title", newKey) }
+
+        val quote = Assertions.assertThrows(TranslationAgentTools.Refused::class.java) { plan("common:don't") }
+        Assertions.assertTrue("'" in quote.message!!, quote.message)
+        Assertions.assertThrows(TranslationAgentTools.Refused::class.java) { plan("common:back\\slash") }
+        Assertions.assertEquals(before, listOf(text(en), text(fr), FileDocumentManager.getInstance().getDocument(app)!!.text))
+    }
+
+    @Test
+    fun `a quote another quote encloses is written as is`() = myFixture.runWithConfig(config) {
+        val en = myFixture.addFileToProject("locales/en/common.json", """{"title": "Title"}""")
+        val app = myFixture.addFileToProject("src/App.js", "export const a = (t) => t(\"common:title\");")
+
+        val plan = ReadAction.compute<KeyMaintenanceTools.RenamePlan, RuntimeException> { tools().planRename(null, "common:title", "common:don't") }
+        tools().applyRename(plan)
+
+        Assertions.assertTrue("\"don't\": \"Title\"" in text(en), text(en))
+        Assertions.assertTrue("t(\"common:don't\")" in text(app), text(app))
+    }
+
+    @Test
     fun `a key is created in each locale with the placeholders of its reference value`() = myFixture.runWithConfig(config) {
         val (en, fr) = seed()
 
