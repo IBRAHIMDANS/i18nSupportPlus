@@ -87,6 +87,16 @@ class UsageCountBenchmarkTest : PlatformBaseTest() {
             val (_, deadVisionMs) = timed { codeVisionCounts(DEAD_FILE, DEAD_KEYS) }
             val (deadWarnings, deadInspectionMs) = timed { highlight(DEAD_FILE) }
 
+            // With no key separator the index cannot walk a key's segments and scans every call site per key
+            // (`CodeUsageIndexService.textSites`). Threshold written before measuring: over 3× the warm count
+            // with `.`, it gets an index of its own. Both sides are warm: the rebuild the new config triggers is not counted.
+            val flat = Settings.getInstance(project).config().copy(keySeparator = "")
+            var flatMs = 0L
+            myFixture.runWithConfig(flat) {
+                index.usageCounts(keys)
+                flatMs = timed { index.usageCounts(keys) }.second
+            }
+
             // Correctness is the small test's job: here a mismatch is reported, not asserted, so that
             // a long run always ends with its timings.
             val mismatches = generated.expectedCounts.count { (key, expected) -> counts[key] != expected } +
@@ -98,6 +108,7 @@ class UsageCountBenchmarkTest : PlatformBaseTest() {
                 |  project loaded and indexed: $loadMs ms
                 |  table: usageCounts over ${keys.size} keys: $tableMs ms (${"%.1f".format(tableMs.toDouble() / keys.size)} ms per key)
                 |  table: usageCounts again: $warmMs ms
+                |  table: usageCounts again, empty key separator: $flatMs ms (${"%.1f".format(flatMs.toDouble() / warmMs.coerceAtLeast(1))}× the time with `.`, threshold 3×)
                 |  index: $codeSites call sites in the code, $linkedSites in translation values
                 |  index: heap used before the build ${heapBefore / MB} MB, after ${heapAfter / MB} MB, +${"%.1f".format(heapDelta.toDouble() / MB)} MB (${heapDelta / (codeSites + linkedSites).coerceAtLeast(1)} bytes per site, syntax trees and their caches held on both sides)
                 |  index: a throwaway read of the same files, trees parsed beforehand, took +${"%.1f".format(rawHeapMb)} MB (the caches it fills, then the index)

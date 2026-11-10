@@ -408,11 +408,27 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
         private fun textSites(bareKey: String): Sequence<TextSite> {
             if (bareKey.isEmpty()) return emptySequence()
             if (config.keySeparator.isEmpty()) {
-                return sites.sites().filterIsInstance<TextSite>().filter { site ->
-                    site.written.startsWith(bareKey) && site.written.getOrNull(bareKey.length)?.isJavaIdentifierPart() != true
+                // The sites writing [bareKey] or a longer key starting with it follow one another in [byWritten].
+                var low = 0
+                var high = byWritten.size
+                while (low < high) {
+                    val middle = (low + high) ushr 1
+                    if (byWritten[middle].written < bareKey) low = middle + 1 else high = middle
                 }
+                return byWritten.subList(low, byWritten.size).asSequence()
+                    .takeWhile { it.written.startsWith(bareKey) }
+                    .filter { it.written.getOrNull(bareKey.length)?.isJavaIdentifierPart() != true }
             }
             return sites.under(CodeUsageIndexer.pathOf(bareKey, config)).asSequence().filterIsInstance<TextSite>()
+        }
+
+        /**
+         * With no key separator, the text sites sorted by the key they write: a key is then found by a prefix search
+         * rather than a scan of every site (28× the time with `.` on the usage benchmark). Read under the service's
+         * lock, as the questions asking it are, once per question.
+         */
+        private val byWritten: List<TextSite> by lazy(LazyThreadSafetyMode.NONE) {
+            sites.sites().filterIsInstance<TextSite>().sortedBy { it.written }.toList()
         }
 
         /**

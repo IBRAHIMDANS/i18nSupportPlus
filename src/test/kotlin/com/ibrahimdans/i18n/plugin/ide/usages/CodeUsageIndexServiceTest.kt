@@ -55,6 +55,20 @@ class CodeUsageIndexServiceTest : PlatformBaseTest() {
     }
 
     @Test
+    fun `with no key separator a key counts the calls writing it or a longer key, not one merely starting with it`() {
+        myFixture.addFileToProject(
+            "src/Flat.tsx",
+            "export const a = () => [i18n.t('menu.home'), i18n.t('menu.home.title'), i18n.t('menu.homepage'), i18n.t('menu.about'), i18n.t('menu.home')];",
+        )
+        myFixture.runWithConfig(settings.config().copy(keySeparator = "")) {
+            Assertions.assertEquals(
+                mapOf("menu.home" to 3, "menu.homepage" to 1, "menu.about" to 1, "menu" to 5, "menu.contact" to 0, "zzz" to 0),
+                index.usageCounts(listOf("menu.home", "menu.homepage", "menu.about", "menu", "menu.contact", "zzz")),
+            )
+        }
+    }
+
+    @Test
     fun `the code is read once for many questions`() {
         menu()
         profile()
