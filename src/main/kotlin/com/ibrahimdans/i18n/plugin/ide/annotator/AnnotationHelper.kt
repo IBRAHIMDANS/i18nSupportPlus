@@ -24,11 +24,7 @@ import com.ibrahimdans.i18n.plugin.utils.TextSpan
 import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
 import com.intellij.codeInsight.intention.IntentionAction
 import com.intellij.codeInsight.intention.LowPriorityAction
-import com.intellij.lang.annotation.AnnotationBuilder
-import com.intellij.lang.annotation.AnnotationHolder
-import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.components.service
-import com.intellij.openapi.editor.DefaultLanguageHighlighterColors
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
@@ -38,32 +34,31 @@ import com.intellij.psi.PsiFile
 import com.intellij.xml.util.XmlStringUtil
 
 /**
- * Annotation helper methods
+ * What [KeyCheck] says of a key, as the messages, ranges and fixes of a [KeyReport]: the
+ * annotator's colouring or the inspection's problems. [file] is the file the key is written in.
  */
-class AnnotationHelper(private val holder: AnnotationHolder, private val rangesCalculator: RangesCalculator) {
-
-    private val errorSeverity = HighlightSeverity.ERROR
-    private val infoSeverity = HighlightSeverity.INFORMATION
+class AnnotationHelper(
+    private val report: KeyReport,
+    private val rangesCalculator: RangesCalculator,
+    private val file: PsiFile,
+) {
 
     /**
      * Annotates resolved translation key
      */
     fun annotateResolved(fullKey: FullKey) {
-        holder
-            .newAnnotation(infoSeverity, "")
-            .range(rangesCalculator.compositeKeyFullBounds(fullKey).toTextRange())
-            .textAttributes(DefaultLanguageHighlighterColors.LINE_COMMENT)
-            .create()
+        report.resolved(rangesCalculator.compositeKeyFullBounds(fullKey).toTextRange())
     }
 
     /**
      * Annotates reference to object, not a leaf key in translation
      */
     fun annotateReferenceToObject(fullKey: FullKey) {
-        holder
-            .newAnnotation(errorSeverity, PluginBundle.getMessage("annotator.object.reference"))
-            .range(rangesCalculator.compositeKeyFullBounds(fullKey).toTextRange())
-            .create()
+        report.problem(
+            rangesCalculator.compositeKeyFullBounds(fullKey).toTextRange(),
+            PluginBundle.getMessage("annotator.object.reference"),
+            weak = false, tooltip = null, fixes = emptyList(),
+        )
     }
 
     /**
@@ -71,14 +66,13 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
      */
     fun unresolvedNs(fullKey: FullKey, ns: Literal) {
         val message = PluginBundle.getMessage("annotator.unresolved.ns")
-        val builder = holder
-            .newAnnotation(errorSeverity, message)
-            .range(rangesCalculator.unresolvedNs(fullKey).toTextRange())
-            .explained(message, fullKey, null)
-        Extensions.LOCALIZATION.extensionList.forEach {
-            builder.withFix(CreateTranslationFileQuickFix(fullKey, it.contentGenerator(), ns.text))
+        val fixes = listOf<IntentionAction>(OpenSettingsFix()) + Extensions.LOCALIZATION.extensionList.map {
+            CreateTranslationFileQuickFix(fullKey, it.contentGenerator(), ns.text)
         }
-        builder.create()
+        report.problem(
+            rangesCalculator.unresolvedNs(fullKey).toTextRange(), message,
+            weak = false, tooltip = { explain(message, fullKey, null) }, fixes = fixes,
+        )
     }
 
     /**
@@ -86,11 +80,10 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
      */
     fun unresolvedDefaultNs(fullKey: FullKey) {
         val message = PluginBundle.getMessage("annotator.missing.default.ns")
-        holder
-            .newAnnotation(errorSeverity, message)
-            .range(rangesCalculator.compositeKeyFullBounds(fullKey).toTextRange())
-            .explained(message, fullKey, null)
-            .create()
+        report.problem(
+            rangesCalculator.compositeKeyFullBounds(fullKey).toTextRange(), message,
+            weak = false, tooltip = { explain(message, fullKey, null) }, fixes = listOf(OpenSettingsFix()),
+        )
     }
 
     /**
@@ -100,17 +93,17 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
      */
     fun unresolvedKey(fullKey: FullKey, mostResolvedReference: PropertyReference<PsiElement>, defaultValue: String? = null) {
         val message = PluginBundle.getMessage(if (defaultValue == null) "annotator.unresolved.key" else "annotator.unresolved.key.default.value")
-        val builder = holder
-            .newAnnotation(if (defaultValue == null) errorSeverity else HighlightSeverity.WEAK_WARNING, message)
-            .range(rangesCalculator.unresolvedKey(fullKey, mostResolvedReference.path).toTextRange())
-            .explained(message, fullKey, mostResolvedReference)
         // A key with a runtime segment names no property to create: the fix would write the
         // `${…}` text as a property name. One fix, one dialog: it shows every locale, so a
         // second "in all files" entry has nothing left to add.
-        if (!fullKey.isDynamic) {
-            builder.withFix(CreateKeyDialogQuickFix(fullKey, PluginBundle.getMessage("quickfix.create.key"), defaultValue))
-        }
-        builder.create()
+        val createKey = CreateKeyDialogQuickFix(fullKey, PluginBundle.getMessage("quickfix.create.key"), defaultValue)
+            .takeUnless { fullKey.isDynamic }
+        report.problem(
+            rangesCalculator.unresolvedKey(fullKey, mostResolvedReference.path).toTextRange(), message,
+            weak = defaultValue != null,
+            tooltip = { explain(message, fullKey, mostResolvedReference) },
+            fixes = listOfNotNull(OpenSettingsFix(), createKey),
+        )
     }
 
     /**
@@ -118,26 +111,28 @@ class AnnotationHelper(private val holder: AnnotationHolder, private val rangesC
      */
     fun annotatePartiallyTranslated(fullKey: FullKey, references: List<PropertyReference<PsiElement>>) {
         references.minByOrNull { it.path.size }?.let {
-            val builder = holder
-                .newAnnotation(errorSeverity, PluginBundle.getMessage("annotator.partially.translated"))
-                .range(rangesCalculator.unresolvedKey(fullKey, it.path).toTextRange())
-            builder.withFix(CreateMissingKeysQuickFix(fullKey, references, PluginBundle.getMessage("quickfix.create.missing.keys")))
-            builder.create()
+            report.problem(
+                rangesCalculator.unresolvedKey(fullKey, it.path).toTextRange(),
+                PluginBundle.getMessage("annotator.partially.translated"),
+                weak = false, tooltip = null,
+                fixes = listOf(CreateMissingKeysQuickFix(fullKey, references, PluginBundle.getMessage("quickfix.create.missing.keys"))),
+            )
         }
     }
 
     /**
-     * Under the annotation's [message], the lines of [KeyDiagnosis] saying how [fullKey] was read and
-     * where it was looked up — and a fix opening the settings those lines point at.
+     * The tooltip of a problem: its [message], then the lines of [KeyDiagnosis] saying how
+     * [fullKey] was read and where it was looked up. The problem also carries a fix opening the
+     * settings those lines point at.
      *
      * The settings are reached through a fix rather than a link in the tooltip: a link needs a
      * `codeInsight.linkHandler` registered by the plugin, while the fix shows in the tooltip's
      * actions and under Alt+Enter with nothing to declare.
      */
-    private fun AnnotationBuilder.explained(message: String, fullKey: FullKey, reference: PropertyReference<PsiElement>?): AnnotationBuilder {
-        val lines = diagnose(fullKey, holder.currentAnnotationSession.file, reference).explain()
+    private fun explain(message: String, fullKey: FullKey, reference: PropertyReference<PsiElement>?): String {
+        val lines = diagnose(fullKey, file, reference).explain()
         val html = (listOf(message) + lines).joinToString("<br/>") { XmlStringUtil.escapeString(it) }
-        return tooltip(XmlStringUtil.wrapInHtml(html)).withFix(OpenSettingsFix())
+        return XmlStringUtil.wrapInHtml(html)
     }
 
     /**
