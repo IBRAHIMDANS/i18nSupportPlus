@@ -115,7 +115,7 @@ class AnnotationHelper(
                 rangesCalculator.unresolvedKey(fullKey, it.path).toTextRange(),
                 PluginBundle.getMessage("annotator.partially.translated"),
                 weak = false, tooltip = null,
-                fixes = listOf(CreateMissingKeysQuickFix(fullKey, references, PluginBundle.getMessage("quickfix.create.missing.keys"))),
+                fixes = listOf(CreateMissingKeysQuickFix(references, PluginBundle.getMessage("quickfix.create.missing.keys"))),
             )
         }
     }
