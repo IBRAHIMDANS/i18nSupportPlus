@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Improvements
+
+- [Editor] **Told at once when a translation file grows too large for the IDE**: a translation file that passes the IDE's code insight size limit while you work (keys added in bulk, a regenerated catalogue, a pull) is now reported right away, with the action to raise the limit, instead of at the next project opening. Its keys no longer look missing for no reason until then.
+
 ### Fixes
 
 - [Editor] **No more `ComputationAbortedException` report while the editor checks a key passed through a constant**: with an exported `t(KEYS.save)` or `t(SAVE_KEY)` constant, typing during the highlighting could stop the search for the constant's calls and ask to report the error. The search now reads the files one after another.

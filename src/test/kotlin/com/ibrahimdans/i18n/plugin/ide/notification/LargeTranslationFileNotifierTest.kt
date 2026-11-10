@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.notification
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -58,5 +59,33 @@ class LargeTranslationFileNotifierTest : PlatformBaseTest() {
         addFileToProject("node_modules/some-lib/locales/en.json", """{"hello": "Hello"}""")
 
         assertTrue(everyFileTooLarge().isEmpty(), "node_modules is never searched for translations")
+    }
+
+    // ---- during the session: only the touched files, each told once ----
+
+    @Test
+    fun touchedTranslationFileAboveTheLimitIsReported() {
+        val en = addFileToProject("locales/en.json", """{"hello": "Hello"}""").virtualFile
+        val lock = addFileToProject("package-lock.json", """{}""").virtualFile
+
+        assertEquals(listOf(en), LargeTranslationFileNotifier.oversizedAmong(project, listOf(en, lock)) { true })
+    }
+
+    @Test
+    fun touchedTranslationFileBelowTheLimitIsNotReported() {
+        val en = addFileToProject("locales/en.json", """{"hello": "Hello"}""").virtualFile
+
+        assertTrue(LargeTranslationFileNotifier.oversizedAmong(project, listOf(en)).isEmpty())
+    }
+
+    @Test
+    fun fileIsToldOncePerSession() {
+        val en = addFileToProject("locales/en.json", """{"hello": "Hello"}""").virtualFile
+        val told = mutableListOf<String>()
+        val record: (com.intellij.openapi.project.Project, com.intellij.openapi.vfs.VirtualFile) -> Unit = { _, file -> told += file.name }
+
+        assertTrue(LargeTranslationFileNotifier.notifyOnce(project, en, record))
+        assertFalse(LargeTranslationFileNotifier.notifyOnce(project, en, record))
+        assertEquals(listOf("en.json"), told)
     }
 }
