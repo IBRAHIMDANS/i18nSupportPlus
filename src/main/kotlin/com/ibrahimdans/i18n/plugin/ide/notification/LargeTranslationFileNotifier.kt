@@ -18,6 +18,8 @@ import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.readAction
+import com.intellij.openapi.components.Service
+import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.startup.ProjectActivity
@@ -25,14 +27,16 @@ import com.intellij.openapi.util.io.FileUtilRt
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.SingleRootFileViewProvider
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Warns about a translation file above `idea.max.intellisense.filesize` (2.5 MB by default).
  *
  * Past that size the IDE neither indexes nor parses the file, so the source scan, which goes
  * through the file index, never sees it: its keys are reported missing with nothing saying why.
- * One notification per file when the project opens, with the action that edits the IDE's custom
- * properties, where the limit is raised.
+ * One notification per file and per session, with the action that edits the IDE's custom
+ * properties, where the limit is raised: when the project opens here, and for a file growing past
+ * the limit later on through [LargeTranslationFileListener].
  *
  * Registered in plugin.xml as a <postStartupActivity>.
  */
@@ -41,7 +45,7 @@ class LargeTranslationFileNotifier : ProjectActivity {
     override suspend fun execute(project: Project) {
         if (ApplicationManager.getApplication().isUnitTestMode) return
         val files = readAction { oversizedFiles(project) }
-        files.forEach { notify(project, it) }
+        files.forEach { notifyOnce(project, it) }
     }
 
     companion object {
@@ -67,19 +71,44 @@ class LargeTranslationFileNotifier : ProjectActivity {
         fun oversizedFiles(project: Project): List<VirtualFile> = oversizedFiles(project, SingleRootFileViewProvider::isTooLargeForIntelligence)
 
         internal fun oversizedFiles(project: Project, isTooLarge: (VirtualFile) -> Boolean): List<VirtualFile> {
+            val files = mutableListOf<VirtualFile>()
+            ProjectFileIndex.getInstance(project).iterateContent { file ->
+                if (!file.isDirectory) files += file
+                true
+            }
+            return oversizedAmong(project, files, isTooLarge)
+        }
+
+        /**
+         * The [files] that would be translation sources were they not too large for the IDE: the
+         * check of [oversizedFiles], restricted to the files a change in the session touched.
+         */
+        fun oversizedAmong(
+            project: Project,
+            files: Collection<VirtualFile>,
+            isTooLarge: (VirtualFile) -> Boolean = SingleRootFileViewProvider::isTooLargeForIntelligence,
+        ): List<VirtualFile> {
             val formats = IdeI18nRegistry.formats().filter { it.scannedByName() }
             val types = formats.flatMap { format -> format.types().map { it.languageFileType } }.toSet()
             val config = Settings.getInstance(project).config()
             val scope = config.searchScope(project)
-            val candidates = mutableListOf<VirtualFile>()
-            ProjectFileIndex.getInstance(project).iterateContent { file ->
-                if (!file.isDirectory && file.fileType in types && scope.contains(file) && isTooLarge(file)) candidates += file
-                true
+            val candidates = files.filter { file ->
+                file.isValid && !file.isDirectory && file.fileType in types && scope.contains(file) && isTooLarge(file)
             }
             if (candidates.isEmpty()) return emptyList()
             val workspace = OversizedWorkspace(project, candidates)
             val listed = SourceDiscovery(workspace, IdeI18nRegistry, config).scannedSources().mapTo(HashSet()) { it.displayPath }
             return workspace.listedAmong(listed)
+        }
+
+        /**
+         * Tells about [file] unless this session already did: a file saved again and again above the
+         * limit, or found both at startup and by the listener, is told once. True when told.
+         */
+        fun notifyOnce(project: Project, file: VirtualFile, notify: (Project, VirtualFile) -> Unit = ::notify): Boolean {
+            if (!project.service<NotifiedLargeFiles>().add(file)) return false
+            notify(project, file)
+            return true
         }
 
         fun notify(project: Project, file: VirtualFile) {
@@ -95,6 +124,15 @@ class LargeTranslationFileNotifier : ProjectActivity {
             ActionManager.getInstance().getAction(EDIT_CUSTOM_PROPERTIES)?.let(notification::addAction)
             notification.notify(project)
         }
+    }
+
+    /** The files of the project already told about in this session, by URL. */
+    @Service(Service.Level.PROJECT)
+    internal class NotifiedLargeFiles {
+        private val urls = ConcurrentHashMap.newKeySet<String>()
+
+        /** False when [file] was already told about. */
+        fun add(file: VirtualFile): Boolean = urls.add(file.url)
     }
 
     /**

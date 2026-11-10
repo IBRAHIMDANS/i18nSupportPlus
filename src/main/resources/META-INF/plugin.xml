@@ -183,6 +183,9 @@
         <!-- Review markers of the open translation files redrawn when a review file changes. -->
         <listener class="com.ibrahimdans.i18n.plugin.review.ui.ReviewGutterRefresh"
                   topic="com.ibrahimdans.i18n.plugin.review.ReviewStore$Listener"/>
+        <!-- A translation file growing past the IDE's intellisense size limit during the session: told then, not at the next start. -->
+        <listener class="com.ibrahimdans.i18n.plugin.ide.notification.LargeTranslationFileListener"
+                  topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>
     </projectListeners>
     <extensions defaultExtensionNs="com.intellij">
         <!-- New UI variants of the gutter icons (icons/expui/), applied by the platform when the new UI is on. -->
