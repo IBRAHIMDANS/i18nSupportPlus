@@ -88,7 +88,8 @@ class ReferenceValueInlayHintsProvider : InlayHintsProvider {
         ): String? {
             reference[key]?.let { return it }
             ReviewSources.sourceTextOf(key, pluralSeparator, referenceText = reference::get)?.let { return it }
-            val base = PluralKey.stripSuffix(key, pluralSeparator)
+            // The group as referenceGroups names it: an ordinal form's is `place_ordinal`, not `place`.
+            val base = PluralKey.groupBase(key) ?: PluralKey.stripSuffix(key, pluralSeparator)
             if (base == key) return null
             return referenceGroups[base]?.firstOrNull()?.let(reference::get)
         }

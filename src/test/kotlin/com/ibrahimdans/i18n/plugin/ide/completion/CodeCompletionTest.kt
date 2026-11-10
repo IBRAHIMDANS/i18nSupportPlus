@@ -209,6 +209,21 @@ internal class CodeCompletionValuesTest : PlatformBaseTest() {
         assertEquals("One item", offered["cart:cart.item"])
     }
 
+    /** i18next's ordinal forms (`place_ordinal_one`) are the same key as its cardinal ones: offered once. */
+    @Test
+    fun testOrdinalFormsAreOfferedOnceWithTheCardinalOnes() = myFixture.runWithConfig(Config(previewLocale = "en")) {
+        addFileToProject(
+            "locales/en/race.json",
+            """{"race": {"place_ordinal_one": "{{count}}st", "place_ordinal_two": "{{count}}nd", "place_ordinal_other": "{{count}}th",
+                |"lap_one": "One lap", "lap_other": "{{count}} laps", "lap_ordinal_one": "{{count}}st lap", "x_ordinal": "X"}}""".trimMargin()
+        )
+        val offered = complete("'race:race.<caret>'")
+        assertEquals(setOf("race:race.place", "race:race.lap", "race:race.x_ordinal"), offered.keys)
+        assertEquals("{{count}}st", offered["race:race.place"])
+        // The cardinal form first, as the resolver tries it.
+        assertEquals("One lap", offered["race:race.lap"])
+    }
+
     /** A long value is cut as the table cuts it, and stays searchable past the cut. */
     @Test
     fun testALongValueIsCutButSearchableInFull() = myFixture.runWithConfig(Config(previewLocale = "en")) {

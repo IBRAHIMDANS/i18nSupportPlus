@@ -151,18 +151,15 @@ interface CompositeKeyResolver<T> {
     fun tryToResolvePlural(propertyReference: PropertyReference<T>, pluralSeparator: String, localizationSource: TranslationSource<T, *>): List<PropertyReference<T>> {
         return if (propertyReference.unresolved.size == 1 && propertyReference.element != null && propertyReference.element.isTree()) {
             val singleUnresolvedKey = propertyReference.unresolved[0]
+            val formsOf: (List<String>) -> List<PropertyReference<T>> = { names ->
+                names.mapNotNull { propertyReference.element.findChild(it) }.map {
+                    PropertyReference(propertyReference.path + singleUnresolvedKey, it, listOf(), localizationSource, true)
+                }
+            }
             // Legacy i18next v3 format: key-1, key-2, key-5
-            val numericPlurals = listOf("1", "2", "5").mapNotNull {
-                propertyReference.element.findChild("${singleUnresolvedKey.text}${pluralSeparator}$it")
-            }.map {
-                PropertyReference(propertyReference.path + singleUnresolvedKey, it, listOf(), localizationSource, true)
-            }
-            // Modern i18next v4+ CLDR format: key_one, key_other, key_zero, key_two, key_few, key_many
-            val cldrPlurals = listOf("one", "other", "zero", "two", "few", "many").mapNotNull {
-                propertyReference.element.findChild("${singleUnresolvedKey.text}_$it")
-            }.map {
-                PropertyReference(propertyReference.path + singleUnresolvedKey, it, listOf(), localizationSource, true)
-            }
+            val numericPlurals = formsOf(PluralKey.numericForms(singleUnresolvedKey.text, pluralSeparator))
+            // Modern i18next v4+ CLDR format: key_one, key_other…, then the ordinal key_ordinal_one…
+            val cldrPlurals = formsOf(PluralKey.cldrForms(singleUnresolvedKey.text))
             val plurals = numericPlurals.ifEmpty { cldrPlurals }
             if (plurals.isEmpty()) listOf(propertyReference) else plurals
         } else listOf(propertyReference)

@@ -164,4 +164,12 @@ class OrphanTranslationKeyInspectionTest : PlatformBaseTest() {
         assertTrue(fixes.none { it == PluginBundle.getMessage("inspection.orphan.key.fix.add.name", "user.age", "en") }, "$fixes")
         assertTrue(fixes.any { it == PluginBundle.getMessage("inspection.orphan.key.fix.remove.name", "user.age") }, "$fixes")
     }
+
+    /** Italian has an ordinal `many` English lacks: a form of the reference's ordinal group, no orphan. */
+    @Test
+    fun testAnOrdinalFormTheReferenceLanguageLacksIsNoOrphan() {
+        val reference = listOf(listOf("place_ordinal_one"), listOf("place_ordinal_other"), listOf("place_other"))
+        val current = listOf(listOf("place_ordinal_many"), listOf("place_ordinal_other"), listOf("gone_ordinal_many"))
+        Assertions.assertEquals(listOf(listOf("gone_ordinal_many")), OrphanTranslationKeyInspection.orphanPaths(reference, current, "-"))
+    }
 }

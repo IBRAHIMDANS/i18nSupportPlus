@@ -10,32 +10,69 @@ package com.ibrahimdans.i18n.plugin.tree
  * strip that suffix first, or it searches the sources for a string that by construction is
  * never written there.
  *
- * The two shapes recognised are the ones [CompositeKeyResolver.tryToResolvePlural] resolves,
- * so a key this strips is a key the resolver can find again:
+ * The shapes recognised are the ones [CompositeKeyResolver.tryToResolvePlural] resolves, so a
+ * key this strips is a key the resolver can find again:
  *  - modern CLDR categories (i18next v4+): `key_one`, `key_other`, …
+ *  - their ordinal forms, read by `t('key', { count, ordinal: true })`: `key_ordinal_one`, …
  *  - legacy numeric forms (i18next v3): `key-1`, `key-2`, `key-5`, the separator configurable.
+ *
+ * This is the one place those suffixes and their order are written: the resolver and completion
+ * read them from here.
  */
 object PluralKey {
 
+    /** The CLDR categories in the order the resolver tries them: the first found is the value shown. */
+    private val RESOLUTION_ORDER = listOf(
+        PluralCategories.ONE, PluralCategories.OTHER, PluralCategories.ZERO,
+        PluralCategories.TWO, PluralCategories.FEW, PluralCategories.MANY,
+    )
+
     /** The CLDR categories i18next appends, in the flat `key_one` form. */
-    private val CLDR_SUFFIXES = listOf("_zero", "_one", "_two", "_few", "_many", "_other")
+    private val CLDR_SUFFIXES = PluralCategories.ALL.map { "_$it" }
+
+    /** What i18next puts between a key and the category of an ordinal form: `place_ordinal_few`. */
+    private const val ORDINAL_INFIX = "_ordinal"
 
     /** The counts the legacy numeric form uses. */
     private val NUMERIC_SUFFIXES = listOf("1", "2", "5")
 
     /**
-     * [key] without its plural suffix, or [key] itself when it carries none.
+     * [key] without its plural suffix, or [key] itself when it carries none: the key the source
+     * code writes, `place` for `place_ordinal_few` as for `place_few`.
      *
      * A key merely *ending* like a plural form (`step_one`) is stripped too — the two are
      * indistinguishable without reading the sibling keys, and the callers all prefer the
      * over-wide answer: it groups a key with a namesake, where the narrow one would report a
      * translated plural as unused.
      */
-    fun stripSuffix(key: String, pluralSeparator: String): String = when {
-        CLDR_SUFFIXES.any { key.endsWith(it) } -> key.substringBeforeLast("_")
-        NUMERIC_SUFFIXES.any { key.endsWith(pluralSeparator + it) } -> key.substringBeforeLast(pluralSeparator)
-        else -> key
+    fun stripSuffix(key: String, pluralSeparator: String): String {
+        groupBase(key)?.let { return it.removeSuffix(ORDINAL_INFIX) }
+        return if (NUMERIC_SUFFIXES.any { key.endsWith(pluralSeparator + it) }) key.substringBeforeLast(pluralSeparator) else key
     }
+
+    /**
+     * The base of [key]'s CLDR plural group — `item` for `item_few`, `place_ordinal` for
+     * `place_ordinal_few` — or null when [key] is no CLDR form.
+     *
+     * Ordinal forms make a group of their own, apart from the cardinal ones of the same key: the
+     * two do not take the same categories (`en` writes `one/other`, but `one/two/few/other` for
+     * ordinals), so a locale is compared on each separately. [stripSuffix] goes one step further,
+     * to the key the code writes.
+     */
+    fun groupBase(key: String): String? = CLDR_SUFFIXES.firstOrNull { key.endsWith(it) }?.let { key.dropLast(it.length) }
+
+    /**
+     * The `other` form of [key]'s CLDR group — `item_other` for `item_few`, `place_ordinal_other`
+     * for `place_ordinal_few` — or null when [key] is no CLDR form or is that form itself.
+     */
+    fun otherFormOf(key: String): String? = groupBase(key)?.let { defaultForm(it) }?.takeIf { it != key }
+
+    /** The legacy numeric forms of [key], in the resolver's order. */
+    fun numericForms(key: String, pluralSeparator: String): List<String> = NUMERIC_SUFFIXES.map { key + pluralSeparator + it }
+
+    /** The CLDR forms of [key], in the resolver's order: the cardinal ones, then the ordinal ones. */
+    fun cldrForms(key: String): List<String> =
+        RESOLUTION_ORDER.map { "${key}_$it" } + RESOLUTION_ORDER.map { "${key}${ORDINAL_INFIX}_$it" }
 
     /**
      * [keys] grouped the way a per-locale comparison must see them: each CLDR plural group as one
@@ -50,7 +87,7 @@ object PluralKey {
      * single `step_one` with no sibling is far more likely a key named so than a plural.
      */
     fun groupForms(keys: Collection<String>): Map<String, List<String>> {
-        val byBase = keys.groupBy { key -> CLDR_SUFFIXES.firstOrNull { key.endsWith(it) }?.let { key.dropLast(it.length) } }
+        val byBase = keys.groupBy(::groupBase)
         val result = linkedMapOf<String, List<String>>()
         byBase[null]?.forEach { result[it] = listOf(it) }
         byBase.forEach { (base, forms) ->

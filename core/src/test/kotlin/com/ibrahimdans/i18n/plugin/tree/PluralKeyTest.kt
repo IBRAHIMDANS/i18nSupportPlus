@@ -17,6 +17,48 @@ class PluralKeyTest {
     }
 
     @Test
+    fun `an ordinal form is dropped with its infix, as the code writes the bare key`() {
+        for (category in listOf("zero", "one", "two", "few", "many", "other")) {
+            assertEquals("race.place", PluralKey.stripSuffix("race.place_ordinal_$category", "-"))
+        }
+    }
+
+    @Test
+    fun `a key merely named like the ordinal infix is kept`() {
+        assertEquals("x_ordinal", PluralKey.stripSuffix("x_ordinal", "-"))
+        assertEquals(mapOf("x_ordinal" to listOf("x_ordinal")), PluralKey.groupForms(listOf("x_ordinal")))
+    }
+
+    @Test
+    fun `ordinal forms make their own group, apart from the cardinal ones`() {
+        // Ordinal categories are not the cardinal ones (`en`: one/two/few/other against one/other):
+        // a locale is compared on each group separately.
+        val groups = PluralKey.groupForms(listOf("item_one", "item_other", "item_ordinal_one", "item_ordinal_other"))
+        assertEquals(listOf("item_one", "item_other"), groups["item"])
+        assertEquals(listOf("item_ordinal_one", "item_ordinal_other"), groups["item_ordinal"])
+    }
+
+    @Test
+    fun `the other form of a CLDR form stays in its own group`() {
+        assertEquals("cart.item_other", PluralKey.otherFormOf("cart.item_few"))
+        assertEquals("race.place_ordinal_other", PluralKey.otherFormOf("race.place_ordinal_few"))
+        assertEquals(null, PluralKey.otherFormOf("cart.item_other"), "other is the form itself")
+        assertEquals(null, PluralKey.otherFormOf("cart.item"))
+    }
+
+    @Test
+    fun `the forms a key is tried in follow the resolver's order`() {
+        assertEquals(
+            listOf(
+                "k-1", "k-2", "k-5",
+                "k_one", "k_other", "k_zero", "k_two", "k_few", "k_many",
+                "k_ordinal_one", "k_ordinal_other", "k_ordinal_zero", "k_ordinal_two", "k_ordinal_few", "k_ordinal_many",
+            ),
+            PluralKey.numericForms("k", "-") + PluralKey.cldrForms("k"),
+        )
+    }
+
+    @Test
     fun `a legacy numeric form is dropped, on the configured separator`() {
         assertEquals("cart.item", PluralKey.stripSuffix("cart.item-1", "-"))
         assertEquals("cart.item", PluralKey.stripSuffix("cart.item-2", "-"))

@@ -350,6 +350,15 @@ class TableViewModelTest {
         )
     }
 
+    /** `t('race.place', { count, ordinal: true })` holds `place_ordinal_few`: never counted unused. */
+    @Test
+    fun `an ordinal plural form is searched under the key the sources write`() {
+        val query = IndirectKeyUsages.usageQuery("race.place_ordinal_few", "-")
+
+        assertEquals("race.place", query.bareKey)
+        assertEquals(listOf("race.place"), query.words)
+    }
+
     @Test
     fun `a legacy numeric plural form is searched the same way`() {
         val query = IndirectKeyUsages.usageQuery("cart.item-5", "-")

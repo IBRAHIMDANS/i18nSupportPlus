@@ -1,6 +1,5 @@
 package com.ibrahimdans.i18n.plugin.review
 
-import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.tree.PluralKey
 
 /**
@@ -41,10 +40,10 @@ object ReviewSources {
      * plural form, or is that form itself.
      */
     internal fun otherFormsOf(key: String, pluralSeparator: String, keySeparator: String = "."): List<String> {
+        // A CLDR form reads the `other` of its own group: `place_ordinal_other` for an ordinal form.
+        if (PluralKey.groupBase(key) != null) return listOfNotNull(PluralKey.otherFormOf(key))
         val base = PluralKey.stripSuffix(key, pluralSeparator)
         if (base == key) return listOfNotNull(PluralKey.nestedOtherForm(key, keySeparator))
-        val cldr = key.removePrefix(base).removePrefix("_") in PluralCategories.ALL
-        val candidates = if (cldr) listOf(PluralKey.defaultForm(base)) else NUMERIC_OTHERS.map { base + pluralSeparator + it }
-        return candidates - key
+        return NUMERIC_OTHERS.map { base + pluralSeparator + it } - key
     }
 }
