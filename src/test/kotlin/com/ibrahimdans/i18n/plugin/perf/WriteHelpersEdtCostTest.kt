@@ -68,6 +68,24 @@ class WriteHelpersEdtCostTest : PlatformBaseTest() {
         report("CleanupUnusedKeysAction.deleteKeys", warmReads, warmWhole, editedReads, editedWhole)
     }
 
+    /**
+     * [cleanupDeleteSlot] deletes whole groups, every key next to another deleted one: the best case
+     * for a deletion that goes by runs of neighbouring properties. Here no two deleted keys are
+     * neighbours — every other key of each group, as an unused-key cleanup more often finds them.
+     */
+    @Test
+    fun cleanupScatteredDeleteSlot() {
+        assertTrue(ApplicationManager.getApplication().isDispatchThread, "measured on the EDT, where the deletion runs")
+        TranslationDataLoader.loadAllTranslations(project)
+        val action = CleanupUnusedKeysAction()
+
+        val warmWhole = medianOf { run -> timed { action.deleteKeys(project, scatteredKeys(run)) } }
+        val editedWhole = medianOf { run -> touch(); timed { action.deleteKeys(project, scatteredKeys(RUNS + run)) } }
+
+        println("[edt-cost] CleanupUnusedKeysAction.deleteKeys, $KEYS scattered keys, median of $RUNS")
+        println("[edt-cost]   warm: whole call $warmWhole ms; after an edit: whole call $editedWhole ms")
+    }
+
     /** The reads [MachineFill.write] makes before its command, as it makes them. */
     private fun fillReads() {
         val config = Settings.getInstance(project).config()
@@ -99,6 +117,17 @@ class WriteHelpersEdtCostTest : PlatformBaseTest() {
             (0 until LargeProjectFixture.KEYS_PER_GROUP).map { "$namespace:group$group.key$it" }
         }.take(KEYS)
     }
+
+    /**
+     * [KEYS] keys, every other one of each group, from two namespaces of their own per run (after
+     * those [existingKeys] takes): no two of them are neighbours in their file.
+     */
+    private fun scatteredKeys(run: Int): List<String> = (0..1).flatMap { half ->
+        val namespace = LargeProjectFixture.namespace(1 + 4 * RUNS + 2 * run + half)
+        (0 until LargeProjectFixture.GROUPS).flatMap { group ->
+            (0 until LargeProjectFixture.KEYS_PER_GROUP step 2).map { "$namespace:group$group.key$it" }
+        }
+    }.take(KEYS)
 
     /** A translation file edited and committed: the PSI modification count moves, the caches go stale. */
     private fun touch() {
