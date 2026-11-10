@@ -304,10 +304,14 @@ class LocalizationSourceService {
     private fun allValid(sources: List<LocalizationSource>): Boolean =
         ReadAction.compute<Boolean, RuntimeException> { sources.none { it.tree?.value()?.isValid == false } }
 
-    /** What a cached answer depends on: [changes] (a modification count), the project roots and the configuration. */
-    private data class CacheStamps(val changes: Long, val roots: Long, val config: Int) {
+    /**
+     * What a cached answer depends on: [changes] (a modification count), the project roots and the configuration.
+     * The [Config] itself is kept, not its hash: it is immutable, and two configurations sharing a hash must not
+     * hand each other their cached sources.
+     */
+    private data class CacheStamps(val changes: Long, val roots: Long, val config: Config) {
         constructor(changes: Long, project: Project, config: Config) :
-            this(changes, ProjectRootManager.getInstance(project).modificationCount, config.hashCode())
+            this(changes, ProjectRootManager.getInstance(project).modificationCount, config)
     }
 
     private class TypedSources(val stamps: CacheStamps) {

@@ -85,10 +85,21 @@ abstract class ReferenceContributorBase(private val referenceContributor: Refere
                                 }
                             }
                             .filter { it.reference.path.isNotEmpty() }
-                            .whenNotEmpty { listOf(I18nReference(element, TextRange(1 + element.text.unQuote().indexOf(fullKey.source), element.textLength - 1), it)) }
+                            .whenNotEmpty { listOf(I18nReference(element, keyRange(element, fullKey.source), it)) }
                     } ?: emptyList()
                 }
             }
         )
+    }
+
+    /**
+     * Where [source] stands in [element], from the key to the closing quote. A key not written as such in
+     * the element (an escaped character the parser reads unescaped) takes the element's value range: an
+     * `indexOf` of -1 used to start the range at 0, over the opening quote.
+     */
+    private fun keyRange(element: PsiElement, source: String): TextRange {
+        val start = element.text.unQuote().indexOf(source)
+        return if (start < 0) ElementManipulators.getValueTextRange(element)
+        else TextRange(1 + start, element.textLength - 1)
     }
 }
