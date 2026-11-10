@@ -67,9 +67,28 @@ data class EngineState(
         /** A new entry filled from [preset], with an id of its own. */
         fun of(preset: EngineConfig): EngineState = EngineState(
             id = UUID.randomUUID().toString(), preset = preset.id, name = preset.name, url = preset.url,
-            headers = preset.headers.entries.joinToString("\n") { "${it.key}: ${it.value}" },
+            headers = headerLines(preset.headers),
             body = preset.body, responsePath = preset.responsePath, unescapeHtml = preset.unescapeHtml, local = preset.local
         )
+
+        private fun headerLines(headers: Map<String, String>): String = headers.entries.joinToString("\n") { "${it.key}: ${it.value}" }
+
+        private const val GOOGLE = "google-cloud"
+
+        /** The Google preset's URL until its key moved to a header: a URL ends up in proxy and server logs. */
+        internal const val LEGACY_GOOGLE_URL = "https://translation.googleapis.com/language/translate/v2?key={apiKey}"
+    }
+
+    /**
+     * This entry, a Google one saved with the key in [LEGACY_GOOGLE_URL] sending it in the preset's header instead —
+     * the same request otherwise. Any other entry, an edited URL included, is returned as it is.
+     */
+    fun withKeyInHeader(): EngineState {
+        if (preset != GOOGLE || url.trim() != LEGACY_GOOGLE_URL) return this
+        val google = TranslationEngines.preset(GOOGLE) ?: return this
+        val written = headers.lines().map { it.substringBefore(':').trim() }
+        val added = google.headers.filterKeys { name -> written.none { it.equals(name, ignoreCase = true) } }
+        return copy(url = google.url, headers = listOf(headers.trim(), headerLines(added)).filter { it.isNotEmpty() }.joinToString("\n"))
     }
 }
 
@@ -168,6 +187,7 @@ class MachineTranslationSettings : PersistentStateComponent<MachineTranslationSe
     override fun loadState(loaded: Settings) {
         state = Settings()
         XmlSerializerUtil.copyBean(loaded, state)
+        state.engines = state.engines.map { it.withKeyInHeader() }.toMutableList()
     }
 
     /** A detached copy, edited by the settings page until *Apply*. */
