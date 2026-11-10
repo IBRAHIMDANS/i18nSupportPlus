@@ -2,10 +2,14 @@ name: Prepare Release
 
 # RELEASING.md, Cadence: one minor a week, on Tuesday, after a day of soak. Two entry points:
 #  - the Tuesday schedule only reminds: it opens an issue naming the next version, the entries
-#    waiting under Unreleased and the age of main. It publishes nothing, because the checks made
-#    before a release (the comparison page, the verifier's internal API report) run nowhere in CI.
+#    waiting under Unreleased and the age of main. It publishes nothing, because the comparison page
+#    and the deprecated API report are read by a person before a release.
 #  - the manual run prepares the release as before. The version may be left empty: the next minor
 #    after the latest tag is taken.
+#
+# The internal API report needs no person: the tag this workflow pushes starts the release workflow,
+# whose verify job fails on an internal API usage the Marketplace refuses, before anything is
+# published (scripts/check-internal-api.sh). The tag and the release PR then stay, without an upload.
 on:
   schedule:
     - cron: '0 7 * * 2'
@@ -83,7 +87,7 @@ jobs:
           Before running [Prepare Release](${RUN_URL}) with an empty version field:
 
           - [ ] \`docs/COMPARISON.md\`: version and date, no stale \`next\`
-          - [ ] \`./gradlew verifyPlugin\`: read the internal and deprecated API report
+          - [ ] the deprecated API report of the latest Plugin Compatibility run (internal API usages block the release workflow by themselves)
           - [ ] a day of use in a real IDE since the last merge
 
           Close this issue once the release PR is merged.

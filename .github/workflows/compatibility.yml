@@ -16,9 +16,9 @@ jobs:
 
     steps:
       - name: Free disk space
-        uses: jlumbroso/free-disk-space@main
+        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
         with:
-          tool-cache: false
+          preinstalled-runtimes: false
           android: true
           dotnet: true
           haskell: true
@@ -48,24 +48,10 @@ jobs:
         run: ./gradlew verifyPlugin
 
       # The Marketplace refuses an upload over any internal API usage, whatever the "Compatible"
-      # verdict says: 1.18.0 was refused over FileSizeLimit while this job was green. failureLevel
-      # cannot catch it without failing every run on the six ToolWindowFactory usages Kotlin emits
-      # on 2025.2, which the Marketplace tolerates (see failureLevel in build.gradle.kts). So the
-      # reports are read here: those six pass, any other internal API usage fails the job.
+      # verdict says (1.18.0). The script lets through the six usages it tolerates and fails on any
+      # other; the release workflow runs it too, before the upload.
       - name: Fail on internal API usages the Marketplace refuses
-        env:
-          REPORTS: build/reports/pluginVerifier
-        run: |
-          allowed='^Internal method com\.intellij\.openapi\.wm\.ToolWindowFactory\.(getIcon|getAnchor|manage)\(.* in (class )?com\.ibrahimdans\.i18n\.plugin\.ide\.toolwindow\.I18nToolWindowFactory[.(]'
-          status=0
-          while IFS= read -r -d '' report; do
-            ide=${report#"$REPORTS"/}; ide=${ide%%/*}
-            while IFS= read -r usage; do
-              echo "::error title=Internal API usage on $ide::${usage%% This * is marked with*}"
-              status=1
-            done < <(grep -vE "$allowed" "$report" | grep -v '^$' || true)
-          done < <(find "$REPORTS" -name internal-api-usages.txt -print0)
-          exit $status
+        run: scripts/check-internal-api.sh build/reports/pluginVerifier
 
       - name: Upload verification reports
         if: always()
