@@ -38,4 +38,29 @@ class PluralCategoriesTest {
     fun `an unknown language falls back to one and other`() {
         assertEquals(setOf("one", "other"), PluralCategories.of("xx"))
     }
+
+    @Test
+    fun `each language needs its CLDR ordinal categories`() {
+        assertEquals(setOf("one", "two", "few", "other"), PluralCategories.ordinalOf("en"))
+        assertEquals(setOf("one", "other"), PluralCategories.ordinalOf("fr"))
+        assertEquals(setOf("many", "other"), PluralCategories.ordinalOf("it"))
+        assertEquals(setOf("few", "other"), PluralCategories.ordinalOf("uk"))
+        assertEquals(setOf("zero", "one", "two", "few", "many", "other"), PluralCategories.ordinalOf("cy"))
+        // Russian, German and Japanese ordinals have a single form.
+        assertEquals(setOf("other"), PluralCategories.ordinalOf("ru"))
+        assertEquals(setOf("other"), PluralCategories.ordinalOf("de"))
+        assertEquals(setOf("other"), PluralCategories.ordinalOf("ja"))
+    }
+
+    @Test
+    fun `an ordinal locale is read as its language`() {
+        assertEquals(PluralCategories.ordinalOf("en"), PluralCategories.ordinalOf("en-GB"))
+        assertEquals(PluralCategories.ordinalOf("pt"), PluralCategories.ordinalOf("pt_BR"))
+    }
+
+    @Test
+    fun `an unknown language has only the other ordinal`() {
+        // Most languages have a single ordinal form: asking for `one` would report a correct file.
+        assertEquals(setOf("other"), PluralCategories.ordinalOf("xx"))
+    }
 }
