@@ -189,10 +189,15 @@ open class JsLang : Lang {
 
     /**
      * next-intl's `t.raw('list')` returns the message as written, so it may be an object or an array;
-     * svelte-i18n's `$json('nav')` returns the messages under its key.
+     * svelte-i18n's `$json('nav')` returns the messages under its key; i18next's
+     * `t('key', { returnObjects: true })` the object or array under its key.
      */
     override fun allowsObjectValue(element: PsiElement): Boolean =
-        NEXT_INTL_RAW.canExtract(element) || SVELTE_I18N_JSON.canExtract(element)
+        NEXT_INTL_RAW.canExtract(element) || SVELTE_I18N_JSON.canExtract(element) || OptionsExtractor.returnsObjects(element)
+
+    override fun defaultTextOf(element: PsiElement): String? = OptionsExtractor.defaultValue(element)
+
+    override fun fallbackKeysOf(element: PsiElement): List<PsiElement> = OptionsExtractor.fallbackKeys(element)
 
     override fun foldingProvider(): FoldingProvider = JsFoldingProvider()
 

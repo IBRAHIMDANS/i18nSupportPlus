@@ -2,7 +2,6 @@ package com.ibrahimdans.i18n.plugin.ide.annotator
 
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.Lang
-import com.ibrahimdans.i18n.extensions.lang.js.extractors.OptionsExtractor
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
@@ -109,8 +108,7 @@ class KeyCheck(private val lang: Lang) : CompositeKeyResolver<PsiElement> {
                 } else {
                     if (mostResolvedReference.element?.isLeaf() ?: false) {
                         annotationHelper.annotateResolved(fullKey)
-                    } else if (PluralGroup.isPluralGroup(mostResolvedReference.element) || lang.allowsObjectValue(element) ||
-                        OptionsExtractor.returnsObjects(element)) {
+                    } else if (PluralGroup.isPluralGroup(mostResolvedReference.element) || lang.allowsObjectValue(element)) {
                         // i18n-js and friends pluralize into a nested object rather than through
                         // the flat `key_one` suffixes the resolver expands: the key legitimately
                         // points at that object, so it is resolved, not a reference to an object —
@@ -137,7 +135,7 @@ class KeyCheck(private val lang: Lang) : CompositeKeyResolver<PsiElement> {
                 if (!onlyTemplateUnresolved && !resolvedViaDynamicWildcard && !anotherKeyResolves(element, config)) {
                     // i18next shows a default value while the key is missing: not a broken screen,
                     // a key still to create — with that text.
-                    annotationHelper.unresolvedKey(fullKey, mostResolvedReference, OptionsExtractor.defaultValue(element))
+                    annotationHelper.unresolvedKey(fullKey, mostResolvedReference, lang.defaultTextOf(element))
                 }
             }
         }
@@ -148,7 +146,7 @@ class KeyCheck(private val lang: Lang) : CompositeKeyResolver<PsiElement> {
      * not reported while another key of the array resolves in full.
      */
     private fun anotherKeyResolves(element: PsiElement, config: Config): Boolean {
-        val fallbacks = OptionsExtractor.fallbackKeys(element)
+        val fallbacks = lang.fallbackKeysOf(element)
         if (fallbacks.isEmpty()) return false
         val sourceService = element.project.service<LocalizationSourceService>()
         return fallbacks.any { fallback ->
