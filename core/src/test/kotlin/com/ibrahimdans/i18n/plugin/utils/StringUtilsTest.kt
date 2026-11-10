@@ -1,30 +1,12 @@
-package utils
+package com.ibrahimdans.i18n.plugin.utils
 
-import com.ibrahimdans.i18n.plugin.utils.isQuoted
-import com.ibrahimdans.i18n.plugin.utils.unQuote
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-//@Ignore
-internal class StringUtilsTest : TestBase {
-
-    @Test
-    fun matchPattern() {
-        val str = "startsWithEndsWithElse"
-        val notMatch = "doesNotstartWithEndsWithElse2"
-        val regex = Regex("starts.*")
-        assertTrue(str.matches(regex))
-        assertFalse(notMatch.matches(regex))
-    }
-
-    @Test
-    fun matchPattern2() {
-        val str = "startsWith1EndsWithElse"
-        val notMatch = "doesNotstartWithEndsWithElse3"
-        val regex = Regex(".*Else")
-        assertTrue(str.matches(regex))
-        assertFalse(notMatch.matches(regex))
-    }
+/** [isQuoted] and [unQuote], which every key read from a literal goes through. */
+internal class StringUtilsTest {
 
     @Test
     fun isQuoted() {
