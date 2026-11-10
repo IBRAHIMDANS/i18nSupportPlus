@@ -190,10 +190,22 @@ class ReactUseTranslationHookExtractor: KeyExtractor {
      */
     private fun resolveHook(literal: PsiElement): JSCallExpression? {
         val call = PsiTreeUtil.getParentOfType(literal, JSCallExpression::class.java) ?: return null
+        if (!namesAHook(call.containingFile)) return null
         return CachedValuesManager.getCachedValue(call) {
             CachedValueProvider.Result.create(computeHook(call), PsiModificationTracker.MODIFICATION_COUNT)
         }
     }
+
+    /**
+     * True when [file]'s text names one of the hooks, cached until the file changes: a hook is
+     * called in the component using its `t`. Without this test, resolving `t` was a request to the
+     * TypeScript service for every string in every call (`document.createElement("button")`).
+     */
+    private fun namesAHook(file: PsiFile): Boolean =
+        CachedValuesManager.getCachedValue(file) {
+            val text = file.text
+            CachedValueProvider.Result.create((HOOKS + UNIVERSE_HOOKS).any { it in text }, file)
+        }
 
     private fun computeHook(call: JSCallExpression): JSCallExpression? {
         // Primary: follow reference to local definition. react-i18next destructures the hook's
