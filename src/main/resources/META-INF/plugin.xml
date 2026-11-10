@@ -99,6 +99,16 @@
         <statusBarWidgetFactory id="com.ibrahimdans.i18n.previewLocale"
                                 implementation="com.ibrahimdans.i18n.plugin.ide.preview.PreviewLocaleWidgetFactory"
                                 order="after positionWidget"/>
+        <!-- No language: one inspection for every language the plugin reads keys from. Each element is
+             read by the language a `com.ibrahimdans.i18n.lang` extension names for it, so the class
+             names no PSI of an optional plugin (JavaScript, PHP, Twig). -->
+        <localInspection
+            groupName="i18n Support Plus"
+            key="inspection.unresolved.key.display.name"
+            shortName="I18nUnresolvedKey"
+            enabledByDefault="true"
+            level="ERROR"
+            implementationClass="com.ibrahimdans.i18n.plugin.ide.inspection.UnresolvedKeyInspection"/>
         <localInspection
             groupName="i18n Support Plus"
             key="inspection.placeholder.display.name"

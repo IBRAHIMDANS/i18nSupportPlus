@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.ide.actions.KeyRenameSites
 import com.ibrahimdans.i18n.plugin.parser.CodeNode
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.utils.PsiCodeNode
+import com.intellij.lang.Language
 import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.fileTypes.LanguageFileType
 import com.intellij.psi.PsiElement
@@ -37,9 +38,30 @@ interface Lang : CodeLang {
 
     /**
      * True when the call holding [element] may read an object as well as a string, so a key
-     * pointing at an object is resolved rather than a "Reference to object": next-intl's `t.raw`.
+     * pointing at an object is resolved rather than a "Reference to object": next-intl's `t.raw`,
+     * i18next's `returnObjects: true`.
      */
     fun allowsObjectValue(element: PsiElement): Boolean = false
+
+    /**
+     * The text the call holding [element] shows while its key is missing — i18next's
+     * `t('key', 'Default text')` — or null when it shows none, which is the default.
+     */
+    fun defaultTextOf(element: PsiElement): String? = null
+
+    /**
+     * The other keys of the call holding [element] when it tries several and shows the first that
+     * exists — i18next's `t(['specific', 'generic'])`. Empty by default.
+     */
+    fun fallbackKeysOf(element: PsiElement): List<PsiElement> = emptyList()
+
+    /**
+     * The language the unresolved key inspection reads [element] with: this one or another of its
+     * plugin, or null when [element] is none of its languages, which is the default. The inspection
+     * is declared once for every language and asks each one, so that no class it loads names the
+     * PSI of an optional plugin.
+     */
+    fun inspectionLangOf(element: PsiElement): Lang? = null
 
     /**
      * The references [literal] holds: its own, unless the language's keys are tokens the reference
@@ -80,5 +102,10 @@ interface Lang : CodeLang {
 /** Whether [this] is of one of the languages of [ids], a dialect counting for its base: TypeScript for JavaScript. */
 fun FileType.isOfLanguage(ids: Set<String>): Boolean {
     val language = (this as? LanguageFileType)?.language ?: return false
-    return generateSequence(language) { it.baseLanguage }.any { it.id in ids }
+    return language.isOfLanguage(ids)
 }
+
+/** Whether [this] is of the language [id], a dialect counting for its base — as an annotator declared on [id] sees it. */
+fun PsiElement.isOfLanguage(id: String): Boolean = language.isOfLanguage(setOf(id))
+
+private fun Language.isOfLanguage(ids: Set<String>): Boolean = generateSequence(this) { it.baseLanguage }.any { it.id in ids }

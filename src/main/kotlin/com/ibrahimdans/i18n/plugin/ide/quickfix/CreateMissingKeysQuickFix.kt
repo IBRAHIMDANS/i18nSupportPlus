@@ -1,7 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.quickfix
 
 import com.ibrahimdans.i18n.plugin.ide.actions.EditTranslationAtCaretAction
-import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.tree.PropertyReference
 import com.ibrahimdans.i18n.plugin.utils.hostVirtualFile
 import com.intellij.openapi.application.ApplicationManager
@@ -26,9 +25,8 @@ import com.intellij.psi.PsiElement
  * files to make writable first, so a locked one stops the fix before anything is written.
  */
 class CreateMissingKeysQuickFix(
-    // The annotator's call passes the key; the dialog reads it again from the code at the caret,
-    // with its namespace and its plural form resolved as *Edit Translation* resolves them.
-    @Suppress("unused", "UnusedPrivateProperty") private val fullKey: FullKey,
+    // No key: the dialog reads it again from the code at the caret, with its namespace and its
+    // plural form resolved as *Edit Translation* resolves them.
     private val references: List<PropertyReference<PsiElement>>,
     private val commandCaption: String,
 ) : QuickFix() {
