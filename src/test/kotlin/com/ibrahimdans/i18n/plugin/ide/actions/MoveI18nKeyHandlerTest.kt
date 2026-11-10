@@ -401,6 +401,37 @@ class MoveI18nKeyHandlerTest : PlatformBaseTest() {
         Assertions.assertNull(valueAt("locales/common/fr.json", "greeting"))
     }
 
+    /**
+     * The targets are planned under a read action, before the write: planning creates neither the
+     * folder nor the file the template designates, the write action does.
+     */
+    @Test
+    fun planTargets_underReadAction_createsNothingAndExecuteWritesThere() = myFixture.runWithConfig(
+        Config(modules = listOf(ModuleConfig(name = "app", pathTemplate = "locales/{ns}/{lang}.json")))
+    ) {
+        addFileToProject("locales/common/en.json", """{"greeting":"Hello"}""")
+        addFileToProject("locales/common/fr.json", """{"greeting":"Bonjour"}""")
+        // intentionally no locales/profile/ folder
+
+        val leaves = ReadAction.compute<List<PsiElement>, RuntimeException> {
+            listOf(leaf(jsonFile("locales/common/en.json"), "greeting"), leaf(jsonFile("locales/common/fr.json"), "greeting"))
+        }
+        val targets = ReadAction.compute<Map<PsiElement, MoveI18nKeyHandler.MoveTarget>, RuntimeException> {
+            handler.planTargets(project, leaves, "profile")
+        }
+
+        Assertions.assertEquals(2, targets.size, "one target per locale")
+        Assertions.assertNull(myFixture.findFileInTempDir("locales/profile"), "planning creates no folder")
+
+        WriteCommandAction.runWriteCommandAction(project) {
+            handler.execute(project, leaves, emptyList(), literals("greeting"), "profile", targets)
+        }
+
+        Assertions.assertEquals("Hello", valueAt("locales/profile/en.json", "greeting"))
+        Assertions.assertEquals("Bonjour", valueAt("locales/profile/fr.json", "greeting"))
+        Assertions.assertNull(valueAt("locales/common/en.json", "greeting"))
+    }
+
     /** The namespace of a resource bundle is the one its format states, not the file stem (`messages_fr`). */
     @Test
     fun resolveKey_propertiesBundle_groupsEveryLocaleUnderTheStatedNamespace() {
