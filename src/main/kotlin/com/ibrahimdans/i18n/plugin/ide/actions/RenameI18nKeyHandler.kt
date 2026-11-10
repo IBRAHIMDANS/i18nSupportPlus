@@ -59,14 +59,22 @@ import java.util.Collections
  *
  * The reviews of the renamed keys ([ReviewMigration]) follow them in the same command, in every
  * locale and module that has reviews on: the values do not change, so an approval still holds.
+ *
+ * A new name is refused, nothing written, when it is taken next to the key (a second `cancel` in the
+ * same object), when it holds the key or namespace separator (a literal `a.b` property no call reads
+ * back), or when it holds a quote or a backslash that would break a file or a call site it rewrites.
+ * A level is checked the same way.
  */
 class RenameI18nKeyHandler : RenameHandler {
 
     /** One text replacement, gathered under a read action and applied in the write action. */
     internal data class Edit(val document: Document, val range: TextRange, val text: String)
 
-    /** What a rename writes: the text [edits], and the [reviews] following the renamed keys. */
-    private data class Collected(val edits: List<Edit>, val reviews: List<ReviewMove>)
+    /**
+     * What a rename writes: the text [edits], and the [reviews] following the renamed keys. Nothing
+     * when the new name is taken next to the key ([conflict]): two keys are never merged.
+     */
+    private data class Collected(val edits: List<Edit>, val reviews: List<ReviewMove>, val conflict: Boolean = false)
 
     override fun isAvailableOnDataContext(dataContext: DataContext): Boolean {
         val editor = CommonDataKeys.EDITOR.getData(dataContext) ?: return false
@@ -88,27 +96,47 @@ class RenameI18nKeyHandler : RenameHandler {
 
         val currentKey = ref.element.text.unQuote()
         val lastSegment = lastSegmentOf(currentKey, config)
+        val title = PluginBundle.message("action.rename.title")
 
         val newSegment = Messages.showInputDialog(
             project,
             PluginBundle.message("action.rename.prompt", currentKey),
-            PluginBundle.message("action.rename.title"),
+            title,
             Messages.getQuestionIcon(),
             lastSegment,
             null
         ) ?: return // cancelled
 
         if (newSegment.isBlank() || newSegment == lastSegment) return
+        if (refusedName(project, newSegment, config, title)) return
 
         // The search walks the project's sources: off the EDT, under a progress the user can cancel.
         val collected = ProgressManager.getInstance().runProcessWithProgressSynchronously<Collected, RuntimeException>(
             { ReadAction.compute<Collected, RuntimeException> { collectEdits(project, ref, lastSegment, newSegment, config) } },
-            PluginBundle.message("action.rename.title"),
+            title,
             true,
             project
         )
+        if (collected.conflict) {
+            return Messages.showErrorDialog(project, PluginBundle.message("action.rename.key.conflict", newSegment, lastSegment), title)
+        }
+        if (refusedChar(project, newSegment, collected.edits.map { it.document.getText(it.range) }, title)) return
 
-        apply(project, collected.edits, PluginBundle.message("action.rename.title"), collected.reviews)
+        apply(project, collected.edits, title, collected.reviews)
+    }
+
+    /** True, once the user is told why, when [name] holds a key or namespace separator: a rename keeps a key at its level. */
+    private fun refusedName(project: Project, name: String, config: Config, title: String): Boolean {
+        val separator = KeyLevelRename.separatorIn(name, config) ?: return false
+        Messages.showErrorDialog(project, PluginBundle.message("action.rename.separator", name, separator), title)
+        return true
+    }
+
+    /** True, once the user is told why, when [name] holds a character that would break one of the [originals] it rewrites. */
+    private fun refusedChar(project: Project, name: String, originals: List<String>, title: String): Boolean {
+        val char = KeyLevelRename.unwritableChar(name, originals) ?: return false
+        Messages.showErrorDialog(project, PluginBundle.message("action.rename.unwritable", name, char.toString()), title)
+        return true
     }
 
     override fun invoke(project: Project, elements: Array<out PsiElement>, dataContext: DataContext) {
@@ -125,9 +153,7 @@ class RenameI18nKeyHandler : RenameHandler {
         if (config.usesFlatKeys() || config.keySeparator.isEmpty()) return null
         val literal = ref.element
         val project = literal.project
-        val fullKey = ReadAction.compute<FullKey?, RuntimeException> {
-            Extensions.LANG.extensionList.firstNotNullOfOrNull { it.extractRawKey(literal) }?.let { RawKeyParser(project).parse(it, literal) }
-        } ?: return null
+        val fullKey = ReadAction.compute<FullKey?, RuntimeException> { fullKeyOf(literal) } ?: return null
         val text = literal.text
         val quoted = text.length > 1 && text.first() in QUOTES && text.last() == text.first()
         val key = if (quoted) text.substring(1, text.length - 1) else text
@@ -145,6 +171,24 @@ class RenameI18nKeyHandler : RenameHandler {
         val namespaces = fullKey.allNamespaces().ifEmpty { config.defaultNamespaces() }
         return KeyLevelRename(project, namespaces, path, config, literal)
     }
+
+    /**
+     * The key [ref] names, seen as a level — its whole path, which the parsed key already starts with
+     * its hook's key prefix — to ask whether a new name is taken next to it. Null when the literal
+     * reads no key (a constant's). Needs a read action.
+     */
+    private fun leafLevel(ref: I18nReference, config: Config): KeyLevelRename? {
+        val literal = ref.element
+        val fullKey = fullKeyOf(literal) ?: return null
+        val path = fullKey.compositeKey.map { it.text }
+        if (path.isEmpty()) return null
+        val namespaces = fullKey.allNamespaces().ifEmpty { config.defaultNamespaces() }
+        return KeyLevelRename(literal.project, namespaces, path, config, literal)
+    }
+
+    /** The key [literal] is read as, or null; needs a read action. */
+    private fun fullKeyOf(literal: PsiElement): FullKey? =
+        Extensions.LANG.extensionList.firstNotNullOfOrNull { it.extractRawKey(literal) }?.let { RawKeyParser(literal.project).parse(it, literal) }
 
     /** The level under the caret in a translation file: a property holding other keys, not a value. */
     private fun levelInTranslationFile(editor: Editor, file: PsiFile): KeyLevelRename? {
@@ -179,8 +223,9 @@ class RenameI18nKeyHandler : RenameHandler {
             null
         )?.trim() ?: return
         if (newName.isEmpty() || newName == level.levelName) return
+        if (refusedName(project, newName, Settings.getInstance(project).config(), title)) return
 
-        val plan = ProgressManager.getInstance().runProcessWithProgressSynchronously<KeyLevelRename.Plan, RuntimeException>(
+        val plan =ProgressManager.getInstance().runProcessWithProgressSynchronously<KeyLevelRename.Plan, RuntimeException>(
             { ReadAction.compute<KeyLevelRename.Plan, RuntimeException> { level.plan(newName) } },
             title,
             true,
@@ -190,6 +235,7 @@ class RenameI18nKeyHandler : RenameHandler {
             plan.conflict -> return Messages.showErrorDialog(project, PluginBundle.message("action.rename.level.conflict", newName, level.levelName), title)
             plan.files == 0 -> return Messages.showInfoMessage(project, PluginBundle.message("action.rename.level.notFound", level.path.joinToString(".")), title)
         }
+        if (refusedChar(project, newName, plan.edits.map { it.document.getText(it.range) }, title)) return
         val dynamic = if (plan.dynamicUsages.isEmpty()) ""
             else "\n\n" + PluginBundle.message("action.rename.level.dynamic", plan.dynamicUsages.joinToString("\n") { "  $it" })
         val confirmed = Messages.showYesNoDialog(
@@ -237,6 +283,8 @@ class RenameI18nKeyHandler : RenameHandler {
         newSegment: String,
         config: Config,
     ): Collected {
+        // The same refusal as a level's and the MCP rename's: `save` never becomes an existing `cancel`.
+        if (leafLevel(ref, config)?.isTaken(newSegment) == true) return Collected(emptyList(), emptyList(), conflict = true)
         val translations = ref.multiResolve(false).mapNotNull { it.element }.toSet()
         val codeEdits = codeUsages(project, ref, translations, lastSegment, config).mapNotNull { literal ->
             renamedLiteral(literal, lastSegment, newSegment, config)
