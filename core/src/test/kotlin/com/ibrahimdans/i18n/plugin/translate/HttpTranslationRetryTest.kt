@@ -148,6 +148,17 @@ class HttpTranslationRetryTest {
     }
 
     @Test
+    fun `an engine that never answers in time costs a bounded number of requests`() {
+        val transport = ScriptedTransport({ throw SocketTimeoutException() })
+        val texts = (1..20).map { "text $it" }.toTypedArray()
+
+        val result = translate(transport, deepl, *texts)
+
+        assertTrue(result.all { it is Translation.Failed })
+        assertEquals(117, transport.bodies.size, "39 requests of the split, three attempts each")
+    }
+
+    @Test
     fun `the wait for an answer grows with the texts of the request`() {
         val single = ScriptedTransport(ok)
         translate(single)
