@@ -83,8 +83,14 @@ checks below are made by hand. Close the issue when the release PR is merged.
 Before running it:
 
 - `docs/COMPARISON.md`: the plugin's version and date, no stale `next`
-- `./gradlew verifyPlugin`: read the internal and deprecated API report, the Marketplace refuses an
-  upload on an internal API and the CI does not block it
+- the deprecated API report of the latest *Plugin Compatibility* run (artifact `compatibility-report`,
+  every Monday): deprecated usages do not block anything, so a person reads them
+
+Internal API usages need no reading by hand: the release workflow fails on any of them before the
+upload (see below). The one exception it lets through is the six `ToolWindowFactory` usages
+(`getIcon`, `getAnchor`, `manage`) Kotlin emits on 2025.2, which the Marketplace tolerates: the
+comment above `failureLevel` in `build.gradle.kts` and `scripts/check-internal-api.sh` explain why.
+No local `verifyPlugin` is needed: it downloads every IDE of `build.gradle.kts` (about 25 GB).
 
 The workflow automatically:
 - Sets `pluginVersion = 1.0.7` in `gradle.properties`
@@ -94,10 +100,13 @@ The workflow automatically:
 - Opens a pull request `release/v1.0.7 → main`
 
 The tag push automatically triggers the **Release** workflow, which:
-1. Builds the plugin (`./gradlew buildPlugin`)
-2. Publishes to JetBrains Marketplace (`./gradlew publishPlugin`)
-3. Extracts release notes from `CHANGELOG.md` for the tagged version
-4. Creates a GitHub Release with the plugin ZIP attached
+1. Verifies the plugin (job `verify`, about 20 min): `./gradlew verifyPlugin` on the IDEs of
+   `build.gradle.kts`, the same as *Plugin Compatibility*, then `scripts/check-internal-api.sh`, which
+   fails on any internal API usage the Marketplace refuses. The steps below run only if it passes.
+2. Builds the plugin (`./gradlew buildPlugin`)
+3. Publishes to JetBrains Marketplace (`./gradlew publishPlugin`)
+4. Extracts release notes from `CHANGELOG.md` for the tagged version
+5. Creates a GitHub Release with the plugin ZIP attached
 
 Once the Release workflow completes, merge the pull request to keep `main` up to date.
 
@@ -132,6 +141,20 @@ git tag -d v1.0.7
 git push origin :refs/tags/v1.0.7
 # Re-run "Prepare Release" to recreate everything correctly
 ```
+
+**The `verify` job of the Release workflow failed:**
+Nothing was published: no Marketplace upload, no GitHub Release. The tag and the release PR are
+there. The failing usages are listed in the job's annotations, one per usage and per IDE, and in the
+`release-verification-report` artifact (`internal-api-usages.txt` per IDE).
+1. Delete the tag, locally and on GitHub:
+   ```bash
+   git tag -d v1.0.7
+   git push origin :refs/tags/v1.0.7
+   ```
+2. Close the release PR without merging it and delete its branch `release/v1.0.7`.
+3. Fix the usage on `main` through a normal PR (replace the internal API with a public one; check
+   its annotations with `javap -v` in the 252 and 263 JARs of the Gradle cache).
+4. Re-run *Prepare Release* with the same version: it refuses a version that is still tagged, hence step 1.
 
 **Marketplace publish failed but GitHub Release was created:**
 Re-run `publishPlugin` manually with `IJ_HUB_TOKEN` exported, or re-run the failed job from the GitHub Actions UI.
