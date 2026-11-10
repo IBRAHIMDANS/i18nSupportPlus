@@ -271,6 +271,19 @@ class KeyMaintenanceToolsTest : PlatformBaseTest() {
         Assertions.assertTrue("\"archive\": \"Stored\"" in text(en) && "\"Archive\"" !in text(en), text(en))
     }
 
+    @Test
+    fun `keys whose files change between the search and the delete are refused, nothing deleted`() = myFixture.runWithConfig(config) {
+        val (en, _) = seed()
+        val plan = offEdt { tools().planDelete(null, listOf("common:unused")) }
+        Assertions.assertEquals(listOf("common:unused"), plan.keys)
+
+        edit(en, "\"Unused\"" to "\"Unused still\"")
+        val refused = Assertions.assertThrows(TranslationAgentTools.Refused::class.java) { tools().applyDelete(plan) }
+
+        Assertions.assertEquals(KeyMaintenanceTools.DELETE_CHANGED, refused.message)
+        Assertions.assertTrue("\"unused\": \"Unused still\"" in text(en), text(en))
+    }
+
     private fun edit(file: PsiFile, replacement: Pair<String, String>) = WriteCommandAction.runWriteCommandAction(project) {
         val document = PsiDocumentManager.getInstance(project).getDocument(file)!!
         document.setText(document.text.replace(replacement.first, replacement.second))
@@ -281,8 +294,8 @@ class KeyMaintenanceToolsTest : PlatformBaseTest() {
     fun `only a key no code uses is deleted, in one undoable command`() = myFixture.runWithConfig(config.copy(keptKeys = "common:kept")) {
         val (en, _) = seed()
 
-        val (deletable, rejected) = tools().deletable(null, listOf("common:unused", "common:title", "common:kept", "common:nowhere"))
-        val result = tools().delete(null, deletable, rejected)
+        val plan = offEdt { tools().planDelete(null, listOf("common:unused", "common:title", "common:kept", "common:nowhere")) }
+        val result = tools().applyDelete(plan)
 
         Assertions.assertEquals(listOf("common:unused"), result.deleted)
         Assertions.assertEquals(1, result.entries)

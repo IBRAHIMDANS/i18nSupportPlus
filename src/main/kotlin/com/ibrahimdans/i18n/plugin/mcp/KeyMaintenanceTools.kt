@@ -26,6 +26,7 @@ import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.sourcesOf
+import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
@@ -115,6 +116,9 @@ class KeyMaintenanceTools(private val project: Project) {
         val stamps: DocumentStamps,
         val done: CreateResult? = null,
     )
+
+    /** The [keys] no code uses, found off the EDT, and the others with the reason they are kept. */
+    internal class DeletePlan(val module: ModuleConfig?, val keys: List<String>, val rejected: Map<String, String>, val stamps: DocumentStamps)
 
     /** A rename planned under a read action, applied on the EDT while its files are still as read. */
     internal class RenamePlan(val result: RenameResult, val plan: KeyLevelRename.Plan, val stamps: Map<Document, Long>)
@@ -391,11 +395,13 @@ class KeyMaintenanceTools(private val project: Project) {
     /**
      * Which of [keys] no code of [moduleName] uses, and why each other one is kept: used, possibly
      * built at runtime, kept by the keep list, unknown. Searches the code: call it off the EDT and
-     * outside a read action.
+     * outside a read action, which each step takes for itself. [applyDelete] deletes the plan.
      */
-    fun deletable(moduleName: String?, keys: List<String>): Pair<List<String>, Map<String, String>> {
+    internal fun planDelete(moduleName: String?, keys: List<String>): DeletePlan {
         requireSmartMode()
         val (_, module) = scope(moduleName)
+        // Read before the translations: a file changed while they are read and searched is then caught.
+        val stamps = runReadAction { DocumentStamps.of(project, module) }
         val translations = TranslationDataLoader.loadAllTranslations(project, module)
         val rejected = sortedMapOf<String, String>()
         keys.filter { it !in translations }.forEach { rejected[it] = UNKNOWN_KEY }
@@ -405,7 +411,7 @@ class KeyMaintenanceTools(private val project: Project) {
             val count = row.usageCount
             if (count != 0) rejected[row.key] = usageNoteOf(count) ?: "Still used: $count usage(s), see i18n_key_usages"
         }
-        return counted.filter { it.usageCount == 0 }.map { it.key } to rejected
+        return DeletePlan(module, counted.filter { it.usageCount == 0 }.map { it.key }, rejected, stamps)
     }
 
     /** Why a key no search counts may still be used, from the table's usage sentinels; null for a count. */
@@ -416,11 +422,16 @@ class KeyMaintenanceTools(private val project: Project) {
         else -> null
     }
 
-    /** Deletes [keys] from every locale of [moduleName], their reviews included, in one undoable command. Runs on the EDT. */
-    fun delete(moduleName: String?, keys: List<String>, rejected: Map<String, String>): DeleteResult {
-        val (_, module) = scope(moduleName)
-        val entries = if (keys.isEmpty()) 0 else CleanupUnusedKeysAction().deleteKeys(project, keys, module)
-        return DeleteResult(keys.sorted(), entries, rejected)
+    /**
+     * Deletes [plan]'s keys from every locale of its module, their reviews included, in one undoable
+     * command; refused, nothing deleted, when one of the module's files changed since it was planned.
+     * Runs on the EDT.
+     */
+    internal fun applyDelete(plan: DeletePlan): DeleteResult {
+        if (plan.keys.isEmpty()) return DeleteResult(emptyList(), 0, plan.rejected)
+        if (plan.stamps.changed()) throw Refused(DELETE_CHANGED)
+        val entries = CleanupUnusedKeysAction().deleteKeys(project, plan.keys, plan.module)
+        return DeleteResult(plan.keys.sorted(), entries, plan.rejected)
     }
 
     // ── Shared ──────────────────────────────────────────────────────────────
@@ -471,6 +482,7 @@ class KeyMaintenanceTools(private val project: Project) {
         const val NOT_WRITTEN = "Not written: the file changed meanwhile, check it and send it again"
         const val CHANGED = "A file changed since the rename was planned: nothing was renamed, call again"
         const val CREATE_CHANGED = "A translation file changed while the key was checked: nothing was created, call again"
+        const val DELETE_CHANGED = "A translation file changed while the keys were searched: nothing was deleted, call again"
         const val INDEXING = "The IDE is indexing the project: call again once it is done"
         const val UNKNOWN_KEY = "No translation holds this key in this module"
         const val KEPT = "Kept by the project's keep list (Keys used outside the code)"

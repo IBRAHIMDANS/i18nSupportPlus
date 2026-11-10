@@ -188,8 +188,8 @@ class I18nMcpToolset : McpToolset {
         @McpDescription(description = "Keys to delete, as i18n_check spells them") keys: List<String>,
         @McpDescription(description = "Module name from i18n_list_modules; omit when there is only one") module: String? = null,
     ): String = maintain { tools, _ ->
-        val (deletable, rejected) = withContext(Dispatchers.Default) { tools.deletable(module, keys) }
-        withContext(Dispatchers.EDT) { tools.delete(module, deletable, rejected) }
+        val plan = withContext(Dispatchers.Default) { tools.planDelete(module, keys) }
+        withContext(Dispatchers.EDT) { tools.applyDelete(plan) }
     }
 
     /** [block] run for the calling project and MCP client, its result as JSON; a refusal as the MCP error the agent reads. */
