@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.translate
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
@@ -33,5 +34,12 @@ class TranslationEnginesTest {
     @Test
     fun `an engine without a batch has none`() {
         assertNull(TranslationEngines.parse("""[{"id": "engine"}]""").single().first.batch)
+    }
+
+    @Test
+    fun `no preset puts the API key in its URL`() {
+        // A URL ends up in proxy and server logs, and in an error message quoting it.
+        TranslationEngines.presets.forEach { assertFalse("{apiKey}" in it.url, it.id) }
+        assertEquals(mapOf("X-goog-api-key" to "{apiKey}"), TranslationEngines.preset("google-cloud")!!.headers)
     }
 }
