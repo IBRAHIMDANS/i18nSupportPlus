@@ -11,8 +11,8 @@ import java.net.SocketTimeoutException
 import java.time.Duration
 
 /**
- * A rate limit, a gateway down for a moment or a late answer is tried again before a text is given up,
- * and a batch the engine chokes on is split rather than lost. The waits are recorded, never slept.
+ * A rate limit or a gateway down for a moment is tried again before a text is given up, and a batch the
+ * engine chokes on or answers too late is split rather than lost. The waits are recorded, never slept.
  */
 class HttpTranslationRetryTest {
 
@@ -65,12 +65,24 @@ class HttpTranslationRetryTest {
     }
 
     @Test
-    fun `502 and 504 are tried again, a late answer too`() {
+    fun `502 and 504 are tried again, a late answer is not`() {
         assertEquals(2, ScriptedTransport(status(502), ok).also { translate(it) }.bodies.size)
         assertEquals(2, ScriptedTransport(status(504), ok).also { translate(it) }.bodies.size)
         val late = ScriptedTransport({ throw SocketTimeoutException() }, ok)
-        assertTrue(translate(late).single() is Translation.Done)
-        assertEquals(2, late.bodies.size)
+        assertEquals(listOf(Translation.Failed(CoreMessages.message("translate.error.timeout", "DeepL"))), translate(late))
+        assertEquals(1, late.bodies.size, "the same request would be as late again")
+        assertEquals(listOf(1_000L, 1_000L), pauses, "only the gateways waited")
+    }
+
+    @Test
+    fun `a 503 between two answers is still tried again`() {
+        val transport = ScriptedTransport(ok, status(503), ok)
+
+        val result = translate(transport, oneByOne, "Hello", "World")
+
+        assertTrue(result.all { it is Translation.Done }, "$result")
+        assertEquals(3, transport.bodies.size)
+        assertEquals(listOf(1_000L), pauses)
     }
 
     @Test
@@ -155,7 +167,8 @@ class HttpTranslationRetryTest {
         val result = translate(transport, deepl, *texts)
 
         assertTrue(result.all { it is Translation.Failed })
-        assertEquals(117, transport.bodies.size, "39 requests of the split, three attempts each")
+        assertEquals(39, transport.bodies.size, "each request of the split sent once, never again as it was")
+        assertEquals(emptyList<Long>(), pauses, "a late answer is not waited for again")
     }
 
     @Test

@@ -155,8 +155,11 @@ class HttpTranslationProvider(
             val timedOut: Boolean = false,
             val retryAfterMillis: Long? = null
         ) : Posted {
-            /** A rate limit, a gateway or server momentarily down, or no answer in time: worth another try. */
-            val retryable: Boolean get() = timedOut || status in RETRYABLE
+            /**
+             * A rate limit, or a gateway or server momentarily down: worth another try. Not a late answer: the same
+             * request would be as late again, a minute or more each time — it is split instead ([splittable]).
+             */
+            val retryable: Boolean get() = status in RETRYABLE
 
             /** A failure a smaller request may avoid: refused as malformed or too large, a server error, a timeout. */
             val splittable: Boolean get() = timedOut || status in SPLITTABLE || status >= 500
@@ -164,8 +167,8 @@ class HttpTranslationProvider(
     }
 
     /**
-     * [body] posted to [url], tried [ATTEMPTS] times in all when the engine is rate-limited, momentarily
-     * down or late, after [RETRY_DELAYS_MS] — or the delay its `Retry-After` asks for, capped at
+     * [body] posted to [url], tried [ATTEMPTS] times in all when the engine is rate-limited or momentarily
+     * down, after [RETRY_DELAYS_MS] — or the delay its `Retry-After` asks for, capped at
      * [MAX_RETRY_AFTER_S] seconds. Every other failure is final at once: another try would get it again.
      */
     private fun post(url: String, body: String, readTimeout: Duration, cancellation: Cancellation?): Posted {
