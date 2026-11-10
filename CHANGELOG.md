@@ -18,6 +18,7 @@
 - [Editor] **The gutter icon's tooltip follows the IDE language**: with the French language pack, the status of a key in each locale ("Toutes les locales résolues", "Traduction partielle", "non vérifiée") is no longer shown in English.
 - [Editor] **Every translation function folds its key and reads a template key**: `$tc('key')`, `i18n._('key')`, Lingui's imported `msg('key')` and the other functions your framework publishes now fold into their value like `t('key')`, and `` $tc(`role.${role}`) `` is checked like `` t(`role.${role}`) ``. A function outside your module's framework, or `toast.t('…')`, is still left alone.
 - [Refactoring] **Renaming a key to a name already taken no longer creates a duplicate**: Shift+F6 on a key in the code used to write a second `cancel` into the object when `cancel` already existed, a `save.now` property no call reads back, or a quote that broke the file. Such a name is now refused with the reason, and nothing is written.
+- [MCP] **An AI agent can no longer rename a key to a name that breaks your code**: `i18n_rename_key` used to turn `t('common:save')` into `t('common:don't')` when asked for `don't`; a quote or backslash that would break a call site or a translation file is now refused, as Shift+F6 refuses it.
 
 ## 1.20.0 - 2026-11-09
 
