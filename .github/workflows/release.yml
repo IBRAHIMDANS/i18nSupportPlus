@@ -6,7 +6,59 @@ on:
       - 'v*'
 
 jobs:
+  # Nothing is published if the Marketplace would refuse the upload: the verifier runs on the same IDEs
+  # as Plugin Compatibility (compatibility.yml), and any internal API usage it does not tolerate stops
+  # the release here. The gate sits on the tag, not on the release PR: Prepare Release pushes the tag
+  # before it opens the PR, and a tag pushed by hand (a re-release) has no PR at all.
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
+
+      - uses: actions/checkout@v7
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6.4.1
+        with:
+          # The IDEs verifyPlugin downloads fill about 25 GB: too much for the runner next to a restored cache.
+          cache-disabled: true
+
+      - name: Build plugin
+        run: ./gradlew buildPlugin -x test
+
+      - name: Verify compatibility (the IDEs of build.gradle.kts, as in Plugin Compatibility)
+        run: ./gradlew verifyPlugin
+
+      - name: Fail on internal API usages the Marketplace refuses
+        run: scripts/check-internal-api.sh build/reports/pluginVerifier
+
+      - name: Upload verification reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-verification-report
+          path: build/reports/pluginVerifier/
+
   release:
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: write
