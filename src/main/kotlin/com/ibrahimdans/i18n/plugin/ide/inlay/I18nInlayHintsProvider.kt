@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.inlay
 
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.Lang
+import com.ibrahimdans.i18n.plugin.ide.preview.PreviewLocaleSwitcher
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.PluralGroup
@@ -93,9 +94,8 @@ open class I18nInlayHintsProvider : InlayHintsProvider, CompositeKeyResolver<Psi
                 val fullKey = RawKeyParser(project).parse(rawKey, element) ?: return
 
                 val sources = project.service<LocalizationSourceService>().findReadSources(fullKey, element)
-                // The preview locale is what hints and hover show; left empty, it follows folding.
                 // Matched through LocaleMatching, so `en` finds `en-GB` when there is no plain `en`.
-                val wanted = config.previewLocale.ifBlank { config.foldingPreferredLanguage }
+                val wanted = PreviewLocaleSwitcher.effective(config)
                 val locale = LocaleMatching.pick(wanted, sources.map { it.localeLabel() })
                 val translation = sources
                     .filter { it.localeLabel() == locale }
