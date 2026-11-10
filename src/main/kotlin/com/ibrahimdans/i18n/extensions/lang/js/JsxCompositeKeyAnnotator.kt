@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.extensions.lang.js
 import com.ibrahimdans.i18n.plugin.ide.annotator.CompositeKeyAnnotatorBase
 
 /**
- * i18n annotator for JSX/TSX — uses JsxLang which includes LinguiTransKeyExtractor.
+ * Colours the keys of JavaScript and its dialects that resolve — uses JsxLang, which includes
+ * LinguiTransKeyExtractor. Their problems are reported by [JsUnresolvedKeyInspection].
  */
-class JsxCompositeKeyAnnotator : CompositeKeyAnnotatorBase(JsxLang())
+class JsxCompositeKeyAnnotator : CompositeKeyAnnotatorBase(JsxLang(), reportsProblems = false)

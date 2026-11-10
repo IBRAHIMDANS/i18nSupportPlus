@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin
 
+import com.ibrahimdans.i18n.extensions.lang.js.JsUnresolvedKeyInspection
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.psi.PsiFile
 import com.intellij.testFramework.LoggedErrorProcessor
@@ -107,6 +108,9 @@ abstract class PlatformBaseTest: BasePlatformTestCase() {
     fun setFixtureUp() {
         LoggedErrorProcessor.executeWith(infraErrorSuppressor, ThrowableRunnable<RuntimeException> {
             setUp()
+            // On by default in the IDE, off in a test fixture unless enabled: an unresolved key of
+            // the code is reported by this inspection, no longer by the annotator.
+            myFixture.enableInspections(JsUnresolvedKeyInspection())
         })
     }
 
