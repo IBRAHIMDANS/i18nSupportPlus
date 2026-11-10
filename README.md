@@ -140,7 +140,7 @@ Details: [Machine translation and AI agents](docs/translation.md).
 
 ### Catch the problems in the IDE and in CI
 
-Twenty-four inspections check the translations and the code: missing, orphan, empty and duplicate keys, placeholders, markup, ICU messages, plural forms, stale translations and hard-coded text. `i18n-check` runs the same checks in CI, as a GitHub Action or a Docker image, and annotates the pull request.
+Twenty-four inspections check the translations and the code: missing, orphan, empty and duplicate keys, placeholders, markup, ICU messages, plural forms, stale translations and hard-coded text. `i18n-check` runs the same checks in CI, as a GitHub Action or from the command line, and annotates the pull request; a Docker image is published on request.
 
 Details: [Checks: inspections, CI and the command line](docs/checks.md).
 
@@ -179,7 +179,8 @@ The keys are read in JS, TS, JSX, TSX, Vue SFC, Svelte, Astro, Angular templates
 - Any IntelliJ-based IDE 2025.2+ (build 252–263.*), verified against 2025.2, 2025.3, 2026.1, 2026.2 and 2026.3
 - Without the JavaScript plugin (IntelliJ IDEA Community, Android Studio, PyCharm, an unlicensed IntelliJ IDEA 2025.3+): the tool window, the inspections of the translation files, machine translation and the AI agent tools; no key in the code
 - On 2025.1, the last compatible version is 1.11.1
-- Java 21+
+- Java 21+ only for `i18n-check` on the command line and for building the plugin: in the IDE, the plugin runs on the IDE's own runtime
+- No usage statistics; what is sent, to whom and when: [What leaves your machine](docs/translation.md#what-leaves-your-machine)
 
 ### Plugin Dependencies
 
