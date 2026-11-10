@@ -84,6 +84,20 @@ The agent calls `i18n_check`, then `i18n_delete_unused_keys` with the keys it li
 For translation files (public/locales), use the i18n_* MCP tools instead of editing the JSON files.
 ```
 
+If you can't edit the project's instruction file, Claude Code can load the server's tools upfront instead: add `"alwaysLoad": true` to the `jetbrains` entry of your MCP configuration (`.mcp.json` or `--mcp-config`). This works just as well, but it loads every tool of the IDE's server, not only the `i18n_*` ones, into each session of the project, translation or not: about 32,000 more tokens of context on the first turn with the 73 tools of WebStorm 2026.3. The plugin can't mark only its own tools to load upfront: the IDE's MCP server gives plugins no way to.
+
+```json
+{
+  "mcpServers": {
+    "jetbrains": {
+      "type": "http",
+      "url": "http://127.0.0.1:64342/stream",
+      "alwaysLoad": true
+    }
+  }
+}
+```
+
 ### Good to know
 
 - Only a missing value is filled, and only a stale one replaced: staleness is checked again when writing, so a value you fixed or approved after the agent listed it is refused (`Already filled and not stale`), and one changed during the write is left as it is (`Changed since it was read`). To re-translate any other filled value, use *Translate* in the *Edit Translation* dialog.
