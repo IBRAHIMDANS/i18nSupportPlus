@@ -83,17 +83,17 @@ private class JsonContentGenerator: ContentGenerator {
         val obj = item as JsonObject
         val project = item.project
         val property = JsonElementGenerator(project).createValue<JsonObject>("{${JsonTranslationEditor.quote(key)}: $value}").propertyList.first()
-        val settings = Settings.getInstance(project)
+        val config = Settings.getInstance(project).config()
         CodeStyleManager.getInstance(project).performActionWithFormatterDisabled {
             JsonInsertion(obj).insert(property) { props ->
-                if (settings.extractSorted) props.takeWhile { settings.keyOrder.comparator.compare(it.name, key) < 0 } else props
+                if (config.extractSorted) props.takeWhile { config.keyOrder.comparator.compare(it.name, key) < 0 } else props
             }
             // A Flutter ARB template describes each key in a `@key` block, which gen-l10n reads.
             ArbMetadata.addAfterNewKey(obj, key, property.value)
         }
         // When the user keeps files alphabetically sorted, re-sort the whole file after each
         // insertion so the new key lands in order even if the file was not already sorted.
-        if (settings.sortKeysAlphabetically) {
+        if (config.sortKeysAlphabetically) {
             (item.containingFile as? JsonFile)?.let { JsonKeySorter.sort(it, project) }
         }
     }

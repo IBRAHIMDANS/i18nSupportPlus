@@ -76,9 +76,9 @@ class PlainObjectContentGenerator : ContentGenerator {
         val marker = if (explicitId) "$LINGUI_EXPLICIT_ID\n" else ""
         val entry = marker + generateContent(listOf(Literal(key)), value)
 
-        val settings = Settings.getInstance(item.project)
-        val anchor = if (settings.extractSorted) {
-            sortedAnchor(document.text, key, settings.keyOrder.comparator)
+        val config = Settings.getInstance(item.project).config()
+        val anchor = if (config.extractSorted) {
+            sortedAnchor(document.text, key, config.keyOrder.comparator)
         } else null
 
         if (anchor != null) {

@@ -5,9 +5,13 @@ import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.KeyOrder
+import com.ibrahimdans.i18n.plugin.ide.settings.ProjectConfigFile
 import com.intellij.json.psi.JsonFile
 import com.intellij.json.psi.JsonObject
+import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.project.guessProjectDir
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
@@ -29,6 +33,16 @@ class SortKeysOnInsertTest : PlatformBaseTest() {
             }
         }
         return (file.topLevelValue as JsonObject).propertyList.map { it.name }
+    }
+
+    private fun addConfigFile(content: String) {
+        myFixture.addFileToProject(ProjectConfigFile.PATH, content)
+    }
+
+    @AfterEach
+    fun deleteConfigFile() {
+        val file = project.guessProjectDir()?.findChild(ProjectConfigFile.PATH) ?: return
+        WriteAction.runAndWait<Exception> { file.delete(this) }
     }
 
     @Test
@@ -61,6 +75,32 @@ class SortKeysOnInsertTest : PlatformBaseTest() {
     fun testSortedInsertionFollowsCharacterCodeOrder() {
         val config = Config(extractSorted = true, keyOrder = KeyOrder.CHARACTER_CODE)
         val keys = insertKey("""{"Banana": "1", "Zebra": "2", "cherry": "3"}""", "apple", "4", config)
+        assertEquals(listOf("Banana", "Zebra", "apple", "cherry"), keys)
+    }
+
+    /**
+     * `i18n-check.json` sets the order for the team, the stored settings left at their defaults:
+     * the insertion follows the file. It used to read the stored settings, the box shown checked
+     * and greyed out while the key went to the end of the file.
+     */
+    @Test
+    fun testSortedInsertionFollowsTheSharedConfigFile() {
+        addConfigFile("""{ "extractSorted": true }""")
+        val keys = insertKey("""{"apple": "1", "cherry": "2"}""", "banana", "3", Config())
+        assertEquals(listOf("apple", "banana", "cherry"), keys)
+    }
+
+    @Test
+    fun testSortedInsertionFollowsTheKeyOrderOfTheSharedConfigFile() {
+        addConfigFile("""{ "extractSorted": true, "keyOrder": "CHARACTER_CODE" }""")
+        val keys = insertKey("""{"Banana": "1", "Zebra": "2", "cherry": "3"}""", "apple", "4", Config())
+        assertEquals(listOf("Banana", "Zebra", "apple", "cherry"), keys)
+    }
+
+    @Test
+    fun testFullSortFollowsTheSharedConfigFile() {
+        addConfigFile("""{ "sortKeysAlphabetically": true, "keyOrder": "CHARACTER_CODE" }""")
+        val keys = insertKey("""{"cherry": "1", "apple": "2", "Zebra": "3"}""", "Banana", "4", Config())
         assertEquals(listOf("Banana", "Zebra", "apple", "cherry"), keys)
     }
 
