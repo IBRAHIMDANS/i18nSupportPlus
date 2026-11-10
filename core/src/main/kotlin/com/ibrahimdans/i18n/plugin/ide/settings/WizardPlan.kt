@@ -133,6 +133,77 @@ object WizardPlan {
     }
 
     /**
+     * How the summary offers a deduction.
+     *
+     * [HELD] is a setting `i18n-check.json` sets: *Apply* keeps the file's value whatever the form
+     * holds (`Settings.setConfig`), so a ticked box there was a value dropped without a word.
+     */
+    enum class Offer { TICKED, UNTICKED, HELD }
+
+    /** A field the summary pre-fills, and whether `i18n-check.json` holds it. */
+    data class Prefill(val value: String, val held: Boolean)
+
+    /** What the summary shows for [plan]; see [formOf]. */
+    data class Form(
+        val offers: Map<Field, Offer>,
+        val root: Prefill,
+        val keySeparator: Prefill,
+        val nsSeparator: Prefill,
+    )
+
+    /** The `i18n-check.json` name of the setting [field] writes, as [ProjectConfigFile] reads it. */
+    fun settingName(field: Field): String = when (field) {
+        Field.DEFAULT_NS -> "defaultNs"
+        Field.GETTEXT -> "gettext"
+        Field.FLAT_KEYS -> "flatKeys"
+        Field.PREFERRED_LOCALIZATION -> "preferredLocalization"
+        Field.REFERENCE_LOCALE -> "foldingPreferredLanguage"
+    }
+
+    /**
+     * What the summary offers for [plan], given the settings in effect [current] — the stored ones
+     * with `i18n-check.json` laid over them — and the names the file [held].
+     *
+     * A deduction is ticked only while its setting still holds its default: the wizard can be
+     * reopened at any time and never overwrites a decision already made. A setting the file holds
+     * is neither ticked nor editable, and a field it holds shows the file's value. [autoPickedLocalization]
+     * is the format the plugin picks when none is chosen; see [WizardSettingsDeducer.isUntouchedPreferredLocalization].
+     */
+    fun formOf(plan: Plan, current: Config, held: Set<String>, autoPickedLocalization: String?): Form {
+        val defaults = Config()
+        val offers = plan.deductions.associate { deduction ->
+            val untouched = when (deduction.field) {
+                Field.DEFAULT_NS -> current.defaultNs == defaults.defaultNs
+                Field.GETTEXT -> current.gettext == defaults.gettext
+                Field.FLAT_KEYS -> current.flatKeys == defaults.flatKeys
+                Field.PREFERRED_LOCALIZATION ->
+                    WizardSettingsDeducer.isUntouchedPreferredLocalization(current.preferredLocalization, autoPickedLocalization)
+                Field.REFERENCE_LOCALE -> current.foldingPreferredLanguage == defaults.foldingPreferredLanguage
+            }
+            deduction.field to when {
+                settingName(deduction.field) in held -> Offer.HELD
+                untouched -> Offer.TICKED
+                else -> Offer.UNTICKED
+            }
+        }
+        // The configuration's separators are offered only over a value nobody chose, as the
+        // deductions are: reopening the wizard never undoes a separator set by hand.
+        fun separator(name: String, value: String, default: String, stated: String?) = when (name) {
+            in held -> Prefill(value, held = true)
+            else -> Prefill(stated?.takeIf { value == default } ?: value, held = false)
+        }
+        return Form(
+            offers = offers,
+            root = if (TRANSLATIONS_ROOT in held) Prefill(current.translationsRoot, held = true)
+            else Prefill(plan.root.detected.orEmpty(), held = false),
+            keySeparator = separator("keySeparator", current.keySeparator, defaults.keySeparator, plan.separators?.key),
+            nsSeparator = separator("nsSeparator", current.nsSeparator, defaults.nsSeparator, plan.separators?.ns),
+        )
+    }
+
+    private const val TRANSLATIONS_ROOT = "translationsRoot"
+
+    /**
      * The template an i18next-type configuration states, when it is one the reading by default
      * would miss: a namespace placeholder anywhere but in the file name below a locale folder.
      * `{lang}/{ns}.json` and `{lang}.json` change nothing, and are left out.

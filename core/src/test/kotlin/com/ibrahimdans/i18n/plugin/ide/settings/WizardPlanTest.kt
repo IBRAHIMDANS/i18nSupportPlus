@@ -441,4 +441,72 @@ class WizardPlanTest {
         Assertions.assertNull(plan.template)
         Assertions.assertTrue(plan.root.widened)
     }
+
+    // -- What the summary offers, and what i18n-check.json already holds
+
+    private val poFiles = listOf("locales/en/common.json", "locales/fr/common.json", "locales/fr/admin.po")
+
+    @Test
+    fun `without the file the summary offers what it offered before`() {
+        val plan = WizardPlan.of(poFiles, emptySet(), cliConfig)
+
+        val form = WizardPlan.formOf(plan, Config(), held = emptySet(), autoPickedLocalization = null)
+
+        Assertions.assertEquals(WizardPlan.Offer.TICKED, form.offers[WizardPlan.Field.DEFAULT_NS])
+        Assertions.assertEquals(WizardPlan.Offer.TICKED, form.offers[WizardPlan.Field.GETTEXT])
+        Assertions.assertEquals(WizardPlan.Prefill("_", held = false), form.keySeparator, "the configuration's separator over a default")
+        Assertions.assertEquals(WizardPlan.Prefill("|", held = false), form.nsSeparator)
+        Assertions.assertEquals(WizardPlan.Prefill("public/locales", held = false), form.root)
+    }
+
+    @Test
+    fun `a setting chosen by hand is offered unticked`() {
+        val plan = WizardPlan.of(poFiles, emptySet(), cliConfig)
+
+        val form = WizardPlan.formOf(plan, Config(defaultNs = "main", keySeparator = "/"), emptySet(), null)
+
+        Assertions.assertEquals(WizardPlan.Offer.UNTICKED, form.offers[WizardPlan.Field.DEFAULT_NS])
+        Assertions.assertEquals(WizardPlan.Prefill("/", held = false), form.keySeparator, "a separator set by hand is never undone")
+    }
+
+    @Test
+    fun `a default namespace the file holds is not offered, the other deductions are`() {
+        val plan = WizardPlan.of(poFiles, emptySet(), cliConfig)
+
+        val form = WizardPlan.formOf(plan, Config(defaultNs = "shared"), held = setOf("defaultNs"), autoPickedLocalization = null)
+
+        Assertions.assertEquals(WizardPlan.Offer.HELD, form.offers[WizardPlan.Field.DEFAULT_NS], "Apply would keep the file's value")
+        Assertions.assertEquals(WizardPlan.Offer.TICKED, form.offers[WizardPlan.Field.GETTEXT])
+    }
+
+    @Test
+    fun `separators the file holds show its values`() {
+        val plan = WizardPlan.of(poFiles, emptySet(), cliConfig)
+        val current = Config(keySeparator = ".", nsSeparator = ":")
+
+        val form = WizardPlan.formOf(plan, current, held = setOf("keySeparator", "nsSeparator"), autoPickedLocalization = null)
+
+        Assertions.assertEquals(WizardPlan.Prefill(".", held = true), form.keySeparator, "the file's value, not the i18next one")
+        Assertions.assertEquals(WizardPlan.Prefill(":", held = true), form.nsSeparator)
+    }
+
+    @Test
+    fun `a translations root the file holds shows its value`() {
+        val plan = WizardPlan.of(poFiles, emptySet())
+
+        val form = WizardPlan.formOf(plan, Config(translationsRoot = "shared/i18n"), setOf("translationsRoot"), null)
+
+        Assertions.assertEquals(WizardPlan.Prefill("shared/i18n", held = true), form.root)
+    }
+
+    @Test
+    fun `every field is named as the settings name it`() {
+        for (field in WizardPlan.Field.entries) {
+            val name = WizardPlan.settingName(field)
+            Assertions.assertTrue(
+                name in Config.SCOPES,
+                "$field writes $name, which Config.SCOPES does not know: the file could never be seen holding it"
+            )
+        }
+    }
 }
