@@ -74,7 +74,9 @@ class HttpTranslationProviderTest {
 
         val google = FakeTransport { ok("""{"data":{"translations":[{"translatedText":"Bonjour <x id=\"0\"/>"}]}}""") }
         assertEquals(listOf(Translation.Done("Bonjour {{name}}")), translate(preset("google-cloud"), google, key = "a b&c"))
-        assertEquals("https://translation.googleapis.com/language/translate/v2?key=a+b%26c", google.calls.single().first, "the key is URL-encoded")
+        val (url, headers, _) = google.calls.single()
+        assertEquals("https://translation.googleapis.com/language/translate/v2", url, "the key never goes in the URL")
+        assertEquals("a b&c", headers["X-goog-api-key"])
     }
 
     @Test

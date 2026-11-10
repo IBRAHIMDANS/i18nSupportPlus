@@ -56,13 +56,15 @@
   {
     "id": "google-cloud",
     "name": "Google Cloud Translation",
-    "url": "https://translation.googleapis.com/language/translate/v2?key={apiKey}",
-    "headers": {},
+    "url": "https://translation.googleapis.com/language/translate/v2",
+    "headers": {
+      "X-goog-api-key": "{apiKey}"
+    },
     "body": "{\"q\": \"{text}\", \"source\": \"{source}\", \"target\": \"{target}\", \"format\": \"html\"}",
     "responsePath": "data.translations[0].translatedText",
     "unescapeHtml": true,
     "languageCodes": "bcp47",
-    "source": "https://cloud.google.com/translate/docs/reference/rest/v2/translate ; language codes: https://docs.cloud.google.com/translate/docs/languages (BCP-47: zh-CN, zh-TW, pt-BR)",
+    "source": "https://cloud.google.com/translate/docs/reference/rest/v2/translate ; key header: https://docs.cloud.google.com/docs/authentication/api-keys-use ; language codes: https://docs.cloud.google.com/translate/docs/languages (BCP-47: zh-CN, zh-TW, pt-BR)",
     "batch": {
       "body": "{\"q\": {texts}, \"source\": \"{source}\", \"target\": \"{target}\", \"format\": \"html\"}",
       "listPath": "data.translations",

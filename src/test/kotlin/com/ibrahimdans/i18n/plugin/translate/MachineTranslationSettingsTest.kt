@@ -73,6 +73,48 @@ class MachineTranslationSettingsTest {
         assertNotEquals(EngineState.of(TranslationEngines.preset("deepl")!!).id, deepl.id, "each entry has an id of its own")
     }
 
+    private val google = EngineState.of(TranslationEngines.preset("google-cloud")!!)
+
+    /** A Google entry as saved while the preset sent the key in the URL. */
+    private val legacyGoogle = google.copy(url = EngineState.LEGACY_GOOGLE_URL, headers = "")
+
+    private fun loaded(vararg engines: EngineState) =
+        MachineTranslationSettings().apply { loadState(MachineTranslationSettings.Settings(true, engines.toMutableList())) }
+
+    @Test
+    fun `a Google entry saved with the key in its URL sends it in a header once loaded`() {
+        val keys = MemoryKeys().apply { keys[legacyGoogle.id] = "secret" }
+        val settings = loaded(legacyGoogle.copy(name = "Google (team)"))
+        var sent: Pair<String, Map<String, String>>? = null
+        val transport = HttpTransport { url, headers, _ ->
+            sent = url to headers
+            HttpTransport.Response(200, """{"data":{"translations":[{"translatedText":"Bonjour"}]}}""")
+        }
+
+        val engine = settings.state.engines.single()
+        assertEquals(google.url, engine.url)
+        assertEquals("X-goog-api-key: {apiKey}", engine.headers)
+        assertEquals(legacyGoogle.id, engine.id, "the key stays found under the same id")
+        assertEquals("Google (team)", engine.name, "the other fields are kept")
+        assertEquals(listOf(Translation.Done("Bonjour")), settings.provider(keys, transport)!!.translate(TranslationRequest(listOf("Hello"), "en", "fr")))
+        val (url, headers) = sent!!
+        assertEquals("https://translation.googleapis.com/language/translate/v2", url)
+        assertEquals("secret", headers["X-goog-api-key"])
+    }
+
+    @Test
+    fun `the migration keeps the headers written and leaves an edited URL or another engine as it is`() {
+        val withHeaders = loaded(legacyGoogle.copy(headers = "X-Team: web\nx-goog-api-key: {apiKey}")).state.engines.single()
+        assertEquals("X-Team: web\nx-goog-api-key: {apiKey}", withHeaders.headers, "a header already written is not added twice")
+        assertEquals(google.url, withHeaders.url)
+
+        val gateway = legacyGoogle.copy(url = "https://gateway.example.test/translate?key={apiKey}")
+        assertEquals(gateway, loaded(gateway).state.engines.single(), "an edited URL is the user's: left as it is")
+        val other = deepl.copy(url = EngineState.LEGACY_GOOGLE_URL)
+        assertEquals(other, loaded(other).state.engines.single(), "only a Google entry is migrated")
+        assertEquals(google, loaded(google).state.engines.single(), "an entry already migrated is unchanged")
+    }
+
     @Test
     fun `an entry keeps its preset's batch form while it sends the preset's request`() {
         Assertions.assertEquals(TranslationEngines.preset("deepl")!!.batch, deepl.copy(url = "https://api.deepl.com/v2/translate").toConfig().batch, "a Pro URL keeps it")
