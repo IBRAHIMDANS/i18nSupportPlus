@@ -115,6 +115,34 @@ internal object MachineFill {
     const val KEYS_PER_CALL = 50
 
     /**
+     * Calls in a row that got no translation at all after which the pass stops sending: the engine — every
+     * fallback included — is down, or refuses the key. A call holds up to [KEYS_PER_CALL] keys, so one that
+     * fails whole is not a text the engine chokes on; one alone may still be a passing outage, the second
+     * is not, and a third would cost minutes of waiting for nothing. The calls already started finish.
+     */
+    const val FAILED_CALLS_BEFORE_STOP = 2
+
+    /** Counts the calls that failed whole in a row, as they end; any translation starts the count again. */
+    private class Stop {
+        private var failedInARow = 0
+        private var lastReason = ""
+
+        @Synchronized
+        fun record(results: List<Translation>) {
+            if (results.isEmpty() || results.any { it is Translation.Done }) {
+                failedInARow = 0
+                return
+            }
+            failedInARow++
+            lastReason = (results.last() as Translation.Failed).reason
+        }
+
+        /** Why the pass stopped — the last failure, naming the engine — or null while it goes on. */
+        @Synchronized
+        fun reason(): String? = lastReason.takeIf { failedInARow >= FAILED_CALLS_BEFORE_STOP }
+    }
+
+    /**
      * *Fill Missing Translations* for [module] from [source] to [target]: translated in the background,
      * previewed, then written in one command — whether asked from the Tools menu or from a locale
      * column of the table. [onWritten] runs on the EDT once the values are written.
@@ -347,6 +375,10 @@ internal object MachineFill {
      * takes that translation ([TranslationMemory]) and is not sent, nor named in a call's context. A
      * plural form translated from `other` ([Item.needsReview]) is always sent: the `other` of another
      * key is not the form it lacks.
+     *
+     * After [FAILED_CALLS_BEFORE_STOP] calls in a row without a single translation, the calls not yet
+     * started are not sent: their items fail with the last reason, the translations already obtained
+     * are proposed as usual.
      */
     fun translate(
         items: List<Item>, provider: TranslationProvider, source: String, target: String, indicator: ProgressIndicator?,
@@ -362,14 +394,18 @@ internal object MachineFill {
         val sent = items.filter { it.skipped == null && it !in remembered }
         val calls = sent.chunked(KEYS_PER_CALL)
         val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("i18n machine translation", PARALLEL_REQUESTS)
+        val stop = Stop()
         try {
             val futures: List<Future<List<Translation>>> = calls.map { call ->
                 executor.submit<List<Translation>> {
                     if (indicator?.isCanceled == true) return@submit call.map { Translation.Failed("") }
+                    stop.reason()?.let { reason ->
+                        return@submit call.map { Translation.Failed(PluginBundle.message("action.fill.stopped", reason)) }
+                    }
                     provider.translate(
                         TranslationRequest(call.map { it.sent }, source, target, contextOf(call, examples, source, target, config)),
                         indicator?.asCancellation()
-                    )
+                    ).also(stop::record)
                 }
             }
             val translated = mutableMapOf<Item, Translation>()

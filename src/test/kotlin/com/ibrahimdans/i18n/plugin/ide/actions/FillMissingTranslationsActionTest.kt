@@ -196,6 +196,34 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
     }
 
     @Test
+    fun `a pass stops sending after two calls without a translation`() {
+        val items = (1..500).map { MachineFill.Item("common:k%03d".format(it), "text $it") }
+        val down = "Ollama did not answer in time"
+
+        val proposals = MachineFill.translate(items, engine { Translation.Failed(down) }, "en", "fr", EmptyProgressIndicator())!!
+
+        val bound = MachineFill.PARALLEL_REQUESTS + MachineFill.FAILED_CALLS_BEFORE_STOP - 1
+        Assertions.assertTrue(requests.size <= bound, "${requests.size} calls of 10 sent, at most $bound")
+        val stopped = Translation.Failed(PluginBundle.message("action.fill.stopped", down))
+        Assertions.assertEquals(500 - requests.size * MachineFill.KEYS_PER_CALL, proposals.count { it.result == stopped }, "the rest names the engine")
+        Assertions.assertTrue(proposals.all { it.result == stopped || it.result == Translation.Failed(down) })
+    }
+
+    @Test
+    fun `the translations obtained before the stop are kept`() {
+        val items = (1..500).map { MachineFill.Item("common:k%03d".format(it), "text $it") }
+        // Only the first call's texts (1 to 50) are answered.
+        val proposals = MachineFill.translate(
+            items, engine { if (it.removePrefix("text ").toInt() <= 50) Translation.Done("FR $it") else Translation.Failed("down") },
+            "en", "fr", EmptyProgressIndicator()
+        )!!
+
+        Assertions.assertEquals(items.take(50).map { "FR ${it.source}" }, proposals.take(50).map { (it.result as Translation.Done).text })
+        Assertions.assertTrue(proposals.drop(50).all { it.result is Translation.Failed })
+        Assertions.assertTrue(requests.size < 10, "${requests.size} calls sent")
+    }
+
+    @Test
     fun `a skipped item stays out of the call and keeps its place`() {
         val items = listOf(
             MachineFill.Item("common:a", "A"),
