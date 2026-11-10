@@ -236,6 +236,10 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
 
         val proposals = MachineFill.translate(items, engine { Translation.Failed(down) }, "en", "fr", EmptyProgressIndicator())!!
 
+        // Holds whatever order the calls end in. The bounded executor starts the calls in order, one more each
+        // time a running one ends, and a call records its failure before it frees its slot: call number
+        // PARALLEL_REQUESTS + n starts only once n calls have ended. With every call failing nothing resets the
+        // count, so call PARALLEL_REQUESTS + FAILED_CALLS_BEFORE_STOP and every later one find the pass stopped.
         val bound = MachineFill.PARALLEL_REQUESTS + MachineFill.FAILED_CALLS_BEFORE_STOP - 1
         Assertions.assertTrue(requests.size <= bound, "${requests.size} calls of 10 sent, at most $bound")
         val stopped = Translation.Failed(PluginBundle.message("action.fill.stopped", down))
@@ -246,15 +250,20 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
     @Test
     fun `the translations obtained before the stop are kept`() {
         val items = (1..500).map { MachineFill.Item("common:k%03d".format(it), "text $it") }
-        // Only the first call's texts (1 to 50) are answered.
+        // Only the first call's texts (1 to 50) are answered. That call is always sent: it starts before any
+        // other ends. How many of the others are sent is left out on purpose: the answered call may end after
+        // two failures and start the count again, so it depends on the order the parallel calls end in.
         val proposals = MachineFill.translate(
             items, engine { if (it.removePrefix("text ").toInt() <= 50) Translation.Done("FR $it") else Translation.Failed("down") },
             "en", "fr", EmptyProgressIndicator()
         )!!
 
         Assertions.assertEquals(items.take(50).map { "FR ${it.source}" }, proposals.take(50).map { (it.result as Translation.Done).text })
-        Assertions.assertTrue(proposals.drop(50).all { it.result is Translation.Failed })
-        Assertions.assertTrue(requests.size < 10, "${requests.size} calls sent")
+        val stopped = Translation.Failed(PluginBundle.message("action.fill.stopped", "down"))
+        Assertions.assertTrue(
+            proposals.drop(50).all { it.result == Translation.Failed("down") || it.result == stopped },
+            "every other key failed, sent or stopped"
+        )
     }
 
     @Test
