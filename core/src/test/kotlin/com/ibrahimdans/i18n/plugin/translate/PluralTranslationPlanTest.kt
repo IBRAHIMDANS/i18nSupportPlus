@@ -86,6 +86,40 @@ class PluralTranslationPlanTest {
         assertEquals(null, PluralTranslationPlan.icu("{count, plural, one {# file}}", "ru"), "no other to copy from")
     }
 
+    private val englishOrdinal = mapOf("one" to "{{count}}st", "two" to "{{count}}nd", "few" to "{{count}}rd", "other" to "{{count}}th")
+
+    @Test
+    fun `an ordinal group into Russian gets other alone, not the cardinal one, few and many`() {
+        assertEquals(listOf(Form("other", "{{count}}th", needsReview = false)), forms(PluralTranslationPlan.of(englishOrdinal, "ru", ordinal = true)))
+    }
+
+    @Test
+    fun `an ordinal group into English gets its four ordinal forms, two and few from other to review`() {
+        val french = mapOf("one" to "{{count}}er", "other" to "{{count}}e")
+        assertEquals(
+            listOf(
+                Form("one", "{{count}}er", needsReview = false),
+                Form("two", "{{count}}e", needsReview = true),
+                Form("few", "{{count}}e", needsReview = true),
+                Form("other", "{{count}}e", needsReview = false),
+            ),
+            forms(PluralTranslationPlan.of(french, "en", ordinal = true))
+        )
+    }
+
+    @Test
+    fun `an ordinal group ignores the large-number forms`() {
+        assertEquals(listOf("one", "other"), forms(PluralTranslationPlan.of(englishOrdinal, "fr", largeNumberForms = true, ordinal = true)).map { it.category })
+    }
+
+    @Test
+    fun `a group is ordinal by the key of its other form`() {
+        assertTrue(PluralTranslationPlan.isOrdinalGroup("place_ordinal_other"))
+        assertTrue(PluralTranslationPlan.isOrdinalGroup("common:race.place_ordinal_other"))
+        assertFalse(PluralTranslationPlan.isOrdinalGroup("place_other"))
+        assertFalse(PluralTranslationPlan.isOrdinalGroup("steps.other"))
+    }
+
     @Test
     fun `i18next suffixes and nested groups name the same categories`() {
         assertEquals(english, PluralTranslationPlan.formsOf(mapOf("file_one" to "{{count}} file", "file_other" to "{{count}} files")))

@@ -390,7 +390,7 @@ internal object LaggingRetranslation {
             val existing = group.mapNotNull { (category, k) ->
                 translations.getValue(k)[entry.locale]?.takeIf { it.isNotEmpty() }?.let { category to it }
             }.toMap()
-            when (val plan = PluralTranslationPlan.of(sourceForms, entry.locale)) {
+            when (val plan = PluralTranslationPlan.of(sourceForms, entry.locale, ordinal = PluralTranslationPlan.isOrdinalGroup(otherKey))) {
                 PluralTranslationPlan.Plan.IcuPlural ->
                     items[otherKey] = MachineFill.Item(otherKey, sourceForms[PluralCategories.OTHER].orEmpty(), skipped = icu, current = existing[PluralCategories.OTHER])
                 is PluralTranslationPlan.Plan.Forms -> plan.forms.forEach { planned ->

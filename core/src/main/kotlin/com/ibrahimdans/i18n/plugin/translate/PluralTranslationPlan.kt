@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.translate
 
 import com.ibrahimdans.i18n.plugin.tree.PluralCategories
+import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.utils.IcuPluralRewriter
 
 /**
@@ -13,6 +14,10 @@ import com.ibrahimdans.i18n.plugin.utils.IcuPluralRewriter
  * takes each one's text from the source form of the same category, or from `other` when the source
  * has none — a form the engine cannot know it must agree with "a few" or "many", so the caller
  * shows it for review.
+ *
+ * An ordinal group (`place_ordinal_one`…, read by `t('place', { count, ordinal: true })`) follows
+ * the target's ordinal categories instead ([PluralCategories.ordinalOf]): `en` has `one` / `two` /
+ * `few` / `other`, `ru` only `other`.
  *
  * Pure: no engine, no PSI. The caller reads the forms out of the translation file ([formsOf]) and
  * writes the translations back.
@@ -40,16 +45,18 @@ object PluralTranslationPlan {
     /**
      * The forms [targetLocale] needs that [existing] does not fill yet, each with its source text
      * from [sourceForms] (category to text). A form without any source text — no form of its
-     * category, no `other` — is left out.
+     * category, no `other` — is left out. An [ordinal] group takes the target's ordinal categories,
+     * where [largeNumberForms] plays no part: an ordinal is always an integer.
      */
     fun of(
         sourceForms: Map<String, String>,
         targetLocale: String,
         existing: Map<String, String> = emptyMap(),
         largeNumberForms: Boolean = false,
+        ordinal: Boolean = false,
     ): Plan {
         if (sourceForms.values.any(::isIcuPlural)) return Plan.IcuPlural
-        val needed = PluralCategories.of(targetLocale, largeNumberForms)
+        val needed = if (ordinal) PluralCategories.ordinalOf(targetLocale) else PluralCategories.of(targetLocale, largeNumberForms)
         val other = sourceForms[PluralCategories.OTHER]?.takeIf { it.isNotBlank() }
         val forms = PluralCategories.ALL
             .filter { it in needed && existing[it].isNullOrBlank() }
@@ -63,6 +70,12 @@ object PluralTranslationPlan {
             }
         return Plan.Forms(forms)
     }
+
+    /**
+     * Whether the group whose `other` form is [otherKey] is an ordinal one: `place_ordinal_other`,
+     * namespace and path included or not. A nested group (`steps.other`) has no ordinal spelling.
+     */
+    fun isOrdinalGroup(otherKey: String): Boolean = PluralKey.groupBase(otherKey)?.let(PluralKey::isOrdinalGroup) == true
 
     /**
      * The plural forms among [entries], by category: an i18next suffix (`item_one`, `item_other`)

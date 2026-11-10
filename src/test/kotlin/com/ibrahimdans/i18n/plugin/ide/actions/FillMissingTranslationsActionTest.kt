@@ -131,6 +131,40 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
         )
     }
 
+    private val ordinal = mapOf(
+        "race:place_one" to mapOf("en" to "{{count}} place"),
+        "race:place_other" to mapOf("en" to "{{count}} places"),
+        "race:place_ordinal_one" to mapOf("en" to "{{count}}st"),
+        "race:place_ordinal_two" to mapOf("en" to "{{count}}nd"),
+        "race:place_ordinal_few" to mapOf("en" to "{{count}}rd"),
+        "race:place_ordinal_other" to mapOf("en" to "{{count}}th"),
+    )
+
+    @Test
+    fun `an ordinal group into Russian gets other alone, its cardinal neighbour keeps four forms`() {
+        Assertions.assertEquals(
+            listOf("race:place_few", "race:place_many", "race:place_one", "race:place_ordinal_other", "race:place_other"),
+            MachineFill.itemsOf(ordinal, "en", "ru", ".").map { it.key },
+        )
+    }
+
+    @Test
+    fun `an ordinal group into English gets two and few, from other to review`() {
+        val french = mapOf(
+            "race:place_ordinal_one" to mapOf("fr" to "{{count}}er"),
+            "race:place_ordinal_other" to mapOf("fr" to "{{count}}e"),
+        )
+        Assertions.assertEquals(
+            listOf(
+                MachineFill.Item("race:place_ordinal_few", "{{count}}e", needsReview = true),
+                MachineFill.Item("race:place_ordinal_one", "{{count}}er"),
+                MachineFill.Item("race:place_ordinal_other", "{{count}}e"),
+                MachineFill.Item("race:place_ordinal_two", "{{count}}e", needsReview = true),
+            ),
+            MachineFill.itemsOf(french, "fr", "en", "."),
+        )
+    }
+
     @Test
     fun `Japanese gets only other, and a form already there is not asked again`() {
         Assertions.assertEquals(listOf(MachineFill.Item("files:file_other", "{{count}} files")), MachineFill.itemsOf(plural, "en", "ja", "."))
