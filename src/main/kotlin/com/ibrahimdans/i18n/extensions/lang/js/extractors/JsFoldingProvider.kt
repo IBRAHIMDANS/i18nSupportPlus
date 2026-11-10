@@ -1,13 +1,10 @@
 package com.ibrahimdans.i18n.extensions.lang.js.extractors
 
 import com.intellij.psi.xml.XmlAttributeValue
-import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.extensions.lang.js.ConstantKeyResolver
-import com.ibrahimdans.i18n.extensions.lang.js.isDirectOrConfiguredCall
 import com.ibrahimdans.i18n.plugin.factory.FoldingProvider
 import com.ibrahimdans.i18n.plugin.utils.ModulePresets
 import com.ibrahimdans.i18n.plugin.utils.default
-import com.intellij.lang.javascript.patterns.JSPatterns
 import com.intellij.lang.javascript.psi.JSArgumentList
 import com.intellij.lang.javascript.psi.JSCallExpression
 import com.intellij.lang.javascript.psi.JSConditionalExpression
@@ -62,10 +59,7 @@ internal class JsFoldingProvider: FoldingProvider {
     private fun isI18nArgument(element: PsiElement): Boolean {
         if (NEXT_INTL_MESSAGE.canExtract(element)) return ModulePresets.allows(ModulePresets.presetOf(element), "next-intl")
         if (SVELTE_I18N.canExtract(element)) return ModulePresets.allows(ModulePresets.presetOf(element), "svelte-i18n")
-        val argument = ternaryArgument(element) ?: element
-        if (!JSPatterns.jsArgument("t", 0).accepts(argument) &&
-            !JSPatterns.jsArgument("\$t", 0).accepts(argument)) return false
-        return isDirectOrConfiguredCall(element)
+        return isTranslationCallArgument(element, ternaryArgument(element) ?: element)
     }
 
     /**
@@ -89,9 +83,6 @@ internal class JsFoldingProvider: FoldingProvider {
             current = parent
         }
     }
-
-    private fun isDirectOrConfiguredCall(element: PsiElement): Boolean =
-        isDirectOrConfiguredCall(element, Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() })
 
     /**
      * Returns true if [element] is nested inside a JSSpreadExpression before reaching
