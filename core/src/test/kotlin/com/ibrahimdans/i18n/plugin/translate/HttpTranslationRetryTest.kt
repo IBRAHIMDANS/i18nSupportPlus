@@ -11,8 +11,8 @@ import java.net.SocketTimeoutException
 import java.time.Duration
 
 /**
- * A rate limit, a gateway down for a moment or a late answer is tried again before a text is given up,
- * and a batch the engine chokes on is split rather than lost. The waits are recorded, never slept.
+ * A rate limit or a gateway down for a moment is tried again before a text is given up, and a batch the
+ * engine chokes on or answers too late is split rather than lost. The waits are recorded, never slept.
  */
 class HttpTranslationRetryTest {
 
@@ -65,12 +65,24 @@ class HttpTranslationRetryTest {
     }
 
     @Test
-    fun `502 and 504 are tried again, a late answer too`() {
+    fun `502 and 504 are tried again, a late answer is not`() {
         assertEquals(2, ScriptedTransport(status(502), ok).also { translate(it) }.bodies.size)
         assertEquals(2, ScriptedTransport(status(504), ok).also { translate(it) }.bodies.size)
         val late = ScriptedTransport({ throw SocketTimeoutException() }, ok)
-        assertTrue(translate(late).single() is Translation.Done)
-        assertEquals(2, late.bodies.size)
+        assertEquals(listOf(Translation.Failed(CoreMessages.message("translate.error.timeout", "DeepL"))), translate(late))
+        assertEquals(1, late.bodies.size, "the same request would be as late again")
+        assertEquals(listOf(1_000L, 1_000L), pauses, "only the gateways waited")
+    }
+
+    @Test
+    fun `a 503 between two answers is still tried again`() {
+        val transport = ScriptedTransport(ok, status(503), ok)
+
+        val result = translate(transport, oneByOne, "Hello", "World")
+
+        assertTrue(result.all { it is Translation.Done }, "$result")
+        assertEquals(3, transport.bodies.size)
+        assertEquals(listOf(1_000L), pauses)
     }
 
     @Test
@@ -145,6 +157,60 @@ class HttpTranslationRetryTest {
         )
         assertEquals(listOf(4, 2, 2, 1, 1), transport.sizes, "the batch, its halves, then the failing half text by text")
         assertEquals(emptyList<Long>(), pauses, "a refused request is not tried again as it is")
+    }
+
+    @Test
+    fun `an engine that never answers in time costs a bounded number of requests`() {
+        val transport = ScriptedTransport({ throw SocketTimeoutException() })
+        val texts = (1..20).map { "text $it" }.toTypedArray()
+
+        val result = translate(transport, deepl, *texts)
+
+        val timeout = Translation.Failed(CoreMessages.message("translate.error.timeout", "DeepL"))
+        val unresponsive = Translation.Failed(CoreMessages.message("translate.error.unresponsive", "DeepL", 2))
+        assertEquals(listOf(timeout, timeout) + List(18) { unresponsive }, result)
+        assertEquals(listOf(20, 10, 5, 2, 1, 1), transport.bodies.map { sizeOf(it) }, "split down to one text, twice too late: no more is sent")
+        assertEquals(emptyList<Long>(), pauses, "a late answer is not waited for again")
+    }
+
+    private fun sizeOf(body: String) = JsonParser.parseString(body).asJsonObject["text"].asJsonArray.size()
+
+    @Test
+    fun `an engine sending one text at a time stops after two texts without an answer`() {
+        for (down in listOf<() -> HttpTransport.Response>({ throw SocketTimeoutException() }, { throw IOException("refused") }, status(500))) {
+            val transport = ScriptedTransport(down)
+
+            val result = translate(transport, oneByOne, "a", "b", "c", "d")
+
+            assertEquals(2, transport.bodies.size)
+            assertEquals(List(2) { Translation.Failed(CoreMessages.message("translate.error.unresponsive", "DeepL", 2)) }, result.drop(2))
+        }
+    }
+
+    @Test
+    fun `a text answered too late fails alone when its neighbours are answered`() {
+        val transport = object : HttpTransport {
+            override fun post(url: String, headers: Map<String, String>, body: String): HttpTransport.Response {
+                val texts = JsonParser.parseString(body).asJsonObject["text"].asJsonArray.map { it.asString }
+                if ("slow" in texts) throw SocketTimeoutException()
+                return HttpTransport.Response(200, texts.joinToString(",", """{"translations":[""", "]}") { """{"text":"FR $it"}""" })
+            }
+        }
+
+        val result = translate(transport, deepl, "a", "slow", "c", "d", "e", "f")
+
+        assertEquals(Translation.Failed(CoreMessages.message("translate.error.timeout", "DeepL")), result[1])
+        assertEquals(listOf("FR a", "FR c", "FR d", "FR e", "FR f"), (result - result[1]).map { (it as Translation.Done).text })
+    }
+
+    @Test
+    fun `a refused key does not count as an engine not answering`() {
+        val transport = ScriptedTransport(status(403), status(403), status(403), ok)
+
+        val result = translate(transport, oneByOne, "a", "b", "c", "d")
+
+        assertEquals(4, transport.bodies.size, "every text sent: the engine answers, it refuses the key")
+        assertTrue(result.last() is Translation.Done)
     }
 
     @Test
