@@ -12,6 +12,7 @@ import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.tree.ContextKey
 import com.ibrahimdans.i18n.plugin.tree.ContextOption
 import com.ibrahimdans.i18n.plugin.tree.PluralGroup
+import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
@@ -61,12 +62,13 @@ abstract class CompositeKeyCompletionContributor(private val lang: Lang): Comple
     private fun groupPlurals(completions: List<String>, pluralSeparator: String): List<Pair<String, List<String>>> {
         return completions
             .groupBy { key ->
-                if (CLDR_SUFFIXES.any { key.endsWith(it) }) key.substringBeforeLast("_")
+                if (PluralKey.groupBase(key) != null) PluralKey.stripSuffix(key, pluralSeparator)
                 else key.substringBeforeLast(pluralSeparator)
             }
             .entries.flatMap { entry ->
-                val isNumericPlural = entry.value.size == 3 && entry.value.containsAll(listOf(1, 2, 5).map { entry.key + pluralSeparator + it })
-                val isCldrPlural = entry.value.isNotEmpty() && entry.value.all { v -> CLDR_SUFFIXES.any { v.endsWith(it) } }
+                val numericForms = PluralKey.numericForms(entry.key, pluralSeparator)
+                val isNumericPlural = entry.value.size == numericForms.size && entry.value.containsAll(numericForms)
+                val isCldrPlural = entry.value.isNotEmpty() && entry.value.all { PluralKey.groupBase(it) != null }
                 if (isNumericPlural || isCldrPlural) listOf(entry.key to entry.value)
                 else entry.value.map { it to listOf(it) }
             }
@@ -172,11 +174,5 @@ abstract class CompositeKeyCompletionContributor(private val lang: Lang): Comple
      * is the one inlay hints show, so completion shows the same.
      */
     private fun pluralFormOrder(key: String, pluralSeparator: String): List<String> =
-        listOf(key) +
-            listOf("1", "2", "5").map { key + pluralSeparator + it } +
-            listOf("one", "other", "zero", "two", "few", "many").map { "${key}_$it" }
-
-    private companion object {
-        val CLDR_SUFFIXES = listOf("_zero", "_one", "_two", "_few", "_many", "_other")
-    }
+        listOf(key) + PluralKey.numericForms(key, pluralSeparator) + PluralKey.cldrForms(key)
 }
