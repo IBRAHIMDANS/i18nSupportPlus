@@ -4,32 +4,27 @@ import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.util.ReflectionUtil
 import io.mockk.mockk
 import io.mockk.unmockkAll
-import net.sourceforge.marathon.javadriver.JavaDriver
-import net.sourceforge.marathon.javadriver.JavaProfile
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.Assumptions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import java.awt.GraphicsEnvironment
+import java.awt.Component
+import java.awt.Container
+import java.awt.event.KeyEvent
 import java.util.concurrent.DelayQueue
-import javax.swing.JFrame
-import javax.swing.SwingUtilities
+import javax.swing.AbstractButton
+import javax.swing.JComponent
+import javax.swing.text.JTextComponent
 import kotlin.reflect.KMutableProperty1
 
+/**
+ * The settings page driven through its Swing components: each control is found by the name it is
+ * given (its label) and typed into as a user would, key filter included. No window is opened, so
+ * the test also runs headless.
+ */
 class SettingsPanelTest {
 
-    private lateinit var driver: JavaDriver
-
-    @BeforeEach
-    fun setUp() {
-        Assumptions.assumeFalse(
-            GraphicsEnvironment.isHeadless(),
-            "Skipping Swing UI test in headless environment"
-        )
-        driver = JavaDriver(JavaProfile(JavaProfile.LaunchMode.EMBEDDED))
-    }
+    private lateinit var root: JComponent
 
     @Test
     fun testSearchInProjectFilesOnly() {
@@ -75,12 +70,11 @@ class SettingsPanelTest {
     fun testInvalidSeparator() = runWithSettings(Settings()) {
         settings ->
             val message = PluginBundle.getMessage("settings.key.separator")
-            val cb = driver.findElementByName(message)
-            assertNotNull(cb)
+            val cb = textField(message)
             val value = cb.text
             assertEquals(value, settings.keySeparator)
-            cb.clear()
-            cb.sendKeys(" {}\$")
+            cb.text = ""
+            cb.type(" {}\$")
             assertEquals("", settings.keySeparator)
     }
 
@@ -122,33 +116,30 @@ class SettingsPanelTest {
 
     private fun checkIntProperty(keys: String, message: String, property: KMutableProperty1<Settings, Int>) = runWithSettings(Settings()) {
         settings ->
-            val cb = driver.findElementByName(message)
-            assertNotNull(cb)
+            val cb = textField(message)
             val text = cb.text
             assertEquals(text.toInt(), property.get(settings))
-            cb.clear()
-            cb.sendKeys(keys)
+            cb.text = ""
+            cb.type(keys)
             assertEquals(keys.toInt(), property.get(settings))
     }
 
     private fun checkStringProperty(keys: String, message: String, property: KMutableProperty1<Settings, String>) = runWithSettings(Settings()) {
         settings ->
-            val cb = driver.findElementByName(message)
-            assertNotNull(cb)
+            val cb = textField(message)
             val value = cb.text
             assertEquals(value, property.get(settings))
-            cb.clear()
-            cb.sendKeys(keys)
+            cb.text = ""
+            cb.type(keys)
             assertEquals(keys, property.get(settings))
     }
 
     private fun checkBooleanProperty(message: String, property: KMutableProperty1<Settings, Boolean>) = runWithSettings(Settings()) {
         settings ->
-            val cb = driver.findElementByName(message)
-            assertNotNull(cb)
-            val value = cb.text == "true"
+            val cb = control<AbstractButton>(message)
+            val value = cb.isSelected
             assertEquals(value, property.get(settings))
-            cb.click()
+            cb.doClick()
             assertEquals(!value, property.get(settings))
     }
 
@@ -157,17 +148,32 @@ class SettingsPanelTest {
         // preferredLocalization is empty; outside a platform fixture that lookup
         // throws. Pre-fill it so the panel can be built in a plain JUnit test.
         settings.preferredLocalization = "json"
-        val frame = JFrame()
-        frame.contentPane.add(SettingsPanel(settings, mockk()).getRootPanel())
-        SwingUtilities.invokeLater {
-            frame.pack()
-            frame.isVisible = true
-        }
-        try {
-            block(settings)
-        } finally {
-            frame.dispose()
-        }
+        root = SettingsPanel(settings, mockk()).getRootPanel()
+        block(settings)
+    }
+
+    private fun textField(name: String): JTextComponent = control(name)
+
+    /** The first component named [name], depth first, as the page lays them out. */
+    private inline fun <reified T : Component> control(name: String): T {
+        val found = find(root, name)
+        assertNotNull(found, "no component named $name")
+        return found as T
+    }
+
+    private fun find(component: Component, name: String): Component? =
+        if (component.name == name) component
+        else (component as? Container)?.components?.firstNotNullOfOrNull { find(it, name) }
+
+    /**
+     * Each character as a typed key: the field's key listeners may refuse it (length, refused
+     * characters), otherwise it lands at the end of the text. The end, not the caret: off the EDT the
+     * caret does not follow the document.
+     */
+    private fun JTextComponent.type(text: String) = text.forEach { char ->
+        val event = KeyEvent(this, KeyEvent.KEY_TYPED, System.currentTimeMillis(), 0, KeyEvent.VK_UNDEFINED, char)
+        keyListeners.forEach { it.keyTyped(event) }
+        if (!event.isConsumed) document.insertString(document.length, char.toString(), null)
     }
 
     @Test
@@ -196,9 +202,6 @@ class SettingsPanelTest {
         val delayQueue = ReflectionUtil.getField(timerQueueClass, timerQueue, DelayQueue::class.java, "queue")
         while(delayQueue.size>0) {
             delayQueue.poll()
-        }
-        if (::driver.isInitialized) {
-            driver.quit()
         }
         unmockkAll()
     }
