@@ -23,6 +23,9 @@ class PhpLang: Lang {
     /** PHP, and Blade, whose echoes and directives hold PHP. */
     override fun indexes(type: FileType): Boolean = type.isOfLanguage(INDEXED_LANGUAGES)
 
+    /** The unresolved key inspection reads PHP and the PHP a Blade view injects with this language, as the annotator declared on PHP does. */
+    override fun inspectionLangOf(element: PsiElement): Lang? = this.takeIf { element.isOfLanguage("PHP") }
+
     override fun canExtractKey(element: PsiElement, translationFunctionNames: List<String>): Boolean {
         // The one test only a PHP quoted-string token passes, so it goes first: every Lang is asked of
         // every element of every file, and on a JS element the rest allocated a Config, walked up to

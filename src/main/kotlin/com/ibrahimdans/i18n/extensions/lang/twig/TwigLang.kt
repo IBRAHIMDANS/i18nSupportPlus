@@ -21,6 +21,9 @@ class TwigLang : Lang {
 
     override fun indexes(type: FileType): Boolean = type.isOfLanguage(INDEXED_LANGUAGES)
 
+    /** The unresolved key inspection reads a Twig template with this language, as the annotator declared on Twig does. */
+    override fun inspectionLangOf(element: PsiElement): Lang? = this.takeIf { element.isOfLanguage("Twig") }
+
     override fun canExtractKey(element: PsiElement, translationFunctionNames: List<String>): Boolean = TwigTrans.keyOf(element) != null
 
     override fun extractRawKey(element: PsiElement): RawKey? =

@@ -1,5 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.inspection
 
+import com.ibrahimdans.i18n.Extensions
+import com.ibrahimdans.i18n.Lang
 import com.ibrahimdans.i18n.plugin.ide.annotator.KeyCheck
 import com.ibrahimdans.i18n.plugin.ide.annotator.KeyReport
 import com.intellij.codeInsight.intention.IntentionAction
@@ -12,29 +14,38 @@ import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Reports a key of the code no translation file resolves: an unresolved key or namespace, a
  * missing default translation file, a key pointing at an object, a partially translated key. The
- * same check, ranges, messages, tooltip and quick fixes as the annotator had, which now only
- * colours the keys that resolve.
+ * same check, ranges, messages, tooltip and quick fixes as the annotators had, which now only
+ * colour the keys that resolve.
  *
  * Being an inspection is the point: its severity is set in the profile, `// noinspection` (or the
  * suppress fix) silences one call, and *Inspect Code*, `inspect.sh` and Qodana list the keys.
  *
- * A subclass says which [KeyCheck] reads an element of its languages ([checkOf]).
+ * One inspection for every language, declared in `plugin.xml`: each element is read by the
+ * language a [com.ibrahimdans.i18n.Lang] extension names for it ([Lang.inspectionLangOf]), so
+ * nothing loaded here names the PSI of an optional plugin — JavaScript, PHP, Twig — and an IDE
+ * without one of them still loads it.
  */
-abstract class UnresolvedKeyInspectionBase : LocalInspectionTool() {
+class UnresolvedKeyInspection : LocalInspectionTool() {
+
+    private val checks = ConcurrentHashMap<Lang, KeyCheck>()
 
     override fun getGroupDisplayName(): String = "i18n Support Plus"
     override fun getShortName(): String = SHORT_NAME
 
     /**
-     * The check reading the keys of [element], or null when the element is of none of this
-     * inspection's languages. Asked per element, not per file: a Svelte or Vue file holds
-     * elements of several languages in one tree.
+     * The check reading the keys of [element], or null when no language reads it. Asked per
+     * element, not per file: a Svelte, Vue or Blade file holds elements of several languages in
+     * one tree.
      */
-    protected abstract fun checkOf(element: PsiElement): KeyCheck?
+    private fun checkOf(element: PsiElement): KeyCheck? {
+        val lang = Extensions.LANG.extensionList.firstNotNullOfOrNull { it.inspectionLangOf(element) } ?: return null
+        return checks.computeIfAbsent(lang, ::KeyCheck)
+    }
 
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
         return object : PsiElementVisitor() {

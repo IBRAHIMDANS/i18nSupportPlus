@@ -25,11 +25,11 @@ interface KeyReport {
 }
 
 /**
- * The annotator's report: resolved keys coloured as comments. [reportsProblems] is false for a
- * language whose problems [com.ibrahimdans.i18n.plugin.ide.inspection.UnresolvedKeyInspectionBase]
- * reports: the annotator reporting them as well would show each problem twice.
+ * The annotator's report: resolved keys coloured as comments. Problems are left to
+ * [com.ibrahimdans.i18n.plugin.ide.inspection.UnresolvedKeyInspection]: the annotator reporting them
+ * as well would show each problem twice.
  */
-class AnnotationReport(private val holder: AnnotationHolder, private val reportsProblems: Boolean) : KeyReport {
+class AnnotationReport(private val holder: AnnotationHolder) : KeyReport {
 
     override fun resolved(range: TextRange) {
         holder
@@ -39,13 +39,5 @@ class AnnotationReport(private val holder: AnnotationHolder, private val reports
             .create()
     }
 
-    override fun problem(range: TextRange, message: String, weak: Boolean, tooltip: (() -> String)?, fixes: List<IntentionAction>) {
-        if (!reportsProblems) return
-        var builder = holder
-            .newAnnotation(if (weak) HighlightSeverity.WEAK_WARNING else HighlightSeverity.ERROR, message)
-            .range(range)
-        if (tooltip != null) builder = builder.tooltip(tooltip())
-        fixes.forEach { builder = builder.withFix(it) }
-        builder.create()
-    }
+    override fun problem(range: TextRange, message: String, weak: Boolean, tooltip: (() -> String)?, fixes: List<IntentionAction>) = Unit
 }

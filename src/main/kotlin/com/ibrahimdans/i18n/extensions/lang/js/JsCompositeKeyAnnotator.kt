@@ -4,6 +4,6 @@ import com.ibrahimdans.i18n.plugin.ide.annotator.CompositeKeyAnnotatorBase
 
 /**
  * Colours the keys of a Vue template's markup that resolve. Their problems are reported by
- * [JsUnresolvedKeyInspection].
+ * [com.ibrahimdans.i18n.plugin.ide.inspection.UnresolvedKeyInspection].
  */
-class JsCompositeKeyAnnotator : CompositeKeyAnnotatorBase(JsLang(), reportsProblems = false)
+class JsCompositeKeyAnnotator : CompositeKeyAnnotatorBase(JsLang())

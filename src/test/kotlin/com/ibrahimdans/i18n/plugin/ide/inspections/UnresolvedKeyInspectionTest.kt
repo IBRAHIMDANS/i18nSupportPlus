@@ -1,8 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.inspections
 
-import com.ibrahimdans.i18n.extensions.lang.js.JsUnresolvedKeyInspection
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
-import com.ibrahimdans.i18n.plugin.ide.inspection.UnresolvedKeyInspectionBase
+import com.ibrahimdans.i18n.plugin.ide.inspection.UnresolvedKeyInspection
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.codeHighlighting.HighlightDisplayLevel
 import com.intellij.codeInsight.daemon.HighlightDisplayKey
@@ -37,7 +36,7 @@ class UnresolvedKeyInspectionTest : PlatformBaseTest() {
         myFixture.configureByText("App.ts", "export const a = (t) => t('test:ref.missing');")
 
         val reported = reported()
-        Assertions.assertEquals(listOf(UnresolvedKeyInspectionBase.SHORT_NAME), reported.map { it.inspectionToolId })
+        Assertions.assertEquals(listOf(UnresolvedKeyInspection.SHORT_NAME), reported.map { it.inspectionToolId })
         Assertions.assertEquals(HighlightSeverity.ERROR, reported.single().severity)
     }
 
@@ -58,7 +57,7 @@ class UnresolvedKeyInspectionTest : PlatformBaseTest() {
     fun `the severity set in the profile is the one shown`() {
         seed()
         val profile = InspectionProjectProfileManager.getInstance(project).currentProfile
-        profile.setErrorLevel(HighlightDisplayKey.find(UnresolvedKeyInspectionBase.SHORT_NAME)!!, HighlightDisplayLevel.WARNING, project)
+        profile.setErrorLevel(HighlightDisplayKey.find(UnresolvedKeyInspection.SHORT_NAME)!!, HighlightDisplayLevel.WARNING, project)
         myFixture.configureByText("App.ts", "export const a = (t) => t('test:ref.missing');")
 
         Assertions.assertEquals(listOf(HighlightSeverity.WARNING), reported().map { it.severity })
@@ -70,7 +69,7 @@ class UnresolvedKeyInspectionTest : PlatformBaseTest() {
         myFixture.configureByText(
             "App.ts",
             """
-            // noinspection ${UnresolvedKeyInspectionBase.SHORT_NAME}
+            // noinspection ${UnresolvedKeyInspection.SHORT_NAME}
             export const a = (t) => t('test:ref.missing');
             export const b = (t) => t('test:ref.other');
             """.trimIndent(),
@@ -90,7 +89,7 @@ class UnresolvedKeyInspectionTest : PlatformBaseTest() {
         )
         val context = InspectionManager.getInstance(project).createNewGlobalContext()
 
-        val problems = InspectionEngine.runInspectionOnFile(file, LocalInspectionToolWrapper(JsUnresolvedKeyInspection()), context)
+        val problems = InspectionEngine.runInspectionOnFile(file, LocalInspectionToolWrapper(UnresolvedKeyInspection()), context)
 
         Assertions.assertEquals(
             listOf(unresolved, PluginBundle.getMessage("annotator.unresolved.ns")),
