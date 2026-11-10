@@ -120,6 +120,12 @@ import kotlin.math.roundToLong
  * each of the component's 2 092 elements cost 15 ms in all (7 µs a call, paid again by the gutter on
  * its 1 266 leaves), `Settings.config()` read for each leaf 1.1 ms. About 25 ms, under 1 % of the pass,
  * under 3 % of the 880 ms reference: below the 5 % set beforehand, so neither was changed.
+ *
+ * TASK-PERF-HYPOTHESES-MEASURE timed every `Settings.config()` call of a (b) pass — annotator, gutter,
+ * inlay, folding, `LocalizationSourceService` — and the comparison of its cache stamps, which hash the
+ * `Config` (2026-11-10, load average 0.8–2.9 on 12 cores, (b) at 560 ms, median of 5): 1 077 calls,
+ * 1.2 ms in all, plus 0.5 ms comparing stamps. About 0.3 % of the pass, below the 5 % set beforehand:
+ * `config()` stays unmemoized.
  */
 @EnabledIfEnvironmentVariable(named = "I18N_PERF", matches = "true")
 class HighlightingPerformanceTest : PlatformBaseTest() {
