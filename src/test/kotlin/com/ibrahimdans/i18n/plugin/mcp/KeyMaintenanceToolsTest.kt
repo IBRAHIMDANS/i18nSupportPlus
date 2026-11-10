@@ -5,9 +5,11 @@ import com.ibrahimdans.i18n.plugin.check.ValueProblem
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
@@ -24,6 +26,13 @@ class KeyMaintenanceToolsTest : PlatformBaseTest() {
     private val config = Config(defaultNs = "translation")
 
     private fun tools() = KeyMaintenanceTools(project)
+
+    /** A key created as `i18n_create_key` creates it: planned under a read action off the EDT, written on the EDT, then read back. */
+    private fun KeyMaintenanceTools.create(module: String?, key: String, values: Map<String, String>, allowDuplicate: Boolean = false) =
+        readOffEdt { planCreate(module, key, values, allowDuplicate) }.let { plan ->
+            applyCreate(plan)
+            ReadAction.compute<KeyMaintenanceTools.CreateResult, RuntimeException> { created(plan) }
+        }
 
     private fun seed(): Pair<PsiFile, PsiFile> {
         val en = myFixture.addFileToProject(
@@ -248,6 +257,24 @@ class KeyMaintenanceToolsTest : PlatformBaseTest() {
         Assertions.assertThrows(TranslationAgentTools.Refused::class.java) { tools().create(null, "common:title.sub", mapOf("en" to "S")) }
         Assertions.assertThrows(TranslationAgentTools.Refused::class.java) { tools().create(null, "common:fresh", mapOf("fr" to "Neuf")) }
         Assertions.assertThrows(TranslationAgentTools.Refused::class.java) { tools().create(null, "common:fresh", mapOf("en" to "New", "ja" to "新")) }
+    }
+
+    @Test
+    fun `a key whose files change between the plan and the write is refused, nothing created`() = myFixture.runWithConfig(config) {
+        val (en, _) = seed()
+        val plan = readOffEdt { tools().planCreate(null, "common:archive", mapOf("en" to "Archive")) }
+
+        edit(en, "\"title\": \"Title\"" to "\"title\": \"Title\", \"archive\": \"Stored\"")
+        val refused = Assertions.assertThrows(TranslationAgentTools.Refused::class.java) { tools().applyCreate(plan) }
+
+        Assertions.assertEquals(KeyMaintenanceTools.CREATE_CHANGED, refused.message)
+        Assertions.assertTrue("\"archive\": \"Stored\"" in text(en) && "\"Archive\"" !in text(en), text(en))
+    }
+
+    private fun edit(file: PsiFile, replacement: Pair<String, String>) = WriteCommandAction.runWriteCommandAction(project) {
+        val document = PsiDocumentManager.getInstance(project).getDocument(file)!!
+        document.setText(document.text.replace(replacement.first, replacement.second))
+        PsiDocumentManager.getInstance(project).commitDocument(document)
     }
 
     @Test

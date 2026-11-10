@@ -170,7 +170,13 @@ class I18nMcpToolset : McpToolset {
         @McpDescription(description = "Locale to text, the reference locale's included, e.g. {\"en\": \"Archive\", \"fr\": \"Archiver\"}") values: Map<String, String>,
         @McpDescription(description = "Module name from i18n_list_modules; omit when there is only one") module: String? = null,
         @McpDescription(description = "Create the key even when another key holds the same reference value") allowDuplicate: Boolean = false,
-    ): String = maintain { tools, _ -> withContext(Dispatchers.EDT) { tools.create(module, key, values, allowDuplicate) } }
+    ): String = maintain { tools, _ ->
+        val plan = readAction { tools.planCreate(module, key, values, allowDuplicate) }
+        plan.done ?: run {
+            withContext(Dispatchers.EDT) { tools.applyCreate(plan) }
+            readAction { tools.created(plan) }
+        }
+    }
 
     @McpTool(name = "i18n_delete_unused_keys")
     @McpDescription(

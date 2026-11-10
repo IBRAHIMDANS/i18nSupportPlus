@@ -26,7 +26,6 @@ import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
 import com.ibrahimdans.i18n.plugin.utils.sourcesOf
-import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
@@ -102,6 +101,20 @@ class KeyMaintenanceTools(private val project: Project) {
     )
 
     data class DeleteResult(val deleted: List<String>, val entries: Int, val rejected: Map<String, String>)
+
+    /**
+     * A key checked under a read action: the values to write ([accepted], `locale -> text`) and those
+     * refused with the reason. [done] is the answer when nothing is to be written.
+     */
+    internal class CreatePlan(
+        val module: ModuleConfig?,
+        val key: String,
+        val accepted: Map<String, String>,
+        val rejected: Map<String, String>,
+        val existing: List<String>,
+        val stamps: DocumentStamps,
+        val done: CreateResult? = null,
+    )
 
     /** A rename planned under a read action, applied on the EDT while its files are still as read. */
     internal class RenamePlan(val result: RenameResult, val plan: KeyLevelRename.Plan, val stamps: Map<Document, Long>)
@@ -304,9 +317,10 @@ class KeyMaintenanceTools(private val project: Project) {
      * its placeholders differ from the reference one's, or when that locale has no file for the key's
      * namespace. While another key already holds the same reference value — compared trimmed and
      * case-sensitive, as the extraction's *Use existing key* compares it — nothing is created and the
-     * result lists those keys, unless [allowDuplicate]. Runs on the EDT.
+     * result lists those keys, unless [allowDuplicate]: the plan is then [CreatePlan.done]. Needs a
+     * read action, off the EDT: [applyCreate] writes the plan, [created] tells what it wrote.
      */
-    fun create(moduleName: String?, key: String, values: Map<String, String>, allowDuplicate: Boolean = false): CreateResult {
+    internal fun planCreate(moduleName: String?, key: String, values: Map<String, String>, allowDuplicate: Boolean = false): CreatePlan {
         val (_, module) = scope(moduleName)
         val config = config
         val path = KeySpelling.segmentsOf(key, config)
@@ -319,11 +333,13 @@ class KeyMaintenanceTools(private val project: Project) {
         val translations = TranslationDataLoader.loadAllTranslations(project, module)
         conflictOf(key, path, translations)?.let { throw Refused(it) }
         val existing = translations.filterValues { it[reference]?.trim() == referenceValue.trim() }.keys.sorted()
+        val stamps = DocumentStamps.of(project, module)
         if (existing.isNotEmpty() && !allowDuplicate) {
-            return CreateResult(key, emptyList(), emptyMap(), existing, "$DUPLICATE ${existing.joinToString()}")
+            val done = CreateResult(key, emptyList(), emptyMap(), existing, "$DUPLICATE ${existing.joinToString()}")
+            return CreatePlan(module, key, emptyMap(), emptyMap(), existing, stamps, done)
         }
 
-        val sources = namespaceSources(ReadAction.compute<List<LocalizationSource>, RuntimeException> { TranslationDataLoader.findSources(project, module) }, key)
+        val sources = namespaceSources(TranslationDataLoader.findSources(project, module), key)
         val rejected = sortedMapOf<String, String>()
         val accepted = sortedMapOf<String, String>()
         for ((locale, text) in values) {
@@ -335,10 +351,29 @@ class KeyMaintenanceTools(private val project: Project) {
             }
         }
         if (reference !in accepted) throw Refused(rejected.getValue(reference))
-        MachineFill.write(project, module, accepted.mapValues { (_, text) -> mapOf(key to text) }, command = PluginBundle.message("quickfix.create.key"))
-        val now = TranslationDataLoader.loadAllTranslations(project, module)[key].orEmpty()
-        accepted.keys.filter { now[it] != accepted[it] }.forEach { rejected[it] = NOT_WRITTEN }
-        return CreateResult(key, accepted.keys.filter { now[it] == accepted[it] }, rejected, existing)
+        return CreatePlan(module, key, accepted, rejected, existing, stamps)
+    }
+
+    /**
+     * Writes [plan]'s values in one undoable command; refused, nothing written, when one of the module's
+     * files changed since it was planned. Runs on the EDT.
+     */
+    internal fun applyCreate(plan: CreatePlan) {
+        if (plan.done != null) return
+        if (plan.stamps.changed()) throw Refused(CREATE_CHANGED)
+        MachineFill.write(
+            project, plan.module, plan.accepted.mapValues { (_, text) -> mapOf(plan.key to text) },
+            command = PluginBundle.message("quickfix.create.key"),
+        )
+    }
+
+    /** What [applyCreate] wrote of [plan], each value it could not write told apart. Needs a read action. */
+    internal fun created(plan: CreatePlan): CreateResult {
+        plan.done?.let { return it }
+        val now = TranslationDataLoader.loadAllTranslations(project, plan.module)[plan.key].orEmpty()
+        val rejected = sortedMapOf<String, String>().apply { putAll(plan.rejected) }
+        plan.accepted.keys.filter { now[it] != plan.accepted[it] }.forEach { rejected[it] = NOT_WRITTEN }
+        return CreateResult(plan.key, plan.accepted.keys.filter { now[it] == plan.accepted[it] }, rejected, plan.existing)
     }
 
     /** Why [key], whose levels are [path], cannot be created next to [translations]; null when it can. */
@@ -435,6 +470,7 @@ class KeyMaintenanceTools(private val project: Project) {
         const val PLACEHOLDERS = "Placeholders differ from the reference value:"
         const val NOT_WRITTEN = "Not written: the file changed meanwhile, check it and send it again"
         const val CHANGED = "A file changed since the rename was planned: nothing was renamed, call again"
+        const val CREATE_CHANGED = "A translation file changed while the key was checked: nothing was created, call again"
         const val INDEXING = "The IDE is indexing the project: call again once it is done"
         const val UNKNOWN_KEY = "No translation holds this key in this module"
         const val KEPT = "Kept by the project's keep list (Keys used outside the code)"
