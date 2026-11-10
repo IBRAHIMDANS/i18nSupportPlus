@@ -38,18 +38,38 @@ class HttpTranslationProvider(
 
     override fun translate(request: TranslationRequest, cancellation: Cancellation?): List<Translation> {
         val glossary = deepl?.let { PairGlossary(it, request.source, request.target) }
+        val outage = Outage()
         val batch = engine.batch
         if (batch == null || request.texts.size < 2) {
             return request.texts.map { text ->
                 cancellation?.check()
-                translateOne(text, request, glossary, cancellation)
+                translateOne(text, request, glossary, outage, cancellation)
             }
         }
         return request.texts.chunked(batch.maxSize.coerceAtLeast(1)).flatMap { chunk ->
             cancellation?.check()
-            translateBatch(chunk, request, batch, glossary, cancellation)
+            translateBatch(chunk, request, batch, glossary, outage, cancellation)
         }
     }
+
+    /**
+     * The single-text requests of one [translate] call the engine gave no answer to, in a row: late,
+     * unreachable or down (5xx). After [UNANSWERED_IN_A_ROW] of them the engine is taken as not
+     * responding — it could not translate one text, twice — and the call's remaining texts fail without
+     * being sent: a fallback engine gets them at once. Any other answer starts the count again, so a
+     * text the engine chokes on still fails alone. A batch never counts: a late one is split first.
+     */
+    private class Outage {
+        private var unanswered = 0
+        val stopped: Boolean get() = unanswered >= UNANSWERED_IN_A_ROW
+
+        fun record(posted: Posted, texts: Int) {
+            val down = posted is Posted.Failed && (posted.timedOut || posted.status == 0 || posted.status >= 500)
+            if (!down) unanswered = 0 else if (texts == 1) unanswered++
+        }
+    }
+
+    private fun unresponsive() = failed(CoreMessages.message("translate.error.unresponsive", engine.name, UNANSWERED_IN_A_ROW))
 
     /**
      * The engine's glossary for one request's language pair, looked up when the first text goes out —
@@ -85,7 +105,10 @@ class HttpTranslationProvider(
      * glossary never costs a translation. DeepL answers 404 for an unknown id, but 500 for a few minutes
      * after a glossary is deleted: a 5xx is checked against the glossary itself before being taken as an outage.
      */
-    private fun send(url: String, body: String, glossary: PairGlossary?, texts: Int, cancellation: Cancellation?): Posted {
+    private fun send(url: String, body: String, glossary: PairGlossary?, texts: Int, outage: Outage, cancellation: Cancellation?): Posted =
+        sendWithGlossary(url, body, glossary, texts, cancellation).also { outage.record(it, texts) }
+
+    private fun sendWithGlossary(url: String, body: String, glossary: PairGlossary?, texts: Int, cancellation: Cancellation?): Posted {
         val timeout = engine.readTimeout ?: readTimeoutFor(texts)
         var id = glossary?.id() ?: return post(url, body, timeout, cancellation)
         while (true) {
@@ -105,25 +128,28 @@ class HttpTranslationProvider(
      * the wrong key. A request the engine could not handle — refused as malformed or too large, a server
      * error, no answer in time — is sent again in two halves, down to one text, so that a text it chokes
      * on fails alone. A refused key or a rate limit is the same for every text: the batch fails at once.
+     * Once [outage] says the engine stopped answering, nothing more is sent.
      */
     private fun translateBatch(
-        texts: List<String>, request: TranslationRequest, batch: BatchConfig, glossary: PairGlossary?, cancellation: Cancellation?
+        texts: List<String>, request: TranslationRequest, batch: BatchConfig, glossary: PairGlossary?, outage: Outage,
+        cancellation: Cancellation?
     ): List<Translation> {
+        if (outage.stopped) return texts.map { if (it.isBlank()) Translation.Done(it) else unresponsive() }
         val sent = texts.withIndex().filter { it.value.isNotBlank() }
-        if (sent.size < 2) return texts.map { translateOne(it, request, glossary, cancellation) }
+        if (sent.size < 2) return texts.map { translateOne(it, request, glossary, outage, cancellation) }
         val masks = sent.map { engine.glossary.protect(PlaceholderMask.mask(it.value)) }
         val array = masks.joinToString(",", "[", "]") { "\"${escapeJson(it.text)}\"" }
         val body = fill(batch.body.replace("{texts}", array).replace("{textsJson}", escapeJson(array)), values(request, ""), ::escapeJson)
-        val answers = when (val response = send(fill(engine.url, values(request, ""), ::encodeUrl), body, glossary, sent.size, cancellation)) {
+        val answers = when (val response = send(fill(engine.url, values(request, ""), ::encodeUrl), body, glossary, sent.size, outage, cancellation)) {
             is Posted.Failed -> {
                 if (!response.splittable) return texts.map { if (it.isBlank()) Translation.Done(it) else response.failure }
                 val half = texts.size / 2
-                return translateBatch(texts.take(half), request, batch, glossary, cancellation) +
-                    translateBatch(texts.drop(half), request, batch, glossary, cancellation)
+                return translateBatch(texts.take(half), request, batch, glossary, outage, cancellation) +
+                    translateBatch(texts.drop(half), request, batch, glossary, outage, cancellation)
             }
             is Posted.Answered -> readList(response.body, batch)
         }
-        if (answers == null || answers.size != sent.size) return texts.map { translateOne(it, request, glossary, cancellation) }
+        if (answers == null || answers.size != sent.size) return texts.map { translateOne(it, request, glossary, outage, cancellation) }
         val results = MutableList<Translation>(texts.size) { Translation.Done(texts[it]) }
         sent.forEachIndexed { i, (index, _) -> results[index] = restore(answers[i], masks[i]) }
         return results
@@ -224,11 +250,14 @@ class HttpTranslationProvider(
         }
     }
 
-    private fun translateOne(text: String, request: TranslationRequest, glossary: PairGlossary?, cancellation: Cancellation?): Translation {
+    private fun translateOne(
+        text: String, request: TranslationRequest, glossary: PairGlossary?, outage: Outage, cancellation: Cancellation?
+    ): Translation {
         if (text.isBlank()) return Translation.Done(text)
+        if (outage.stopped) return unresponsive()
         val masked = engine.glossary.protect(PlaceholderMask.mask(text))
         val values = values(request, masked.text)
-        val body = when (val response = send(fill(engine.url, values, ::encodeUrl), fill(engine.body, values, ::escapeJson), glossary, 1, cancellation)) {
+        val body = when (val response = send(fill(engine.url, values, ::encodeUrl), fill(engine.body, values, ::escapeJson), glossary, 1, outage, cancellation)) {
             is Posted.Failed -> return response.failure
             is Posted.Answered -> response.body
         }
@@ -252,6 +281,9 @@ class HttpTranslationProvider(
         private const val MAX_RETRY_AFTER_S = 30L
         private val RETRYABLE = setOf(429, 502, 503, 504)
         private val SPLITTABLE = setOf(400, 413, 422)
+
+        /** Single-text requests left unanswered in a row after which the engine is taken as not responding. */
+        private const val UNANSWERED_IN_A_ROW = 2
 
         private val BASE_READ_TIMEOUT: Duration = Duration.ofSeconds(60)
         private val READ_TIMEOUT_PER_TEXT: Duration = Duration.ofSeconds(2)
