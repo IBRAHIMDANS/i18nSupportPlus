@@ -121,8 +121,12 @@ class OrphanTranslationKeyInspection : LocalInspectionTool() {
             }
         }
 
-        /** [key] without its CLDR plural suffix (`item` for `item_few`), or null when it carries none. */
+        /**
+         * [key]'s plural group as [PluralKey.groupForms] names it (`item` for `item_few`,
+         * `place_ordinal` for `place_ordinal_few`), or null when it carries no plural suffix.
+         */
         private fun pluralBaseOf(key: String, pluralSeparator: String): String? {
+            PluralKey.groupBase(key)?.let { return it }
             val base = PluralKey.stripSuffix(key, pluralSeparator)
             return base.takeIf { it != key && key[it.length] == '_' }
         }

@@ -26,6 +26,12 @@ class ReviewSourcesTest {
     }
 
     @Test
+    fun `an ordinal form the reference lacks reads the ordinal other form, not the cardinal one`() {
+        val reference = mapOf("place_other" to "{{count}} places", "place_ordinal_other" to "{{count}}th")
+        assertEquals("{{count}}th", sourceOf("place_ordinal_many", reference))
+    }
+
+    @Test
     fun `a legacy numeric form reads the widest count the reference holds`() {
         assertEquals("{{count}} items", sourceOf("item-5", mapOf("item-1" to "{{count}} item", "item-2" to "{{count}} items")))
         assertEquals("{{count}} items", sourceOf("item_5", mapOf("item_1" to "{{count}} item", "item_2" to "{{count}} items"), "_"))
