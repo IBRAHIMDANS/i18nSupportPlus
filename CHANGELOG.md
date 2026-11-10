@@ -5,6 +5,7 @@
 ### Improvements
 
 - [Editor] **Told at once when a translation file grows too large for the IDE**: a translation file that passes the IDE's code insight size limit while you work (keys added in bulk, a regenerated catalogue, a pull) is now reported right away, with the action to raise the limit, instead of at the next project opening. Its keys no longer look missing for no reason until then.
+- [Inspections] **An unknown key in JavaScript, TypeScript or Vue is now an inspection you can tune**: *Translation key or namespace not found* (`I18nUnresolvedKey`) reports what the editor marked in red, with the same tooltip and quick fixes. Set its severity in the inspection profile, silence one call with `// noinspection I18nUnresolvedKey`, and list every unknown key of the project with *Inspect Code*, `inspect.sh` or Qodana, without the IDE's own `Annotator` errors. PHP, Twig and Angular templates follow.
 - [Machine translation] **Your Google Cloud API key no longer travels in the request URL**: Google Cloud Translation now gets the key in the `X-goog-api-key` header, so it stays out of company proxy logs and error messages. A Google engine you already configured is switched over when the project opens, nothing to do on your side.
 
 ### Fixes

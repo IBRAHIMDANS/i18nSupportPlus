@@ -1,0 +1,9 @@
+<html>
+<body>
+<p>Reports a key of the code that no translation file resolves: <code>t('common:does.not.exist')</code>.</p>
+<p>Also reported: a namespace with no file, a missing default translation file, a key pointing at an object instead of a text, and, when <em>Warn in code when a key is missing from some locales</em> is on in the settings, a key some checked locales lack. A key whose call shows a default value meanwhile (<code>t('key', 'Text')</code>) is a weak warning.</p>
+<p>The tooltip says how the key was read and where it was looked up. Quick fixes: create the key, create the translation file, open the settings.</p>
+<!-- tooltip end -->
+<p>Covers JavaScript, TypeScript, JSX, TSX, Vue, Svelte and Astro. Set its severity in the inspection profile, silence one call with <code>// noinspection I18nUnresolvedKey</code>, and list every unresolved key with <em>Inspect Code</em>, <code>inspect.sh</code> or Qodana.</p>
+</body>
+</html>

@@ -6,10 +6,11 @@ The checks the IDE runs on translations and code, and how to run them in CI, wit
 
 ## Inspections
 
-The twenty-four inspections, under *Settings | Editor | Inspections | i18n Support Plus*; those marked *off* are to be turned on there (the setup wizard offers the first two). A row naming several languages is one inspection per language:
+The twenty-five inspections, under *Settings | Editor | Inspections | i18n Support Plus*; those marked *off* are to be turned on there (the setup wizard offers the first two). A row naming several languages is one inspection per language:
 
 | Inspection | Reports |
 |------------|---------|
+| Translation key or namespace not found | A key of the code no translation file resolves (`t('common:does.not.exist')`), a namespace without a file, a missing default translation file, a key pointing at an object, and a key missing from some locales when *Warn in code when a key is missing from some locales* is on; a call showing a default value meanwhile is a weak warning. JavaScript, TypeScript, Vue, Svelte and Astro; `// noinspection I18nUnresolvedKey` silences one call. PHP, Blade, Twig and Angular templates are still reported by the editor's annotator; quick fixes: create the key or the file, open the settings |
 | Translation key with no reference in code | A key of a translation file no code refers to, unless the settings keep it (*Keys used outside the code*); quick fixes: delete it, or keep it (off) |
 | Hard-coded text in JSX / in a Vue template | A text written as is, `<button>Save</button>`, with a quick fix extracting it; code tags, punctuation alone and technical attributes are never reported (off) |
 | Hard-coded text in an Angular template / in a Svelte component | The same in an Angular template, the quick fix writing `{{ 'key' \| translate }}` (or `\| transloco` in a Transloco project), and in a Svelte component's markup, writing `{$_('key')}` and its import; `{{ name }}` and `{name}` become variables, a tag marked `translate`, `transloco` or `i18n` is left alone (off) |
