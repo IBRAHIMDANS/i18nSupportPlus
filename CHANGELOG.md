@@ -16,6 +16,7 @@
 - [Translation] **A machine translation whose engine does not answer stops quickly and says so**: with a slow or stopped engine, such as a local Ollama, *Fill Missing Translations* could wait for an hour or more, sending each late request again. A late request is now split without being sent again, and once the engine leaves texts unanswered, the remaining keys are not sent: the preview shows what was translated, and names the engine that stopped answering for the rest.
 - [Editor] **The gutter icon's tooltip follows the IDE language**: with the French language pack, the status of a key in each locale ("Toutes les locales résolues", "Traduction partielle", "non vérifiée") is no longer shown in English.
 - [Editor] **Every translation function folds its key and reads a template key**: `$tc('key')`, `i18n._('key')`, Lingui's imported `msg('key')` and the other functions your framework publishes now fold into their value like `t('key')`, and `` $tc(`role.${role}`) `` is checked like `` t(`role.${role}`) ``. A function outside your module's framework, or `toast.t('…')`, is still left alone.
+- [Editor] ***Create missing translations* no longer writes the key as the translation**: on a key some locales lack (*Partially translated keys* on), the quick fix wrote the key itself, such as `"test:root.sub.base"`, into each missing locale, a value that looked translated. It now opens the translation dialog, with the values the key already has and the missing locales left to fill; Cancel writes nothing, and one Ctrl+Z undoes what OK wrote.
 
 ## 1.20.0 - 2026-11-09
 
