@@ -1,6 +1,8 @@
 package com.ibrahimdans.i18n.plugin.ide.inspections
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.ide.actions.EditTranslationAtCaretAction
+import com.ibrahimdans.i18n.plugin.ide.dialog.TranslationDialog
 import com.ibrahimdans.i18n.plugin.ide.inspection.MissingPluralFormsInspection
 import com.ibrahimdans.i18n.plugin.ide.inspection.MissingTranslationKeyInspection
 import com.ibrahimdans.i18n.plugin.ide.launchActionAndWait
@@ -10,6 +12,7 @@ import com.ibrahimdans.i18n.plugin.utils.generator.code.TsxCodeGenerator
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.openapi.util.Disposer
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -69,7 +72,11 @@ class IgnoredLocalesTest : PlatformBaseTest() {
             assertTrue(PluginBundle.getMessage("annotator.partially.translated") in messages, "$messages")
         }
 
-    /** #620: *Create missing keys* used to write the key into every locale lacking it, ignored ones included. */
+    /**
+     * #620: *Create missing keys* used to write the key into every locale lacking it, ignored ones
+     * included. It now opens the translation dialog: the user fills the locale they translate, and
+     * an ignored locale left empty is not written.
+     */
     @Test
     fun createMissingKeysLeavesAnIgnoredLocaleAlone() =
         myFixture.runWithConfig(Config(partialTranslationInspectionEnabled = true, ignoredLocales = "de")) {
@@ -77,9 +84,26 @@ class IgnoredLocalesTest : PlatformBaseTest() {
             myFixture.addFileToProject("ru/test.json", """{"root": {"another": "value"}}""")
             myFixture.addFileToProject("de/test.json", """{"root": {"another": "Wert"}}""")
             myFixture.configureByText("sample.tsx", TsxCodeGenerator().generate("'test:root.sub.ba<caret>se'"))
-            val fix = myFixture.getAllQuickFixes().single { it.text == PluginBundle.getMessage("quickfix.create.missing.keys") }
-            myFixture.launchActionAndWait(fix)
-            assertTrue("\"base\"" in text("ru/test.json"), text("ru/test.json"))
+            // A `DialogWrapper` cannot be shown in a test container: the real dialog is driven instead.
+            EditTranslationAtCaretAction.opener = { project, target ->
+                val dialog = TranslationDialog(project, target.fullKey, target.mode, target.caller)
+                try {
+                    dialog.setValue("ru", "Определено")
+                    dialog.confirm()
+                } finally {
+                    Disposer.dispose(dialog.disposable)
+                }
+                true
+            }
+            try {
+                val fix = myFixture.getAllQuickFixes().single { it.text == PluginBundle.getMessage("quickfix.create.missing.keys") }
+                myFixture.launchActionAndWait(fix)
+            } finally {
+                EditTranslationAtCaretAction.opener = { project, target ->
+                    TranslationDialog(project, target.fullKey, target.mode, target.caller).showAndGet()
+                }
+            }
+            assertTrue("\"base\": \"Определено\"" in text("ru/test.json"), text("ru/test.json"))
             assertEquals("""{"root": {"another": "Wert"}}""", text("de/test.json"))
         }
 
