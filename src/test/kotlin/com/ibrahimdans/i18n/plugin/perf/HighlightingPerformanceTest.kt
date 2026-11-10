@@ -126,6 +126,13 @@ import kotlin.math.roundToLong
  * `Config` (2026-11-10, load average 0.8–2.9 on 12 cores, (b) at 560 ms, median of 5): 1 077 calls,
  * 1.2 ms in all, plus 0.5 ms comparing stamps. About 0.3 % of the pass, below the 5 % set beforehand:
  * `config()` stays unmemoized.
+ *
+ * The same task timed a preview locale switch on the component (`PreviewLocaleSwitcher.switchTo`, median
+ * of 5): the refresh itself takes 1 ms on the EDT, but it dropped every PSI cache of the project, and the
+ * pass after it took 1 346 ms against 598 ms after a keystroke (load average 0.8–2.9) — over the 500 ms
+ * set beforehand. The switch now reschedules folding and inlays per editor (`EditorRefresh.afterDisplayChange`)
+ * and keeps the caches: under load average 15, 1 691 ms after the switch, 1 904 ms after a keystroke,
+ * 2 540 ms after the former refresh, in the same run.
  */
 @EnabledIfEnvironmentVariable(named = "I18N_PERF", matches = "true")
 class HighlightingPerformanceTest : PlatformBaseTest() {

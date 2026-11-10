@@ -46,7 +46,7 @@ object PreviewLocaleSwitcher {
     fun switchTo(project: Project, locale: String) {
         val settings = Settings.getInstance(project)
         settings.previewLocale = locale
-        EditorRefresh.afterSettingsChange(project) {
+        EditorRefresh.afterDisplayChange(project) {
             if (settings.config().foldingEnabled) FoldingBuilderBase.refreshOpenEditors(project, fold = true)
         }
         ApplicationManager.getApplication().invokeLater {
