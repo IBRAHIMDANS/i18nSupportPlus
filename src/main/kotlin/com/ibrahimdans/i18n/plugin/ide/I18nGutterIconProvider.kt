@@ -96,9 +96,9 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
         val total = checked.size
 
         val (icon, statusLabel) = when {
-            resolvedCount == total -> ICON_RESOLVED to "All locales resolved ($total/$total)"
-            resolvedCount == 0    -> ICON_MISSING  to "Missing in all locales (0/$total)"
-            else                  -> ICON_PARTIAL  to "Partial translation ($resolvedCount/$total locales)"
+            resolvedCount == total -> ICON_RESOLVED to PluginBundle.message("gutter.tooltip.resolved", total.toString())
+            resolvedCount == 0    -> ICON_MISSING  to PluginBundle.message("gutter.tooltip.missing", total.toString())
+            else                  -> ICON_PARTIAL  to PluginBundle.message("gutter.tooltip.partial", resolvedCount.toString(), total.toString())
         }
 
         val tooltip = buildTooltip(statusLabel, statuses)
@@ -150,7 +150,7 @@ class I18nGutterIconProvider : LineMarkerProvider, CompositeKeyResolver<PsiEleme
         val rows = locales.joinToString("") { (label, resolved, checked) ->
             val mark = if (resolved) "✓" else if (checked) "✗" else "–"
             val color = if (resolved) "green" else if (checked) "red" else "gray"
-            val note = if (checked) "" else " (not checked)"
+            val note = if (checked) "" else " " + PluginBundle.message("gutter.tooltip.not.checked")
             "<tr><td><font color='$color'>$mark</font></td><td style='padding-left:4px'>$label$note</td></tr>"
         }
         return "<html><b>i18n: $statusLabel</b><table cellspacing='0' cellpadding='1'>$rows</table></html>"

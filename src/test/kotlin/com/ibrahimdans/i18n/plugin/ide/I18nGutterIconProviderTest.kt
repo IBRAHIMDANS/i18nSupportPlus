@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.generator.code.TsCodeGenerator
 import com.intellij.codeInsight.daemon.LineMarkerInfo
 import com.intellij.codeInsight.daemon.LineMarkerProviders
@@ -120,7 +121,7 @@ class I18nGutterIconProviderTest : PlatformBaseTest() {
         val file = myFixture.configureByText("Dashboard.tsx", twoNamespaceComponent("dashboard:stats.title"))
 
         val tooltip = tooltip(file)!!
-        Assertions.assertTrue(tooltip.contains("All locales resolved (2/2)"), tooltip)
+        Assertions.assertTrue(tooltip.contains(PluginBundle.message("gutter.tooltip.resolved", "2")), tooltip)
         Assertions.assertEquals(1, Regex(">en<").findAll(tooltip).count(), "each locale is listed once: $tooltip")
     }
 
@@ -131,7 +132,7 @@ class I18nGutterIconProviderTest : PlatformBaseTest() {
         val file = myFixture.configureByText("Dashboard.tsx", twoNamespaceComponent("shared.label"))
 
         val tooltip = tooltip(file)!!
-        Assertions.assertTrue(tooltip.contains("All locales resolved (2/2)"), tooltip)
+        Assertions.assertTrue(tooltip.contains(PluginBundle.message("gutter.tooltip.resolved", "2")), tooltip)
     }
 
     /** #620: a locale not checked for missing keys is listed, but turned the badge to "partial". */
@@ -142,8 +143,8 @@ class I18nGutterIconProviderTest : PlatformBaseTest() {
         val file = myFixture.configureByText("Dashboard.tsx", twoNamespaceComponent("dashboard:stats.title"))
 
         val tooltip = tooltip(file)!!
-        Assertions.assertTrue(tooltip.contains("All locales resolved (2/2)"), tooltip)
-        Assertions.assertTrue(tooltip.contains("es (not checked)"), tooltip)
+        Assertions.assertTrue(tooltip.contains(PluginBundle.message("gutter.tooltip.resolved", "2")), tooltip)
+        Assertions.assertTrue(tooltip.contains("es " + PluginBundle.message("gutter.tooltip.not.checked")), tooltip)
     }
 
     @Test
@@ -153,7 +154,7 @@ class I18nGutterIconProviderTest : PlatformBaseTest() {
         val file = myFixture.configureByText("Dashboard.tsx", twoNamespaceComponent("dashboard:stats.title"))
 
         val tooltip = tooltip(file)!!
-        Assertions.assertTrue(tooltip.contains("Partial translation (1/2 locales)"), tooltip)
+        Assertions.assertTrue(tooltip.contains(PluginBundle.message("gutter.tooltip.partial", "1", "2")), tooltip)
     }
 
     /**
@@ -220,5 +221,17 @@ class I18nGutterIconProviderTest : PlatformBaseTest() {
             .filter { it.lineMarkerTooltip?.contains("i18n:") == true }
         Assertions.assertEquals(1, badges.size, "${badges.map { it.lineMarkerTooltip }}")
         Assertions.assertEquals("'order.title'", myFixture.editor.document.text.substring(badges.single().startOffset, badges.single().endOffset))
+    }
+
+    /** The tooltip texts come from the bundle; the English wording is the one shown before they moved there. */
+    @Test
+    fun tooltipTextsKeepTheirEnglishWording() {
+        Assertions.assertEquals("All locales resolved (3/3)", PluginBundle.message("gutter.tooltip.resolved", "3"))
+        Assertions.assertEquals("Missing in all locales (0/3)", PluginBundle.message("gutter.tooltip.missing", "3"))
+        Assertions.assertEquals(
+            "Partial translation (1/3 locales)",
+            PluginBundle.message("gutter.tooltip.partial", "1", "3"),
+        )
+        Assertions.assertEquals("(not checked)", PluginBundle.message("gutter.tooltip.not.checked"))
     }
 }
