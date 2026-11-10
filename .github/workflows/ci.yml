@@ -1,10 +1,14 @@
 name: CI
 
 # The pages under docs/, the issue templates and the contributor guides reach no build: a change
-# to them alone runs nothing, on the pull request or on main (8 of the last 150 commits, two runs
-# each). README.md and CHANGELOG.md stay in: the descriptor is rendered from them. docs/img is the
-# baseline of the UI screenshots, which no workflow takes. The `main-1` ruleset requires no status
-# check, so a pull request with no run still merges.
+# to them alone runs nothing (8 of the last 150 commits, two runs each). README.md and CHANGELOG.md
+# stay in: the descriptor is rendered from them. docs/img is the baseline of the UI screenshots,
+# which no workflow takes.
+#
+# On main, `paths-ignore` skips the run. Not on a pull request: the `main-1` ruleset requires the
+# `test`, `lint` and `descriptor` checks, and a run that never starts never reports them, so a
+# docs-only pull request would wait for them forever and never auto-merge. There the run starts,
+# and the `changes` job skips the jobs behind those checks; a job skipped by `if:` reads as passed.
 on:
   push:
     branches: [ main ]
@@ -16,12 +20,6 @@ on:
       - 'LICENSE'
   pull_request:
     branches: [ main ]
-    paths-ignore:
-      - 'docs/**'
-      - '.github/ISSUE_TEMPLATE/**'
-      - 'CONTRIBUTING.md'
-      - 'RELEASING.md'
-      - 'LICENSE'
 
 # A push onto a pull request makes the run already in flight obsolete. Cancelling it there frees
 # the runner instead of queueing a second full IntelliJ suite behind the first. On main every
@@ -33,6 +31,33 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Whether the pull request touches anything a build reads: the list `paths-ignore` holds on
+  # push, kept in step with it. `true` on a push and whenever the file list cannot be read, so a
+  # failure here never skips the suite.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.files.outputs.code }}
+    steps:
+      - id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          code=true
+          if [ "$EVENT" = pull_request ] && files=$(gh pr diff "$PR" --repo "$GITHUB_REPOSITORY" --name-only); then
+            if [ -n "$files" ] && ! printf '%s\n' "$files" \
+                | grep -qvE '^(docs/|\.github/ISSUE_TEMPLATE/|CONTRIBUTING\.md$|RELEASING\.md$|LICENSE$)'; then
+              code=false
+            fi
+          fi
+          echo "Files a build reads: $code"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   # The plugin's suite, split across four runners. In one job it took 8½ of the job's 11½
   # minutes; the fixture cannot fork (--max-workers=1), so the split is by machine. Gradle assigns
   # each test class to a shard by a stable hash of its name (`-PtestShard`, build.gradle.kts):
@@ -49,7 +74,8 @@ jobs:
   # for one more runner. A shard takes 8 minutes at most; a fixture that hangs would otherwise
   # hold its runner for the 6-hour default.
   test-shard:
-    if: ${{ !startsWith(github.head_ref, 'release/v') }}
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' && !startsWith(github.head_ref, 'release/v') }}
     name: test shard ${{ matrix.shard }}/4
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -151,10 +177,11 @@ jobs:
   # Named `test`, the check the pull request waits on. It merges the shards' coverage and
   # comments it. `if: always()` and the first step matter: a job that `needs` a failed shard is
   # otherwise skipped, and a skipped check reads as passed. Skipped on purpose on a release pull
-  # request, like the shards.
+  # request and on a docs-only one, like the shards. When `changes` itself fails, the job runs and
+  # fails on the skipped shards rather than reading as passed.
   test:
-    needs: test-shard
-    if: ${{ always() && !startsWith(github.head_ref, 'release/v') }}
+    needs: [ changes, test-shard ]
+    if: ${{ always() && !startsWith(github.head_ref, 'release/v') && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -279,6 +306,8 @@ jobs:
   # Fails on a finding its module's baseline does not hold: the code that predates the rules passes,
   # new code is held to them. Apart from the shards, so a lint failure reads as such.
   lint:
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -320,6 +349,8 @@ jobs:
   # and with nothing left to catch it. Patching the changelog under a throwaway version here
   # reproduces exactly what `Prepare Release` does, on every pull request.
   descriptor:
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
