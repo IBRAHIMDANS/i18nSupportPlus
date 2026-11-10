@@ -10,7 +10,7 @@ Off until a project turns it on, in *Settings | Tools | i18n Support Plus | Mach
 
 - **OpenAI-compatible**, pointing at a local Ollama (`http://localhost:11434`) — nothing leaves the machine — or at OpenAI, Mistral, Groq, OpenRouter or LM Studio;
 - **LibreTranslate**, local as well;
-- **DeepL** and **Google Cloud Translation**, with your API key.
+- **DeepL** and **Google Cloud Translation**, with your API key, sent in a request header (`X-goog-api-key` for Google), never in the URL.
 
 Each engine's URL, headers, request body and the path of the translation in the answer can be edited, and *Test* translates a sample. The glossary, one term per line, protects a name from translation (`Acme`) or gives a term's translations (`cart = fr: panier; de: Warenkorb`), sent to DeepL as a glossary and to the LLM engines in their prompt.
 
