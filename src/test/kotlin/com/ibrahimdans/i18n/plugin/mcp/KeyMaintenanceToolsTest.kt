@@ -5,9 +5,11 @@ import com.ibrahimdans.i18n.plugin.check.ValueProblem
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
@@ -24,6 +26,13 @@ class KeyMaintenanceToolsTest : PlatformBaseTest() {
     private val config = Config(defaultNs = "translation")
 
     private fun tools() = KeyMaintenanceTools(project)
+
+    /** A key created as `i18n_create_key` creates it: planned under a read action off the EDT, written on the EDT, then read back. */
+    private fun KeyMaintenanceTools.create(module: String?, key: String, values: Map<String, String>, allowDuplicate: Boolean = false) =
+        readOffEdt { planCreate(module, key, values, allowDuplicate) }.let { plan ->
+            applyCreate(plan)
+            ReadAction.compute<KeyMaintenanceTools.CreateResult, RuntimeException> { created(plan) }
+        }
 
     private fun seed(): Pair<PsiFile, PsiFile> {
         val en = myFixture.addFileToProject(
@@ -251,11 +260,42 @@ class KeyMaintenanceToolsTest : PlatformBaseTest() {
     }
 
     @Test
+    fun `a key whose files change between the plan and the write is refused, nothing created`() = myFixture.runWithConfig(config) {
+        val (en, _) = seed()
+        val plan = readOffEdt { tools().planCreate(null, "common:archive", mapOf("en" to "Archive")) }
+
+        edit(en, "\"title\": \"Title\"" to "\"title\": \"Title\", \"archive\": \"Stored\"")
+        val refused = Assertions.assertThrows(TranslationAgentTools.Refused::class.java) { tools().applyCreate(plan) }
+
+        Assertions.assertEquals(KeyMaintenanceTools.CREATE_CHANGED, refused.message)
+        Assertions.assertTrue("\"archive\": \"Stored\"" in text(en) && "\"Archive\"" !in text(en), text(en))
+    }
+
+    @Test
+    fun `keys whose files change between the search and the delete are refused, nothing deleted`() = myFixture.runWithConfig(config) {
+        val (en, _) = seed()
+        val plan = offEdt { tools().planDelete(null, listOf("common:unused")) }
+        Assertions.assertEquals(listOf("common:unused"), plan.keys)
+
+        edit(en, "\"Unused\"" to "\"Unused still\"")
+        val refused = Assertions.assertThrows(TranslationAgentTools.Refused::class.java) { tools().applyDelete(plan) }
+
+        Assertions.assertEquals(KeyMaintenanceTools.DELETE_CHANGED, refused.message)
+        Assertions.assertTrue("\"unused\": \"Unused still\"" in text(en), text(en))
+    }
+
+    private fun edit(file: PsiFile, replacement: Pair<String, String>) = WriteCommandAction.runWriteCommandAction(project) {
+        val document = PsiDocumentManager.getInstance(project).getDocument(file)!!
+        document.setText(document.text.replace(replacement.first, replacement.second))
+        PsiDocumentManager.getInstance(project).commitDocument(document)
+    }
+
+    @Test
     fun `only a key no code uses is deleted, in one undoable command`() = myFixture.runWithConfig(config.copy(keptKeys = "common:kept")) {
         val (en, _) = seed()
 
-        val (deletable, rejected) = tools().deletable(null, listOf("common:unused", "common:title", "common:kept", "common:nowhere"))
-        val result = tools().delete(null, deletable, rejected)
+        val plan = offEdt { tools().planDelete(null, listOf("common:unused", "common:title", "common:kept", "common:nowhere")) }
+        val result = tools().applyDelete(plan)
 
         Assertions.assertEquals(listOf("common:unused"), result.deleted)
         Assertions.assertEquals(1, result.entries)

@@ -86,7 +86,10 @@ class I18nMcpToolset : McpToolset {
         @McpDescription(description = "Locale to write, as listed by i18n_list_modules") locale: String,
         @McpDescription(description = "Key to translated text, keys as returned by i18n_missing_translations or i18n_stale_translations") values: Map<String, String>,
         @McpDescription(description = "Module name from i18n_list_modules; omit when there is only one") module: String? = null,
-    ): String = call { tools, client -> withContext(Dispatchers.EDT) { tools.write(module, locale, values, client) } }
+    ): String = call { tools, client ->
+        val plan = readAction { tools.planWrite(module, locale, values, client) }
+        withContext(Dispatchers.EDT) { tools.applyWrite(plan) }
+    }
 
     @McpTool(name = "i18n_check")
     @McpDescription(
@@ -167,7 +170,13 @@ class I18nMcpToolset : McpToolset {
         @McpDescription(description = "Locale to text, the reference locale's included, e.g. {\"en\": \"Archive\", \"fr\": \"Archiver\"}") values: Map<String, String>,
         @McpDescription(description = "Module name from i18n_list_modules; omit when there is only one") module: String? = null,
         @McpDescription(description = "Create the key even when another key holds the same reference value") allowDuplicate: Boolean = false,
-    ): String = maintain { tools, _ -> withContext(Dispatchers.EDT) { tools.create(module, key, values, allowDuplicate) } }
+    ): String = maintain { tools, _ ->
+        val plan = readAction { tools.planCreate(module, key, values, allowDuplicate) }
+        plan.done ?: run {
+            withContext(Dispatchers.EDT) { tools.applyCreate(plan) }
+            readAction { tools.created(plan) }
+        }
+    }
 
     @McpTool(name = "i18n_delete_unused_keys")
     @McpDescription(
@@ -179,8 +188,8 @@ class I18nMcpToolset : McpToolset {
         @McpDescription(description = "Keys to delete, as i18n_check spells them") keys: List<String>,
         @McpDescription(description = "Module name from i18n_list_modules; omit when there is only one") module: String? = null,
     ): String = maintain { tools, _ ->
-        val (deletable, rejected) = withContext(Dispatchers.Default) { tools.deletable(module, keys) }
-        withContext(Dispatchers.EDT) { tools.delete(module, deletable, rejected) }
+        val plan = withContext(Dispatchers.Default) { tools.planDelete(module, keys) }
+        withContext(Dispatchers.EDT) { tools.applyDelete(plan) }
     }
 
     /** [block] run for the calling project and MCP client, its result as JSON; a refusal as the MCP error the agent reads. */

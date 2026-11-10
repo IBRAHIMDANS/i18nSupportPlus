@@ -7,6 +7,7 @@ import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.review.Review
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
+import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.translate.GlossaryTerm
 import com.ibrahimdans.i18n.plugin.translate.MachineTranslationSettings
@@ -70,11 +71,13 @@ class TranslationAgentTools(private val project: Project) {
     /** Where a module keeps its reviews; a test points it at a fixture folder. */
     internal var reviewRootOf: (ModuleConfig?) -> VirtualFile? = { ReviewLocation.rootOf(project, it) }
 
-    /** Runs between what a write read and its command; a test edits a value there, as a user could. */
+    private val scopes = ModuleScopes(project)
+
+    /** Runs on the EDT between a write's plan and its command; a test edits a value there, as a user could. */
     internal var beforeWrite: () -> Unit = {}
 
     /** Every translation module, the project as one when none is configured. */
-    fun modules(): List<ModuleInfo> = scopes().map { (name, module) ->
+    fun modules(): List<ModuleInfo> = scopes.all().map { (name, module) ->
         val locales = TranslationDataLoader.discoverLocales(project, module)
         val config = Settings.getInstance(project).config()
         ModuleInfo(name, sourceOf(module, locales).orEmpty(), locales, reviewsOn(module) != null, locales.filter(config::ignoresLocale))
@@ -85,7 +88,7 @@ class TranslationAgentTools(private val project: Project) {
      * project's glossary for [locale] and the translations already there that share a word with the page.
      */
     fun missing(moduleName: String?, locale: String, limit: Int): MissingPage {
-        val (name, module) = scope(moduleName)
+        val (name, module) = scopes.named(moduleName)
         val (source, translations, items) = snapshot(module, locale)
         val page = items.take(limit.coerceAtLeast(1)).map { Missing(it.key, it.sent, it.needsReview, it.skipped) }
         val existing = translations.values.mapNotNull { values ->
@@ -104,7 +107,7 @@ class TranslationAgentTools(private val project: Project) {
      * source a translation was reviewed on is what tells it stale.
      */
     fun stale(moduleName: String?, locale: String, limit: Int): StalePage {
-        val (name, module) = scope(moduleName)
+        val (name, module) = scopes.named(moduleName)
         val (source, translations, _) = snapshot(module, locale)
         val root = reviewsOn(module) ?: throw Refused(REVIEWS_OFF)
         val items = staleOf(root, module, source, locale, translations)
@@ -113,15 +116,14 @@ class TranslationAgentTools(private val project: Project) {
     }
 
     /**
-     * Writes into [locale] of [moduleName] each of [values] (`key -> text`) that fills a missing
-     * value, or replaces a stale one, with the placeholders of its source; every other one is
-     * returned with the reason. Staleness is read when writing: a value fixed since it was listed is
-     * refused, never replaced. The values written are marked to review as coming from [client] when
-     * the module keeps reviews, with the source text the agent was given — none for a plural form
-     * read from `other`.
+     * What [values] (`key -> text`) a write into [locale] of [moduleName] is to write: each one that
+     * fills a missing value, or replaces a stale one, with the placeholders of its source; every
+     * other one with the reason. The values written are marked to review as coming from [client]
+     * when the module keeps reviews, with the source text the agent was given — none for a plural
+     * form read from `other`. Needs a read action, off the EDT: [applyWrite] writes it.
      */
-    fun write(moduleName: String?, locale: String, values: Map<String, String>, client: String): WriteResult {
-        val (_, module) = scope(moduleName)
+    internal fun planWrite(moduleName: String?, locale: String, values: Map<String, String>, client: String): WritePlan {
+        val (_, module) = scopes.named(moduleName)
         val (source, translations, items) = snapshot(module, locale)
         val root = reviewsOn(module)
         val missing = items.associateBy { it.key }
@@ -140,27 +142,59 @@ class TranslationAgentTools(private val project: Project) {
                     else { accepted[key] = text; continue }
             }
         }
-        if (accepted.isEmpty()) return WriteResult(emptyList(), rejected)
         // `key -> value read above`: a stale value is replaced only while it is still that one.
         val replaced = accepted.keys.mapNotNull { key -> stale[key]?.current?.let { key to it } }.toMap()
+        val sources = accepted.keys.mapNotNull { key ->
+            MachineFill.reviewSourceOf(missing[key] ?: stale.getValue(key), source)?.let { key to it }
+        }.toMap()
+        val origin = Review.machineOrigin(client.ifBlank { UNKNOWN_CLIENT })
+        return WritePlan(module, locale, accepted, rejected, replaced, root, origin, sources, DocumentStamps.of(project, module))
+    }
+
+    /**
+     * Writes [plan] in one undoable command. Staleness is read when planning: a value fixed since it
+     * was listed is refused, never replaced; one changed between the plan and this write is left as it
+     * is, refused with [CHANGED]. Runs on the EDT, where it reads the files again only when one of
+     * them changed since the plan.
+     */
+    internal fun applyWrite(plan: WritePlan): WriteResult {
+        val accepted = sortedMapOf<String, String>().apply { putAll(plan.accepted) }
+        val rejected = sortedMapOf<String, String>().apply { putAll(plan.rejected) }
+        if (accepted.isEmpty()) return WriteResult(emptyList(), rejected)
         beforeWrite()
-        // What the write will leave as it is: a value changed since it was read above.
-        val now = TranslationDataLoader.loadAllTranslations(project, module)
-        val changed = accepted.keys.filter { key ->
-            val value = now[key]?.get(locale)
-            replaced[key]?.let { value != it } ?: !value.isNullOrBlank()
+        if (plan.stamps.changed()) {
+            // What the write will leave as it is: a value changed since the plan read it.
+            val now = TranslationDataLoader.loadAllTranslations(project, plan.module)
+            val changed = accepted.keys.filter { key ->
+                val value = now[key]?.get(plan.locale)
+                plan.replaced[key]?.let { value != it } ?: !value.isNullOrBlank()
+            }
+            changed.forEach { key -> accepted.remove(key); rejected[key] = CHANGED }
         }
-        changed.forEach { key -> accepted.remove(key); rejected[key] = CHANGED }
         if (accepted.isNotEmpty()) {
-            val origin = Review.machineOrigin(client.ifBlank { UNKNOWN_CLIENT })
-            val sources = accepted.keys.mapNotNull { key ->
-                MachineFill.reviewSourceOf(missing[key] ?: stale.getValue(key), source)?.let { key to it }
-            }.toMap()
-            val marks = root?.let { MachineFill.ReviewMarks(it, mapOf(locale to accepted.mapValues { origin }), mapOf(locale to sources)) }
-            MachineFill.write(project, module, mapOf(locale to accepted), marks, mapOf(locale to replaced))
+            val marks = plan.reviewRoot?.let {
+                MachineFill.ReviewMarks(it, mapOf(plan.locale to accepted.mapValues { plan.origin }), mapOf(plan.locale to plan.reviewSources))
+            }
+            MachineFill.write(project, plan.module, mapOf(plan.locale to accepted), marks, mapOf(plan.locale to plan.replaced))
         }
         return WriteResult(accepted.keys.toList(), rejected)
     }
+
+    /**
+     * A write checked under a read action: [accepted] and [rejected] (`key -> reason`), the stale
+     * values it replaces as read ([replaced]), and the review marks it leaves under [reviewRoot].
+     */
+    internal class WritePlan(
+        val module: ModuleConfig?,
+        val locale: String,
+        val accepted: Map<String, String>,
+        val rejected: Map<String, String>,
+        val replaced: Map<String, String>,
+        val reviewRoot: VirtualFile?,
+        val origin: String,
+        val reviewSources: Map<String, ReviewSource>,
+        val stamps: DocumentStamps,
+    )
 
     /**
      * Why [text], written for [item], is not an ICU plural of [locale]: a block whose branches are not
@@ -200,22 +234,6 @@ class TranslationAgentTools(private val project: Project) {
     /** The review root of [module], only when reviews are turned on there: an agent never turns them on. */
     private fun reviewsOn(module: ModuleConfig?): VirtualFile? =
         reviewRootOf(module)?.takeIf { ReviewStore.getInstance(project).isEnabled(it) }
-
-    /** The modules by name, as *Fill Missing Translations* offers them; one unnamed scope without any. */
-    private fun scopes(): List<Pair<String, ModuleConfig?>> {
-        val modules = Settings.getInstance(project).config().modules.filter { it.rootDirectory.isNotBlank() }
-        if (modules.size < 2) return listOf(PROJECT to null)
-        return modules.map { it.name.ifBlank { it.rootDirectory } to it }
-    }
-
-    private fun scope(name: String?): Pair<String, ModuleConfig?> {
-        val scopes = scopes()
-        if (name.isNullOrBlank()) {
-            return scopes.singleOrNull() ?: throw Refused("Several modules: name one of ${scopes.joinToString { it.first }}")
-        }
-        return scopes.firstOrNull { it.first == name }
-            ?: throw Refused("Unknown module '$name'. Modules: ${scopes.joinToString { it.first }}")
-    }
 
     companion object {
         const val PROJECT = "project"
