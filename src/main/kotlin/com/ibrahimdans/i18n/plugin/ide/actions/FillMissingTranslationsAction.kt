@@ -301,7 +301,7 @@ internal object MachineFill {
             ) continue
             val sourceForms = forms.mapNotNull { (category, key) -> translations[key]?.get(source)?.let { category to it } }.toMap()
             val existing = forms.mapNotNull { (category, key) -> translations[key]?.get(target)?.let { category to it } }.toMap()
-            when (val plan = PluralTranslationPlan.of(sourceForms, target, existing)) {
+            when (val plan = PluralTranslationPlan.of(sourceForms, target, existing, ordinal = PluralTranslationPlan.isOrdinalGroup(otherKey))) {
                 PluralTranslationPlan.Plan.IcuPlural ->
                     if (existing.values.all { it.isBlank() }) {
                         items += Item(otherKey, sourceForms[PluralCategories.OTHER].orEmpty(), skipped = PluginBundle.message("action.fill.icu"))

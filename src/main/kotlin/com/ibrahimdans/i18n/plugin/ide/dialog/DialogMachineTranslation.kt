@@ -190,7 +190,7 @@ internal class DialogMachineTranslation(
                 return@mapNotNull MachineRequest(locale, area, icu.source, asSource(source.second))
             }
             val sourceForms = if (donor != null) mapOf(plural.first to source.second) else mapOf(PluralCategories.OTHER to source.second)
-            when (val plan = PluralTranslationPlan.of(sourceForms, locale)) {
+            when (val plan = PluralTranslationPlan.of(sourceForms, locale, ordinal = PluralTranslationPlan.isOrdinalGroup(plural.second))) {
                 PluralTranslationPlan.Plan.IcuPlural -> {
                     notes += PluginBundle.message("dialog.translation.translate.icu.plural", locale); null
                 }
