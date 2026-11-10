@@ -100,4 +100,15 @@ class PluralKeyTest {
         assertEquals(null, PluralKey.nestedOtherForm("steps.title", "."))
         assertEquals(null, PluralKey.nestedOtherForm("steps_few", "."), "the flat form is stripSuffix's")
     }
+
+    @Test
+    fun `an ordinal group takes the ordinal categories, a cardinal group the cardinal ones`() {
+        assertEquals(true, PluralKey.isOrdinalGroup("place_ordinal"))
+        assertEquals(false, PluralKey.isOrdinalGroup("place"))
+        assertEquals(setOf("other"), PluralKey.categoriesOf("place_ordinal", "ru"))
+        assertEquals(setOf("one", "few", "many", "other"), PluralKey.categoriesOf("place", "ru"))
+        // The large-number many is a cardinal form only.
+        assertEquals(setOf("one", "other"), PluralKey.categoriesOf("place_ordinal", "fr", largeNumberForms = true))
+        assertEquals(setOf("one", "many", "other"), PluralKey.categoriesOf("place", "fr", largeNumberForms = true))
+    }
 }

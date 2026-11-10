@@ -126,6 +126,41 @@ class MissingPluralFormsInspectionTest : PlatformBaseTest() {
         )
     }
 
+    /** Russian ordinals have a single form: `place_ordinal_other` alone is complete. */
+    @Test
+    fun aRussianOrdinalGroupOfOtherAloneIsComplete() {
+        assertTrue(pluralWarnings("locales/ru/common.json", """{"place_ordinal_other": "{{count}}-е место"}""").isEmpty())
+    }
+
+    @Test
+    fun englishOrdinalsNeedOneTwoFewAndOther() {
+        val warnings = pluralWarnings(
+            "locales/en/common.json",
+            """{"place_ordinal_one": "{{count}}st", "place_ordinal_few": "{{count}}rd", "place_ordinal_other": "{{count}}th"}"""
+        )
+        Assertions.assertEquals(listOf("Plural 'place_ordinal' lacks the form(s) two that 'en' uses"), warnings)
+    }
+
+    @Test
+    fun cardinalAndOrdinalGroupsOfOneKeyAreCheckedEachWithItsCategories() {
+        val warnings = pluralWarnings(
+            "locales/ru/common.json",
+            """{"place_one": "место", "place_other": "мест", "place_ordinal_other": "{{count}}-е место"}"""
+        )
+        Assertions.assertEquals(listOf("Plural 'place' lacks the form(s) few, many that 'ru' uses"), warnings)
+    }
+
+    @Test
+    fun theQuickFixAddsTheMissingOrdinalForms() {
+        pluralWarnings("locales/en/common.json", """{"place_ordinal_one": "{{count}}st", "place_ordinal_other": "{{count}}th"}""")
+        val fix = myFixture.getAllQuickFixes().single { it.text.startsWith("Add place_ordinal_two, place_ordinal_few") }
+        myFixture.launchActionAndWait(fix)
+
+        val text = FileDocumentManager.getInstance().getDocument(myFixture.file.virtualFile)!!.text
+        assertTrue(text.contains("\"place_ordinal_two\": \"\"") && text.contains("\"place_ordinal_few\": \"\""), text)
+        assertTrue(!text.contains("place_ordinal_many") && !text.contains("place_ordinal_zero"), text)
+    }
+
     /** `en-GB` inherits from `en` (#767): a form its language's file holds is not missing there. */
     @Test
     fun aRegionalFileInheritsTheFormsOfItsLanguage() {

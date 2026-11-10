@@ -292,6 +292,12 @@ class KeyMaintenanceTools(private val project: Project) {
         val plan = level.plan(newName)
         if (plan.conflict) throw Refused("'$newKey' already exists: a key is never merged into another")
         if (plan.files == 0) throw Refused("No translation holds '$key' in this module")
+        KeyLevelRename.unwritableChar(newName, plan.edits.map { it.document.getText(it.range) })?.let { char ->
+            throw Refused(
+                "'$newName' cannot be written as a key name here: the character $char would break a translation file " +
+                    "or a call site that the rename rewrites. Choose a name without it",
+            )
+        }
         val stamps = DocumentStamps.of(plan.edits.map { it.document })
         return RenamePlan(RenameResult(key, newKey, plan.files, plan.callSites, plan.dynamicUsages), plan, stamps)
     }

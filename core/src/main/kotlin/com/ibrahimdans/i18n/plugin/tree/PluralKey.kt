@@ -62,6 +62,17 @@ object PluralKey {
     fun groupBase(key: String): String? = CLDR_SUFFIXES.firstOrNull { key.endsWith(it) }?.let { key.dropLast(it.length) }
 
     /**
+     * Whether the group of [base] — a [groupBase] — holds ordinal forms: `place_ordinal` for
+     * `place_ordinal_few`. Its forms take the ordinal categories of the language
+     * ([PluralCategories.ordinalOf]), not the cardinal ones.
+     */
+    fun isOrdinalGroup(base: String): Boolean = base.endsWith(ORDINAL_INFIX)
+
+    /** The categories the group of [base] needs in [locale]: ordinal or cardinal, per [isOrdinalGroup]. */
+    fun categoriesOf(base: String, locale: String, largeNumberForms: Boolean = false): Set<String> =
+        if (isOrdinalGroup(base)) PluralCategories.ordinalOf(locale) else PluralCategories.of(locale, largeNumberForms)
+
+    /**
      * The `other` form of [key]'s CLDR group — `item_other` for `item_few`, `place_ordinal_other`
      * for `place_ordinal_few` — or null when [key] is no CLDR form or is that form itself.
      */
