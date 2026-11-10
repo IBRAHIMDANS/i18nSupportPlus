@@ -115,7 +115,7 @@ With the caret on an intermediate level of a key (`button` in `common:button.sav
 
 | Quick Fix | Trigger |
 |-----------|---------|
-| Create missing key | Unresolved key annotation |
+| Create missing key | Unresolved key (inspection `I18nUnresolvedKey` in JavaScript, TypeScript and Vue; annotation in PHP, Twig and Angular) |
 | Create translation file | Missing namespace file annotation |
 | Create namespace on the fly | `+` button in Create Translation dialog |
 

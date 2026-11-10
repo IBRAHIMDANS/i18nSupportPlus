@@ -9,7 +9,8 @@ The profiles below enable the checks a build should fail on; any other inspectio
 
 | What | Inspection id |
 |------|---------------|
-| A key or namespace the code uses and no file holds | `Annotator` — the plugin's annotator, run as an inspection |
+| A key or namespace the code uses and no file holds, in JavaScript, TypeScript, Vue, Svelte or Astro | `I18nUnresolvedKey` |
+| The same in PHP, Blade, Twig or an Angular template | `Annotator` — the plugin's annotator, run as an inspection |
 | A key of the reference locale missing from another locale | `I18nMissingKey` |
 | A placeholder present in one locale and not in another | `I18nPlaceholderConsistency` |
 | A plural form the locale's language needs | `I18nMissingPluralForms` |
@@ -34,8 +35,13 @@ locally as in CI. Locally, with the token exported:
 docker run --rm -v "$PWD":/data/project -e QODANA_TOKEN jetbrains/qodana-js:2026.2
 ```
 
-`Annotator` is what reports an unresolved key in the code; it also reports the errors of the
-languages themselves (TypeScript, JSON). Drop it from `include` if those already fail elsewhere.
+`I18nUnresolvedKey` reports an unresolved key of JavaScript, TypeScript, Vue, Svelte and Astro code.
+`Annotator` still reports the ones of PHP, Blade, Twig and Angular templates; it also reports the
+errors of the languages themselves (TypeScript, JSON). Drop it from `include` if your project has
+none of those templates, or if those errors already fail elsewhere.
+
+The runs below were made before `I18nUnresolvedKey` existed: the `Unresolved key` of `App.tsx` is now
+listed under `I18nUnresolvedKey` rather than `Annotator`.
 
 Checked with `jetbrains/qodana-js:2026.2` on `examples/react-multi-namespace/`, a key removed from
 `fr/common.json` and `t('does.not.exist')` added to `App.tsx`: the plugin is installed from the
