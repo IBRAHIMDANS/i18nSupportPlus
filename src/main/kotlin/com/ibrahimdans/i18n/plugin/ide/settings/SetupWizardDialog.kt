@@ -204,6 +204,12 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
         /** The plan the form currently shows; a rebuild would discard what the user typed. */
         private var shownPlan: WizardPlan.Plan? = null
 
+        /** What [shownPlan] offers, given the settings in effect and those `i18n-check.json` holds. */
+        private var shownForm: WizardPlan.Form? = null
+
+        /** The plural separator in effect, read with the rest of the form for [_commit]. */
+        private var pluralSeparator = Config().pluralSeparator
+
         override fun getComponent(): JComponent = body
         override fun getPreferredFocusedComponent(): JComponent = rootField
 
@@ -226,22 +232,30 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
          */
         override fun _commit(finishChosen: Boolean) {
             val shown = setOf(SeparatorRules.Separator.NAMESPACE, SeparatorRules.Separator.KEY)
-            SeparatorRules.check(nsSeparatorField.text, keySeparatorField.text, Settings.getInstance(project).pluralSeparator)
+            SeparatorRules.check(nsSeparatorField.text, keySeparatorField.text, pluralSeparator)
                 .firstOrNull { it.separator in shown }
                 ?.let { throw CommitStepException(it.text()) }
         }
 
+        /**
+         * The settings in effect, `i18n-check.json` included, are read once per rebuild: the stored
+         * ones alone made the wizard propose, and *Apply* drop without a word, what the file sets.
+         */
         private fun rebuild(plan: WizardPlan.Plan) {
             val settings = Settings.getInstance(project)
-            val defaults = Config()
+            val current = settings.config()
+            pluralSeparator = current.pluralSeparator
+            val form = WizardPlan.formOf(
+                plan,
+                current,
+                held = settings.configFileSettings().keys,
+                autoPickedLocalization = Extensions.LOCALIZATION.extensionList.firstOrNull()?.config()?.id(),
+            )
+            shownForm = form
 
-            rootField.text = plan.root.detected.orEmpty()
-            // The configuration's separators are offered only over a value nobody chose, as the
-            // deductions are: reopening the wizard never undoes a separator set by hand.
-            keySeparatorField.text = plan.separators?.key
-                ?.takeIf { settings.keySeparator == defaults.keySeparator } ?: settings.keySeparator
-            nsSeparatorField.text = plan.separators?.ns
-                ?.takeIf { settings.nsSeparator == defaults.nsSeparator } ?: settings.nsSeparator
+            fill(rootField, form.root)
+            fill(keySeparatorField, form.keySeparator)
+            fill(nsSeparatorField, form.nsSeparator)
             // Several catalogue roots are several applications: a module each is the answer that
             // keeps their keys apart, the widened root the one that pools them.
             splitIntoModules.isSelected = plan.root.widened
@@ -267,13 +281,15 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
             applyBoxes.clear()
             valueFields.clear()
             for (deduction in plan.deductions) {
+                val offer = form.offers[deduction.field]
                 applyBoxes[deduction.field] = JBCheckBox(labelOf(deduction.field)).apply {
-                    // Pre-ticked only while the setting still holds its default: the wizard can
-                    // be reopened at any time, and it never overwrites a decision already made.
-                    isSelected = isUntouched(deduction.field, settings, defaults)
+                    isSelected = offer == WizardPlan.Offer.TICKED
+                    isEnabled = offer != WizardPlan.Offer.HELD
                 }
                 if (deduction.value.isNotEmpty()) {
-                    valueFields[deduction.field] = JBTextField(deduction.value, 16)
+                    valueFields[deduction.field] = JBTextField(deduction.value, 16).apply {
+                        isEnabled = offer != WizardPlan.Offer.HELD
+                    }
                 }
             }
 
@@ -319,6 +335,7 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
                 val configFile = plan.root.origin
                 cell(rootField).comment(
                     when {
+                        shownForm?.root?.held == true -> heldComment()
                         plan.root.detected == null -> PluginBundle.message("wizard.summary.root.missing")
                         configFile != null -> PluginBundle.message("wizard.summary.origin.file", configFile)
                         else -> PluginBundle.message(
@@ -358,16 +375,23 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
                 // Under its field, as the translations root's: a row comment starts at the empty label's margin.
                 row("") {
                     val box = cell(applyBoxes.getValue(deduction.field))
-                    val origin = originOf(deduction)
+                    val origin = if (shownForm?.offers?.get(deduction.field) == WizardPlan.Offer.HELD) heldComment()
+                    else originOf(deduction)
                     valueFields[deduction.field]?.let { cell(it).comment(origin) } ?: box.comment(origin)
                 }
             }
 
             row(PluginBundle.message("wizard.summary.field.keySeparator")) {
-                cell(keySeparatorField).comment(separatorOrigin(plan.separators?.key, keySeparatorField))
+                cell(keySeparatorField).comment(
+                    if (shownForm?.keySeparator?.held == true) heldComment()
+                    else separatorOrigin(plan.separators?.key, keySeparatorField)
+                )
             }
             row(PluginBundle.message("wizard.summary.field.nsSeparator")) {
-                cell(nsSeparatorField).comment(separatorOrigin(plan.separators?.ns, nsSeparatorField))
+                cell(nsSeparatorField).comment(
+                    if (shownForm?.nsSeparator?.held == true) heldComment()
+                    else separatorOrigin(plan.separators?.ns, nsSeparatorField)
+                )
             }
 
             if (RecommendedInspections.canEnable(project)) {
@@ -391,6 +415,15 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
             }
         }.apply { border = JBUI.Borders.empty(16) }
 
+        /** Said under a value `i18n-check.json` sets: *Apply* keeps the file's value. */
+        private fun heldComment(): String = PluginBundle.message("wizard.summary.held", ProjectConfigFile.PATH)
+
+        /** Shows [prefill] in [field], greyed when the file holds it. */
+        private fun fill(field: JBTextField, prefill: WizardPlan.Prefill) {
+            field.text = prefill.value
+            field.isEnabled = !prefill.held
+        }
+
         /** The configuration file, when the [field] shows the separator [stated] there. */
         private fun separatorOrigin(stated: String?, field: JBTextField): String? =
             shownPlan?.separators?.origin
@@ -413,21 +446,9 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
             WizardPlan.Field.REFERENCE_LOCALE -> PluginBundle.message("wizard.summary.field.referenceLocale")
         }
 
-        private fun isUntouched(field: WizardPlan.Field, settings: Settings, defaults: Config): Boolean = when (field) {
-            WizardPlan.Field.DEFAULT_NS -> settings.defaultNs == defaults.defaultNs
-            WizardPlan.Field.GETTEXT -> settings.gettext == defaults.gettext
-            WizardPlan.Field.FLAT_KEYS -> settings.flatKeys == defaults.flatKeys
-            WizardPlan.Field.PREFERRED_LOCALIZATION ->
-                WizardSettingsDeducer.isUntouchedPreferredLocalization(
-                    settings.preferredLocalization,
-                    Extensions.LOCALIZATION.extensionList.firstOrNull()?.config()?.id(),
-                )
-            WizardPlan.Field.REFERENCE_LOCALE -> settings.foldingPreferredLanguage == defaults.foldingPreferredLanguage
-        }
-
         /** The root field and the module boxes follow the split: one or the other is stored. */
         private fun syncSplit() {
-            rootField.isEnabled = !splitIntoModules.isSelected
+            rootField.isEnabled = !splitIntoModules.isSelected && shownForm?.root?.held != true
             moduleBoxes.forEach { (_, box) -> box.isEnabled = splitIntoModules.isSelected }
             codeRootFields.values.forEach { it.isEnabled = splitIntoModules.isSelected }
         }
@@ -442,16 +463,18 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
                 )
             }
             val splitting = plan.root.widened && splitIntoModules.isSelected && modules.any { it.enabled }
+            val form = shownForm
+            // A value the file holds is not written at all: *Apply* would keep the file's anyway.
             return WizardChoices(
-                translationsRoot = rootField.text.trim().takeUnless { splitting },
+                translationsRoot = rootField.text.trim().takeUnless { splitting || form?.root?.held == true },
                 modules = if (splitting) modules else emptyList(),
                 defaultNs = chosenValue(WizardPlan.Field.DEFAULT_NS),
                 gettext = true.takeIf { isTicked(WizardPlan.Field.GETTEXT) },
                 flatKeys = true.takeIf { isTicked(WizardPlan.Field.FLAT_KEYS) },
                 preferredLocalization = chosenValue(WizardPlan.Field.PREFERRED_LOCALIZATION),
                 referenceLocale = chosenValue(WizardPlan.Field.REFERENCE_LOCALE),
-                keySeparator = keySeparatorField.text,
-                nsSeparator = nsSeparatorField.text,
+                keySeparator = keySeparatorField.text.takeUnless { form?.keySeparator?.held == true },
+                nsSeparator = nsSeparatorField.text.takeUnless { form?.nsSeparator?.held == true },
                 templateModule = plan.template?.module?.takeIf { templateBox.isSelected }
             )
         }
