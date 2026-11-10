@@ -7,6 +7,7 @@ import com.intellij.json.psi.JsonFile
 import com.intellij.json.psi.JsonObject
 import com.intellij.json.psi.JsonStringLiteral
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.psi.PsiManager
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
@@ -97,4 +98,47 @@ class CleanupUnusedKeysActionTest : PlatformBaseTest() {
         Assertions.assertNull(valueAt("locales/en/common.json", "c"))
     }
 
+    /**
+     * The file left by deleting several keys, neighbours or not, in any order: commas, whitespace and
+     * blank lines exactly as deleting the properties one by one left them before the deletion went
+     * by runs of neighbouring properties (TASK-WRITE-COMMAND-COST). Expected texts captured from the
+     * one-by-one deletion, odd shapes included.
+     */
+    @Test
+    fun deleteKeys_leavesTheSameFileAsDeletingOneByOne() {
+        SHAPES.forEachIndexed { index, (content, keys, expected) ->
+            val path = "locales/en/shape$index.json"
+            addFileToProject(path, content)
+            action.deleteKeys(project, keys.map { "shape$index:$it" })
+            Assertions.assertEquals(expected, textOf(path), "shape $index, deleting $keys")
+        }
+    }
+
+    private fun textOf(path: String): String =
+        FileDocumentManager.getInstance().getDocument(myFixture.findFileInTempDir(path))!!.text
+
+    private companion object {
+        const val PRETTY = "{\n  \"a\": \"1\",\n  \"b\": \"2\",\n  \"c\": \"3\",\n  \"d\": \"4\"\n}"
+        const val NESTED = "{\n  \"menu\": {\n    \"a\": \"1\",\n    \"b\": \"2\"\n  },\n  \"x\": \"y\"\n}"
+        const val COMPACT = "{\"a\":\"1\",\"b\":\"2\",\"c\":\"3\"}"
+
+        /** (file, keys deleted in that order, file left). */
+        val SHAPES = listOf(
+            Triple(PRETTY, listOf("b", "c"), "{\n  \"a\": \"1\",\n  \"d\": \"4\"\n}"),
+            Triple(PRETTY, listOf("a", "b"), "{\n  \"c\": \"3\",\n  \"d\": \"4\"\n}"),
+            Triple(PRETTY, listOf("c", "d"), "{\n  \"a\": \"1\",\n  \"b\": \"2\"\n}"),
+            Triple(PRETTY, listOf("a", "c"), "{\n  \"b\": \"2\",\n  \"d\": \"4\"\n}"),
+            Triple(PRETTY, listOf("d", "b", "c"), "{\n  \"a\": \"1\"\n}"),
+            Triple(PRETTY, listOf("a", "b", "c", "d"), "{\n}"),
+            Triple(NESTED, listOf("menu.a", "menu.b"), "{\n  \"menu\": {\n  },\n  \"x\": \"y\"\n}"),
+            Triple(NESTED, listOf("menu.b", "x"), "{\n  \"menu\": {\n    \"a\": \"1\"\n  }\n}"),
+            Triple(COMPACT, listOf("a", "b"), "{\n  \"c\":\"3\"}"),
+            Triple(COMPACT, listOf("b", "c"), "{\"a\":\"1\"}"),
+            Triple(
+                "{\n  \"a\": \"1\", \"b\": \"2\",\n\n  \"c\": {\"d\": \"4\"},\n  \"e\": \"5\"\n}",
+                listOf("b", "c.d", "e"),
+                "{\n  \"a\": \"1\",\n\n  \"c\": {}\n}",
+            ),
+        )
+    }
 }

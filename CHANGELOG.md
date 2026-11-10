@@ -23,6 +23,7 @@
 - [Refactoring] **Renaming a key to a name already taken no longer creates a duplicate**: Shift+F6 on a key in the code used to write a second `cancel` into the object when `cancel` already existed, a `save.now` property no call reads back, or a quote that broke the file. Such a name is now refused with the reason, and nothing is written.
 - [Settings] **The setup wizard no longer offers a setting your shared `i18n-check.json` already sets**: the default namespace, the separators or the translations root the file holds used to be offered ticked, then dropped without a word when the wizard was applied. The wizard now shows the file's value, greyed, and says the file sets it.
 - [MCP] **An AI agent can no longer rename a key to a name that breaks your code**: `i18n_rename_key` used to turn `t('common:save')` into `t('common:don't')` when asked for `don't`; a quote or backslash that would break a call site or a translation file is now refused, as Shift+F6 refuses it.
+- [Cleanup] **Deleting unused keys no longer freezes the IDE for seconds on a large project**: *Clean Up Unused Keys* and an AI agent deleting keys now remove neighbouring keys of a file in one go, so deleting a whole group of keys in ten locales takes a fraction of a second instead of one to three, and scattered keys about half the time. The files are left exactly as before.
 
 ## 1.20.0 - 2026-11-09
 

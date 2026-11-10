@@ -15,7 +15,7 @@ import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.PluginCoroutineScope
 import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
 import com.ibrahimdans.i18n.plugin.utils.sourcesOf
-import com.ibrahimdans.i18n.plugin.utils.deletePropertyAndSeparator
+import com.ibrahimdans.i18n.plugin.utils.deletePropertiesAndSeparators
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.json.psi.JsonProperty
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -184,7 +184,7 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
             .withGlobalUndo()
             .withUndoConfirmationPolicy(UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION)
             .run<RuntimeException> {
-                properties.forEach { if (it.isValid) deletePropertyAndSeparator(it) }
+                deletePropertiesAndSeparators(properties)
                 ReviewMigration.remove(project, reviews)
             }
         return properties.size

@@ -68,3 +68,49 @@ private fun deleteWithSeparator(property: PsiElement) {
 private fun parseWhileAttached(property: PsiElement) {
     property.accept(object : PsiRecursiveElementWalkingVisitor() {})
 }
+
+/**
+ * Deletes [properties] as [deletePropertyAndSeparator] one after another would, with one PSI deletion
+ * per run of neighbouring JSON properties instead of two per property: the comma, then the property.
+ * Each PSI deletion is a transaction the platform syncs to the document and announces to every PSI
+ * listener; deleting a whole group of keys used to pay that 40 times per file.
+ *
+ * A run is a sequence of [properties] (and their `@key` blocks) of one object with nothing else
+ * between them but whitespace and commas — a kept property, a comment, ends it. Each run takes one
+ * comma with it, the one before it if any, else the one after: what deleting its properties one by
+ * one left. Properties of other formats (YAML) are deleted one by one. Must be called inside a write
+ * action.
+ */
+fun deletePropertiesAndSeparators(properties: List<PsiElement>) {
+    val targets = properties.filter { it.isValid }.flatMap { listOfNotNull(ArbMetadata.blockOf(it), it) }.distinct()
+    val (json, others) = targets.partition { it is JsonProperty }
+    json.groupBy { it.parent }.forEach { (parent, inParent) ->
+        if (parent != null && parent.isValid) runsOf(parent, inParent.toSet()).forEach(::deleteRun)
+    }
+    others.forEach { if (it.isValid) it.delete() }
+}
+
+/** The runs of [targets] among [parent]'s children, in file order: (first, last) of each. */
+private fun runsOf(parent: PsiElement, targets: Set<PsiElement>): List<Pair<PsiElement, PsiElement>> {
+    val runs = mutableListOf<MutableList<PsiElement>>()
+    var open = false
+    for (child in generateSequence(parent.firstChild) { it.nextSibling }) {
+        when {
+            child in targets -> if (open) runs.last() += child else { runs += mutableListOf(child); open = true }
+            child.text.isBlank() || child.text == "," -> Unit
+            else -> open = false
+        }
+    }
+    return runs.map { it.first() to it.last() }
+}
+
+private fun deleteRun(run: Pair<PsiElement, PsiElement>) {
+    val (first, last) = run
+    if (!first.isValid || !last.isValid) return
+    val prev = generateSequence(first.prevSibling) { it.prevSibling }.firstOrNull { it.text.isNotBlank() }
+    val next = generateSequence(last.nextSibling) { it.nextSibling }.firstOrNull { it.text.isNotBlank() }
+    val start = if (prev?.text == ",") prev else first
+    val end = if (prev?.text != "," && next?.text == ",") next else last
+    generateSequence(first) { it.nextSibling }.takeWhile { it != last.nextSibling }.forEach(::parseWhileAttached)
+    first.parent.deleteChildRange(start, end)
+}
