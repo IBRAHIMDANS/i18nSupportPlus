@@ -17,6 +17,7 @@
 - [Editor] **The gutter icon's tooltip follows the IDE language**: with the French language pack, the status of a key in each locale ("Toutes les locales résolues", "Traduction partielle", "non vérifiée") is no longer shown in English.
 - [Editor] **Every translation function folds its key and reads a template key**: `$tc('key')`, `i18n._('key')`, Lingui's imported `msg('key')` and the other functions your framework publishes now fold into their value like `t('key')`, and `` $tc(`role.${role}`) `` is checked like `` t(`role.${role}`) ``. A function outside your module's framework, or `toast.t('…')`, is still left alone.
 - [Editor] ***Create missing translations* no longer writes the key as the translation**: on a key some locales lack (*Partially translated keys* on), the quick fix wrote the key itself, such as `"test:root.sub.base"`, into each missing locale, a value that looked translated. It now opens the translation dialog, with the values the key already has and the missing locales left to fill; Cancel writes nothing, and one Ctrl+Z undoes what OK wrote.
+- [Refactoring] **Renaming a key to a name already taken no longer creates a duplicate**: Shift+F6 on a key in the code used to write a second `cancel` into the object when `cancel` already existed, a `save.now` property no call reads back, or a quote that broke the file. Such a name is now refused with the reason, and nothing is written.
 
 ## 1.20.0 - 2026-11-09
 
