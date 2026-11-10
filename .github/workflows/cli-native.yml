@@ -43,14 +43,14 @@ jobs:
 
       # GraalVM CE for JDK 21, what the spike measured. JAVA_HOME points to it: Gradle builds the jars
       # with it, and compare.sh runs them on it.
-      - uses: graalvm/setup-graalvm@v1
+      - uses: graalvm/setup-graalvm@f70bc8032f90a104502824a54bcb94b6f01715bc # v1.6.8
         with:
           java-version: '21'
           distribution: 'graalvm-community'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6.4.1
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
 
       - name: Build the CLI's jars
         run: ./gradlew :cli:installDist
