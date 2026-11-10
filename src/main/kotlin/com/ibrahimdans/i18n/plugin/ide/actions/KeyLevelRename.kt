@@ -93,9 +93,15 @@ internal class KeyLevelRename(
     /** The separator a written key is cut at, or null when keys are flat and a key is one segment. */
     private val separator: String? = config.keySeparator.takeUnless { config.usesFlatKeys() || it.isEmpty() }
 
+    /**
+     * Whether [newName] is already taken next to the level — a key, a level or a plural group of that
+     * name — in one of its sources: a rename to it would merge two keys. Needs a read action.
+     */
+    fun isTaken(newName: String): Boolean = sources.any { nodesAt(it, path.dropLast(1) + newName).isNotEmpty() }
+
     /** Builds the plan for [newName]; needs a read action. */
     fun plan(newName: String): Plan {
-        val conflict = sources.any { nodesAt(it, path.dropLast(1) + newName).isNotEmpty() }
+        val conflict = isTaken(newName)
         if (conflict || levelNodes.isEmpty()) return Plan(emptyList(), levelNodes.size, 0, emptyList(), conflict)
         val fileEdits = levelNodes.mapNotNull { renamedProperty(it, newName) } + levelNodes.mapNotNull { renamedArbBlock(it, newName) }
         val found = codeEdits(newName)
@@ -250,6 +256,29 @@ internal class KeyLevelRename(
         private const val DYNAMIC = "\${"
         private val NON_WORD = Regex("[^A-Za-z0-9_$]+")
         private const val PARAGLIDE = "paraglide"
+
+        /**
+         * The key or namespace separator [name] holds, or null. A rename changes one segment: a new
+         * name holding a separator would be written as one literal property that no call reads back.
+         * Flat keys hold separators as plain characters, so nothing is refused there.
+         */
+        fun separatorIn(name: String, config: Config): String? =
+            if (config.usesFlatKeys()) null
+            else listOf(config.keySeparator, config.nsSeparator).firstOrNull { it.isNotEmpty() && name.contains(it) }
+
+        /**
+         * The first character of [name] that would break one of the texts a rename rewrites, given as
+         * they are written now ([originals]): a backslash, read as an escape, or a quote — the one
+         * closing a quoted text, any of them in a bare one (a YAML key, a JavaScript property name).
+         * Null when [name] can be written as is everywhere.
+         */
+        fun unwritableChar(name: String, originals: Collection<String>): Char? {
+            val forbidden = originals.flatMapTo(mutableSetOf('\\')) { original ->
+                val quote = original.firstOrNull()?.takeIf { it in QUOTES && original.length > 1 && original.last() == it }
+                if (quote != null) setOf(quote) else QUOTES
+            }
+            return name.firstOrNull { it in forbidden }
+        }
 
         /** The leaf the message member at [element] names (Paraglide's `m.key`), to rename; null off a member. */
         fun ofParaglideMember(element: PsiElement): KeyLevelRename? {
