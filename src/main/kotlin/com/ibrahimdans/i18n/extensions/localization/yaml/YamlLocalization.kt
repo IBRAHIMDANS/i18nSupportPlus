@@ -113,8 +113,8 @@ private class YamlContentGenerator: ContentGenerator {
         }
         val column = YAMLUtil.getIndentToThisElement(props.first())
         val keyValue = entryAt(project, key, value, column)
-        val settings = Settings.getInstance(project)
-        val before = if (settings.extractSorted) props.takeWhile { settings.keyOrder.comparator.compare(it.name ?: "", key) < 0 } else props
+        val config = Settings.getInstance(project).config()
+        val before = if (config.extractSorted) props.takeWhile { config.keyOrder.comparator.compare(it.name ?: "", key) < 0 } else props
         PostprocessReformattingAspect.getInstance(project).disablePostprocessFormattingInside {
             if (before.isEmpty()) {
                 // The first key's indentation sits before the mapping: it now indents the new key.

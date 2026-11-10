@@ -28,7 +28,7 @@ object JsonKeySorter {
 
     fun sort(file: JsonFile, project: Project) {
         val root = file.topLevelValue as? JsonObject ?: return
-        val order = Settings.getInstance(project).keyOrder.comparator
+        val order = Settings.getInstance(project).config().keyOrder.comparator
         CodeStyleManager.getInstance(project).performActionWithFormatterDisabled { sortObject(root, order) }
     }
 

@@ -70,11 +70,11 @@ class TsContentGenerator : ContentGenerator {
 
     private fun insert(obj: JSObjectLiteralExpression, segments: List<String>, value: String) {
         val project = obj.project
-        val settings = Settings.getInstance(project)
+        val config = Settings.getInstance(project).config()
         val key = segments.first()
         CodeStyleManager.getInstance(project).performActionWithFormatterDisabled {
             TsObjectInsertion(obj).insert(segments, value) { props ->
-                if (settings.extractSorted) props.takeWhile { settings.keyOrder.comparator.compare(it.name ?: "", key) < 0 } else props
+                if (config.extractSorted) props.takeWhile { config.keyOrder.comparator.compare(it.name ?: "", key) < 0 } else props
             }
         }
     }

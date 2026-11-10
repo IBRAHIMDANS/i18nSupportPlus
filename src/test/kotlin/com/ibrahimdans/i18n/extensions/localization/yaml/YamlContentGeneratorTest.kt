@@ -1,10 +1,13 @@
 package com.ibrahimdans.i18n.extensions.localization.yaml
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.ide.settings.ProjectConfigFile
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
+import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.project.guessProjectDir
 import com.intellij.psi.PsiDocumentManager
 import org.jetbrains.yaml.psi.YAMLFile
 import org.jetbrains.yaml.psi.YAMLKeyValue
@@ -89,5 +92,22 @@ class YamlContentGeneratorTest : PlatformBaseTest() {
         val nested = configure("title: Titel\n")
         insert(nested, "value", segment, "leaf")
         Assertions.assertEquals("value", read(nested, segment, "leaf"), nested.text)
+    }
+
+    /**
+     * `i18n-check.json` asks for sorted insertion, the stored setting left unchecked: the key lands
+     * in its place. It used to go to the end of the file, the stored setting alone being read.
+     */
+    @Test
+    fun `a key lands in order when the shared config file asks for it`() {
+        myFixture.addFileToProject(ProjectConfigFile.PATH, """{ "extractSorted": true }""")
+        try {
+            val file = configure("apple: A\ncherry: C\n")
+            insert(file, "B", "banana")
+            Assertions.assertEquals(listOf("apple", "banana", "cherry"), root(file).keyValues.map { it.keyText }, file.text)
+        } finally {
+            val config = project.guessProjectDir()?.findChild(ProjectConfigFile.PATH)
+            if (config != null) WriteAction.runAndWait<Exception> { config.delete(this) }
+        }
     }
 }
