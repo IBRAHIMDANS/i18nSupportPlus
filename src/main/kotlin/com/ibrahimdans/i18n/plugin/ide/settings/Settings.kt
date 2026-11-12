@@ -32,6 +32,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.annotations.TestOnly
+import java.lang.reflect.Field
+import java.lang.reflect.Method
 
 /**
  * Plugin settings, persisted in `.idea/i18nSettings.xml`.
@@ -327,11 +329,11 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
         }
     }
 
-    /** The settings as stored here, before `i18n-check.json` is laid over them. */
+    /**
+     * The settings as stored here, before `i18n-check.json` is laid over them. Read on every [config]:
+     * built field by field, without reflection. `SettingsStoredFieldsTest` fails on a setting it leaves out.
+     */
     private fun storedConfig(): Config {
-        if (preferredLocalization.isEmpty()) {
-            preferredLocalization = Extensions.LOCALIZATION.extensionList.firstOrNull()?.config()?.id() ?: ""
-        }
         return Config(
             searchInProjectOnly = searchInProjectOnly,
             nsSeparator = nsSeparator,
@@ -349,7 +351,7 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
             gettextAliases = gettextAliases,
             flatKeys = flatKeys,
             partialTranslationInspectionEnabled = partialTranslationInspectionEnabled,
-            preferredLocalization = preferredLocalization,
+            preferredLocalization = preferredLocalization.ifEmpty { defaultLocalization() },
             localizationConfig = localizationConfig,
             sortKeysAlphabetically = sortKeysAlphabetically,
             keyOrder = keyOrder,
@@ -377,41 +379,15 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
         val stored = storedConfig()
         val config = (if (held.isEmpty()) edited else ProjectConfigFile.restore(edited, stored, held))
             .keepingCodeDefaultsOut(stored, codeDefaults())
-        searchInProjectOnly = config.searchInProjectOnly
-        nsSeparator = config.nsSeparator
-        keySeparator = config.keySeparator
-        pluralSeparator = config.pluralSeparator
-        defaultNs = config.defaultNs
-        fallbackNs = config.fallbackNs
-        firstComponentNs = config.firstComponentNs
-        jsConfiguration = config.jsConfiguration
-        foldingEnabled = config.foldingEnabled
-        foldingPreferredLanguage = config.foldingPreferredLanguage
-        foldingMaxLength = config.foldingMaxLength
-        extractSorted = config.extractSorted
-        gettext = config.gettext
-        gettextAliases = config.gettextAliases
-        flatKeys = config.flatKeys
-        partialTranslationInspectionEnabled = config.partialTranslationInspectionEnabled
-        preferredLocalization = config.preferredLocalization
-        localizationConfig = config.localizationConfig
-        sortKeysAlphabetically = config.sortKeysAlphabetically
-        keyOrder = config.keyOrder
-        previewLocale = config.previewLocale
-        translationsRoot = config.translationsRoot
-        excludedDirectories = config.excludedDirectories
-        excludedFileExtensions = config.excludedFileExtensions
-        keptKeys = config.keptKeys
-        ignoredLocales = config.ignoredLocales
-        regionalFallback = config.regionalFallback
-        localeAliases = config.localeAliases
-        gutterIconsEnabled = config.gutterIconsEnabled
-        setupWizardEnabled = config.setupWizardEnabled
+        STORED_AS_IS.forEach { (field, getter) -> field.set(this, getter.invoke(config)) }
         modules.clear()
         modules.addAll(config.modules.map { it.copy() })
         rules.clear()
         rules.addAll(config.rules.map { it.copy() })
     }
+
+    /** The first translation format registered, for settings that never chose one: read, never stored. */
+    private fun defaultLocalization(): String = Extensions.LOCALIZATION.extensionList.firstOrNull()?.config()?.id() ?: ""
 
     override fun loadState(state: Settings) {
         XmlSerializerUtil.copyBean(state, this)
@@ -475,6 +451,19 @@ class Settings(@field:Transient private val project: Project?) : PersistentState
         const val TYPING_PAUSE_MS = 750L
 
         private val LOG = logger<Settings>()
+
+        /** The settings [setConfig] copies as they are, the lists aside: it copies each module and rule. */
+        private val COPIED_ONE_BY_ONE = setOf("modules", "rules")
+
+        /**
+         * Each setting of [Config.SCOPES] with the field of the same name here and its getter on [Config]:
+         * [setConfig] stores through it, so that a setting added to [Config] needs no line there.
+         * Java reflection, read once — a setting without its field fails the class, and every test with it.
+         */
+        private val STORED_AS_IS: List<Pair<Field, Method>> = (Config.SCOPES.keys - COPIED_ONE_BY_ONE).map { name ->
+            Settings::class.java.getDeclaredField(name).apply { isAccessible = true } to
+                Config::class.java.getMethod("get" + name.replaceFirstChar(Char::uppercase))
+        }
 
         /**
          * Loads project's Settings instance
