@@ -382,11 +382,21 @@ intellijPlatformTesting.runIde.register("runIdeCommunity") {
 //
 // PHP and GNU GetText are not part of WebStorm, so that sandbox exercises everything except
 // those two optional integrations. Both are declared `optional="true"` in plugin.xml.
+//
+// The plugins it installs follow the local WebStorm, not `platformVersion`: the ones pinned above
+// are built for the compilation branch, and a WebStorm of another branch refuses them (Astro and
+// Svelte for 253 in a WebStorm 263). The sandbox therefore takes none of them, only Astro and
+// Svelte in the version Marketplace lists as compatible with that WebStorm. PHP, Blade and Twig
+// do not install in WebStorm.
 val webStormPath: String? = providers.gradleProperty("webStormPath").orNull
 if (webStormPath != null && File(webStormPath, "product-info.json").isFile) {
     intellijPlatformTesting.runIde.register("runWebStorm") {
         localPath = file(webStormPath)
+        plugins {
+            compatiblePlugins("org.jetbrains.plugins.astro", "dev.blachut.svelte.lang")
+        }
     }
+    configurations.named("intellijPlatformTestPluginDependency_runWebStorm") { setExtendsFrom(emptySet()) }
 } else if (webStormPath != null) {
     // Given but unusable (often a path Toolbox moved): say so, instead of "Task 'runWebStorm' not found".
     logger.warn("runWebStorm is not registered: webStormPath=$webStormPath holds no product-info.json")
