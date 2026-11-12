@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.21.0 - 2026-11-12
+
 ### Improvements
 
 - [Editor] **Switching the preview locale from the status bar refreshes the editor faster**: the hints and folded keys of a large component now show the new locale in about the time of a keystroke, instead of twice as long, as the plugin keeps what it had read of the project.
