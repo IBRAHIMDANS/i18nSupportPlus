@@ -1,5 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.inspections
 
+import com.ibrahimdans.i18n.plugin.ide.actions.TranslationKeyDeletion
+import com.ibrahimdans.i18n.plugin.ide.usages.KeyUsageCounts
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.actions.CleanupUnusedKeysAction
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationKeyUsages
@@ -105,7 +107,7 @@ class UnusedKeysFixtureTest : PlatformBaseTest() {
     }
 
     private fun scanOrphans(module: ModuleConfig? = null): Set<String> =
-        viewModel.countUsages(project, viewModel.loadRows(project, module), module)
+        KeyUsageCounts.count(project, viewModel.loadRows(project, module), module)
             .filter { it.usageCount == 0 }
             .mapTo(sortedSetOf()) { it.key }
 
@@ -225,7 +227,7 @@ class UnusedKeysFixtureTest : PlatformBaseTest() {
     fun `cleanup deletes its candidates and leaves every used key in place`() = withSingle {
         val candidates = cleanupCandidates()
 
-        CleanupUnusedKeysAction().deleteKeys(project, candidates.toList())
+        TranslationKeyDeletion.deleteKeys(project, candidates.toList())
 
         val left = keysOnDisk()
         assertTrue(left.intersect(candidates).isEmpty(), "not deleted: ${left.intersect(candidates)}")
@@ -292,7 +294,7 @@ class UnusedKeysFixtureTest : PlatformBaseTest() {
 
     @Test
     fun `monorepo - deleting an orphan of one module leaves the other module alone`() = withMonorepo {
-        CleanupUnusedKeysAction().deleteKeys(project, listOf("common:webDead"), web)
+        TranslationKeyDeletion.deleteKeys(project, listOf("common:webDead"), web)
 
         assertFalse("common:webDead" in keysOnDisk(web))
         assertEquals(setOf("common:adminOnly", "common:bothDead", "common:orphan", "common:title"), keysOnDisk(admin))

@@ -1,8 +1,8 @@
 package com.ibrahimdans.i18n.extensions.technology.nextintl
 
+import com.ibrahimdans.i18n.plugin.ide.usages.KeyUsageCounts
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection
-import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationRow
 import com.intellij.codeInsight.completion.CompletionType
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -74,7 +74,7 @@ class NextIntlGetTranslationsTest : PlatformBaseTest() {
     // ── Usages ────────────────────────────────────────────────────────────────
 
     private fun usagesOf(key: String): Int =
-        TableViewModel().countUsages(project, listOf(TranslationRow(key, mapOf("en" to "value"))))
+        KeyUsageCounts.count(project, listOf(TranslationRow(key, mapOf("en" to "value"))))
             .first().usageCount
 
     @Test

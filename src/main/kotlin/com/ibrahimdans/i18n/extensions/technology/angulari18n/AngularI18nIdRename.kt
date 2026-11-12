@@ -1,9 +1,9 @@
 package com.ibrahimdans.i18n.extensions.technology.angulari18n
 
+import com.ibrahimdans.i18n.plugin.ide.actions.KeyEdits
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.extensions.localization.xliff.XliffDocument
 import com.ibrahimdans.i18n.extensions.localization.xliff.XliffTree
-import com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
@@ -62,9 +62,9 @@ internal object AngularI18nIdRename {
         val newId = Messages.showInputDialog(project, PluginBundle.message("action.rename.key.prompt", id), title, Messages.getQuestionIcon(), id, null)
             ?.trim() ?: return
         if (newId == id || AngularI18nIds.idOf("$MARKER$newId") != newId) return
-        val plan = ProgressManager.getInstance().runProcessWithProgressSynchronously<Pair<List<RenameI18nKeyHandler.Edit>, List<ReviewMove>>?, RuntimeException>(
+        val plan = ProgressManager.getInstance().runProcessWithProgressSynchronously<Pair<List<KeyEdits.Edit>, List<ReviewMove>>?, RuntimeException>(
             {
-                ReadAction.compute<Pair<List<RenameI18nKeyHandler.Edit>, List<ReviewMove>>?, RuntimeException> {
+                ReadAction.compute<Pair<List<KeyEdits.Edit>, List<ReviewMove>>?, RuntimeException> {
                     editsOf(project, id, newId)?.let { it to reviewMovesOf(project, id, newId) }
                 }
             },
@@ -72,7 +72,7 @@ internal object AngularI18nIdRename {
             true,
             project,
         ) ?: return Messages.showErrorDialog(project, PluginBundle.message("action.rename.angular.conflict", newId), title)
-        RenameI18nKeyHandler().apply(project, plan.first, title, plan.second)
+        KeyEdits.apply(project, plan.first, title, plan.second)
     }
 
     /**
@@ -96,7 +96,7 @@ internal object AngularI18nIdRename {
     }
 
     /** The edits renaming [id] to [newId], or null when a unit is already called [newId]. */
-    internal fun editsOf(project: Project, id: String, newId: String): List<RenameI18nKeyHandler.Edit>? {
+    internal fun editsOf(project: Project, id: String, newId: String): List<KeyEdits.Edit>? {
         val files = xliffFiles(project)
         if (files.any { newId in XliffDocument.units(it) }) return null
         val unitEdits = files.mapNotNull { file ->
@@ -158,11 +158,11 @@ internal object AngularI18nIdRename {
     }
 
     /** The edit writing [text] over [range] of [element]'s file, in its host document. */
-    private fun edit(element: PsiElement, range: TextRange, text: String): RenameI18nKeyHandler.Edit? {
+    private fun edit(element: PsiElement, range: TextRange, text: String): KeyEdits.Edit? {
         val injections = InjectedLanguageManager.getInstance(element.project)
         val hostRange = injections.injectedToHost(element, range)
         val hostFile = injections.getTopLevelFile(element) ?: return null
         val document = PsiDocumentManager.getInstance(element.project).getDocument(hostFile) ?: return null
-        return RenameI18nKeyHandler.Edit(document, hostRange, text)
+        return KeyEdits.Edit(document, hostRange, text)
     }
 }

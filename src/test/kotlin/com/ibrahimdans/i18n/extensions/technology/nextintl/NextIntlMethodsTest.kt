@@ -1,12 +1,12 @@
 package com.ibrahimdans.i18n.extensions.technology.nextintl
 
+import com.ibrahimdans.i18n.plugin.ide.usages.KeyUsageCounts
 import com.ibrahimdans.i18n.extensions.lang.js.JsFoldingBuilder
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler
 import com.ibrahimdans.i18n.plugin.ide.references.code.I18nReference
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
-import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationRow
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.codeInsight.completion.CompletionType
@@ -69,7 +69,7 @@ class NextIntlMethodsTest : PlatformBaseTest() {
     }
 
     private fun usagesOf(key: String): Int =
-        TableViewModel().countUsages(project, listOf(TranslationRow(key, mapOf("en" to "value"))))
+        KeyUsageCounts.count(project, listOf(TranslationRow(key, mapOf("en" to "value"))))
             .first().usageCount
 
     // ── Checks ────────────────────────────────────────────────────────────────

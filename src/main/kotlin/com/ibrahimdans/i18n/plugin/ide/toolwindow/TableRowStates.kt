@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.plugin.ide.usages.KeyUsageCounts
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
@@ -9,8 +10,8 @@ import com.ibrahimdans.i18n.plugin.utils.isLocaleNamedFile
  * Represents a single row in the translation table.
  *
  * @param usageCount Number of usages found in source code.
- *   -3 = kept by a rule of the project's keep list ([TableViewModel.KEPT_USAGE]),
- *   -2 = reached only through a runtime-built key ([TableViewModel.DYNAMIC_USAGE]),
+ *   -3 = kept by a rule of the project's keep list ([KeyUsageCounts.KEPT_USAGE]),
+ *   -2 = reached only through a runtime-built key ([KeyUsageCounts.DYNAMIC_USAGE]),
  *   -1 = not yet scanned, 0 = orphan (unused), ≥1 = used.
  */
 data class TranslationRow(val key: String, val values: Map<String, String>, val usageCount: Int = -1)

@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.inspections
 
+import com.ibrahimdans.i18n.plugin.ide.usages.KeyUsageCounts
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
@@ -448,7 +449,7 @@ class UnusedTranslationKeyInspectionTest : PlatformBaseTest() {
         )
         val reported = unusedIn("messages/en.json").toSet()
         val viewModel = TableViewModel()
-        val counted = viewModel.countUsages(project, viewModel.loadRows(project))
+        val counted = KeyUsageCounts.count(project, viewModel.loadRows(project))
         val orphans = counted.filter { it.usageCount == 0 }.map { it.key.substringAfterLast('.') }.toSet()
         return reported to orphans
     }

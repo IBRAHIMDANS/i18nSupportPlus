@@ -1,5 +1,7 @@
 package com.ibrahimdans.i18n.extensions.localization.arb
 
+import com.ibrahimdans.i18n.plugin.ide.actions.TranslationKeyDeletion
+import com.ibrahimdans.i18n.plugin.ide.usages.KeyUsageCounts
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.extensions.localization.json.JsonElementTree
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
@@ -143,7 +145,7 @@ class ArbCataloguesTest : PlatformBaseTest() {
         addCatalogues()
         val viewModel = TableViewModel()
 
-        val counted = viewModel.countUsages(project, viewModel.loadRows(project))
+        val counted = KeyUsageCounts.count(project, viewModel.loadRows(project))
 
         assertTrue(counted.all { it.usageCount == -1 }, "unscanned: $counted")
         assertEquals(emptyList<Any>(), CleanupUnusedKeysAction().orphans(project, viewModel))
@@ -198,7 +200,7 @@ class ArbCataloguesTest : PlatformBaseTest() {
     fun deletingAKeyDeletesItsBlock() {
         addCatalogues()
 
-        CleanupUnusedKeysAction().deleteKeys(project, listOf("greeting"))
+        TranslationKeyDeletion.deleteKeys(project, listOf("greeting"))
 
         assertEquals("{\"@@locale\":\"en\",\"farewell\":\"Goodbye\"}", compact("lib/l10n/app_en.arb"))
         assertFalse(compact("lib/l10n/app_fr.arb").contains("greeting"), text("lib/l10n/app_fr.arb"))

@@ -41,7 +41,7 @@ class CleanupUnusedKeysActionTest : PlatformBaseTest() {
         addFileToProject("locales/fr/common.json", """{"menu":{"home":"Accueil"}}""")
 
         val leaves = ReadAction.compute<List<*>, RuntimeException> {
-            action.leafProperties(sources(), "common:menu.home")
+            TranslationKeyDeletion.leafProperties(sources(), "common:menu.home")
         }
 
         Assertions.assertEquals(2, leaves.size, "one property per locale")
@@ -53,7 +53,7 @@ class CleanupUnusedKeysActionTest : PlatformBaseTest() {
         addFileToProject("locales/fr/common.json", """{"menu":{}}""")
 
         val leaves = ReadAction.compute<List<*>, RuntimeException> {
-            action.leafProperties(sources(), "common:menu.home")
+            TranslationKeyDeletion.leafProperties(sources(), "common:menu.home")
         }
 
         Assertions.assertEquals(1, leaves.size)
@@ -64,7 +64,7 @@ class CleanupUnusedKeysActionTest : PlatformBaseTest() {
         addFileToProject("locales/en/common.json", """{"menu":{"home":"Home","exit":"Exit"}}""")
         addFileToProject("locales/fr/common.json", """{"menu":{"home":"Accueil","exit":"Quitter"}}""")
 
-        action.deleteKeys(project, listOf("common:menu.exit"))
+        TranslationKeyDeletion.deleteKeys(project, listOf("common:menu.exit"))
 
         Assertions.assertNull(valueAt("locales/en/common.json", "menu", "exit"))
         Assertions.assertNull(valueAt("locales/fr/common.json", "menu", "exit"))
@@ -81,7 +81,7 @@ class CleanupUnusedKeysActionTest : PlatformBaseTest() {
         addFileToProject("locales/en/auth.json", """{"menu":{"home":"Sign-in home"}}""")
         addFileToProject("locales/en/common.json", """{"menu":{"home":"Home"}}""")
 
-        Assertions.assertEquals(1, action.deleteKeys(project, listOf("menu.home")), "one locale entry, common's")
+        Assertions.assertEquals(1, TranslationKeyDeletion.deleteKeys(project, listOf("menu.home")), "one locale entry, common's")
 
         Assertions.assertNull(valueAt("locales/en/common.json", "menu", "home"))
         Assertions.assertEquals("Sign-in home", valueAt("locales/en/auth.json", "menu", "home"), "auth's key is not the one deleted")
@@ -91,7 +91,7 @@ class CleanupUnusedKeysActionTest : PlatformBaseTest() {
     fun deleteKeys_multipleKeysInOnePass() {
         addFileToProject("locales/en/common.json", """{"a":"1","b":"2","c":"3"}""")
 
-        action.deleteKeys(project, listOf("common:a", "common:c"))
+        TranslationKeyDeletion.deleteKeys(project, listOf("common:a", "common:c"))
 
         Assertions.assertNull(valueAt("locales/en/common.json", "a"))
         Assertions.assertEquals("2", valueAt("locales/en/common.json", "b"))
@@ -109,7 +109,7 @@ class CleanupUnusedKeysActionTest : PlatformBaseTest() {
         SHAPES.forEachIndexed { index, (content, keys, expected) ->
             val path = "locales/en/shape$index.json"
             addFileToProject(path, content)
-            action.deleteKeys(project, keys.map { "shape$index:$it" })
+            TranslationKeyDeletion.deleteKeys(project, keys.map { "shape$index:$it" })
             Assertions.assertEquals(expected, textOf(path), "shape $index, deleting $keys")
         }
     }

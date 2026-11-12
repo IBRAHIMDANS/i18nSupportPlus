@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.extensions.technology.angulari18n
 
+import com.ibrahimdans.i18n.plugin.ide.usages.KeyUsageCounts
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.actions.CleanupUnusedKeysAction
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
@@ -66,7 +67,7 @@ class AngularNativeI18nUsagesTest : PlatformBaseTest() {
     /** The Usage column's count of each id. */
     private fun counts(): Map<String, Int> {
         val viewModel = TableViewModel()
-        return viewModel.countUsages(project, viewModel.loadRows(project)).associate { it.key to it.usageCount }
+        return KeyUsageCounts.count(project, viewModel.loadRows(project)).associate { it.key to it.usageCount }
     }
 
     /** The ids *Clean Up Keys…* would offer for deletion. */

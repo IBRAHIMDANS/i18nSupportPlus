@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.plugin.ide.usages.KeyUsageCounts
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.usages.DynamicReach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -18,7 +19,7 @@ class DynamicKeyUsageTest : PlatformBaseTest() {
     private val viewModel = TableViewModel()
 
     private fun statusOf(key: String): UsageStatus {
-        val scanned = viewModel.countUsages(project, listOf(TranslationRow(key, mapOf("en" to "value"))))
+        val scanned = KeyUsageCounts.count(project, listOf(TranslationRow(key, mapOf("en" to "value"))))
         return viewModel.usageStatus(scanned.first().usageCount)
     }
 
@@ -71,7 +72,7 @@ class DynamicKeyUsageTest : PlatformBaseTest() {
             TranslationRow("common:menu.home", mapOf("en" to "Home")),
         )
 
-        val candidates = viewModel.countUsages(project, rows).filter { it.usageCount == 0 }.map { it.key }
+        val candidates = KeyUsageCounts.count(project, rows).filter { it.usageCount == 0 }.map { it.key }
 
         assertEquals(listOf("common:menu.home"), candidates)
     }
@@ -91,7 +92,7 @@ class DynamicKeyUsageTest : PlatformBaseTest() {
             TranslationRow("auth:errors.timeout", mapOf("en" to "Timeout")),
         )
 
-        val candidates = viewModel.countUsages(project, rows).filter { it.usageCount == 0 }.map { it.key }
+        val candidates = KeyUsageCounts.count(project, rows).filter { it.usageCount == 0 }.map { it.key }
 
         assertEquals(listOf("menu.home", "auth:errors.timeout"), candidates)
     }
