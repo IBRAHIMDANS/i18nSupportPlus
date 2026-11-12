@@ -248,11 +248,13 @@ class HttpTranslationProvider(
             try {
                 return answer.get(CANCEL_POLL_MS, TimeUnit.MILLISECONDS)
             } catch (e: TimeoutException) {
+                // Whatever the cancellation throws goes up as it is: the request is only abandoned on the way.
+                var cancelled = true
                 try {
                     cancellation.check()
-                } catch (cancelled: Throwable) {
-                    answer.cancel(true)
-                    throw cancelled
+                    cancelled = false
+                } finally {
+                    if (cancelled) answer.cancel(true)
                 }
             } catch (e: ExecutionException) {
                 throw e.cause ?: e
