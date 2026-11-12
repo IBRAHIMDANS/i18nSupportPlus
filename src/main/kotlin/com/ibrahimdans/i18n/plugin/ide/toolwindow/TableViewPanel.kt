@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.plugin.ide.usages.KeyUsageCounts
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
@@ -127,7 +128,7 @@ class TableViewPanel(private val project: Project, private val moduleConfig: Mod
 
     /** Counts the usages of the rows, off the EDT; replaced by tests to fail or be interrupted. */
     internal var countUsages: (List<TranslationRow>) -> List<TranslationRow> =
-        { rows -> viewModel.countUsages(project, rows, moduleConfig) }
+        { rows -> KeyUsageCounts.count(project, rows, moduleConfig) }
     private var reviewRoot: VirtualFile? = null
 
     /** The reviews of the loaded locales; [TableReviews.OFF] while the module has no reviews folder. */

@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.inspections
 
+import com.ibrahimdans.i18n.plugin.ide.usages.KeyUsageCounts
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
@@ -53,7 +54,7 @@ class KeptKeyUsageTest : PlatformBaseTest() {
             TranslationRow("common:menu.home", mapOf("en" to "Home")),
         )
 
-        val scanned = viewModel.countUsages(project, rows)
+        val scanned = KeyUsageCounts.count(project, rows)
 
         assertEquals(UsageStatus.KEPT, viewModel.usageStatus(scanned.first().usageCount))
         assertEquals(listOf("common:menu.home"), scanned.filter { it.usageCount == 0 }.map { it.key })

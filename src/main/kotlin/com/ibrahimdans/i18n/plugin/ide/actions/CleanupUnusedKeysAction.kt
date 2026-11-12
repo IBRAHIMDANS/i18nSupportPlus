@@ -1,36 +1,25 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
-import com.ibrahimdans.i18n.LocalizationSource
-import com.ibrahimdans.i18n.plugin.review.ReviewMigration
-import com.ibrahimdans.i18n.plugin.review.ReviewSpot
-import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.ide.usages.KeyUsageCounts
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TableViewModel
-import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationFileRouting
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationRow
-import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.PluginCoroutineScope
 import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
-import com.ibrahimdans.i18n.plugin.utils.sourcesOf
-import com.ibrahimdans.i18n.plugin.utils.deletePropertiesAndSeparators
-import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.intellij.json.psi.JsonProperty
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.EDT
-import com.intellij.openapi.application.ReadAction
-import com.intellij.openapi.command.UndoConfirmationPolicy
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.coroutineToIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.platform.ide.progress.withBackgroundProgress
-import com.intellij.psi.PsiElement
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.table.JBTable
 import kotlinx.coroutines.Dispatchers
@@ -66,7 +55,7 @@ import javax.swing.table.DefaultTableModel
  * module when that module's code does not use it, whatever another module's code does, and it is
  * deleted from that module's files only.
  */
-class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
+class CleanupUnusedKeysAction : AnAction() {
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
@@ -108,7 +97,7 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
             val selected = dialog.selectedKeys().mapNotNull(labels::get)
             if (selected.isEmpty()) return@withContext
             val deletedEntries = selected.groupBy({ it.first }, { it.second.key })
-                .entries.sumOf { (module, keys) -> deleteKeys(project, keys, module) }
+                .entries.sumOf { (module, keys) -> TranslationKeyDeletion.deleteKeys(project, keys, module) }
             LOG.info("Clean Up Keys with No Reference: ${selected.size} keys deleted, $deletedEntries locale entries")
             PluginNotifications.notify(
                 project,
@@ -133,61 +122,8 @@ class CleanupUnusedKeysAction : AnAction(), CompositeKeyResolver<PsiElement> {
         return ModuleSources.scopes(Settings.getInstance(project).config().modules).flatMap { module ->
             val rows = viewModel.loadRows(project, module)
             counting(rows.size)
-            viewModel.countUsages(project, rows, module).filter { it.usageCount == 0 }.map { module to it }
+            KeyUsageCounts.count(project, rows, module).filter { it.usageCount == 0 }.map { module to it }
         }
-    }
-
-    /**
-     * Resolves [key] in the sources that may hold it ([TranslationFileRouting.filesOf]) and returns
-     * the property elements (JsonProperty / YAMLKeyValue) holding its value, one per locale where
-     * the key exists.
-     *
-     * A key spelled without a namespace used to be resolved in every file of every locale: with
-     * `common` as the default namespace, deleting its `menu.home` also deleted `auth`'s `menu.home`
-     * — another key, shown on its own row as `auth:menu.home`.
-     *
-     * Takes the already-loaded [sources]: resolving them per key turned the scan
-     * into O(keys × translation files) full PSI rebuilds.
-     */
-    internal fun leafProperties(sources: List<LocalizationSource>, key: String, config: Config = Config()): List<PsiElement> {
-        val fullKey = KeysSynchronizer().buildFullKey(key, config)
-        return TranslationFileRouting.filesOf(key, sources, config)
-            .mapNotNull { source ->
-                val ref = resolveCompositeKey(fullKey.compositeKey, source) ?: return@mapNotNull null
-                val element = ref.element
-                if (ref.unresolved.isNotEmpty() || element == null) return@mapNotNull null
-                val value = element.value()
-                TranslationPsi.propertyOf(value)
-            }
-    }
-
-    // ── Deletion (single write action) ────────────────────────────────────────
-
-    /**
-     * Deletes every locale's property for each of [keys], in one
-     * WriteCommandAction — a single undo restores the whole cleanup, the
-     * reviews of the deleted keys included ([ReviewMigration]).
-     * Pure of any UI (testable); returns the number of deleted locale entries.
-     *
-     * Runs on the EDT, where its callers are: the preview's confirmation, the AI agents' tool, tests.
-     */
-    internal fun deleteKeys(project: Project, keys: List<String>, module: ModuleConfig? = null): Int {
-        val (properties, reviews) = ReadAction.compute<Pair<List<PsiElement>, List<ReviewSpot>>, RuntimeException> {
-            // One source load for the whole batch, not one per key; [module]'s files only.
-            val sources = ModuleSources.sourcesOf(project, module)
-            val config = Settings.getInstance(project).config()
-            val found = keys.flatMap { leafProperties(sources, it, config) }
-            found to ReviewMigration.spotsOf(found)
-        }
-        WriteCommandAction.writeCommandAction(project)
-            .withName(PluginBundle.message("action.cleanup.command"))
-            .withGlobalUndo()
-            .withUndoConfirmationPolicy(UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION)
-            .run<RuntimeException> {
-                deletePropertiesAndSeparators(properties)
-                ReviewMigration.remove(project, reviews)
-            }
-        return properties.size
     }
 
     private companion object {

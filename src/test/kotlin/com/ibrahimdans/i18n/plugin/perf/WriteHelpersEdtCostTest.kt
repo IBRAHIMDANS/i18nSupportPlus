@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.perf
 
+import com.ibrahimdans.i18n.plugin.ide.actions.TranslationKeyDeletion
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.actions.CleanupUnusedKeysAction
@@ -61,9 +62,9 @@ class WriteHelpersEdtCostTest : PlatformBaseTest() {
         val action = CleanupUnusedKeysAction()
 
         val warmReads = medianOf { run -> timed { cleanupReads(action, existingKeys(run)) } }
-        val warmWhole = medianOf { run -> timed { action.deleteKeys(project, existingKeys(run)) } }
+        val warmWhole = medianOf { run -> timed { TranslationKeyDeletion.deleteKeys(project, existingKeys(run)) } }
         val editedReads = medianOf { run -> touch(); timed { cleanupReads(action, existingKeys(RUNS + run)) } }
-        val editedWhole = medianOf { run -> touch(); timed { action.deleteKeys(project, existingKeys(RUNS + run)) } }
+        val editedWhole = medianOf { run -> touch(); timed { TranslationKeyDeletion.deleteKeys(project, existingKeys(RUNS + run)) } }
 
         report("CleanupUnusedKeysAction.deleteKeys", warmReads, warmWhole, editedReads, editedWhole)
     }
@@ -79,8 +80,8 @@ class WriteHelpersEdtCostTest : PlatformBaseTest() {
         TranslationDataLoader.loadAllTranslations(project)
         val action = CleanupUnusedKeysAction()
 
-        val warmWhole = medianOf { run -> timed { action.deleteKeys(project, scatteredKeys(run)) } }
-        val editedWhole = medianOf { run -> touch(); timed { action.deleteKeys(project, scatteredKeys(RUNS + run)) } }
+        val warmWhole = medianOf { run -> timed { TranslationKeyDeletion.deleteKeys(project, scatteredKeys(run)) } }
+        val editedWhole = medianOf { run -> touch(); timed { TranslationKeyDeletion.deleteKeys(project, scatteredKeys(RUNS + run)) } }
 
         println("[edt-cost] CleanupUnusedKeysAction.deleteKeys, $KEYS scattered keys, median of $RUNS")
         println("[edt-cost]   warm: whole call $warmWhole ms; after an edit: whole call $editedWhole ms")
@@ -101,7 +102,7 @@ class WriteHelpersEdtCostTest : PlatformBaseTest() {
         ReadAction.run<RuntimeException> {
             val sources = ModuleSources.sourcesOf(project, null)
             val config = Settings.getInstance(project).config()
-            val found = keys.flatMap { action.leafProperties(sources, it, config) }
+            val found = keys.flatMap { TranslationKeyDeletion.leafProperties(sources, it, config) }
             ReviewMigration.spotsOf(found)
         }
     }

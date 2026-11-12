@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide
 
+import com.ibrahimdans.i18n.plugin.ide.usages.KeyUsageCounts
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.inspection.UnusedTranslationKeyInspection
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
@@ -90,7 +91,7 @@ class FallbackNamespaceTest : PlatformBaseTest() {
         addTranslations()
         openComponent("t('shared.ok')")
         val viewModel = TableViewModel()
-        val orphans = viewModel.countUsages(project, viewModel.loadRows(project)).filter { it.usageCount == 0 }.map { it.key }
+        val orphans = KeyUsageCounts.count(project, viewModel.loadRows(project)).filter { it.usageCount == 0 }.map { it.key }
         assertFalse("common:shared.ok" in orphans, "$orphans")
         assertTrue("common:dead" in orphans, "$orphans")
     }

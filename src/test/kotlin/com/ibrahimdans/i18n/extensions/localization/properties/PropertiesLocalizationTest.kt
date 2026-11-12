@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.extensions.localization.properties
 
+import com.ibrahimdans.i18n.plugin.ide.usages.KeyUsageCounts
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.actions.CleanupUnusedKeysAction
@@ -169,7 +170,7 @@ class PropertiesLocalizationTest : PlatformBaseTest() {
         myFixture.addFileToProject("src/main/resources/templates/page.xml", """<page><msg key="user.name"/><msg key="user.name"/></page>""")
         val viewModel = TableViewModel()
 
-        val counted = viewModel.countUsages(project, viewModel.loadRows(project)).associate { it.key to it.usageCount }
+        val counted = KeyUsageCounts.count(project, viewModel.loadRows(project)).associate { it.key to it.usageCount }
 
         Assertions.assertEquals(2, counted["user.name"], "two references, each resolving to three locales: $counted")
         Assertions.assertEquals(0, counted["user.greeting"], "$counted")

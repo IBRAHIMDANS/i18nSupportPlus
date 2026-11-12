@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.plugin.ide.usages.KeyUsageCounts
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
 import com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages
 import com.ibrahimdans.i18n.plugin.ide.runWithConfig
@@ -28,7 +29,7 @@ class UsageScanTest : PlatformBaseTest() {
     private val tsx = TsxCodeGenerator()
 
     private fun usagesOf(key: String): Int =
-        viewModel.countUsages(project, listOf(TranslationRow(key, mapOf("en" to "value"))))
+        KeyUsageCounts.count(project, listOf(TranslationRow(key, mapOf("en" to "value"))))
             .first().usageCount
 
     /**

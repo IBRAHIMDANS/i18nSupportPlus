@@ -1,7 +1,7 @@
 package com.ibrahimdans.i18n.plugin.review
 
+import com.ibrahimdans.i18n.plugin.ide.actions.TranslationKeyDeletion
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
-import com.ibrahimdans.i18n.plugin.ide.actions.CleanupUnusedKeysAction
 import com.ibrahimdans.i18n.plugin.ide.actions.KeysSynchronizer
 import com.ibrahimdans.i18n.plugin.ide.actions.MoveI18nKeyHandler
 import com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler
@@ -200,7 +200,7 @@ class ReviewKeyLifecycleTest : PlatformBaseTest() {
         addFileToProject("locales/en/common.json", """{"a": "1", "b": "2"}""")
         approve("en", mapOf(ReviewKey("common", "a") to "1", ReviewKey("common", "b") to "2"))
 
-        CleanupUnusedKeysAction().deleteKeys(project, listOf("common:a"))
+        TranslationKeyDeletion.deleteKeys(project, listOf("common:a"))
 
         Assertions.assertEquals(setOf(ReviewKey("common", "b")), reviews("en").keys)
     }

@@ -20,16 +20,11 @@ import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.application.ReadAction
-import com.intellij.openapi.command.UndoConfirmationPolicy
-import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.Editor
-import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
-import com.intellij.openapi.util.TextRange
-import com.intellij.openapi.vfs.ReadonlyStatusHandler
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -68,13 +63,12 @@ import java.util.Collections
 class RenameI18nKeyHandler : RenameHandler {
 
     /** One text replacement, gathered under a read action and applied in the write action. */
-    internal data class Edit(val document: Document, val range: TextRange, val text: String)
 
     /**
      * What a rename writes: the text [edits], and the [reviews] following the renamed keys. Nothing
      * when the new name is taken next to the key ([conflict]): two keys are never merged.
      */
-    private data class Collected(val edits: List<Edit>, val reviews: List<ReviewMove>, val conflict: Boolean = false)
+    private data class Collected(val edits: List<KeyEdits.Edit>, val reviews: List<ReviewMove>, val conflict: Boolean = false)
 
     override fun isAvailableOnDataContext(dataContext: DataContext): Boolean {
         val editor = CommonDataKeys.EDITOR.getData(dataContext) ?: return false
@@ -122,7 +116,7 @@ class RenameI18nKeyHandler : RenameHandler {
         }
         if (refusedChar(project, newSegment, collected.edits.map { it.document.getText(it.range) }, title)) return
 
-        apply(project, collected.edits, title, collected.reviews)
+        KeyEdits.apply(project, collected.edits, title, collected.reviews)
     }
 
     /** True, once the user is told why, when [name] holds a key or namespace separator: a rename keeps a key at its level. */
@@ -245,33 +239,7 @@ class RenameI18nKeyHandler : RenameHandler {
             Messages.getQuestionIcon()
         ) == Messages.YES
         if (!confirmed) return
-        apply(project, plan.edits.map { Edit(it.document, it.range, it.text) }, title, plan.reviews)
-    }
-
-    /**
-     * Applies [edits] and moves [reviews] in one command. Global, without confirmation, as every
-     * command writing reviews: the review file has no editor, and one Ctrl+Z must take both back.
-     *
-     * The files are made writable first — a file a VCS such as Perforce keeps read-only is checked
-     * out, or the rename is dropped when the user refuses — rather than failing halfway through.
-     */
-    internal fun apply(project: Project, edits: List<Edit>, command: String, reviews: List<ReviewMove>) {
-        val files = edits.mapNotNull { FileDocumentManager.getInstance().getFile(it.document) }.distinct()
-        if (ReadonlyStatusHandler.getInstance(project).ensureFilesWritable(files).hasReadonlyFiles()) return
-        WriteCommandAction.writeCommandAction(project)
-            .withName(command)
-            .withGlobalUndo()
-            .withUndoConfirmationPolicy(UndoConfirmationPolicy.DO_NOT_REQUEST_CONFIRMATION)
-            .run<RuntimeException> {
-                // From the end of each document, so an edit never shifts the ranges still to apply.
-                edits.groupBy { it.document }.forEach { (document, documentEdits) ->
-                    documentEdits.sortedByDescending { it.range.startOffset }.forEach {
-                        document.replaceString(it.range.startOffset, it.range.endOffset, it.text)
-                    }
-                    PsiDocumentManager.getInstance(project).commitDocument(document)
-                }
-                ReviewMigration.move(project, reviews)
-            }
+        KeyEdits.apply(project, plan.edits.map { KeyEdits.Edit(it.document, it.range, it.text) }, title, plan.reviews)
     }
 
     // --- Collection (read action) ---
@@ -341,14 +309,14 @@ class RenameI18nKeyHandler : RenameHandler {
     }
 
     /** The edit renaming [literal]'s last segment, or null when it does not end with [lastSegment]. */
-    private fun renamedLiteral(literal: PsiElement, lastSegment: String, newSegment: String, config: Config): Edit? {
+    private fun renamedLiteral(literal: PsiElement, lastSegment: String, newSegment: String, config: Config): KeyEdits.Edit? {
         val document = documentOf(literal) ?: return null
         val original = literal.text
         val quoted = original.length > 1 && original.first() in QUOTES && original.last() == original.first()
         val key = if (quoted) original.substring(1, original.length - 1) else original
         val renamed = renameLastSegment(key, lastSegment, newSegment, config) ?: return null
         val text = if (quoted) "${original.first()}$renamed${original.last()}" else renamed
-        return Edit(document, literal.textRange, text)
+        return KeyEdits.Edit(document, literal.textRange, text)
     }
 
     /**
@@ -356,7 +324,7 @@ class RenameI18nKeyHandler : RenameHandler {
      * when that property is not named after [lastSegment]. A Symfony XLIFF unit names its key twice,
      * in its `resname` and its `<source>`: both are renamed.
      */
-    private fun renamedProperties(translation: PsiElement, lastSegment: String, newSegment: String, config: Config): List<Edit> {
+    private fun renamedProperties(translation: PsiElement, lastSegment: String, newSegment: String, config: Config): List<KeyEdits.Edit> {
         // A PO catalogue is no key-value tree: its key is the msgid of the entry.
         val names = (TranslationPsi.keyElementOf(translation) ?: PlainObjectTextTree.msgidOf(translation))?.let(::listOf)
             ?: XliffDocument.symfonyKeyElementsOf(translation)
@@ -364,13 +332,13 @@ class RenameI18nKeyHandler : RenameHandler {
     }
 
     /** The edit renaming the key [nameElement] writes, or null when it is not named after [lastSegment]. */
-    private fun renamedKeyElement(nameElement: PsiElement, lastSegment: String, newSegment: String, config: Config): Edit? {
+    private fun renamedKeyElement(nameElement: PsiElement, lastSegment: String, newSegment: String, config: Config): KeyEdits.Edit? {
         val document = documentOf(nameElement) ?: return null
         val raw = nameElement.text
         val quote = raw.firstOrNull()?.takeIf { it in QUOTES && raw.length > 1 && raw.last() == it }
         val renamed = renamedName(raw.unQuote(), lastSegment, newSegment, config) ?: return null
         val text = if (quote != null) "$quote$renamed$quote" else renamed
-        return Edit(document, nameElement.textRange, text)
+        return KeyEdits.Edit(document, nameElement.textRange, text)
     }
 
     // --- Helpers ---

@@ -1,15 +1,16 @@
 package com.ibrahimdans.i18n.plugin.mcp
 
+import com.ibrahimdans.i18n.plugin.ide.actions.KeyEdits
+import com.ibrahimdans.i18n.plugin.ide.actions.TranslationKeyDeletion
+import com.ibrahimdans.i18n.plugin.ide.usages.KeyUsageCounts
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.check.LocaleCheck
 import com.ibrahimdans.i18n.plugin.check.LocaleProblems
 import com.ibrahimdans.i18n.plugin.check.ValueCheck
 import com.ibrahimdans.i18n.plugin.check.ValueProblem
 import com.ibrahimdans.i18n.plugin.ide.IdeKeyUsageIndex
-import com.ibrahimdans.i18n.plugin.ide.actions.CleanupUnusedKeysAction
 import com.ibrahimdans.i18n.plugin.ide.actions.KeyLevelRename
 import com.ibrahimdans.i18n.plugin.ide.actions.MachineFill
-import com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler
 import com.ibrahimdans.i18n.plugin.ide.actions.translationFileFor
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
@@ -158,7 +159,7 @@ class KeyMaintenanceTools(private val project: Project) {
         requireSmartMode()
         val (_, module) = moduleScopes.named(check.module)
         val rows = TableViewModel().loadRows(project, module).filter { check.reference in it.values }
-        val unused = TableViewModel().countUsages(project, rows, module).filter { it.usageCount == 0 }.map { it.key }.sorted()
+        val unused = KeyUsageCounts.count(project, rows, module).filter { it.usageCount == 0 }.map { it.key }.sorted()
         return check.copy(problems = check.problems + unused.size, unused = unused)
     }
 
@@ -196,7 +197,7 @@ class KeyMaintenanceTools(private val project: Project) {
     fun withUsages(found: FoundKeys): FoundKeys {
         if (found.keys.isEmpty() || DumbService.isDumb(project)) return found
         val (_, module) = moduleScopes.named(found.module)
-        val counted = TableViewModel().countUsages(project, found.keys.map { TranslationRow(it.key, it.values) }, module)
+        val counted = KeyUsageCounts.count(project, found.keys.map { TranslationRow(it.key, it.values) }, module)
             .associate { it.key to it.usageCount }
         return found.copy(keys = found.keys.map { key ->
             val count = counted[key.key] ?: return@map key
@@ -305,18 +306,17 @@ class KeyMaintenanceTools(private val project: Project) {
     /** Applies [plan] in one undoable command; refused when one of its files changed since it was planned. Runs on the EDT. */
     internal fun applyRename(plan: RenamePlan): RenameResult {
         if (plan.stamps.changed()) throw Refused(CHANGED)
-        val edits = plan.plan.edits.map { RenameI18nKeyHandler.Edit(it.document, it.range, it.text) }
-        RenameI18nKeyHandler().apply(project, edits, PluginBundle.message("action.rename.title"), plan.plan.reviews)
+        val edits = plan.plan.edits.map { KeyEdits.Edit(it.document, it.range, it.text) }
+        KeyEdits.apply(project, edits, PluginBundle.message("action.rename.title"), plan.plan.reviews)
         return plan.result
     }
 
     /** The property of [key] in [module], and whether it stands for a plural group rather than itself. */
     private fun propertyOf(module: ModuleConfig?, key: String, translations: Map<String, Map<String, String>>): Pair<PsiElement, Boolean>? {
         val sources = namespaceSources(ModuleSources.sourcesOf(project, module), key)
-        val cleanup = CleanupUnusedKeysAction()
-        cleanup.leafProperties(sources, key, config).firstOrNull()?.let { return it to false }
+        TranslationKeyDeletion.leafProperties(sources, key, config).firstOrNull()?.let { return it to false }
         val form = translations.keys.sorted().firstOrNull { it != key && PluralKey.stripSuffix(it, config.pluralSeparator) == key } ?: return null
-        return cleanup.leafProperties(sources, form, config).firstOrNull()?.let { it to true }
+        return TranslationKeyDeletion.leafProperties(sources, form, config).firstOrNull()?.let { it to true }
     }
 
     // ── Create ──────────────────────────────────────────────────────────────
@@ -413,7 +413,7 @@ class KeyMaintenanceTools(private val project: Project) {
         val rejected = sortedMapOf<String, String>()
         keys.filter { it !in translations }.forEach { rejected[it] = UNKNOWN_KEY }
         val rows = keys.distinct().filter { it in translations }.map { TranslationRow(it, translations.getValue(it)) }
-        val counted = TableViewModel().countUsages(project, rows, module)
+        val counted = KeyUsageCounts.count(project, rows, module)
         for (row in counted) {
             val count = row.usageCount
             if (count != 0) rejected[row.key] = usageNoteOf(count) ?: "Still used: $count usage(s), see i18n_key_usages"
@@ -423,9 +423,9 @@ class KeyMaintenanceTools(private val project: Project) {
 
     /** Why a key no search counts may still be used, from the table's usage sentinels; null for a count. */
     private fun usageNoteOf(count: Int): String? = when (count) {
-        TableViewModel.KEPT_USAGE -> KEPT
-        TableViewModel.DYNAMIC_USAGE -> DYNAMIC
-        TableViewModel.NOT_SCANNED -> NOT_SEARCHABLE
+        KeyUsageCounts.KEPT_USAGE -> KEPT
+        KeyUsageCounts.DYNAMIC_USAGE -> DYNAMIC
+        KeyUsageCounts.NOT_SCANNED -> NOT_SEARCHABLE
         else -> null
     }
 
@@ -437,7 +437,7 @@ class KeyMaintenanceTools(private val project: Project) {
     internal fun applyDelete(plan: DeletePlan): DeleteResult {
         if (plan.keys.isEmpty()) return DeleteResult(emptyList(), 0, plan.rejected)
         if (plan.stamps.changed()) throw Refused(DELETE_CHANGED)
-        val entries = CleanupUnusedKeysAction().deleteKeys(project, plan.keys, plan.module)
+        val entries = TranslationKeyDeletion.deleteKeys(project, plan.keys, plan.module)
         return DeleteResult(plan.keys.sorted(), entries, plan.rejected)
     }
 

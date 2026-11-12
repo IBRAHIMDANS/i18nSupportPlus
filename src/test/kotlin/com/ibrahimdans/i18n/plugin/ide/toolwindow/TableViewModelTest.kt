@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.ide.toolwindow
 
+import com.ibrahimdans.i18n.plugin.ide.usages.KeyUsageCounts
 import com.ibrahimdans.i18n.LocalizationSource
 import com.ibrahimdans.i18n.plugin.ide.inspection.IndirectKeyUsages
 import com.ibrahimdans.i18n.plugin.ide.references.translation.ReferencesAccumulator
@@ -397,8 +398,8 @@ class TableViewModelTest {
     fun `usageStatus separates a dynamically reached key from an unused one`() {
         // Its own sentinel rather than a count: nothing names the key, yet deleting it breaks
         // a call site. The cleanup already knew; the column used to say "Unused" anyway.
-        assertEquals(UsageStatus.DYNAMIC, viewModel.usageStatus(TableViewModel.DYNAMIC_USAGE))
-        assertEquals(UsageStatus.KEPT, viewModel.usageStatus(TableViewModel.KEPT_USAGE))
+        assertEquals(UsageStatus.DYNAMIC, viewModel.usageStatus(KeyUsageCounts.DYNAMIC_USAGE))
+        assertEquals(UsageStatus.KEPT, viewModel.usageStatus(KeyUsageCounts.KEPT_USAGE))
         assertEquals(UsageStatus.NOT_SCANNED, viewModel.usageStatus(-4), "an unknown negative is not dynamic")
     }
 
@@ -631,10 +632,10 @@ class TableViewModelTest {
         val fresh = listOf(TranslationRow("a", emptyMap()), TranslationRow("b", emptyMap()))
         val previous = listOf(
             TranslationRow("a", emptyMap(), usageCount = 0),
-            TranslationRow("b", emptyMap(), usageCount = TableViewModel.DYNAMIC_USAGE),
+            TranslationRow("b", emptyMap(), usageCount = KeyUsageCounts.DYNAMIC_USAGE),
         )
 
-        assertEquals(listOf(0, TableViewModel.DYNAMIC_USAGE), viewModel.mergeUsages(fresh, previous).map { it.usageCount })
+        assertEquals(listOf(0, KeyUsageCounts.DYNAMIC_USAGE), viewModel.mergeUsages(fresh, previous).map { it.usageCount })
     }
 
     @Test
@@ -750,7 +751,7 @@ class TableViewModelTest {
 
     @Test
     fun `filterByStatus ORPHAN does not count a dynamically reached key`() {
-        val rows = listOf(TranslationRow("status.ok", emptyMap(), usageCount = TableViewModel.DYNAMIC_USAGE))
+        val rows = listOf(TranslationRow("status.ok", emptyMap(), usageCount = KeyUsageCounts.DYNAMIC_USAGE))
 
         assertTrue(viewModel.filterByStatus(StatusFilter.ORPHAN, rows, allLocales).isEmpty())
     }

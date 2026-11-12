@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.extensions.technology.angulari18n
 
+import com.ibrahimdans.i18n.plugin.ide.actions.KeyEdits
 import com.ibrahimdans.i18n.extensions.lang.js.HardcodedAngularTextInspection
 import com.ibrahimdans.i18n.plugin.ide.actions.ExtractionTestBase
 import com.ibrahimdans.i18n.plugin.ide.actions.RenameI18nKeyHandler
@@ -236,7 +237,7 @@ class AngularNativeI18nActionsTest : ExtractionTestBase() {
     @Test
     fun anIdAnotherUnitHasIsRefused() = myFixture.runWithConfig(Config()) {
         addWorkspace()
-        val edits = ReadAction.compute<List<RenameI18nKeyHandler.Edit>?, RuntimeException> {
+        val edits = ReadAction.compute<List<KeyEdits.Edit>?, RuntimeException> {
             AngularI18nIdRename.editsOf(project, "home.title", "cart.terms")
         }
         Assertions.assertNull(edits)
