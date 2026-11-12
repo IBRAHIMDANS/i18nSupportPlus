@@ -4,6 +4,12 @@ import com.ibrahimdans.i18n.plugin.utils.CoreMessages
 import com.google.gson.JsonElement
 import com.google.gson.JsonParser
 import java.io.IOException
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.net.SocketTimeoutException
 import java.time.Duration
 
@@ -200,16 +206,16 @@ class HttpTranslationProvider(
     private fun post(url: String, body: String, readTimeout: Duration, cancellation: Cancellation?): Posted {
         var attempt = 1
         while (true) {
-            val posted = postOnce(url, body, readTimeout)
+            val posted = postOnce(url, body, readTimeout, cancellation)
             if (posted !is Posted.Failed || !posted.retryable || attempt >= ATTEMPTS) return posted
             pause.pause(posted.retryAfterMillis ?: RETRY_DELAYS_MS[attempt - 1], cancellation)
             attempt++
         }
     }
 
-    private fun postOnce(url: String, body: String, readTimeout: Duration): Posted {
+    private fun postOnce(url: String, body: String, readTimeout: Duration, cancellation: Cancellation?): Posted {
         val response = try {
-            transport.post(url, headers(), body, readTimeout)
+            awaiting(cancellation) { transport.post(url, headers(), body, readTimeout) }
         } catch (e: SocketTimeoutException) {
             return Posted.Failed(failed(CoreMessages.message("translate.error.timeout", engine.name)), timedOut = true)
         } catch (e: IOException) {
@@ -225,6 +231,34 @@ class HttpTranslationProvider(
                 response.status,
                 retryAfterMillis = retryAfter
             )
+        }
+    }
+
+    /**
+     * [call], with [cancellation] checked every [CANCEL_POLL_MS] while it waits for the engine: *Cancel*
+     * ends the pass at once instead of after the answer, which a slow engine gives up to the read
+     * timeout later (60 s, more for a batch). The request runs on a thread of [REQUESTS]; once
+     * cancelled it is left to end there, its answer dropped. Without a [cancellation] — the CLI —
+     * it runs on the caller's thread, as before.
+     */
+    private fun <T> awaiting(cancellation: Cancellation?, call: () -> T): T {
+        if (cancellation == null) return call()
+        val answer = REQUESTS.submit(Callable(call))
+        while (true) {
+            try {
+                return answer.get(CANCEL_POLL_MS, TimeUnit.MILLISECONDS)
+            } catch (e: TimeoutException) {
+                // Whatever the cancellation throws goes up as it is: the request is only abandoned on the way.
+                var cancelled = true
+                try {
+                    cancellation.check()
+                    cancelled = false
+                } finally {
+                    if (cancelled) answer.cancel(true)
+                }
+            } catch (e: ExecutionException) {
+                throw e.cause ?: e
+            }
         }
     }
 
@@ -275,6 +309,14 @@ class HttpTranslationProvider(
 
         /** Attempts at one request, the first included. */
         private const val ATTEMPTS = 3
+
+        /** How often a request waiting for the engine checks the cancellation: *Cancel* answers within it. */
+        private const val CANCEL_POLL_MS = 100L
+
+        /** The threads requests wait on while the cancellation is checked; daemons, so none keeps the JVM up. */
+        private val REQUESTS: ExecutorService = Executors.newCachedThreadPool { task ->
+            Thread(task, "i18n-translation-request").apply { isDaemon = true }
+        }
 
         /** The wait before the second attempt, then before the third. */
         private val RETRY_DELAYS_MS = listOf(1_000L, 2_000L)

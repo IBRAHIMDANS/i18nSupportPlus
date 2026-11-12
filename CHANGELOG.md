@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- [Machine translation] **Cancel stops a translation at once**: cancelling *Fill Missing Translations* or a translation preview while the engine is slow to answer now ends the pass within a fraction of a second, instead of waiting up to a minute (five for a batch) for the answer. What was already translated is still offered.
+
 ## 1.21.0 - 2026-11-12
 
 ### Improvements
