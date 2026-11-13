@@ -8,9 +8,12 @@ import com.intellij.concurrency.JobLauncher
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.progress.EmptyProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.TestDialogManager.setTestInputDialog
 import com.intellij.openapi.ui.TestInputDialog
+import com.intellij.openapi.util.Computable
 import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
 import org.junit.jupiter.api.Assertions
@@ -224,14 +227,16 @@ class ConstantKeyResolverTest : PlatformBaseTest() {
         }
 
         val callFiles = ConcurrentHashMap<JSLiteralExpression, String>()
-        // Each task takes its own read action, as the daemon's do: the overload that took a flag for it
-        // is gone in 2026.3.
-        val completed = JobLauncher.getInstance().invokeConcurrentlyUnderContextProgress(literals) { literal ->
-            ReadAction.run<RuntimeException> {
-                ConstantKeyResolver.declarationArgument(literal)?.let { callFiles[literal] = it.containingFile.name }
+        // Under a progress indicator, and each task in its own read action, as the daemon's are: the
+        // overload that took the indicator and a read-action flag is gone in 2026.3.
+        val completed = ProgressManager.getInstance().runProcess(Computable {
+            JobLauncher.getInstance().invokeConcurrentlyUnderContextProgress(literals) { literal ->
+                ReadAction.run<RuntimeException> {
+                    ConstantKeyResolver.declarationArgument(literal)?.let { callFiles[literal] = it.containingFile.name }
+                }
+                true
             }
-            true
-        }
+        }, EmptyProgressIndicator())
 
         Assertions.assertTrue(completed)
         Assertions.assertEquals(literals.associateWith { "Form.ts" }, callFiles.toMap())
