@@ -10,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.json.psi.JsonFile
 import com.intellij.json.psi.JsonObject
 import com.intellij.json.psi.JsonProperty
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.psi.search.searches.ReferencesSearch
 import org.jetbrains.yaml.YAMLUtil
 import org.jetbrains.yaml.psi.YAMLFile
@@ -87,6 +88,20 @@ class LinkedMessageReferenceTest : PlatformBaseTest() {
             val save = property(myFixture.file as JsonFile, "common", "save")
             val found = ReferencesSearch.search(save).findAll().filterIsInstance<LinkedMessageReference>()
             Assertions.assertEquals(listOf("common.save"), found.map { it.linkedKey })
+        }
+    }
+
+    @Test
+    fun `a reference built before its target was removed resolves to nothing`() {
+        open("Click @:common.save")
+        lateinit var reference: LinkedMessageReference
+        read { reference = referenceAt("common.save")!! }
+
+        WriteCommandAction.runWriteCommandAction(project) { property(myFixture.file as JsonFile, "common", "save").delete() }
+
+        read {
+            Assertions.assertEquals(0, reference.multiResolve(false).size)
+            Assertions.assertNull(reference.resolve())
         }
     }
 

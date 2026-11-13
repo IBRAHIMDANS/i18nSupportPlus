@@ -72,8 +72,15 @@ class LinkedMessageReference(
     element: PsiElement,
     range: TextRange,
     val linkedKey: String,
-    private val targets: List<PsiElement>,
+    targets: List<PsiElement>,
 ) : PsiReferenceBase<PsiElement>(element, range), PsiPolyVariantReference {
+
+    /**
+     * Read when the reference was built and cached with its file: an edit of the file holding a target
+     * since then invalidates it, and an invalid element is no resolve result.
+     */
+    private val found = targets
+    private val targets: List<PsiElement> get() = found.filter(PsiElement::isValid)
 
     override fun resolve(): PsiElement? = targets.singleOrNull()
 
