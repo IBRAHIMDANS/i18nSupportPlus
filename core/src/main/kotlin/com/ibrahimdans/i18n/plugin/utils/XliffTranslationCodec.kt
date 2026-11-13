@@ -59,6 +59,11 @@ object XliffTranslationCodec {
             append("</xliff>\n")
         }
 
+    /**
+     * Escapes [text] for XML content and attributes. `\r` becomes a character reference: written as
+     * is, XML parsing would read `\r\n` and a lone `\r` back as `\n`, and the import would then see
+     * a changed value.
+     */
     private fun escape(text: String): String = buildString(text.length) {
         for (c in text) when (c) {
             '&' -> append("&amp;")
@@ -66,6 +71,7 @@ object XliffTranslationCodec {
             '>' -> append("&gt;")
             '"' -> append("&quot;")
             '\'' -> append("&apos;")
+            '\r' -> append("&#13;")
             else -> append(c)
         }
     }
