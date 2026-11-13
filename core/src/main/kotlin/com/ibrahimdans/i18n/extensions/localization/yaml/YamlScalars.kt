@@ -7,7 +7,8 @@ package com.ibrahimdans.i18n.extensions.localization.yaml
  * `YAMLElementGenerator.createYamlKeyValue` pastes its value as YAML source: `Note: soon` became a
  * nested mapping, `Save # now` a value `Save` and a comment, `yes` a boolean. A value is therefore
  * written plain only when a plain scalar reads back as the same string, single-quoted otherwise,
- * and double-quoted when it holds what only escapes can carry (line breaks, control characters).
+ * and double-quoted when it holds what only escapes can carry (line breaks, C0 and C1 control
+ * characters, NEXT LINE).
  */
 object YamlScalars {
 
@@ -46,7 +47,14 @@ object YamlScalars {
         else -> Style.PLAIN
     }
 
-    private fun needsEscapes(value: String): Boolean = value.any { it < ' ' || it == '\u007f' }
+    private fun needsEscapes(value: String): Boolean = value.any(::isEscaped)
+
+    /**
+     * Characters a YAML reader does not take back as written: the C0 and C1 controls and DEL, which
+     * it refuses outright (the whole file fails to load), except NEXT LINE (U+0085), which it reads
+     * as a line break, and the noncharacters U+FFFE and U+FFFF. Only the escapes of double quotes carry them.
+     */
+    private fun isEscaped(c: Char): Boolean = c < ' ' || c in '\u007f'..'\u009f' || c == '￾' || c == '￿'
 
     private fun isSafePlain(value: String): Boolean =
         value.isNotEmpty() &&
@@ -65,7 +73,12 @@ object YamlScalars {
                 '\n' -> append("\\n")
                 '\t' -> append("\\t")
                 '\r' -> append("\\r")
-                else -> if (c < ' ' || c == '\u007f') append("\\x%02x".format(c.code)) else append(c)
+                '\u0085' -> append("\\N")
+                else -> when {
+                    !isEscaped(c) -> append(c)
+                    c.code <= 0xff -> append("\\x%02x".format(c.code))
+                    else -> append("\\u%04x".format(c.code))
+                }
             }
         }
         append('"')
