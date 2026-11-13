@@ -250,11 +250,23 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
     @Test
     fun `the translations obtained before the stop are kept`() {
         val items = (1..500).map { MachineFill.Item("common:k%03d".format(it), "text $it") }
-        // Only the first call's texts (1 to 50) are answered. That call is always sent: it starts before any
-        // other ends. How many of the others are sent is left out on purpose: the answered call may end after
-        // two failures and start the count again, so it depends on the order the parallel calls end in.
+        // Only the first call's texts (1 to 50) are answered. The executor starts the first calls in order, but
+        // their threads may run in any order: two failures recorded before the first call reaches the engine
+        // would stop it unsent. So a failing call waits until the first one is in the engine. How many of the
+        // others are sent is left out on purpose: the answered call may end after two failures and start the
+        // count again, so it depends on the order the parallel calls end in.
+        val firstSent = CountDownLatch(1)
         val proposals = MachineFill.translate(
-            items, engine { if (it.removePrefix("text ").toInt() <= 50) Translation.Done("FR $it") else Translation.Failed("down") },
+            items,
+            engine {
+                if (it.removePrefix("text ").toInt() <= 50) {
+                    firstSent.countDown()
+                    Translation.Done("FR $it")
+                } else {
+                    firstSent.await(10, TimeUnit.SECONDS)
+                    Translation.Failed("down")
+                }
+            },
             "en", "fr", EmptyProgressIndicator()
         )!!
 
