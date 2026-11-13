@@ -173,6 +173,14 @@ dependencies {
             configurationName = "uiTestImplementation"
         )
     }
+    // The Gradle plugin adds Starter's per-product modules once the compilation platform is 262 or later,
+    // whatever Starter version is asked for; the pinned 253 Starter publishes none (ide-starter-squashed
+    // holds them). Recheck when uiTestStarterVersion moves to 262 or later: then keep them.
+    configurations.named("uiTestImplementation") {
+        withDependencies {
+            removeIf { it.group == "com.jetbrains.intellij.tools" && it.name.startsWith("ide-starter-product-") }
+        }
+    }
     // The UI test runs in its own JVM, not inside the IDE, so it needs a stdlib of its own:
     // without it Starter's transitive 2.1.20 meets kotlin-reflect 2.2.20 (NoSuchFieldError CONTEXT).
     uiTestImplementation(kotlin("stdlib"))
