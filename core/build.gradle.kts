@@ -27,6 +27,8 @@ dependencies {
     testImplementation("com.google.code.gson:gson:2.11.0")
     testImplementation("com.fasterxml.jackson.core:jackson-core:2.19.0")
     testImplementation("org.snakeyaml:snakeyaml-engine:2.9")
+    // Property tests only (checkAll inside plain JUnit tests): no kotest runner, JUnit stays the engine.
+    testImplementation("io.kotest:kotest-property:6.2.6")
     testImplementation(platform("org.junit:junit-bom:6.1.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
