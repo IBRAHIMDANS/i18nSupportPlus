@@ -2,7 +2,6 @@ import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel
-import java.nio.file.Files
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -626,44 +625,6 @@ tasks {
             val sandboxBase = layout.projectDirectory
                 .dir(".intellijPlatform/sandbox/$pluginName/IU-$effectivePlatformVersion")
                 .asFile
-
-            // ~/.gradle/caches/<gradleVersion>/transforms/<hash>/transformed/idea-<version>/
-            val transformsDir = File(gradle.gradleUserHomeDir, "caches/${gradle.gradleVersion}/transforms")
-            val ideDir = transformsDir.listFiles()
-                ?.mapNotNull { hashDir ->
-                    File(hashDir, "transformed/idea-$effectivePlatformVersion")
-                        .takeIf { it.isDirectory && File(it, "plugins").isDirectory }
-                }
-                ?.firstOrNull()
-
-            // --- Vue: flatten lib/modules/ into lib/ so getPluginDistDirByClass() resolves ---
-            //
-            // Cause, as recorded when it was added: from platform 253 the Vue plugin keeps part of its jars in
-            // lib/modules/, and PathManager.getPluginDistDirByClass() only finds a plugin's directory from a jar
-            // sitting directly in its lib/; the Vue plugin then cannot locate its own files in the test sandbox.
-            // The exact failure was not written down at the time.
-            // Origin: #56 (2026-04-23, upgrade to platform 253).
-            // Recheck: at each platformVersion branch change, with the Vue tests (FoldingTestVue, *Vue* under runVue).
-            //
-            // These link individual *files*, which is why they never corrupted the cache the way
-            // the YAML directory link did: deleting a link to a file removes the link, not the
-            // target. Kept as links deliberately — the Vue jars are far larger than the YAML
-            // plugin, and copying them on every sandbox build would be felt.
-            ideDir?.let { ide ->
-                val vueSrc = File(ide, "plugins/vuejs-plugin")
-                val vueLibDst = File(sandboxBase, "plugins-test/vuejs-plugin/lib")
-                if (vueSrc.exists() && !vueLibDst.exists()) {
-                    vueLibDst.mkdirs()
-                    File(vueSrc, "lib").listFiles { f -> f.isFile && f.extension == "jar" }
-                        ?.forEach { jar ->
-                            Files.createSymbolicLink(File(vueLibDst, jar.name).toPath(), jar.toPath())
-                        }
-                    File(vueSrc, "lib/modules").listFiles { f -> f.extension == "jar" }
-                        ?.forEach { jar ->
-                            Files.createSymbolicLink(File(vueLibDst, jar.name).toPath(), jar.toPath())
-                        }
-                }
-            }
 
             // --- PHP: strip duplicate META-INF descriptors from php-frontback.jar ---
             //
