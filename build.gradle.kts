@@ -2,9 +2,6 @@ import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel
-import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
-import java.util.zip.ZipOutputStream
 
 fun properties(key: String) = providers.gradleProperty(key)
 
@@ -613,54 +610,6 @@ tasks {
         extensions.configure<JacocoTaskExtension> {
             isIncludeNoLocationClasses = true
             excludes = listOf("jdk.internal.*")
-        }
-    }
-
-    // Three patches of the test sandbox, none of which changes what ships. Each one says what breaks
-    // without it, why, where it comes from, and when to try removing it. No YouTrack issue was ever
-    // cited for any of them. "Recheck" means: delete the block, run the tests named, keep it if they fail.
-    named("prepareTestSandbox") {
-        doLast {
-            val pluginName = properties("pluginName").get()
-            val sandboxBase = layout.projectDirectory
-                .dir(".intellijPlatform/sandbox/$pluginName/IU-$effectivePlatformVersion")
-                .asFile
-
-            // --- PHP: strip duplicate META-INF descriptors from php-frontback.jar ---
-            //
-            // Without it: PluginException on a duplicate extension point registration, com.jetbrains.php does not
-            // load, phpConfig.xml is never activated, and every PHP test fails.
-            // Cause: the PHP plugin ships split-mode modules (php-frontback.jar, frontend/, frontend-split/) whose
-            // META-INF descriptors declare again extension points php.jar already declares. Only the descriptors
-            // go: deleting the whole jar also removed classes the PHP plugin needs, so it still did not load.
-            // Origin: #20 (2026-03-30, PHP plugin 243.x); frontend-split/ added by #56 (2026-04-23, platform 253).
-            // Recheck: at each platformVersion branch change or PHP plugin bump, with PhpGettextHighlightingTest.
-            val phpLib = File(sandboxBase, "plugins-test/php-impl/lib")
-            val frontback = File(phpLib, "php-frontback.jar")
-            if (frontback.exists()) {
-                val patched = File(frontback.parent, "_php-frontback-patched.jar")
-                ZipInputStream(frontback.inputStream().buffered()).use { zin ->
-                    ZipOutputStream(patched.outputStream().buffered()).use { zout ->
-                        var entry = zin.nextEntry
-                        while (entry != null) {
-                            val keep = !entry.name.startsWith("META-INF/") ||
-                                       entry.name == "META-INF/MANIFEST.MF"
-                            if (keep) {
-                                zout.putNextEntry(ZipEntry(entry.name))
-                                zin.copyTo(zout)
-                                zout.closeEntry()
-                            }
-                            zin.closeEntry()
-                            entry = zin.nextEntry
-                        }
-                    }
-                }
-                frontback.delete()
-                patched.renameTo(frontback)
-            }
-            for (splitDir in listOf("frontend", "frontend-split")) {
-                File(phpLib, splitDir).takeIf { it.exists() }?.deleteRecursively()
-            }
         }
     }
 }
