@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.plugin.key
 
+import com.ibrahimdans.i18n.plugin.ide.settings.SeparatorRules
 import com.ibrahimdans.i18n.plugin.key.parser.KeyParserBuilder
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.tree.KeyComposer
@@ -20,7 +21,6 @@ import io.kotest.property.checkAll
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
 /**
@@ -29,15 +29,17 @@ import org.junit.jupiter.api.Test
  * once read from a call.
  *
  * Segments never hold a separator nor end like a plural form (`_one`, `-1`): the composer strips
- * those on purpose ([PluralKey.stripSuffix]). Separators are single characters, as the defaults
- * and every framework preset are; [multi-character separators][`a multi-character namespace separator splits the key`]
- * are checked apart. The seed is fixed: a failure replays the same cases.
+ * those on purpose ([PluralKey.stripSuffix]). Separators are the pairs [SeparatorRules] accepts.
+ * The seed is fixed: a failure replays the same cases.
  */
 class KeyPropertyTest {
 
     @OptIn(ExperimentalKotest::class)
     private val config = PropTestConfig(seed = 20261113L, iterations = 500)
 
+    // One character each, as SeparatorRules requires: a longer separator is refused by the settings
+    // (Fault.SEVERAL_CHARACTERS) because the tokenizer splits it character by character. Pairs the
+    // rules refuse (refused characters such as `$`, the same value twice) are filtered out below.
     private val separatorChars = listOf(":", ".", "/", "|", "#", "$", "~")
 
     private val segmentChars = listOf("a", "b", "Z", "0", "9", "_", "-", "é", "日", "😀", "@", "(", " ")
@@ -46,7 +48,7 @@ class KeyPropertyTest {
     private val segment = Arb.string(1..8, Arb.of(segmentChars))
 
     private val separators = Arb.bind(Arb.of(separatorChars), Arb.of(separatorChars)) { ns, key -> ns to key }
-        .filter { (ns, key) -> ns != key }
+        .filter { (ns, key) -> SeparatorRules.check(ns, key, "-").isEmpty() }
 
     private val composer = object : KeyComposer<String> {}
 
@@ -135,21 +137,5 @@ class KeyPropertyTest {
                 assertNull(parse(key, nsSep, keySep), key)
             }
         }
-    }
-
-    /**
-     * CADRAGE-KEY-MULTICHAR-SEPARATOR: [com.ibrahimdans.i18n.plugin.key.lexer.NsKeyTokenizer] hands
-     * `nsSeparator + keySeparator` to a `StringTokenizer`, which takes every character as a
-     * delimiter of its own. A `::` namespace separator (i18next takes any string) never matches,
-     * so `common::save` parses as the key `common::save`, without a namespace; a `..` key
-     * separator splits into empty segments and the key is rejected.
-     */
-    @Disabled("CADRAGE-KEY-MULTICHAR-SEPARATOR: a multi-character separator is split character by character")
-    @Test
-    fun `a multi-character namespace separator splits the key`() {
-        val parsed = parse("common::save", "::", ".")!!
-
-        assertEquals("common", parsed.ns?.text)
-        assertEquals(listOf("save"), parsed.compositeKey.map { it.text })
     }
 }
