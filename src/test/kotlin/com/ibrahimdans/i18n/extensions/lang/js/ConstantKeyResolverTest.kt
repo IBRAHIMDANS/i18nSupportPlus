@@ -8,7 +8,6 @@ import com.intellij.concurrency.JobLauncher
 import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.application.ReadAction
-import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.TestDialogManager.setTestInputDialog
 import com.intellij.openapi.ui.TestInputDialog
@@ -225,8 +224,12 @@ class ConstantKeyResolverTest : PlatformBaseTest() {
         }
 
         val callFiles = ConcurrentHashMap<JSLiteralExpression, String>()
-        val completed = JobLauncher.getInstance().invokeConcurrentlyUnderProgress(literals, EmptyProgressIndicator(), true, false) { literal ->
-            ConstantKeyResolver.declarationArgument(literal)?.let { callFiles[literal] = it.containingFile.name }
+        // Each task takes its own read action, as the daemon's do: the overload that took a flag for it
+        // is gone in 2026.3.
+        val completed = JobLauncher.getInstance().invokeConcurrentlyUnderContextProgress(literals) { literal ->
+            ReadAction.run<RuntimeException> {
+                ConstantKeyResolver.declarationArgument(literal)?.let { callFiles[literal] = it.containingFile.name }
+            }
             true
         }
 
