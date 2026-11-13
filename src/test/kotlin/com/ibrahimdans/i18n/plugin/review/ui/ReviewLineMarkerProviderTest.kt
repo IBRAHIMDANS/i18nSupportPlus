@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.review.ui
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.lineMarkersOf
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.ReviewBadge
 import com.ibrahimdans.i18n.plugin.review.Review
 import com.ibrahimdans.i18n.plugin.review.ReviewHash
@@ -10,7 +11,6 @@ import com.ibrahimdans.i18n.plugin.review.ReviewSource
 import com.ibrahimdans.i18n.plugin.review.ReviewState
 import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
-import com.intellij.codeInsight.daemon.impl.DaemonCodeAnalyzerImpl
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.vfs.VirtualFile
 import org.junit.jupiter.api.Assertions
@@ -48,7 +48,7 @@ class ReviewLineMarkerProviderTest : PlatformBaseTest() {
     private fun markers(path: String): Map<String, ReviewLineMarkerInfo> {
         myFixture.configureFromExistingVirtualFile(myFixture.findFileInTempDir(path))
         myFixture.doHighlighting()
-        return DaemonCodeAnalyzerImpl.getLineMarkers(myFixture.editor.document, project)
+        return lineMarkersOf(myFixture.editor.document, project)
             .filterIsInstance<ReviewLineMarkerInfo>()
             .associateBy { it.element!!.text }
     }

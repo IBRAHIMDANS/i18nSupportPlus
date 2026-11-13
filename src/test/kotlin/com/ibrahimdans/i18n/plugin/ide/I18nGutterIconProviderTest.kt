@@ -1,12 +1,12 @@
 package com.ibrahimdans.i18n.plugin.ide
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.lineMarkersOf
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.generator.code.TsCodeGenerator
 import com.intellij.codeInsight.daemon.LineMarkerInfo
 import com.intellij.codeInsight.daemon.LineMarkerProviders
-import com.intellij.codeInsight.daemon.impl.DaemonCodeAnalyzerImpl
 import com.intellij.openapi.application.ReadAction
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -217,7 +217,7 @@ class I18nGutterIconProviderTest : PlatformBaseTest() {
 
         myFixture.doHighlighting()
 
-        val badges = DaemonCodeAnalyzerImpl.getLineMarkers(myFixture.editor.document, project)
+        val badges = lineMarkersOf(myFixture.editor.document, project)
             .filter { it.lineMarkerTooltip?.contains("i18n:") == true }
         Assertions.assertEquals(1, badges.size, "${badges.map { it.lineMarkerTooltip }}")
         Assertions.assertEquals("'order.title'", myFixture.editor.document.text.substring(badges.single().startOffset, badges.single().endOffset))
