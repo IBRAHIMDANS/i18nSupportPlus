@@ -3,6 +3,7 @@ package com.ibrahimdans.i18n.plugin
 import com.ibrahimdans.i18n.plugin.ide.inspection.UnresolvedKeyInspection
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.psi.PsiFile
+import com.intellij.testFramework.EdtTestUtil
 import com.intellij.testFramework.LoggedErrorProcessor
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.util.ThrowableRunnable
@@ -77,7 +78,27 @@ private val infraErrorSuppressor = object : LoggedErrorProcessor() {
 // engine; this interceptor replicates that behaviour for JUnit 5.
 // The infraErrorSuppressor is active for the duration of each test body so that
 // background-thread infrastructure errors (e.g. Vue LSP init) don't fail tests.
+//
+// @BeforeEach and @AfterEach go to the EDT too, so a test's set-up, body and tear-down share one
+// thread, as runBare gives them under JUnit 4. mockk keeps what unmockkAll() cancels in a
+// ThreadLocal: a mockkObject in the body (on the EDT) was left in place by an unmockkAll() in an
+// @AfterEach (on the test worker), and the mock answered every later class of the JVM. On 2026.2
+// that left TranslationDataLoader stubbed after TableViewPanelTest — 44 tests of 8 classes
+// failing on their first run, green on their retry.
 private class EdtTestInterceptor : InvocationInterceptor {
+    // Through EdtTestUtil, not the Application: before setUp() there is none yet.
+    override fun interceptBeforeEachMethod(
+        invocation: InvocationInterceptor.Invocation<Void?>,
+        invocationContext: ReflectiveInvocationContext<Method>,
+        extensionContext: ExtensionContext
+    ) = EdtTestUtil.runInEdtAndWait(ThrowableRunnable<Throwable> { invocation.proceed() })
+
+    override fun interceptAfterEachMethod(
+        invocation: InvocationInterceptor.Invocation<Void?>,
+        invocationContext: ReflectiveInvocationContext<Method>,
+        extensionContext: ExtensionContext
+    ) = EdtTestUtil.runInEdtAndWait(ThrowableRunnable<Throwable> { invocation.proceed() })
+
     override fun interceptTestMethod(
         invocation: InvocationInterceptor.Invocation<Void?>,
         invocationContext: ReflectiveInvocationContext<Method>,
