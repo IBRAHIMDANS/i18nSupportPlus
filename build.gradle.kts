@@ -196,28 +196,6 @@ dependencies {
     // junit-vintage-engine removed: all tests use JUnit 5 engine exclusively
 }
 
-// mockk pins kotlinx-coroutines 1.6.4 (too old) and kotlin-stdlib 2.0.0 (missing
-// SequencesKt.sequenceOf(Object) added in Kotlin 2.2). IntelliJ 2025.3.4 bundles both in
-// util-8.jar; the plugin sandbox must not shadow them with older versions from test deps.
-//
-// IGPP's prepareTestSandbox copies test-runtime JARs from intellijPlatformTestRuntimeClasspath
-// into the plugin's sandbox lib/. Force kotlin-stdlib to the build's own version so the sandbox
-// does not get mockk's 2.0.0. Coroutines are excluded so IntelliJ's bundled 1.9.x in util-8.jar wins.
-// Introduced by #32 (2026-04-14) and #56 (2026-04-23, platform 253). Recheck when mockk is bumped
-// or when platformVersion moves to a new branch: drop both blocks and run any coroutine test.
-configurations.named("testRuntimeClasspath") {
-    resolutionStrategy.force("org.jetbrains.kotlin:kotlin-stdlib:2.4.21")
-    exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core")
-    exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core-jvm")
-    exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-debug")
-}
-configurations.named("intellijPlatformTestRuntimeClasspath") {
-    resolutionStrategy.force("org.jetbrains.kotlin:kotlin-stdlib:2.4.21")
-    exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core")
-    exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core-jvm")
-    exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-debug")
-}
-
 kotlin {
     jvmToolchain {
         languageVersion.set(JavaLanguageVersion.of(21))
