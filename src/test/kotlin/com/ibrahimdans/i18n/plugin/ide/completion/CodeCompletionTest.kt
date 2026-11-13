@@ -186,8 +186,11 @@ internal class CodeCompletionValuesTest : PlatformBaseTest() {
         addFileToProject("locales/fr/translation.json", """{"home": "Accueil", "help": "Aide"}""")
         myFixture.configureByText("menu.js", codeGenerator.generate("'acc<caret>'"))
         myFixture.complete(CompletionType.BASIC, 1)
-        // The lookup also carries the platform's word completions (`accent`, `access`…).
-        assertTrue("home" in myFixture.lookupElementStrings.orEmpty(), myFixture.lookupElementStrings.toString())
+        // Up to 2025.3 the lookup also carried the platform's word completions (`accent`, `access`…);
+        // from 2026.2 `home` is alone, and the fixture inserts a sole variant, leaving no lookup.
+        val offered = myFixture.lookupElementStrings
+        if (offered == null) myFixture.checkResult(codeGenerator.generate("'home'"))
+        else assertTrue("home" in offered, offered.toString())
     }
 
     /** A key the preview locale lacks shows nothing rather than another locale's text. */
