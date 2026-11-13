@@ -48,11 +48,17 @@ class I18nReference(element: PsiElement, textRange: TextRange, val references: L
             .distinct()
     }
 
+    /**
+     * The element [item] points to, or null when it no longer stands in its file: a reference is cached
+     * with its literal, so an edit of the translation file since then leaves its value detached, without
+     * a parent (NPE reported from PhpStorm 2026.2 on 1.21.0).
+     */
     private fun targetOf(item: ReferenceDescriptor): PsiElement? = item.reference.element?.let {
+        val value = it.value().takeIf(PsiElement::isValid) ?: return null
         val res = if (it.isTree()) {
-            val parent = it.value().parent
+            val parent = value.parent ?: return null
             (parent as? PsiFile) ?: parent.firstChild
-        } else it.value()
+        } else value
         item.host ?: res
     }
 
