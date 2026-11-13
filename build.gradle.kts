@@ -636,30 +636,6 @@ tasks {
                 }
                 ?.firstOrNull()
 
-            // --- YAML: copy into plugins-test/ so ymlConfig.xml is activated ---
-            //
-            // Without it: -Dplugin.path lists only this plugin and php-impl, the bundled YAML plugin is not
-            // loaded, ymlConfig.xml is never activated, and every YAML test fails (keys not found).
-            // Cause: the test sandbox only loads the plugins under plugins-test/; YAML is bundled with the IDE
-            // but not declared as a test plugin there.
-            // Origin: #20 (2026-03-30, a symlink), turned into a copy by #184 (2026-08-22, see below).
-            // Recheck: at each platformVersion branch change or IGPP major bump, with YamlScalarValuesTest.
-            //
-            // Copied, not symlinked. The source lives in the shared Gradle transforms cache, and
-            // a link to a *directory* there is a trap: deleting the sandbox descends through it
-            // and empties plugins/yaml inside ~/.gradle. The next build then fails with
-            // "Could not find bundled plugin with ID: org.jetbrains.plugins.yaml", or the whole
-            // suite fails with NoClassDefFoundError: org/jetbrains/yaml/psi/YAMLKeyValue — for
-            // every project sharing that cache, not just this one. It looks like a flake and is
-            // not: it is this line. The plugin is 1.7 MB, so copying costs nothing measurable.
-            ideDir?.let { ide ->
-                val yamlSrc = File(ide, "plugins/yaml")
-                val yamlDst = File(sandboxBase, "plugins-test/yaml")
-                if (yamlSrc.exists() && !yamlDst.exists()) {
-                    yamlSrc.copyRecursively(yamlDst, overwrite = true)
-                }
-            }
-
             // --- Vue: flatten lib/modules/ into lib/ so getPluginDistDirByClass() resolves ---
             //
             // Cause, as recorded when it was added: from platform 253 the Vue plugin keeps part of its jars in
