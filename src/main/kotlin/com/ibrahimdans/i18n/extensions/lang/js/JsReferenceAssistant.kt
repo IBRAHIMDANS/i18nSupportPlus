@@ -15,6 +15,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.rules.RuleDecision
+import com.ibrahimdans.i18n.plugin.utils.ancestors
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.lang.javascript.patterns.JSPatterns
 import com.intellij.lang.javascript.psi.ecma6.JSComputedPropertyNameOwner
@@ -29,7 +30,6 @@ import com.intellij.lang.javascript.psi.ecma6.TypeScriptEnumField
 import com.intellij.patterns.ElementPattern
 import com.intellij.patterns.ElementPatternCondition
 import com.intellij.psi.PsiElement
-import com.intellij.psi.util.parents
 import com.intellij.util.ProcessingContext
 
 internal class JsReferenceAssistant: ReferenceAssistant {
@@ -99,7 +99,7 @@ internal class JsReferenceAssistant: ReferenceAssistant {
              */
             private fun isAlias(element: JSLiteralExpression): Boolean {
                 val config = Settings.getInstance(element.project).config()
-                return element.parents(false).toList()
+                return element.ancestors(false).toList()
                     .mapNotNull {(it as? JSProperty)?.name ?: (it as? JSComputedPropertyNameOwner)?.computedPropertyName?.let { (it.expression as? JSReferenceExpression)?.resolve() as? TypeScriptEnumField }?.name}
                     .reversed().joinToString(config.keySeparator).endsWith(element.text.unQuote())
             }

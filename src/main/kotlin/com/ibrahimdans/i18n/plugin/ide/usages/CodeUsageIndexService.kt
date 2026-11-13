@@ -19,6 +19,7 @@ import com.ibrahimdans.i18n.plugin.utils.IdeWorkspace
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.PluginCoroutineScope
+import com.ibrahimdans.i18n.plugin.utils.ancestors
 import com.ibrahimdans.i18n.plugin.utils.keyScopesOf
 import com.ibrahimdans.i18n.plugin.utils.searchScope
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
@@ -55,7 +56,6 @@ import com.intellij.psi.PsiTreeChangeEvent
 import com.intellij.psi.search.FileTypeIndex
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.UsageSearchContext
-import com.intellij.psi.util.parents
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -345,7 +345,7 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
         val starts = listOfNotNull(injection.findInjectedElementAt(file, range.startOffset)) +
             file.viewProvider.allFiles.mapNotNull { it.findElementAt(range.startOffset) }
         for (start in starts) {
-            val spanning = start.parents(true).takeWhile { it !is PsiFile }
+            val spanning = start.ancestors(true).takeWhile { it !is PsiFile }
                 .filter { (it.textRange?.let { own -> injection.injectedToHost(it, own) }) == range }
                 .toList()
             if (spanning.isEmpty()) continue
