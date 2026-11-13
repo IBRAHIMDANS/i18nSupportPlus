@@ -4,6 +4,7 @@
 
 ### Fixes
 
+- [YAML] **A value holding an invisible control character no longer breaks the YAML file**: a translation pasted from a PDF or a Word document can carry a C1 control character (U+0080 to U+009F). Written as is, it made the whole YAML file unreadable, and a "next line" character (U+0085) on its own read back as an empty value. These characters are now written as escapes between double quotes, and read back as written.
 - [Export] **Windows line breaks survive an XLIFF round trip**: a value holding `\r\n` came back from *Import Translations* with `\n` alone, so the import rewrote it although the translator had not changed it. The exported file now keeps the carriage return.
 - [Machine translation] **Cancel stops a translation at once**: cancelling *Fill Missing Translations* or a translation preview while the engine is slow to answer now ends the pass within a fraction of a second, instead of waiting up to a minute (five for a batch) for the answer. What was already translated is still offered.
 - [Editor] **No more `NullPointerException` in `I18nReference` while you edit a translation file**: a key whose translation was just changed or removed could fail the editor's highlighting of the call and ask to report the error (seen in PhpStorm 2026.2). The key is now read again from the edited file, and so is a vue-i18n linked message (`@:common.save`) whose target was just removed.

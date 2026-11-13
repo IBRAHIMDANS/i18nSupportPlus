@@ -11,7 +11,6 @@ import io.kotest.property.arbitrary.of
 import io.kotest.property.checkAll
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.snakeyaml.engine.v2.api.Load
 import org.snakeyaml.engine.v2.api.LoadSettings
@@ -36,10 +35,9 @@ class YamlScalarsPropertyTest {
         "'", "\"", "\\", "{{count}}",
         "yes", "No", "on", "OFF", "true", "null", "~", "y", "123", "-4", "1.5", "1e3", "0x1F", "0o17", ".inf", ".NaN", "2026-10-15", "12:30",
         "\n", "\r", "\r\n", "\t", ch(0x07), ch(0x7f), ch(0x2028), ch(0x2029),
+        // NEXT LINE, a line break to the YAML reader, and C1 controls, which it refuses unescaped.
+        ch(0x85), ch(0x80), ch(0x9f), ch(0xfffe),
     )
-
-    /** NEXT LINE (U+0085): a line break to the YAML reader, an ordinary character to [YamlScalars]. */
-    private val nextLine = ch(0x85)
 
     private fun values(tokens: List<String>) = Arb.list(Arb.of(tokens), 0..6).map { it.joinToString("") }
 
@@ -61,20 +59,6 @@ class YamlScalarsPropertyTest {
 
                 assertEquals(mapOf("save" to value, "quit" to "Quit"), menu, "${codes(value)} spelled as ${codes(spelled)}")
             }
-        }
-    }
-
-    /**
-     * Smallest case: a value holding U+0085 alone is spelled plain, as is, and reads back as null
-     * (an empty value). The YAML reader takes NEXT LINE for a line break, which a plain or
-     * single-quoted scalar folds; only the C0 controls and DEL get the escapes of double quotes.
-     * U+2028 and U+2029 read back fine (in the tokens above).
-     */
-    @Test
-    @Disabled("CADRAGE-YAML-NEXT-LINE: YamlScalars writes U+0085 unescaped, the YAML reader takes it for a line break")
-    fun `a spelled value keeps its NEXT LINE characters`() {
-        runBlocking {
-            checkAll(config, values(tokens + nextLine), Arb.enum<Style>()) { value, preferred -> assertReadsBack(value, preferred) }
         }
     }
 

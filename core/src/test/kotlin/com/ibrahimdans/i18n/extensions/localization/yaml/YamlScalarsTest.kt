@@ -42,6 +42,15 @@ class YamlScalarsTest {
     }
 
     @Test
+    fun `next line and C1 controls take double quotes and escapes`() {
+        // Written raw, NEXT LINE alone reads back empty, and any other C1 control stops the file from loading.
+        assertEquals("\"\\N\"", YamlScalars.spell("\u0085"))
+        assertEquals("\"a\\x80b\\x9f\"", YamlScalars.spell("a\u0080b\u009f"))
+        assertEquals("\"x\\ufffe\"", YamlScalars.spell("x\ufffe", Style.SINGLE))
+        assertEquals("Save\u2028all", YamlScalars.spell("Save\u2028all"))
+    }
+
+    @Test
     fun `the preferred quotes are kept when they can carry the value`() {
         assertEquals("'Save'", YamlScalars.spell("Save", Style.SINGLE))
         assertEquals("\"Save\"", YamlScalars.spell("Save", Style.DOUBLE))
