@@ -4,6 +4,7 @@
 
 ### Fixes
 
+- [Export] **Windows line breaks survive an XLIFF round trip**: a value holding `\r\n` came back from *Import Translations* with `\n` alone, so the import rewrote it although the translator had not changed it. The exported file now keeps the carriage return.
 - [Machine translation] **Cancel stops a translation at once**: cancelling *Fill Missing Translations* or a translation preview while the engine is slow to answer now ends the pass within a fraction of a second, instead of waiting up to a minute (five for a batch) for the answer. What was already translated is still offered.
 - [Editor] **No more `NullPointerException` in `I18nReference` while you edit a translation file**: a key whose translation was just changed or removed could fail the editor's highlighting of the call and ask to report the error (seen in PhpStorm 2026.2). The key is now read again from the edited file, and so is a vue-i18n linked message (`@:common.save`) whose target was just removed.
 

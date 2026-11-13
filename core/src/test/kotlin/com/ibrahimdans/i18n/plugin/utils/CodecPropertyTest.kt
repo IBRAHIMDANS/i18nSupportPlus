@@ -11,7 +11,6 @@ import io.kotest.property.checkAll
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
 /**
@@ -57,21 +56,6 @@ class CodecPropertyTest {
 
     @Test
     fun `an XLIFF export reads back the target of every unit`() {
-        runBlocking {
-            checkAll(config, translations(text(keyAlphabet, 1), text(tricky - "\r", 0))) { t ->
-                assertXliffRoundTrip(t)
-            }
-        }
-    }
-
-    /**
-     * Smallest case: `fr = "a\r\nb"` comes back as `"a\nb"`, and a lone `"\r"` as `"\n"`. XML
-     * normalizes the line breaks of text content, and encode writes `\r` as is instead of `&#13;`.
-     * The import plan then sees a changed value and rewrites it.
-     */
-    @Test
-    @Disabled("CADRAGE-XLIFF-CARRIAGE-RETURN: encode writes \\r raw, XML parsing turns it into \\n")
-    fun `an XLIFF export keeps the carriage returns of a value`() {
         runBlocking {
             checkAll(config, translations(text(keyAlphabet, 1), text(tricky, 0))) { t ->
                 assertXliffRoundTrip(t)

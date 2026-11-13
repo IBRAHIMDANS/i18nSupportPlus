@@ -53,6 +53,23 @@ class XliffTranslationCodecTest {
 
     /** What a CAT tool sends back: extra attributes, notes, inline markup inside the target. */
     @Test
+    fun carriageReturnsSurviveTheRoundTrip() {
+        val windows = mapOf("common:note" to mapOf("en" to "a\r\nb", "fr" to "x\r\ny\rz"))
+        val xliff = encode("en", "fr", windows)
+
+        assertTrue("x&#13;\ny&#13;z" in xliff, xliff)
+        assertEquals(listOf(listOf("key", "fr"), listOf("common:note", "x\r\ny\rz")), parse(xliff))
+    }
+
+    @Test
+    fun anExportWithRawCarriageReturnsStillImports() {
+        val older = "<xliff version=\"1.2\"><file target-language=\"fr\"><body>" +
+            "<trans-unit id=\"k\"><source>a</source><target>x\r\ny</target></trans-unit></body></file></xliff>"
+
+        assertEquals(listOf(listOf("key", "fr"), listOf("k", "x\ny")), parse(older), "XML reads a raw \\r\\n as \\n")
+    }
+
+    @Test
     fun aForeignXliffIsRead() {
         val foreign = """
             <?xml version="1.0" encoding="UTF-8"?>
