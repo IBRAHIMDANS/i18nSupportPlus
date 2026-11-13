@@ -37,6 +37,14 @@ val unbundledPlugins: Map<String, String> = mapOf(
         "org.jetbrains.plugins.astro" to "262.10968.63",
         "com.jetbrains.twig" to "262.8665.173",
     ),
+    263 to mapOf(
+        "com.jetbrains.php" to "263.7307.200",
+        "org.jetbrains.plugins.localization" to "263.7307.108",
+        "dev.blachut.svelte.lang" to "263.7307.101",
+        "com.jetbrains.php.blade" to "263.7307.112",
+        "org.jetbrains.plugins.astro" to "263.7307.101",
+        "com.jetbrains.twig" to "263.7307.101",
+    ),
 ).let { byBranch -> byBranch[platformBranch] ?: byBranch.getValue(253) }
 
 fun unbundled(id: String) = "$id:${unbundledPlugins.getValue(id)}"

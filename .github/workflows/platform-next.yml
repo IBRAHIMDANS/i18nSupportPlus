@@ -6,7 +6,7 @@ name: Next Platform Tests
 # catches a defect only that platform has (the 2026.2 folding NPE of #839).
 #
 # Not on pull requests: it never blocks a merge. Weekly, an hour after Plugin Compatibility, and by
-# hand on any branch: `gh workflow run platform-next.yml --ref <branch> -f platformVersion=2026.2.4`.
+# hand on any branch: `gh workflow run platform-next.yml --ref <branch> -f platformVersion=2026.3`.
 # One class alone, to read its failure without the whole suite: add `-f tests=ArbCataloguesTest`.
 on:
   schedule:
@@ -16,7 +16,7 @@ on:
       platformVersion:
         description: 'IntelliJ IDEA Ultimate version to compile and test against'
         required: false
-        default: '2026.2.4'
+        default: '2026.3'
       tests:
         description: 'Test filter passed to --tests (for example ArbCataloguesTest); empty runs the whole suite'
         required: false
@@ -24,14 +24,14 @@ on:
 
 jobs:
   test:
-    name: tests on ${{ inputs.platformVersion || '2026.2.4' }}
+    name: tests on ${{ inputs.platformVersion || '2026.3' }}
     runs-on: ubuntu-latest
     # The suite takes about 14 minutes on one runner (it is split in four in ci.yml).
     timeout-minutes: 60
     permissions:
       contents: read
     env:
-      PLATFORM_VERSION: ${{ inputs.platformVersion || '2026.2.4' }}
+      PLATFORM_VERSION: ${{ inputs.platformVersion || '2026.3' }}
       TEST_FILTER: ${{ inputs.tests }}
     steps:
       - name: Free disk space
