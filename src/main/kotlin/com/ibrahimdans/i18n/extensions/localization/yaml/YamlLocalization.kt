@@ -11,6 +11,7 @@ import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.key.lexer.Literal
 import com.ibrahimdans.i18n.plugin.tree.Tree
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
+import com.ibrahimdans.i18n.plugin.utils.ancestors
 import com.ibrahimdans.i18n.plugin.utils.unQuote
 import com.intellij.icons.AllIcons
 import com.intellij.lang.Language
@@ -23,7 +24,6 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiReference
 import com.intellij.psi.impl.source.PostprocessReformattingAspect
 import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.psi.util.parents
 import javax.swing.Icon
 import org.jetbrains.yaml.YAMLElementGenerator
 import org.jetbrains.yaml.YAMLFileType
@@ -161,7 +161,7 @@ class YamlReferenceAssistant : TranslationReferenceAssistant<YAMLKeyValue> {
 
     private fun parents(element: YAMLKeyValue): List<String>? {
         val result = mutableListOf<String>()
-        for (psi in element.parents(true)) {
+        for (psi in element.ancestors(true)) {
             when {
                 psi is YAMLKeyValue -> result.add(psi.key?.text?.unQuote() ?: return null)
                 // A Symfony catalogue, `messages.fr.yaml`, holds the domain its technology states.

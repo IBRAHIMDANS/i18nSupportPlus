@@ -34,6 +34,19 @@ fun PsiElement.hostFile(): PsiFile? =
 fun PsiElement.hostVirtualFile(): VirtualFile? = hostFile()?.originalFile?.virtualFile
 
 /**
+ * The element's ancestors, nearest first, [this] included when [withSelf], up to and including its
+ * [PsiFile] — never its directories. Same walk as the platform's `PsiElement.parents(withSelf)`.
+ *
+ * That one cannot be called: compiled against 2026.2 it resolves to `parents$default(PsiElement,
+ * boolean, boolean, int, Object)`, an overload absent from 2025.2 and 2025.3, so every call would
+ * throw `NoSuchMethodError` there (Plugin Compatibility, 2026-11-13).
+ */
+fun PsiElement.ancestors(withSelf: Boolean): Sequence<PsiElement> {
+    fun up(element: PsiElement): PsiElement? = if (element is PsiFile) null else element.parent
+    return generateSequence(if (withSelf) this else up(this), ::up)
+}
+
+/**
  * Deletes a translation property together with its separating comma —
  * plain JsonProperty.delete() leaves `{,"b":…}` / `{…,}` behind, corrupting
  * the file. YAML entries have no separator and are deleted as-is.

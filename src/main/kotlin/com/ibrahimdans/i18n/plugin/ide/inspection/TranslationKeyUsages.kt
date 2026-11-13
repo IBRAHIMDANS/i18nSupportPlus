@@ -10,6 +10,7 @@ import com.ibrahimdans.i18n.plugin.tree.KeyComposer
 import com.ibrahimdans.i18n.plugin.tree.Separators
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
+import com.ibrahimdans.i18n.plugin.utils.ancestors
 import com.ibrahimdans.i18n.plugin.utils.keyScopeOf
 import com.ibrahimdans.i18n.plugin.utils.ownerOf
 import com.ibrahimdans.i18n.plugin.utils.usageScope
@@ -22,7 +23,6 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.searches.ReferencesSearch
-import com.intellij.psi.util.parents
 import com.intellij.util.Processor
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -205,7 +205,7 @@ internal object TranslationKeyUsages : KeyComposer<PsiElement> {
      * `` t(`common.${'$'}{x}`) `` or kept as `common.*` was reported unused here while the table counted it.
      */
     private fun pathOf(element: PsiElement, config: Config): List<String> =
-        element.parents(true).mapNotNull {
+        element.ancestors(true).mapNotNull {
             TranslationPsi.nameOf(it) ?: (it as? PsiFile)?.let { file -> namespaceOf(file, config) }
         }.toList().reversed()
 

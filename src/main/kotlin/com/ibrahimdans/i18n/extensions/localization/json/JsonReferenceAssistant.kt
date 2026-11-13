@@ -5,6 +5,7 @@ import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationFileScope
 import com.ibrahimdans.i18n.plugin.ide.references.translation.TranslationToCodeReferenceProvider
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
+import com.ibrahimdans.i18n.plugin.utils.ancestors
 import com.intellij.json.psi.JsonFile
 import com.intellij.json.psi.JsonProperty
 import com.intellij.json.psi.JsonStringLiteral
@@ -12,7 +13,6 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.patterns.ElementPattern
 import com.intellij.patterns.PlatformPatterns
 import com.intellij.psi.PsiReference
-import com.intellij.psi.util.parents
 
 class JsonReferenceAssistant : TranslationReferenceAssistant<JsonStringLiteral> {
 
@@ -29,7 +29,7 @@ class JsonReferenceAssistant : TranslationReferenceAssistant<JsonStringLiteral> 
         }
 
     private fun parents(element: JsonStringLiteral): List<String> =
-        element.parents(true).mapNotNull {
+        element.ancestors(true).mapNotNull {
             when {
                 it is JsonProperty -> it.name
                 it is JsonFile -> namespaceOf(it)
