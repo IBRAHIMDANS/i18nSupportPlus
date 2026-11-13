@@ -2,10 +2,6 @@ import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel
-import java.nio.file.Files
-import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
-import java.util.zip.ZipOutputStream
 
 fun properties(key: String) = providers.gradleProperty(key)
 
@@ -198,28 +194,6 @@ dependencies {
     uiTestImplementation("org.kodein.di:kodein-di-jvm:7.26.1")
     uiTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.1")
     // junit-vintage-engine removed: all tests use JUnit 5 engine exclusively
-}
-
-// mockk pins kotlinx-coroutines 1.6.4 (too old) and kotlin-stdlib 2.0.0 (missing
-// SequencesKt.sequenceOf(Object) added in Kotlin 2.2). IntelliJ 2025.3.4 bundles both in
-// util-8.jar; the plugin sandbox must not shadow them with older versions from test deps.
-//
-// IGPP's prepareTestSandbox copies test-runtime JARs from intellijPlatformTestRuntimeClasspath
-// into the plugin's sandbox lib/. Force kotlin-stdlib to the build's own version so the sandbox
-// does not get mockk's 2.0.0. Coroutines are excluded so IntelliJ's bundled 1.9.x in util-8.jar wins.
-// Introduced by #32 (2026-04-14) and #56 (2026-04-23, platform 253). Recheck when mockk is bumped
-// or when platformVersion moves to a new branch: drop both blocks and run any coroutine test.
-configurations.named("testRuntimeClasspath") {
-    resolutionStrategy.force("org.jetbrains.kotlin:kotlin-stdlib:2.4.21")
-    exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core")
-    exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core-jvm")
-    exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-debug")
-}
-configurations.named("intellijPlatformTestRuntimeClasspath") {
-    resolutionStrategy.force("org.jetbrains.kotlin:kotlin-stdlib:2.4.21")
-    exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core")
-    exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core-jvm")
-    exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-debug")
 }
 
 kotlin {
@@ -614,116 +588,6 @@ tasks {
         extensions.configure<JacocoTaskExtension> {
             isIncludeNoLocationClasses = true
             excludes = listOf("jdk.internal.*")
-        }
-    }
-
-    // Three patches of the test sandbox, none of which changes what ships. Each one says what breaks
-    // without it, why, where it comes from, and when to try removing it. No YouTrack issue was ever
-    // cited for any of them. "Recheck" means: delete the block, run the tests named, keep it if they fail.
-    named("prepareTestSandbox") {
-        doLast {
-            val pluginName = properties("pluginName").get()
-            val sandboxBase = layout.projectDirectory
-                .dir(".intellijPlatform/sandbox/$pluginName/IU-$effectivePlatformVersion")
-                .asFile
-
-            // ~/.gradle/caches/<gradleVersion>/transforms/<hash>/transformed/idea-<version>/
-            val transformsDir = File(gradle.gradleUserHomeDir, "caches/${gradle.gradleVersion}/transforms")
-            val ideDir = transformsDir.listFiles()
-                ?.mapNotNull { hashDir ->
-                    File(hashDir, "transformed/idea-$effectivePlatformVersion")
-                        .takeIf { it.isDirectory && File(it, "plugins").isDirectory }
-                }
-                ?.firstOrNull()
-
-            // --- YAML: copy into plugins-test/ so ymlConfig.xml is activated ---
-            //
-            // Without it: -Dplugin.path lists only this plugin and php-impl, the bundled YAML plugin is not
-            // loaded, ymlConfig.xml is never activated, and every YAML test fails (keys not found).
-            // Cause: the test sandbox only loads the plugins under plugins-test/; YAML is bundled with the IDE
-            // but not declared as a test plugin there.
-            // Origin: #20 (2026-03-30, a symlink), turned into a copy by #184 (2026-08-22, see below).
-            // Recheck: at each platformVersion branch change or IGPP major bump, with YamlScalarValuesTest.
-            //
-            // Copied, not symlinked. The source lives in the shared Gradle transforms cache, and
-            // a link to a *directory* there is a trap: deleting the sandbox descends through it
-            // and empties plugins/yaml inside ~/.gradle. The next build then fails with
-            // "Could not find bundled plugin with ID: org.jetbrains.plugins.yaml", or the whole
-            // suite fails with NoClassDefFoundError: org/jetbrains/yaml/psi/YAMLKeyValue — for
-            // every project sharing that cache, not just this one. It looks like a flake and is
-            // not: it is this line. The plugin is 1.7 MB, so copying costs nothing measurable.
-            ideDir?.let { ide ->
-                val yamlSrc = File(ide, "plugins/yaml")
-                val yamlDst = File(sandboxBase, "plugins-test/yaml")
-                if (yamlSrc.exists() && !yamlDst.exists()) {
-                    yamlSrc.copyRecursively(yamlDst, overwrite = true)
-                }
-            }
-
-            // --- Vue: flatten lib/modules/ into lib/ so getPluginDistDirByClass() resolves ---
-            //
-            // Cause, as recorded when it was added: from platform 253 the Vue plugin keeps part of its jars in
-            // lib/modules/, and PathManager.getPluginDistDirByClass() only finds a plugin's directory from a jar
-            // sitting directly in its lib/; the Vue plugin then cannot locate its own files in the test sandbox.
-            // The exact failure was not written down at the time.
-            // Origin: #56 (2026-04-23, upgrade to platform 253).
-            // Recheck: at each platformVersion branch change, with the Vue tests (FoldingTestVue, *Vue* under runVue).
-            //
-            // These link individual *files*, which is why they never corrupted the cache the way
-            // the YAML directory link did: deleting a link to a file removes the link, not the
-            // target. Kept as links deliberately — the Vue jars are far larger than the YAML
-            // plugin, and copying them on every sandbox build would be felt.
-            ideDir?.let { ide ->
-                val vueSrc = File(ide, "plugins/vuejs-plugin")
-                val vueLibDst = File(sandboxBase, "plugins-test/vuejs-plugin/lib")
-                if (vueSrc.exists() && !vueLibDst.exists()) {
-                    vueLibDst.mkdirs()
-                    File(vueSrc, "lib").listFiles { f -> f.isFile && f.extension == "jar" }
-                        ?.forEach { jar ->
-                            Files.createSymbolicLink(File(vueLibDst, jar.name).toPath(), jar.toPath())
-                        }
-                    File(vueSrc, "lib/modules").listFiles { f -> f.extension == "jar" }
-                        ?.forEach { jar ->
-                            Files.createSymbolicLink(File(vueLibDst, jar.name).toPath(), jar.toPath())
-                        }
-                }
-            }
-
-            // --- PHP: strip duplicate META-INF descriptors from php-frontback.jar ---
-            //
-            // Without it: PluginException on a duplicate extension point registration, com.jetbrains.php does not
-            // load, phpConfig.xml is never activated, and every PHP test fails.
-            // Cause: the PHP plugin ships split-mode modules (php-frontback.jar, frontend/, frontend-split/) whose
-            // META-INF descriptors declare again extension points php.jar already declares. Only the descriptors
-            // go: deleting the whole jar also removed classes the PHP plugin needs, so it still did not load.
-            // Origin: #20 (2026-03-30, PHP plugin 243.x); frontend-split/ added by #56 (2026-04-23, platform 253).
-            // Recheck: at each platformVersion branch change or PHP plugin bump, with PhpGettextHighlightingTest.
-            val phpLib = File(sandboxBase, "plugins-test/php-impl/lib")
-            val frontback = File(phpLib, "php-frontback.jar")
-            if (frontback.exists()) {
-                val patched = File(frontback.parent, "_php-frontback-patched.jar")
-                ZipInputStream(frontback.inputStream().buffered()).use { zin ->
-                    ZipOutputStream(patched.outputStream().buffered()).use { zout ->
-                        var entry = zin.nextEntry
-                        while (entry != null) {
-                            val keep = !entry.name.startsWith("META-INF/") ||
-                                       entry.name == "META-INF/MANIFEST.MF"
-                            if (keep) {
-                                zout.putNextEntry(ZipEntry(entry.name))
-                                zin.copyTo(zout)
-                                zout.closeEntry()
-                            }
-                            zin.closeEntry()
-                            entry = zin.nextEntry
-                        }
-                    }
-                }
-                frontback.delete()
-                patched.renameTo(frontback)
-            }
-            for (splitDir in listOf("frontend", "frontend-split")) {
-                File(phpLib, splitDir).takeIf { it.exists() }?.deleteRecursively()
-            }
         }
     }
 }
