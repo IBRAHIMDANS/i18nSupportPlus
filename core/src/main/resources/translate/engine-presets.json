@@ -72,5 +72,48 @@
       "maxSize": 128,
       "source": "https://docs.cloud.google.com/translate/docs/reference/rest/v2/translate : 'The maximum number of strings is 128.'"
     }
+  },
+  {
+    "id": "anthropic",
+    "name": "Anthropic (Claude)",
+    "url": "https://api.anthropic.com/v1/messages",
+    "headers": {
+      "x-api-key": "{apiKey}",
+      "anthropic-version": "2026-10-21"
+    },
+    "body": "{\"model\": \"claude-haiku-5-5\", \"max_tokens\": 4096, \"thinking\": {\"type\": \"disabled\"}, \"system\": \"Translate the user's text from {source} to {target}. It is a UI string of an application; context: {context}. Keep every <x id=\\\"N\\\"/> tag exactly as written, and reply with the translation only.{glossary}{instruction}\", \"messages\": [{\"role\": \"user\", \"content\": \"{text}\"}]}",
+    "responsePath": "content[0].text",
+    "glossary": "{glossary} is the project's glossary for the target locale, a sentence starting with a space: empty without one, so the request stays the same",
+    "instruction": "{instruction} is the project's form of address for the target locale and its instructions (Machine Translation settings), then what the user asks of the translation in the key's dialog (a tone, a length), sentences starting with a space: empty without any, so the request stays the same",
+    "thinking": "Thinking is off so that the translation is the first content block: content[0] would otherwise be a thinking block. Claude Haiku 5.5 accepts {\"type\": \"disabled\"} at its default effort (medium); a model that keeps thinking on, such as Claude Opus 5.5, cannot be read at this path. No temperature: API version 2026-10-21 rejects temperature, top_p and top_k on every model",
+    "source": "https://platform.claude.com/docs/en/api/messages ; models: https://platform.claude.com/docs/en/about-claude/models/overview (claude-haiku-5-5) ; https://platform.claude.com/docs/en/api/migration-2026-10-21 (no sampling parameters). The native Messages API, not its OpenAI-compatible layer",
+    "batch": {
+      "body": "{\"model\": \"claude-haiku-5-5\", \"max_tokens\": 16000, \"thinking\": {\"type\": \"disabled\"}, \"system\": \"Translate each string of the JSON array the user sends from {source} to {target}. They are UI strings of an application; context: {context}. Keep every <x id=\\\"N\\\"/> tag exactly as written.{glossary}{instruction} Reply with a JSON array of the translations only: same order, same length, nothing else.\", \"messages\": [{\"role\": \"user\", \"content\": \"{textsJson}\"}]}",
+      "listPath": "content[0].text",
+      "jsonText": true,
+      "maxSize": 20,
+      "source": "No API limit: 20 is our choice, as for the OpenAI-compatible engine, so a failed batch stays cheap; 16000 output tokens leave room for 20 UI strings"
+    }
+  },
+  {
+    "id": "gemini",
+    "name": "Google Gemini",
+    "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    "headers": {
+      "Authorization": "Bearer {apiKey}"
+    },
+    "body": "{\"model\": \"gemini-4-hydrogen\", \"reasoning_effort\": \"low\", \"messages\": [{\"role\": \"system\", \"content\": \"Translate the user's text from {source} to {target}. It is a UI string of an application; context: {context}. Keep every <x id=\\\"N\\\"/> tag exactly as written, and reply with the translation only.{glossary}{instruction}\"}, {\"role\": \"user\", \"content\": \"{text}\"}]}",
+    "responsePath": "choices[0].message.content",
+    "glossary": "{glossary} is the project's glossary for the target locale, a sentence starting with a space: empty without one, so the request stays the same",
+    "instruction": "{instruction} is the project's form of address for the target locale and its instructions (Machine Translation settings), then what the user asks of the translation in the key's dialog (a tone, a length), sentences starting with a space: empty without any, so the request stays the same",
+    "thinking": "Gemini 4 models cannot turn reasoning off: reasoning_effort low keeps it short, and the answer of the OpenAI-compatible endpoint holds the reply only. No temperature: the model's default is kept",
+    "source": "https://ai.google.dev/gemini-api/docs/openai (base URL https://generativelanguage.googleapis.com/v1beta/openai/, Bearer key, reasoning_effort) ; models: https://ai.google.dev/gemini-api/docs/models (gemini-4-hydrogen)",
+    "batch": {
+      "body": "{\"model\": \"gemini-4-hydrogen\", \"reasoning_effort\": \"low\", \"messages\": [{\"role\": \"system\", \"content\": \"Translate each string of the JSON array the user sends from {source} to {target}. They are UI strings of an application; context: {context}. Keep every <x id=\\\"N\\\"/> tag exactly as written.{glossary}{instruction} Reply with a JSON array of the translations only: same order, same length, nothing else.\"}, {\"role\": \"user\", \"content\": \"{textsJson}\"}]}",
+      "listPath": "choices[0].message.content",
+      "jsonText": true,
+      "maxSize": 20,
+      "source": "No API limit: 20 is our choice, as for the OpenAI-compatible engine, so a failed batch stays cheap"
+    }
   }
 ]
