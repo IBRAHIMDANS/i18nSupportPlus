@@ -305,7 +305,8 @@ class HttpTranslationProvider(
     companion object {
         private val PLACEHOLDER = Regex("""\{(text|source|target|context|glossary|instruction|formality|apiKey)}""")
         private val FENCE = Regex("""^\s*```\w*\s*|\s*```\s*$""")
-        private val PATH_PART = Regex("""([^.\[\]]+)|\[(\d+)]""")
+        /** A field (`content`), an index (`[0]`), or the first object of an array whose field holds a value (`[type=text]`). */
+        private val PATH_PART = Regex("""([^.\[\]]+)|\[(\d+)]|\[([^=\]]+)=([^\]]*)]""")
 
         /** Attempts at one request, the first included. */
         private const val ATTEMPTS = 3
@@ -360,7 +361,10 @@ class HttpTranslationProvider(
         fun fill(template: String, values: Map<String, String>, encode: (String) -> String): String =
             PLACEHOLDER.replace(template) { match -> values[match.groupValues[1]]?.let(encode) ?: match.value }
 
-        /** The value at [path] (`translations[0].text`) in the JSON [body], or null when it is not a string there. */
+        /**
+         * The value at [path] in the JSON [body] (`translations[0].text`, `content[type=text].text`), or null when it is
+         * not a string there.
+         */
         internal fun read(body: String, path: String): String? =
             node(body, path)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
 
@@ -368,14 +372,22 @@ class HttpTranslationProvider(
         internal fun node(body: String, path: String): JsonElement? {
             var node: JsonElement? = try { JsonParser.parseString(body) } catch (e: Exception) { return null }
             for (part in PATH_PART.findAll(path)) {
+                val array = node?.takeIf { it.isJsonArray }?.asJsonArray
                 node = when {
                     part.groupValues[1].isNotEmpty() -> node?.takeIf { it.isJsonObject }?.asJsonObject?.get(part.groupValues[1])
-                    else -> node?.takeIf { it.isJsonArray }?.asJsonArray?.let { array ->
-                        part.groupValues[2].toInt().takeIf { it < array.size() }?.let(array::get)
+                    part.groupValues[2].isNotEmpty() -> array?.let {
+                        part.groupValues[2].toInt().takeIf { index -> index < it.size() }?.let(it::get)
                     }
+                    else -> array?.firstOrNull { element -> holds(element, part.groupValues[3], part.groupValues[4]) }
                 }
             }
             return node
+        }
+
+        /** Whether [element] is an object whose [field] is the string [value]. */
+        private fun holds(element: JsonElement, field: String, value: String): Boolean {
+            val held = element.takeIf { it.isJsonObject }?.asJsonObject?.get(field) ?: return false
+            return held.isJsonPrimitive && held.asJsonPrimitive.isString && held.asString == value
         }
 
         /** An LLM's answer without the Markdown code fence it may wrap JSON in. */
