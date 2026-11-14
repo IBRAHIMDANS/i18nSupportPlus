@@ -69,11 +69,14 @@ import java.util.Collections
  *
  * There, WebStorm's own *Rename in a dialog* is available too, and the platform lets the user
  * choose between the two by title ([TitledHandler]): without one, the choice showed this class's
- * `toString()`, and sorted it after WebStorm's entry.
+ * `toString()`, and sorted it after WebStorm's entry. The platform sorts the choice by title, in
+ * sentence case, and preselects the first: the title is its own message, worded in each language
+ * to come before the IDE's *Rename in a dialog*, translated or not (`Renommer la clé i18n` came
+ * after both).
  */
 class RenameI18nKeyHandler : RenameHandler, TitledHandler {
 
-    override fun getActionTitle(): String = PluginBundle.message("action.rename.title")
+    override fun getActionTitle(): String = PluginBundle.message("action.rename.chooser.title")
 
     /** One text replacement, gathered under a read action and applied in the write action. */
 
