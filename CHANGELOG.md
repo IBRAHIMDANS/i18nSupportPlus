@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [Inspections] **Translations that ignore your glossary are reported**: the new inspection *Translation not following the glossary* (`I18nGlossaryTerm`, off by default) flags a value that drops a term you keep as written, such as a product name, or translates a term otherwise than your glossary says, whether a person, an engine or an agent wrote it.
+
 ### Fixes
 
 - [YAML] **A value holding an invisible control character no longer breaks the YAML file**: a translation pasted from a PDF or a Word document can carry a C1 control character (U+0080 to U+009F). Written as is, it made the whole YAML file unreadable, and a "next line" character (U+0085) on its own read back as an empty value. These characters are now written as escapes between double quotes, and read back as written.
