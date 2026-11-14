@@ -1,13 +1,11 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
-import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.PluginNotifications
 import com.ibrahimdans.i18n.plugin.utils.ownerOf
 import com.intellij.json.psi.JsonFile
-import com.intellij.json.psi.JsonObject
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -33,9 +31,9 @@ import java.util.concurrent.Callable
  * everything when it suits them, from any file.
  *
  * The files are listed and checked under a cancellable progress bar; only those out of order are
- * rewritten, all of them in a single undoable command. JSON only, like *Sort i18n Keys*. Flutter ARB
- * catalogues are left alone: sorting would move each `@key` description block away from its key.
- * Files of a module put aside (*Active* unchecked) are left alone too.
+ * rewritten, all of them in a single undoable command. JSON only, like *Sort i18n Keys*; a Flutter ARB
+ * catalogue is sorted the way [JsonKeySorter] sorts one, each `@key` block kept after its key and the
+ * `@@…` entries first. Files of a module put aside (*Active* unchecked) are left alone.
  */
 class SortAllTranslationFilesAction : AnAction() {
 
@@ -75,16 +73,13 @@ class SortAllTranslationFilesAction : AnAction() {
          * The JSON translation files of [project] whose keys are out of the *Key order*, at any
          * depth. Needs a read action; checks for cancellation between files.
          */
-        fun unsortedFiles(project: Project): List<VirtualFile> {
-            val order = Settings.getInstance(project).config().keyOrder.comparator
-            return translationFiles(project).filter { file ->
+        fun unsortedFiles(project: Project): List<VirtualFile> =
+            translationFiles(project).filter { file ->
                 ProgressManager.checkCanceled()
-                val root = file.topLevelValue as? JsonObject
-                root != null && !isSorted(root, order)
+                !JsonKeySorter.isSorted(file, project)
             }.mapNotNull { it.virtualFile }
-        }
 
-        /** The JSON translation files of [project]: no ARB catalogue, no file of a module put aside. Needs a read action. */
+        /** The JSON translation files of [project], ARB catalogues included, but no file of a module put aside. Needs a read action. */
         fun translationFiles(project: Project): List<JsonFile> =
             project.service<LocalizationSourceService>().findAllSources(project)
                 .asSequence()
@@ -95,16 +90,8 @@ class SortAllTranslationFilesAction : AnAction() {
                 .toList()
 
         private fun isSortable(project: Project, file: VirtualFile): Boolean {
-            if (file.extension.equals("arb", ignoreCase = true)) return false
             val owner = ModuleSources.ownerOf(project, file)
             return owner == null || owner.enabled
-        }
-
-        /** True when every object of [obj], itself included, lists its keys in [order]. */
-        fun isSorted(obj: JsonObject, order: Comparator<String>): Boolean {
-            val props = obj.propertyList
-            if (props.zipWithNext().any { (a, b) -> order.compare(a.name, b.name) > 0 }) return false
-            return props.all { (it.value as? JsonObject)?.let { nested -> isSorted(nested, order) } ?: true }
         }
 
         /**
