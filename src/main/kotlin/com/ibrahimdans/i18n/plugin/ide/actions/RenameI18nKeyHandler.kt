@@ -17,6 +17,7 @@ import com.ibrahimdans.i18n.plugin.tree.PluralKey
 import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.ibrahimdans.i18n.plugin.utils.TranslationPsi
 import com.ibrahimdans.i18n.plugin.utils.unQuote
+import com.intellij.ide.TitledHandler
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.application.ReadAction
@@ -65,8 +66,14 @@ import java.util.Collections
  * On the name of a constant passed to a translation call (`save` in `t(KEYS.save)`), the key the
  * constant holds is renamed, from its declaration's literal, as if the caret were there: the
  * platform would rename the JavaScript property instead, leaving the key as it was.
+ *
+ * There, WebStorm's own *Rename in a dialog* is available too, and the platform lets the user
+ * choose between the two by title ([TitledHandler]): without one, the choice showed this class's
+ * `toString()`, and sorted it after WebStorm's entry.
  */
-class RenameI18nKeyHandler : RenameHandler {
+class RenameI18nKeyHandler : RenameHandler, TitledHandler {
+
+    override fun getActionTitle(): String = PluginBundle.message("action.rename.title")
 
     /** One text replacement, gathered under a read action and applied in the write action. */
 
