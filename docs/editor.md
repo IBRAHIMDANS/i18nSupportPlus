@@ -21,6 +21,8 @@ Each i18n key is highlighted by its status, in the code and as an icon in the gu
 
 Hovering a gutter icon lists the locales; clicking a yellow or red one opens the quick fix creating the missing key. *Show gutter icons* in the settings turns the icons off.
 
+On an unresolved key, **Alt+Enter** also offers *Use 'button.save'* for up to three keys of the file a typo away — a character missing, added, changed, or two swapped in a segment, two edits at most for the whole key — and replaces the key in the call, its namespace kept.
+
 ![A green, a yellow and a red gutter icon next to the keys they describe](img/gutter-icons.png)
 ![Annotation resolved](img/annotation-resolved.png)
 ![Annotation unresolved](img/annotation-unresolved.png)

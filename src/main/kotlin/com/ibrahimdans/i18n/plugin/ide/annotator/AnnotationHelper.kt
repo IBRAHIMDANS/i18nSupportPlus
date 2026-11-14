@@ -89,9 +89,15 @@ class AnnotationHelper(
     /**
      * Annotates unresolved composite key. With the [defaultValue] the call shows meanwhile
      * (i18next's `t('key', 'Text')`), a weak warning: the screen reads that text, the key is still
-     * to create — and *Create key* proposes the text for the reference locale.
+     * to create — and *Create key* proposes the text for the reference locale. [similarKeys] offer
+     * the keys a typo away, before *Create key*.
      */
-    fun unresolvedKey(fullKey: FullKey, mostResolvedReference: PropertyReference<PsiElement>, defaultValue: String? = null) {
+    fun unresolvedKey(
+        fullKey: FullKey,
+        mostResolvedReference: PropertyReference<PsiElement>,
+        defaultValue: String? = null,
+        similarKeys: List<IntentionAction> = emptyList(),
+    ) {
         val message = PluginBundle.getMessage(if (defaultValue == null) "annotator.unresolved.key" else "annotator.unresolved.key.default.value")
         // A key with a runtime segment names no property to create: the fix would write the
         // `${…}` text as a property name. One fix, one dialog: it shows every locale, so a
@@ -102,7 +108,7 @@ class AnnotationHelper(
             rangesCalculator.unresolvedKey(fullKey, mostResolvedReference.path).toTextRange(), message,
             weak = defaultValue != null,
             tooltip = { explain(message, fullKey, mostResolvedReference) },
-            fixes = listOfNotNull(OpenSettingsFix(), createKey),
+            fixes = listOf<IntentionAction>(OpenSettingsFix()) + similarKeys + listOfNotNull(createKey),
         )
     }
 
