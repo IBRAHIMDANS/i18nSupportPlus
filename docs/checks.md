@@ -26,6 +26,7 @@ The twenty-five inspections, under *Settings | Editor | Inspections | i18n Suppo
 | ICU message format validation | Unbalanced braces, a `plural` block without `one`/`other`, … |
 | Value copied from the reference locale | A value of more than one word identical to the reference's, counted as translated but never taken up; *Mark as intended* keeps it |
 | Translation much longer than the reference | A value likely to overflow what the reference was sized for; ratio and minimal length are options (off) |
+| Translation not following the glossary | A value that drops a term the [glossary](translation.md) keeps as written (`Acme`), or translates a term its reference holds otherwise than the glossary says for the locale (`cart = fr: panier`); whole words, ignoring case, inflected forms not recognised (off) |
 | Final punctuation and whitespace across locales | A final `.`, `:` or `?`, or surrounding whitespace, present in one locale and not in the reference (off) |
 | Empty translation value | A key whose value is blank in a translation file (off) |
 | Duplicate translation value | Two keys of a file holding the same value (off) |
