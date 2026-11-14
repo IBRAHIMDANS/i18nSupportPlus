@@ -130,10 +130,9 @@ class WriteAgentInstructionsAction : AnAction() {
          * missing — in one undoable command, and returns the file.
          */
         fun write(project: Project, base: VirtualFile, path: String, block: String): VirtualFile {
-            var written: VirtualFile? = null
-            WriteCommandAction.writeCommandAction(project)
+            return WriteCommandAction.writeCommandAction(project)
                 .withName(PluginBundle.message("agent.instructions.command"))
-                .run<RuntimeException> {
+                .compute<VirtualFile, RuntimeException> {
                     val file = base.findFileByRelativePath(path) ?: run {
                         val folder = path.substringBeforeLast('/', "")
                         val parent = if (folder.isEmpty()) base else VfsUtil.createDirectoryIfMissing(base, folder)!!
@@ -143,9 +142,8 @@ class WriteAgentInstructionsAction : AnAction() {
                         ?: error("no document for $path")
                     document.setText(AgentInstructions.merge(document.text, block))
                     FileDocumentManager.getInstance().saveDocument(document)
-                    written = file
+                    file
                 }
-            return written!!
         }
 
         private fun textOf(file: VirtualFile): String =
