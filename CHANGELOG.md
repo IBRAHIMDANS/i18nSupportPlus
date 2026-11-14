@@ -15,6 +15,7 @@
 - [Machine translation] **Anthropic (Claude) and Google Gemini are ready to pick as engines**: the *Preset* list of the Machine Translation settings now fills their URL, key header and request, Claude Haiku 5.5 and Gemini 4 Hydrogen by default; paste your API key and they translate. Any other Claude model can be typed in, Claude Opus 5.5 included: the translation is read past the model's thinking.
 - [i18next] **Keys written with the selector API are recognised**: `t($ => $.button.save)` is now checked, opens its translation on Ctrl+click and counts as a use of `button.save`, which is no longer reported as having no reference in code. The hook's namespaces and `keyPrefix` apply as to a string key.
 - [Diff] **Show Translation Changes opens faster when much code changed**: it now fetches from the VCS the previous version of the translation files only, not of every file the working copy modifies.
+- [Setup] **The setup wizard finds your i18next initialisation wherever it lives**: an `init` in `app/i18n/config.ts` or `lib/setup/i18n.ts` now prefills the translations folder, the default namespace and the reference locale, as `src/i18n.ts` already did. In a monorepo with one initialisation per application, the wizard still leaves each application to its own module.
 
 ### Fixes
 

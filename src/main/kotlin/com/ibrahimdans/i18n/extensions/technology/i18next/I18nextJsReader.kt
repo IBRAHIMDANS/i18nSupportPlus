@@ -327,6 +327,10 @@ class I18nextJsReader : I18nextCodeReader, CodeSettingsReader {
     override fun wizardCliConfig(file: PsiFile, relativePath: String, isDirectory: (String) -> Boolean): I18nextCliConfig? =
         I18nextCliConfigReader.readForWizard(file, relativePath, isDirectory)
 
+    /** The initialisation files [discoveredFiles] found, the `i18next.config.*` it adds left out. */
+    override fun wizardInitFiles(project: Project): List<VirtualFile> =
+        discoveredFiles(project).filter { it.name !in I18nextCliConfig.FILE_NAMES }
+
     companion object {
         private const val NODE_MODULES = "/node_modules/"
     }

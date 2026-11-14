@@ -2,8 +2,12 @@ package com.ibrahimdans.i18n.plugin.ide.settings
 
 import com.ibrahimdans.i18n.CodeReader
 import com.ibrahimdans.i18n.Extensions
+import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VfsUtilCore
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiManager
 
 /**
  * A [CodeReader] of what the settings leave blank and what the setup wizard proposes, read in the
@@ -29,6 +33,13 @@ interface CodeSettingsReader : CodeReader {
     fun wizardCliConfig(file: PsiFile, relativePath: String, isDirectory: (String) -> Boolean): I18nextCliConfig? = null
 
     /**
+     * The files of [project] that initialise this technology, found by what they hold wherever they
+     * are: what the wizard reads when none of [I18nextCliConfig.WIZARD_FILE_NAMES] states anything.
+     * Empty while the indexes are built. Searches the indexes: asked off the EDT, holding no read action.
+     */
+    fun wizardInitFiles(project: Project): List<VirtualFile> = emptyList()
+
+    /**
      * What [file], a Nuxt or vue-i18n file of [VueI18nConfig.NUXT_FILE_NAMES] or
      * [VueI18nConfig.VUE_I18N_FILE_NAMES] named [relativePath], states for the wizard; null when this
      * technology does not read that file. Called in a read action.
@@ -43,5 +54,34 @@ interface CodeSettingsReader : CodeReader {
         /** The first [codeDefaults] a registered reader reads under [config], null when none does. */
         fun codeDefaults(project: Project, config: Config): CodeDefaults? =
             all().firstNotNullOfOrNull { it.codeDefaults(project, config) }
+
+        /** Every registered reader's [wizardInitFiles], in registration order. Off the EDT. */
+        fun wizardInitFiles(project: Project): List<VirtualFile> = all().flatMap { it.wizardInitFiles(project) }.distinct()
+
+        /**
+         * What the wizard reads in [files], the [wizardInitFiles] of the project under [base], when none
+         * of [I18nextCliConfig.WIZARD_FILE_NAMES] stated anything: the one file left once those are set
+         * aside, read like an initialisation file ([wizardCliConfig]). Null when there are none — or
+         * several: a monorepo initialises i18next once per application, and one of them taken for the
+         * whole project would override the per-application modules the scan proposes. Opens its own
+         * read action.
+         */
+        fun wizardCliConfigOf(
+            project: Project,
+            base: VirtualFile,
+            files: List<VirtualFile>,
+            isDirectory: (String) -> Boolean,
+        ): I18nextCliConfig? {
+            val found = files
+                .mapNotNull { file -> VfsUtilCore.getRelativePath(file, base)?.let { it to file } }
+                .filter { (relative, _) -> relative !in I18nextCliConfig.WIZARD_FILE_NAMES }
+                .distinctBy { it.first }
+            val (relative, file) = found.singleOrNull() ?: return null
+            return runReadAction {
+                if (!file.isValid) return@runReadAction null
+                val psi = PsiManager.getInstance(project).findFile(file) ?: return@runReadAction null
+                all().firstNotNullOfOrNull { it.wizardCliConfig(psi, relative, isDirectory) }
+            }
+        }
     }
 }

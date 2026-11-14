@@ -13,6 +13,7 @@ import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
 import com.intellij.ui.EditorNotificationPanel
 import com.intellij.ui.InlineBanner
@@ -529,20 +530,37 @@ class SetupWizardDialog(private val project: Project) : AbstractWizard<Step>(
      * already wrote down.
      *
      * Near the project root only: a monorepo holds one per application, and a single one taken for
-     * the whole project would override the per-application modules the scan proposes.
+     * the whole project would override the per-application modules the scan proposes. When none of
+     * them states anything, the project's one i18next initialisation found elsewhere, by what it calls
+     * ([CodeSettingsReader.wizardCliConfigOf]): `src/lib/setup/i18n.ts`, `app/i18n/client.ts`…
      */
     private fun readCliConfig() {
         val base = File(project.basePath ?: return)
+        val isDirectory = { path: String -> File(base, path).isDirectory }
         val files = I18nextCliConfig.WIZARD_FILE_NAMES
             .filter { File(base, it).isFile }
             .mapNotNull { name -> LocalFileSystem.getInstance().findFileByIoFile(File(base, name))?.let { name to it } }
         cliConfig = runReadAction {
             files.firstNotNullOfOrNull { (name, file) ->
                 PsiManager.getInstance(project).findFile(file)?.let { psi ->
-                    CodeSettingsReader.all().firstNotNullOfOrNull { reader -> reader.wizardCliConfig(psi, name) { File(base, it).isDirectory } }
+                    CodeSettingsReader.all().firstNotNullOfOrNull { reader -> reader.wizardCliConfig(psi, name, isDirectory) }
                 }
             }
+        } ?: LocalFileSystem.getInstance().findFileByIoFile(base)?.let { root ->
+            CodeSettingsReader.wizardCliConfigOf(project, root, initFilesOffEdt(), isDirectory)
         }
+    }
+
+    /** [CodeSettingsReader.wizardInitFiles], searched in the indexes behind a cancellable progress, off the EDT. */
+    private fun initFilesOffEdt(): List<VirtualFile> = try {
+        ProgressManager.getInstance().runProcessWithProgressSynchronously<List<VirtualFile>, RuntimeException>(
+            { CodeSettingsReader.wizardInitFiles(project) },
+            PluginBundle.message("wizard.scan.progress.title"),
+            true,
+            project
+        ) ?: emptyList()
+    } catch (_: ProcessCanceledException) {
+        emptyList()
     }
 
     /**
