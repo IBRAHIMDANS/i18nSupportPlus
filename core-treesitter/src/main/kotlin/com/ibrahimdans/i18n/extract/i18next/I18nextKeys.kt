@@ -10,6 +10,7 @@ data class SourceKey(val node: CodeNode, val key: RawKey)
 /** The i18next / react-i18next extractors, reading calls to [functionNames]. */
 fun i18nextExtractors(functionNames: Set<String> = I18NEXT_FUNCTIONS): List<CodeKeyExtractor> = listOf(
     TranslationCallKeyExtractor(functionNames),
+    SelectorCallKeyExtractor(functionNames),
     TemplateCallKeyExtractor(functionNames),
     I18nKeyAttributeExtractor(),
 )

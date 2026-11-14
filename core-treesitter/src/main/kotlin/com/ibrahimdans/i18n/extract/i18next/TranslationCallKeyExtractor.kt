@@ -19,21 +19,30 @@ import com.ibrahimdans.i18n.plugin.utils.KeyElement
  */
 class TranslationCallKeyExtractor(private val functionNames: Set<String> = I18NEXT_FUNCTIONS) : CodeKeyExtractor {
 
-    override fun canExtract(node: CodeNode): Boolean = node.isQuotedString() && translationCallOf(node, functionNames) != null
+    override fun canExtract(node: CodeNode): Boolean =
+        node.isQuotedString() && !isSelectorSegment(node) && translationCallOf(node, functionNames) != null
 
     @Volatile
     private var bindings: HookBindings? = null
 
     override fun extract(node: CodeNode): RawKey? {
-        if (!node.isQuotedString()) return null
+        if (!node.isQuotedString() || isSelectorSegment(node)) return null
         val call = translationCallOf(node, functionNames) ?: return null
+        return keyAt(call, node.unquoted())
+    }
+
+    /**
+     * [key] read at [call]: the namespaces of its `{ ns }` option or of the hook binding its function,
+     * the hook's key prefix, the `context` option. Shared with [SelectorCallKeyExtractor].
+     */
+    internal fun keyAt(call: CodeNode, key: String): RawKey {
         val hookArguments = hookOf(call)?.arguments().orEmpty()
         val prefix = propertyOf(hookArguments.getOrNull(1), "keyPrefix")
             ?.takeIf { it.isQuotedString() }
             ?.unquoted()
             ?.takeIf { it.isNotBlank() }
         return RawKey(
-            listOf(KeyElement.literal(node.unquoted())),
+            listOf(KeyElement.literal(key)),
             namespacesOption(call).ifEmpty { stringsOf(hookArguments.firstOrNull()) },
             listOfNotNull(prefix?.let(KeyElement::literal)),
             context = contextOption(call),

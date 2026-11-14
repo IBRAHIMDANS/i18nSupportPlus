@@ -1,6 +1,12 @@
 package com.ibrahimdans.i18n.plugin.ide.references.code
 
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
+import com.ibrahimdans.i18n.plugin.parser.RawKey
+import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
+import com.ibrahimdans.i18n.plugin.tree.CompositeKeyResolver
+import com.ibrahimdans.i18n.plugin.utils.LocalizationSourceService
+import com.intellij.openapi.components.service
+import com.intellij.openapi.util.TextRange
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationHandler
 import com.intellij.openapi.editor.Editor
 import com.intellij.psi.PsiElement
@@ -39,5 +45,26 @@ class I18nGotoDeclarationHandler : GotoDeclarationHandler {
             // The first form in the file: `_one` before `_other` for a plural key.
             return reference.targetsIn(locale).minByOrNull { it.textOffset }?.let { arrayOf(it) }
         }
+
+        /**
+         * Where Ctrl+click on [element] leads when it names [rawKey] without holding an `I18nReference` —
+         * Paraglide's `m.hello`, an i18next selector `$ => $.button.save`, which already carry the IDE's own
+         * JavaScript reference: the key in the preview locale, else in every locale holding it. Null when no
+         * translation file holds it, so the JavaScript navigation applies.
+         */
+        fun targetsOf(element: PsiElement, rawKey: RawKey): Array<PsiElement>? {
+            val project = element.project
+            val fullKey = RawKeyParser(project).parse(rawKey, element) ?: return null
+            val pluralSeparator = Settings.getInstance(project).config().pluralSeparator
+            val descriptors = project.service<LocalizationSourceService>().findReadSources(fullKey, element)
+                .flatMap { source -> KeyResolver.resolve(fullKey, source, pluralSeparator).map { ReferenceDescriptor(it, source.host) } }
+                .filter { it.reference.path.isNotEmpty() }
+            if (descriptors.isEmpty()) return null
+            val reference = I18nReference(element, TextRange(0, element.textLength), descriptors)
+            return previewTarget(reference)
+                ?: reference.multiResolve(false).mapNotNull { it.element }.toTypedArray().takeIf { it.isNotEmpty() }
+        }
+
+        private object KeyResolver : CompositeKeyResolver<PsiElement>
     }
 }

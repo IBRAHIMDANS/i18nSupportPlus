@@ -115,7 +115,10 @@ internal class CodeUsageIndexer(private val project: Project, private val config
         // Read once when the element is its own literal, as a JS string is: the hook is resolved for both reads.
         val ownKey = lazy { rawKeyOf(element) }
         if (!generated) {
-            textSite(element, angularId ?: element.text.unQuote(), angularId?.let { element } ?: literal!!, host, ownKey)?.let(sites::add)
+            // An i18next selector names its key by members, `$ => $.button.save`: the path is the text compared.
+            val pathKey = if (angularId == null) languages.firstNotNullOfOrNull { it.pathKeyOf(element) } else null
+            val text = angularId ?: pathKey ?: element.text.unQuote()
+            textSite(element, text, angularId?.let { element } ?: literal!!, host, ownKey)?.let(sites::add)
         }
         if (literal != null && literals.add(literal)) {
             prefixedSite(literal, host, if (literal === element) ownKey.value else rawKeyOf(literal))?.let(sites::add)
