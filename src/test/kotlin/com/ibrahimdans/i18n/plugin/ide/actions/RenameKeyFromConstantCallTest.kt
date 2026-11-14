@@ -10,10 +10,13 @@ import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.TestDialogManager
 import com.intellij.openapi.ui.TestInputDialog
 import com.intellij.psi.PsiManager
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.refactoring.rename.RenameHandlerRegistry
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
+import java.util.Locale
+import java.util.ResourceBundle
 
 /**
  * Shift+F6 on the constant of `t(KEYS.save)` renames the key the constant holds, as from its
@@ -120,6 +123,25 @@ class RenameKeyFromConstantCallTest : PlatformBaseTest() {
     fun `the choice WebStorm shows names this rename, not its class`() {
         val title = RenameHandlerRegistry.getHandlerTitle(RenameI18nKeyHandler())
 
-        Assertions.assertTrue(title.equals(PluginBundle.message("action.rename.title"), ignoreCase = true), title)
+        Assertions.assertTrue(title.equals(PluginBundle.message("action.rename.chooser.title"), ignoreCase = true), title)
+    }
+
+    /**
+     * The platform sorts that choice by title, in sentence case, and preselects the first. In every
+     * language the plugin ships, this rename comes before WebStorm's *Rename in a dialog*, whether a
+     * language pack translates WebStorm's entry or leaves it in English, and before an entry titled
+     * by its class name (`JSRenameWrongRefHandler` on Paraglide's `m.hello`).
+     */
+    @Test
+    fun `this rename comes first in the choice in every language the plugin ships`() {
+        fun sorted(title: String) = StringUtil.capitalize(StringUtil.toLowerCase(title))
+        // A titled entry is shown in sentence case; an untitled one by its toString(), as it is.
+        val others = listOf("Rename in a Dialog", "Renommer dans une boîte de dialogue").map(::sorted) +
+            "com.intellij.lang.javascript.refactoring.rename.JSRenameWrongRefHandler@2185441c"
+        for (locale in listOf(Locale.ROOT, Locale.FRENCH)) {
+            val bundle = ResourceBundle.getBundle("messages.I18nBundle", locale)
+            val ours = sorted(bundle.getString("action.rename.chooser.title"))
+            for (other in others) Assertions.assertTrue(ours < other, "$locale: '$ours' sorts after '$other'")
+        }
     }
 }
