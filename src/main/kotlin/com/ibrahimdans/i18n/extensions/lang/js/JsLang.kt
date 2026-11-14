@@ -83,6 +83,9 @@ open class JsLang : Lang {
 
         private val I18N_KEY_ATTRIBUTE = XmlAttributeKeyExtractor()
 
+        /** i18next's `t($ => $.button.save)`: the key is the path the arrow reads, matched by the call's name like a string. */
+        private val SELECTOR = SelectorKeyExtractor()
+
         private val SYNTAX_OWNED_EXTRACTORS: List<KeyExtractor> = listOf(
             REACT_INTL_EXTRACTOR,
             DefineMessagesExtractor(),
@@ -124,6 +127,8 @@ open class JsLang : Lang {
         // object — reporting `defaultMessage` as an unresolved key.
         if (REACT_INTL_EXTRACTOR.isInsideMessageDescriptor(element)) return false
         if (SVELTE_I18N.isInsideDescriptorBesidesId(element)) return false
+        // `'not-found'` of `t($ => $.errors['not-found'])` is a segment of the selector's key.
+        if (SELECTOR.isSegmentLiteral(element)) return false
         // A call a rule includes is matched by its method name, like a published one.
         val presetNames = ModulePresets.restrict(translationFunctionNames, preset)
         val names = if (decision == RuleDecision.INCLUDE) {
@@ -179,6 +184,7 @@ open class JsLang : Lang {
         // conditional's branch without its call.
         (ConstantKeyResolver.callKey(element) ?: ConstantKeyResolver.declarationKey(element, annotatedOnly = true))?.let { return it }
         return listOf(
+                    SELECTOR,
                     ReactUseTranslationHookExtractor(),
                     TemplateKeyExtractor(),
                     LiteralKeyExtractor(),
@@ -205,6 +211,9 @@ open class JsLang : Lang {
 
     override fun metadataKeyOf(element: PsiElement): String? = AngularI18nMetadata.keyOf(element)
 
+    override fun pathKeyOf(element: PsiElement): String? =
+        if (SELECTOR.canExtract(element)) SELECTOR.extract(element).keyElements.singleOrNull()?.text else null
+
     override fun renameSites(): KeyRenameSites = JsKeyRenameSites
 
     override fun translationExtractor(): TranslationExtractor = JsTranslationExtractor()
@@ -216,6 +225,8 @@ open class JsLang : Lang {
             // react-intl's `<FormattedMessage id="key">`, react-i18next's `<Trans i18nKey="key">`: the key
             // is an attribute value, not a JS string.
             else if (FORMATTED_MESSAGE.canExtract(entry) || I18N_KEY_ATTRIBUTE.canExtract(entry)) entry
+            // i18next's selector `$ => $.button.save`: the key is the path of members the arrow reads.
+            else if (SELECTOR.canExtract(entry)) entry
             // Paraglide's `m.hello`: the key is the member's name, an identifier rather than a string.
             else entry.parent?.takeIf { typeName == "JS:IDENTIFIER" && (PARAGLIDE_MESSAGE.canExtract(it) || TYPESAFE_I18N.canExtract(it)) }
     }

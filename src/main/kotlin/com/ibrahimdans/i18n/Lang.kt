@@ -83,6 +83,14 @@ interface Lang : CodeLang {
      */
     fun metadataKeyOf(element: PsiElement): String? = null
 
+    /**
+     * The key [element] names by a path of members rather than in a string — i18next's selector,
+     * `button.save` for the body of `t($ => $.button.save)` — or null when [element] is none, or the
+     * language has no such syntax, which is the default. The index of the code's usages files it
+     * under that key: the element's own text, `$.button.save`, names none.
+     */
+    fun pathKeyOf(element: PsiElement): String? = null
+
     /** Where this language writes a key outside a translation call's literal, for a rename; null when nowhere, the default. */
     fun renameSites(): KeyRenameSites? = null
 
