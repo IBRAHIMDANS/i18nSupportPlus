@@ -22,6 +22,7 @@
 
 ### Fixes
 
+- [Settings] **Keeping large JSON files sorted no longer freezes the IDE**: with *Re-sort JSON files after each new key*, a new key was appended at the end of the file, then every key after its place was moved one by one, several seconds with the IDE frozen in a file of a few thousand keys. The key now goes straight to its place, a file already sorted is left alone, and *Sort i18n Keys* rewrites the file in one step.
 - [Refactoring] **Shift+F6 on a key constant renames the key**: with the caret on `save` in `t(KEYS.save)`, the rename used to change the JavaScript property and leave the key as it was. It now renames the key the constant holds, in its declaration and in every translation file, as from the key itself. When WebStorm asks which rename to run, it is listed first, as *Rename i18n key*, in a French IDE too (*Clé i18n : renommer*).
 - [AI agents] **Agent instructions name the right folder for an absolute translations root**: with a root set as a full path inside the project (`/home/me/app/locales`), *Write Agent Instructions…* named `home/me/app/locales`, a folder that does not exist. It now names `locales`, the folder as the plugin reads it.
 - [Editor] **`t(KEYS['save'])` no longer reads `save` as a key**: the string between the brackets of a member access passed to `t` names a property of your object, not a translation, yet it was annotated as an unknown key. It is now left alone, in the editor and in `i18n-check --code`.
