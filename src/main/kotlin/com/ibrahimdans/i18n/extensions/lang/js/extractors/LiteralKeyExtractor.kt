@@ -3,6 +3,8 @@ package com.ibrahimdans.i18n.extensions.lang.js.extractors
 import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.utils.KeyElement
+import com.intellij.lang.javascript.psi.JSIndexedPropertyAccessExpression
+import com.intellij.lang.javascript.psi.JSLiteralExpression
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiLiteralValue
 import com.intellij.psi.xml.XmlElementType
@@ -12,7 +14,7 @@ import com.intellij.psi.xml.XmlElementType
 class LiteralKeyExtractor: KeyExtractor {
 
     override fun canExtract(element: PsiElement): Boolean =
-        element is PsiLiteralValue && element.node.elementType != XmlElementType.XML_ATTRIBUTE_VALUE
+        element is PsiLiteralValue && element.node.elementType != XmlElementType.XML_ATTRIBUTE_VALUE && !isMemberIndex(element)
 
     override fun extract(element: PsiElement): RawKey =
         RawKey(
@@ -24,3 +26,11 @@ class LiteralKeyExtractor: KeyExtractor {
         )
 }
 
+/**
+ * Whether [element], a string literal or its token, is the index of a member access, `'save'` of
+ * `t(KEYS['save'])`: the name of a property the code reads, never a key of its own.
+ */
+internal fun isMemberIndex(element: PsiElement): Boolean {
+    val literal = element as? JSLiteralExpression ?: element.parent as? JSLiteralExpression ?: return false
+    return (literal.parent as? JSIndexedPropertyAccessExpression)?.indexExpression === literal
+}

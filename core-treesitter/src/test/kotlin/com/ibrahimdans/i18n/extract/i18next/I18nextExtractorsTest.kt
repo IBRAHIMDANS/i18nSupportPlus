@@ -46,6 +46,19 @@ class I18nextExtractorsTest {
     }
 
     @Test
+    fun `the index of a member access passed to t is no key`() {
+        assertEquals(
+            emptyList<RawKey>(),
+            keys("t(KEYS['save']); t(messages['errors'][code]); i18n.t(MAP?.['x']); t(KEYS[`y`])"),
+        )
+    }
+
+    @Test
+    fun `a literal next to a member access stays a key`() {
+        assertEquals(listOf(literal("save"), literal("a"), literal("b")), keys("t('save'); t(x ? 'a' : KEYS['k']); t(KEYS['k'] ? 'b' : c)"))
+    }
+
+    @Test
     fun `a key passed in another key's options is a key of its own`() {
         assertEquals(listOf(literal("a"), literal("b")), keys("t('a', { name: t('b') })"))
     }

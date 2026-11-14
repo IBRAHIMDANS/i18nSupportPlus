@@ -20,13 +20,13 @@ import com.ibrahimdans.i18n.plugin.utils.KeyElement
 class TranslationCallKeyExtractor(private val functionNames: Set<String> = I18NEXT_FUNCTIONS) : CodeKeyExtractor {
 
     override fun canExtract(node: CodeNode): Boolean =
-        node.isQuotedString() && !isSelectorSegment(node) && translationCallOf(node, functionNames) != null
+        node.isQuotedString() && translationCallOf(node, functionNames) != null
 
     @Volatile
     private var bindings: HookBindings? = null
 
     override fun extract(node: CodeNode): RawKey? {
-        if (!node.isQuotedString() || isSelectorSegment(node)) return null
+        if (!node.isQuotedString()) return null
         val call = translationCallOf(node, functionNames) ?: return null
         return keyAt(call, node.unquoted())
     }

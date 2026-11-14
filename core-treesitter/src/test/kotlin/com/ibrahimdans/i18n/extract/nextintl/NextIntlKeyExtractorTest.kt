@@ -38,6 +38,14 @@ class NextIntlKeyExtractorTest {
     }
 
     @Test
+    fun `the index of a member access passed to t is no key`() {
+        assertEquals(
+            listOf(key("title", "Home")),
+            keys("function A() { const t = useTranslations('Home'); t(KEYS['save']); return t('title'); }"),
+        )
+    }
+
+    @Test
     fun `the hook's argument prefixes the keys, not a namespace`() {
         assertEquals(
             listOf(key("title", "Cart"), key("title", "Settings.Privacy")),
