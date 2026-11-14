@@ -44,9 +44,15 @@ class LocalTranslationChangesTest : PlatformBaseTest() {
         override fun getVirtualFile() = file
     }
 
+    /** The names of the files whose base content was read, in order. */
+    private val read = mutableListOf<String>()
+
     /** A file's content at the base of a comparison. */
     private fun baseRevision(text: String, path: FilePath) = object : ContentRevision {
-        override fun getContent() = text
+        override fun getContent(): String {
+            read += path.name
+            return text
+        }
         override fun getFile() = path
         override fun getRevisionNumber(): VcsRevisionNumber = VcsRevisionNumber.NULL
     }
@@ -65,6 +71,22 @@ class LocalTranslationChangesTest : PlatformBaseTest() {
 
         assertEquals(listOf(TranslationChange.Kind.MODIFIED), found.changes.map { it.kind })
         assertEquals(listOf("menu", "home"), found.changes.single().path)
+    }
+
+    /** A large diff is mostly code: its before-content, which a VCS may fetch, is never read. */
+    @Test
+    fun onlyTheBaseOfTranslationFilesIsRead() = myFixture.runWithConfig(Config(defaultNs = "translation")) {
+        val en = addFileToProject("locales/en/common.json", """{"menu": {"home": "Home page"}}""")
+        val code = addFileToProject("src/App.tsx", "export const App = () => null")
+        val changes = listOf(
+            Change(baseRevision("export const App = 1", pathOf(code.virtualFile)), CurrentContentRevision(pathOf(code.virtualFile))),
+            Change(baseRevision("""{"menu": {"home": "Home"}}""", pathOf(en.virtualFile)), CurrentContentRevision(pathOf(en.virtualFile))),
+        )
+
+        val found = ReadAction.compute<TranslationChanges, RuntimeException> { LocalTranslationChanges.collect(project, changes) }
+
+        assertEquals(listOf("common.json"), read)
+        assertEquals(listOf(listOf("menu", "home")), found.changes.map { it.path })
     }
 
     @Test
