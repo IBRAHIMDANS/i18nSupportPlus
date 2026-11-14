@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.extract.i18next.TEMPLATE_STRING
 import com.ibrahimdans.i18n.extract.i18next.TERNARY_EXPRESSION
 import com.ibrahimdans.i18n.extract.i18next.arguments
 import com.ibrahimdans.i18n.extract.i18next.calleeText
+import com.ibrahimdans.i18n.extract.i18next.isIndexOf
 import com.ibrahimdans.i18n.extract.i18next.isQuotedString
 import com.ibrahimdans.i18n.extract.i18next.items
 import com.ibrahimdans.i18n.extract.i18next.propertyOf
@@ -89,6 +90,7 @@ class NextIntlKeyExtractor : CodeKeyExtractor {
             while (current != null && current.type != ARGUMENTS) {
                 if (current.type == TEMPLATE_STRING) return null
                 if (current.type == TERNARY_EXPRESSION && current.children.firstOrNull() == child) return null
+                if (isIndexOf(current, child)) return null
                 child = current
                 current = current.parent
             }

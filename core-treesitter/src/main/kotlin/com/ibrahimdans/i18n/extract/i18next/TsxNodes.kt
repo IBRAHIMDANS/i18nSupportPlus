@@ -18,6 +18,7 @@ internal const val TERNARY_EXPRESSION = "ternary_expression"
 internal const val JSX_ATTRIBUTE = "jsx_attribute"
 
 private const val ARRAY = "array"
+private const val SUBSCRIPT = "subscript_expression"
 private const val OBJECT = "object"
 private const val PAIR = "pair"
 private const val SHORTHAND_PROPERTY = "shorthand_property_identifier"
@@ -68,12 +69,20 @@ internal fun translationCallOf(node: CodeNode, names: Set<String>): CodeNode? {
     while (current != null && current.type != ARGUMENTS) {
         if (current.type == TEMPLATE_STRING) return null
         if (current.type == TERNARY_EXPRESSION && current.children.firstOrNull() == child) return null
+        if (isIndexOf(current, child)) return null
         child = current
         current = current.parent
     }
     if (current == null || current.items().firstOrNull() != child) return null
     return current.parent?.takeIf { it.type == CALL_EXPRESSION && it.calleeText() in names }
 }
+
+/**
+ * Whether [child] is the index of [access], `'save'` of `KEYS['save']`: the name of a property of
+ * an object the code reads, not a key, even inside a translation call's argument.
+ */
+internal fun isIndexOf(access: CodeNode, child: CodeNode): Boolean =
+    access.type == SUBSCRIPT && access.children.firstOrNull() != child
 
 /** A string literal's text, or the string literals of an array: `'ns'` → [ns], `['a', 'b']` → [a, b]. */
 internal fun stringsOf(node: CodeNode?): List<String> = when {

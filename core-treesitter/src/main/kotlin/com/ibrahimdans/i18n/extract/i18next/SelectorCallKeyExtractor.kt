@@ -41,20 +41,6 @@ private const val SUBSCRIPT_EXPRESSION = "subscript_expression"
 private const val PROPERTY_IDENTIFIER = "property_identifier"
 private const val IDENTIFIER = "identifier"
 
-/**
- * True when [node] is a string read as a member inside a selector, `'not-found'` of
- * `$ => $.errors['not-found']`: a segment of the selector's key, never a key of its own.
- */
-internal fun isSelectorSegment(node: CodeNode): Boolean {
-    if (!node.isQuotedString()) return false
-    var access = node.parent?.takeIf { it.type == SUBSCRIPT_EXPRESSION && it.children.getOrNull(2) == node } ?: return false
-    while (true) {
-        val parent = access.parent ?: return false
-        if ((parent.type == MEMBER_EXPRESSION || parent.type == SUBSCRIPT_EXPRESSION) && parent.children.firstOrNull() == access) access = parent
-        else return selectorPathOf(access) != null
-    }
-}
-
 /** The members [node] reads on its arrow's single parameter, or null when [node] is no selector's body. */
 private fun selectorPathOf(node: CodeNode): List<String>? {
     if (node.type != MEMBER_EXPRESSION && node.type != SUBSCRIPT_EXPRESSION) return null
