@@ -84,15 +84,19 @@ private class JsonContentGenerator: ContentGenerator {
         val project = item.project
         val property = JsonElementGenerator(project).createValue<JsonObject>("{${JsonTranslationEditor.quote(key)}: $value}").propertyList.first()
         val config = Settings.getInstance(project).config()
+        // A file kept sorted gets the key at its place too: appended at the end, it pushed the
+        // re-sort below to move every key after it, a thousand tree changes in a 2,000-key file.
+        val inOrder = config.extractSorted || config.sortKeysAlphabetically
         CodeStyleManager.getInstance(project).performActionWithFormatterDisabled {
             JsonInsertion(obj).insert(property) { props ->
-                if (config.extractSorted) props.takeWhile { config.keyOrder.comparator.compare(it.name, key) < 0 } else props
+                if (inOrder) props.takeWhile { config.keyOrder.comparator.compare(it.name, key) < 0 } else props
             }
             // A Flutter ARB template describes each key in a `@key` block, which gen-l10n reads.
             ArbMetadata.addAfterNewKey(obj, key, property.value)
         }
         // When the user keeps files alphabetically sorted, re-sort the whole file after each
-        // insertion so the new key lands in order even if the file was not already sorted.
+        // insertion so the new key lands in order even if the file was not already sorted. In a
+        // file already sorted, nothing moves.
         if (config.sortKeysAlphabetically) {
             (item.containingFile as? JsonFile)?.let { JsonKeySorter.sort(it, project) }
         }
