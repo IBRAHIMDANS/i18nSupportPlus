@@ -74,14 +74,16 @@ class KeyCheck(private val lang: Lang) : CompositeKeyResolver<PsiElement> {
             if (ns == null) {
                 annotationHelper.unresolvedDefaultNs(fullKey)
             } else {
-                annotationHelper.unresolvedNs(fullKey, ns)
+                annotationHelper.unresolvedNs(fullKey, ns, UseSimilarKeyQuickFix.forNamespace(element, fullKey, ns, config))
             }
         }
         else {
             if (ns != null) {
                 val nsFiles = sourceService.findNamespaceFiles(fullKey.allNamespaces(), element.project)
                 if (nsFiles.isEmpty()) {
-                    if (!anotherKeyResolves(element, config)) annotationHelper.unresolvedNs(fullKey, ns)
+                    if (!anotherKeyResolves(element, config)) {
+                        annotationHelper.unresolvedNs(fullKey, ns, UseSimilarKeyQuickFix.forNamespace(element, fullKey, ns, config))
+                    }
                     return
                 }
             }

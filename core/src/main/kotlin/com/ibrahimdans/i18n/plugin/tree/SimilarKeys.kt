@@ -52,6 +52,13 @@ object SimilarKeys {
     }
 
     /**
+     * The [limit] namespaces of [candidates] closest to [unknown], a namespace no file holds
+     * (`comon` for `common`): one name compared as a key of one segment, with the same bounds.
+     */
+    fun closestNamespaces(unknown: String, candidates: Iterable<String>, limit: Int = LIMIT): List<String> =
+        closest(listOf(unknown), candidates.map { listOf(it) }, limit).map { it.single() }
+
+    /**
      * The edits from [unknown] to [candidate], two keys of as many segments, or null when they are
      * the same key or further apart than a typo.
      */
@@ -139,5 +146,16 @@ object SimilarKeys {
         val targetWritten = if (prefix.isEmpty()) target else target.takeIf { it.startsWith(prefix) }?.removePrefix(prefix) ?: return null
         if (targetWritten.isEmpty()) return null
         return source.dropLast(written.length) + targetWritten
+    }
+
+    /**
+     * The key [source], as written in the code, with its namespace [namespace] — written first,
+     * before [nsSeparator] — replaced by [candidate], the key after it kept. Null when [source]
+     * does not start with that namespace: the call names it elsewhere (a hook, an option).
+     */
+    fun rewriteNamespace(source: String, namespace: String, candidate: String, nsSeparator: String): String? {
+        val written = namespace + nsSeparator
+        if (namespace.isEmpty() || candidate.isEmpty() || !source.startsWith(written)) return null
+        return candidate + nsSeparator + source.removePrefix(written)
     }
 }
