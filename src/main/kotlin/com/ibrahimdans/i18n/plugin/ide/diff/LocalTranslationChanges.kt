@@ -47,14 +47,14 @@ object LocalTranslationChanges {
 
     /**
      * The translation changes among [changes], whatever produced them: the working copy, or a
-     * comparison with another branch. Needs a read action, and reads each before-content, which a
-     * VCS may fetch on demand.
+     * comparison with another branch. Needs a read action, and reads the before-content of each
+     * translation file only — a VCS may fetch it on demand, and a large diff is mostly code.
      */
     fun collect(project: Project, changes: Collection<Change>): TranslationChanges {
         val files = changes.mapNotNull { change ->
             val virtualFile = change.afterRevision?.file?.virtualFile ?: return@mapNotNull null
             val after = PsiManager.getInstance(project).findFile(virtualFile) ?: return@mapNotNull null
-            versionsOf(after, change.beforeRevision?.content)
+            versionsOf(after) { change.beforeRevision?.content }
         }
         return compare(project, files)
     }
@@ -63,11 +63,17 @@ object LocalTranslationChanges {
      * [after], a translation file of the project, against its [before] text — null for a file
      * the change adds. Null when [after] is not a translation source.
      */
-    fun versionsOf(after: PsiFile, before: String?): FileVersions? {
+    fun versionsOf(after: PsiFile, before: String?): FileVersions? = versionsOf(after) { before }
+
+    /**
+     * [versionsOf], reading the text before the change through [before] once [after] is known to
+     * be a translation source, never otherwise.
+     */
+    fun versionsOf(after: PsiFile, before: () -> String?): FileVersions? {
         val source = TranslationFileScope.sourceOf(after) ?: return null
         val config = Settings.getInstance(after.project).config()
         val namespace = TranslationDataLoader.extractNamespace(source, config.defaultNamespaces().first())
-        val beforeLeaves = before?.let {
+        val beforeLeaves = before()?.let {
             val copy = PsiFileFactory.getInstance(after.project).createFileFromText(after.name, after.fileType, it)
             TranslationFileKeys.translationLeaves(copy)
         }.orEmpty()
