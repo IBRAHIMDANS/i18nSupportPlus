@@ -2,6 +2,7 @@ package com.ibrahimdans.i18n.plugin.ide.annotator
 
 import com.ibrahimdans.i18n.Extensions
 import com.ibrahimdans.i18n.Lang
+import com.ibrahimdans.i18n.plugin.ide.quickfix.UseSimilarKeyQuickFix
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.key.FullKey
@@ -135,7 +136,10 @@ class KeyCheck(private val lang: Lang) : CompositeKeyResolver<PsiElement> {
                 if (!onlyTemplateUnresolved && !resolvedViaDynamicWildcard && !anotherKeyResolves(element, config)) {
                     // i18next shows a default value while the key is missing: not a broken screen,
                     // a key still to create — with that text.
-                    annotationHelper.unresolvedKey(fullKey, mostResolvedReference, lang.defaultTextOf(element))
+                    annotationHelper.unresolvedKey(
+                        fullKey, mostResolvedReference, lang.defaultTextOf(element),
+                        UseSimilarKeyQuickFix.forKey(element, fullKey, files, config),
+                    )
                 }
             }
         }
