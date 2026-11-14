@@ -10,6 +10,10 @@ import java.io.File
 
 class AgentInstructionsTest {
 
+    private companion object {
+        const val BASE = "/home/me/app"
+    }
+
     private val block = AgentInstructions.block(listOf("public/locales"))
 
     @Test
@@ -52,8 +56,33 @@ class AgentInstructionsTest {
 
     @Test
     fun `the translations root names the folder without modules`() {
-        assertEquals(listOf("src/locales"), AgentInstructions.translationFolders(Config(translationsRoot = "./src/locales/")))
-        assertEquals(emptyList<String>(), AgentInstructions.translationFolders(Config()))
+        assertEquals(listOf("src/locales"), AgentInstructions.translationFolders(Config(translationsRoot = "./src/locales/"), BASE))
+        assertEquals(emptyList<String>(), AgentInstructions.translationFolders(Config(), BASE))
+    }
+
+    @Test
+    fun `an absolute root inside the project is written relative to it`() {
+        assertEquals(
+            listOf("src/locales"),
+            AgentInstructions.translationFolders(Config(translationsRoot = "$BASE/src/locales/"), BASE),
+        )
+        assertEquals(emptyList<String>(), AgentInstructions.translationFolders(Config(translationsRoot = BASE), BASE))
+    }
+
+    @Test
+    fun `any other leading slash names the project root, as the plugin reads it`() {
+        // Config.resolveRoot reads `/locales` as `<project>/locales`: the block names that folder.
+        assertEquals(listOf("locales"), AgentInstructions.translationFolders(Config(translationsRoot = "/locales"), BASE))
+    }
+
+    @Test
+    fun `an absolute module root inside the project is written relative to it`() {
+        val config = Config(
+            modules = listOf(
+                ModuleConfig(name = "web", rootDirectory = "$BASE/apps/web", pathTemplate = "locales/{lang}/{ns}.json"),
+            ),
+        )
+        assertEquals(listOf("apps/web/locales"), AgentInstructions.translationFolders(config, BASE))
     }
 
     @Test
@@ -67,7 +96,7 @@ class AgentInstructionsTest {
                 ModuleConfig(name = "twin", rootDirectory = "apps/web", pathTemplate = "locales/{lang}.json"),
             ),
         )
-        assertEquals(listOf("apps/web/locales", "apps/admin", "public/locales"), AgentInstructions.translationFolders(config))
+        assertEquals(listOf("apps/web/locales", "apps/admin", "public/locales"), AgentInstructions.translationFolders(config, BASE))
     }
 
     @Test

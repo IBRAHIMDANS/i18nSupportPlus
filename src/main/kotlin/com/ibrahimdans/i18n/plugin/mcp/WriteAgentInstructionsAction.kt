@@ -50,7 +50,7 @@ class WriteAgentInstructionsAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val base = project.guessProjectDir() ?: return
-        val block = AgentInstructions.block(AgentInstructions.translationFolders(Settings.getInstance(project).config()))
+        val block = AgentInstructions.block(AgentInstructions.translationFolders(Settings.getInstance(project).config(), base.path))
         val targets = targetsOf(base)
         val dialog = Dialog(project, targets, block)
         if (!dialog.showAndGet()) return
@@ -181,22 +181,30 @@ internal object AgentInstructions {
     }
 
     /**
-     * The folders holding the translation files, relative to the project: each active module's root
-     * directory followed by the fixed start of its path template (`apps/web` + `locales/{lang}/{ns}.json`
-     * gives `apps/web/locales`), or the translations root without modules.
+     * The folders holding the translation files, relative to the project at [basePath]: each active
+     * module's root directory followed by the fixed start of its path template (`apps/web` +
+     * `locales/{lang}/{ns}.json` gives `apps/web/locales`), or the translations root without modules.
+     * A root is read as [Config.resolveRoot] reads it: an absolute path inside the project becomes
+     * relative to it, any other leading `/` already names the project root.
      */
-    fun translationFolders(config: Config): List<String> {
+    fun translationFolders(config: Config, basePath: String): List<String> {
         val folders = if (config.modules.isEmpty()) {
-            listOf(config.normalizedTranslationsRoot())
+            listOf(projectRelative(config.translationsRoot, basePath))
         } else {
             config.modules.filter { it.enabled }.map { module ->
                 val fixed = module.pathTemplate.substringBefore('{').substringBeforeLast('/', "")
-                listOf(module.rootDirectory, fixed)
+                listOf(projectRelative(module.rootDirectory, basePath), fixed)
                     .map { it.replace('\\', '/').trim().trim('/').removePrefix("./") }
                     .filter { it.isNotEmpty() && it != "." }
                     .joinToString("/")
             }
         }
         return folders.map { it.trim('/') }.filter { it.isNotEmpty() }.distinct()
+    }
+
+    /** [root] relative to the project at [basePath], empty for the project itself. */
+    private fun projectRelative(root: String, basePath: String): String {
+        val base = basePath.replace('\\', '/').trimEnd('/')
+        return Config.resolveRoot(root, base).removePrefix(base).trim('/')
     }
 }
