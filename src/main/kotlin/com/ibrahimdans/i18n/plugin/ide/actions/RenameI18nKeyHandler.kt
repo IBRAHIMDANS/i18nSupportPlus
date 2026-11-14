@@ -28,6 +28,8 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiPolyVariantReference
+import com.intellij.psi.SyntaxTraverser
 import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.UsageSearchContext
 import com.intellij.psi.util.PsiTreeUtil
@@ -59,6 +61,10 @@ import java.util.Collections
  * same object), when it holds the key or namespace separator (a literal `a.b` property no call reads
  * back), or when it holds a quote or a backslash that would break a file or a call site it rewrites.
  * A level is checked the same way.
+ *
+ * On the name of a constant passed to a translation call (`save` in `t(KEYS.save)`), the key the
+ * constant holds is renamed, from its declaration's literal, as if the caret were there: the
+ * platform would rename the JavaScript property instead, leaving the key as it was.
  */
 class RenameI18nKeyHandler : RenameHandler {
 
@@ -74,7 +80,8 @@ class RenameI18nKeyHandler : RenameHandler {
         val editor = CommonDataKeys.EDITOR.getData(dataContext) ?: return false
         val psiFile = CommonDataKeys.PSI_FILE.getData(dataContext) ?: return false
         return findI18nReference(editor, psiFile) != null || paraglideMessage(editor, psiFile) != null ||
-            levelInTranslationFile(editor, psiFile) != null || AngularI18nIdRename.idAt(editor, psiFile) != null
+            levelInTranslationFile(editor, psiFile) != null || AngularI18nIdRename.idAt(editor, psiFile) != null ||
+            constantKeyReference(editor, psiFile) != null
     }
 
     override fun invoke(project: Project, editor: Editor, file: PsiFile, dataContext: DataContext) {
@@ -86,8 +93,12 @@ class RenameI18nKeyHandler : RenameHandler {
         val ref = findI18nReference(editor, file)
         val level = if (ref != null) levelInCode(ref, editor, config) else levelInTranslationFile(editor, file)
         if (level != null) return renameLevel(project, level)
-        if (ref == null) return
+        // `t(KEYS.save)`: the key of the constant's literal, renamed as its leaf — the caret is not in that literal.
+        renameKey(project, ref ?: constantKeyReference(editor, file) ?: return, config)
+    }
 
+    /** Asks for the new last segment of the key [ref] names, then renames it everywhere once confirmed. */
+    private fun renameKey(project: Project, ref: I18nReference, config: Config) {
         val currentKey = ref.element.text.unQuote()
         val lastSegment = lastSegmentOf(currentKey, config)
         val title = PluginBundle.message("action.rename.title")
@@ -380,6 +391,35 @@ class RenameI18nKeyHandler : RenameHandler {
         element.containingFile?.let { PsiDocumentManager.getInstance(element.project).getDocument(it) }
 
     /**
+     * The key reference of the literal behind the constant whose name is under the caret, when a
+     * translation call reads a key through it: `'common:button.save'` for `save` in `t(KEYS.save)`.
+     *
+     * A language reads the key at the call ([com.ibrahimdans.i18n.Lang.extractRawKey]) only when the
+     * constant holds one string; its declaration is then reached through the IDE's own references
+     * (an import followed, at most [MAX_HOPS] of them), and its literal must carry exactly one key
+     * reference. Anything else — a qualifier, a variable, a constant no call reads — is null, and
+     * left to the platform's rename.
+     */
+    private fun constantKeyReference(editor: Editor, psiFile: PsiFile): I18nReference? {
+        val argument = psiFile.findElementAt(editor.caretModel.offset)?.parent ?: return null
+        if (Extensions.LANG.extensionList.none { it.extractRawKey(argument) != null }) return null
+        var target = argument.reference?.resolve()
+        repeat(MAX_HOPS) {
+            val declaration = target?.navigationElement ?: return null
+            SyntaxTraverser.psiTraverser(declaration)
+                .mapNotNull { element -> element.references.filterIsInstance<I18nReference>().firstOrNull() }
+                .distinctBy { it.element }
+                .let { found -> if (found.isNotEmpty()) return found.singleOrNull() }
+            // An import specifier is a reference of its own, to the declaration it imports.
+            val next = (declaration as? PsiPolyVariantReference)?.multiResolve(false)?.firstNotNullOfOrNull { it.element }
+                ?: declaration.reference?.resolve()
+            if (next == null || next == declaration) return null
+            target = next
+        }
+        return null
+    }
+
+    /**
      * Finds the I18nReference on the PSI element at the caret position, if any.
      */
     private fun findI18nReference(editor: Editor, psiFile: PsiFile): I18nReference? {
@@ -397,5 +437,8 @@ class RenameI18nKeyHandler : RenameHandler {
 
     private companion object {
         val QUOTES = setOf('"', '\'', '`')
+
+        /** Imports and re-exports followed from a constant's name to its declaration. */
+        const val MAX_HOPS = 8
     }
 }
