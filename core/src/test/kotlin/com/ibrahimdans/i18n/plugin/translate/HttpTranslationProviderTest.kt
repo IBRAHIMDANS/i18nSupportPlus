@@ -4,6 +4,7 @@ import com.ibrahimdans.i18n.plugin.utils.CoreMessages
 import com.google.gson.JsonParser
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.io.IOException
@@ -80,7 +81,7 @@ class HttpTranslationProviderTest {
     }
 
     @Test
-    fun `Anthropic gets the native Messages request, thinking off and no sampling parameter`() {
+    fun `Anthropic gets the native Messages request, low effort, no thinking field and no sampling parameter`() {
         val transport = FakeTransport { ok("""{"content":[{"type":"text","text":"Bonjour <x id=\"0\"/>"}],"stop_reason":"end_turn"}""") }
 
         assertEquals(listOf(Translation.Done("Bonjour {{name}}")), translate(preset("anthropic"), transport))
@@ -90,7 +91,8 @@ class HttpTranslationProviderTest {
         assertEquals(mapOf("x-api-key" to "secret", "anthropic-version" to "2026-10-21"), headers)
         val json = JsonParser.parseString(body).asJsonObject
         assertEquals("claude-haiku-5-5", json["model"].asString)
-        assertEquals("disabled", json["thinking"].asJsonObject["type"].asString, "a translation gains nothing from thinking")
+        assertFalse(json.has("thinking"), "disabled is a 400 on Claude Sonnet 5.5, Opus 5.5 and Fable 5.2: the body must work for every model")
+        assertEquals("low", json["output_config"].asJsonObject["effort"].asString, "a translation gains nothing from a long thinking")
         assertTrue(listOf("temperature", "top_p", "top_k").none(json::has), "API version 2026-10-21 rejects them")
         val system = json["system"].asString
         assertTrue("from en to fr" in system && "key greeting.hello" in system && "<x id=" in system, system)
@@ -103,7 +105,8 @@ class HttpTranslationProviderTest {
             val json = JsonParser.parseString(body).asJsonObject
             val sent = JsonParser.parseString(json["messages"].asJsonArray.single().asJsonObject["content"].asString).asJsonArray.map { it.asString }
             assertEquals(listOf("""Hi <x id="0"/>""", "Bye"), sent, "the array travels as the user message")
-            assertEquals("disabled", json["thinking"].asJsonObject["type"].asString)
+            assertFalse(json.has("thinking"))
+            assertEquals("low", json["output_config"].asJsonObject["effort"].asString)
             ok("""{"content":[{"type":"text","text":"[\"Salut <x id=\\\"0\\\"/>\", \"Au revoir\"]"}]}""")
         }
 
