@@ -1,6 +1,7 @@
 package com.ibrahimdans.i18n.plugin.ide.actions
 
 import com.ibrahimdans.i18n.plugin.PlatformBaseTest
+import com.ibrahimdans.i18n.plugin.utils.PluginBundle
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext
@@ -9,6 +10,7 @@ import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.TestDialogManager
 import com.intellij.openapi.ui.TestInputDialog
 import com.intellij.psi.PsiManager
+import com.intellij.refactoring.rename.RenameHandlerRegistry
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
@@ -107,5 +109,17 @@ class RenameKeyFromConstantCallTest : PlatformBaseTest() {
         )
 
         Assertions.assertFalse(available())
+    }
+
+    /**
+     * On `KEYS.save`, WebStorm's *Rename in a dialog* is available too: the platform asks which
+     * rename to run, naming each by its title (in sentence case). Without one, ours showed its
+     * `toString()`.
+     */
+    @Test
+    fun `the choice WebStorm shows names this rename, not its class`() {
+        val title = RenameHandlerRegistry.getHandlerTitle(RenameI18nKeyHandler())
+
+        Assertions.assertTrue(title.equals(PluginBundle.message("action.rename.title"), ignoreCase = true), title)
     }
 }
