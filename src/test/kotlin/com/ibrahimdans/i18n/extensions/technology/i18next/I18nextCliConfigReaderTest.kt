@@ -188,9 +188,14 @@ class I18nextCliConfigReaderTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `a built loadPath is ignored`() {
-        assertNull(readForWizard("src/i18n.ts", initWith("loadPath: `${'$'}{BASE}/{{lng}}/{{ns}}.json`"), setOf("public/locales")))
-        assertNull(readForWizard("src/i18n.ts", initWith("loadPath: (lng, ns) => '/locales/' + lng"), setOf("public/locales")))
+    fun `a built loadPath leaves the root to the scan, the defaults still read`() {
+        for (built in listOf("loadPath: `${'$'}{BASE}/{{lng}}/{{ns}}.json`", "loadPath: (lng, ns) => '/locales/' + lng")) {
+            val config = readForWizard("src/i18n.ts", initWith(built), setOf("public/locales"))
+
+            assertNull(config?.translationsRoot)
+            assertEquals("app", config?.defaultNs)
+            assertEquals("en", config?.referenceLocale)
+        }
     }
 
     @Test
@@ -200,7 +205,24 @@ class I18nextCliConfigReaderTest : PlatformBaseTest() {
     }
 
     @Test
-    fun `an init without loadPath states nothing`() {
-        assertNull(readForWizard("src/i18n.ts", "import i18n from 'i18next';\ni18n.init({ fallbackLng: 'en' });"))
+    fun `an init with inline resources gives its default namespace and reference locale, not a root`() {
+        val init = """
+            import i18n from 'i18next';
+            import en from './locales/en/app.json';
+
+            i18n.init({ resources: { en: { app: en } }, defaultNS: 'app', fallbackLng: 'fr' });
+        """.trimIndent()
+        val config = readForWizard("src/i18n.ts", init, setOf("src/locales"))
+
+        assertEquals("app", config?.defaultNs)
+        assertEquals("fr", config?.referenceLocale)
+        assertNull(config?.translationsRoot)
+        assertNull(config?.pathTemplate)
+    }
+
+    @Test
+    fun `an init stating neither a loadPath nor a default states nothing`() {
+        assertNull(readForWizard("src/i18n.ts", "import i18n from 'i18next';\ni18n.init({ resources: {} });"))
+        assertNull(readForWizard("src/i18n.ts", "import i18n from 'i18next';\ni18n.init({ lng: 'en' });"))
     }
 }
