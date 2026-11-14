@@ -92,6 +92,7 @@ class I18nEditorMenuTest : PlatformBaseTest() {
             "com.ibrahimdans.i18n.DeleteI18nKey",
             "com.ibrahimdans.i18n.Internationalize",
             "com.ibrahimdans.i18n.SortI18nKeys",
+            "com.ibrahimdans.i18n.SortAllTranslationFiles",
             TOGGLE_FOLDING,
             SWITCH_PREVIEW
         )
