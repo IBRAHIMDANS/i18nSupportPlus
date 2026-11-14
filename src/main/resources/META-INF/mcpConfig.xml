@@ -3,4 +3,11 @@
         <!-- Translation tools for AI agents on the IDE's MCP server (2025.2.6+; see I18nMcpToolset). -->
         <mcpServer.mcpToolset implementation="com.ibrahimdans.i18n.plugin.mcp.I18nMcpToolset"/>
     </extensions>
+    <actions>
+        <!-- Here, not in plugin.xml: without the MCP server there are no tools to point agents to. -->
+        <action id="com.ibrahimdans.i18n.WriteAgentInstructions"
+                class="com.ibrahimdans.i18n.plugin.mcp.WriteAgentInstructionsAction">
+            <add-to-group group-id="com.ibrahimdans.i18n.ToolsMenu" anchor="after" relative-to-action="com.ibrahimdans.i18n.RetranslateStale"/>
+        </action>
+    </actions>
 </idea-plugin>

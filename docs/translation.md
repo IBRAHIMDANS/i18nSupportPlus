@@ -79,11 +79,13 @@ Use the i18n tools to check the translations and delete the keys no code uses.
 
 The agent calls `i18n_check`, then `i18n_delete_unused_keys` with the keys it lists as unused. With several projects open in the IDE, it has to say which one (`projectPath`): give it the project folder if it asks.
 
-**4. Make the tools the default** (optional). Asked to translate without a word about the tools, an agent may edit the files itself: a client such as Claude Code loads a tool's definition only once the agent looks for it. One line in the project's instruction file — `CLAUDE.md` for Claude Code, `AGENTS.md` for Codex — settles it, with your own translations folder:
+**4. Make the tools the default** (optional). Asked to translate without a word about the tools, an agent may edit the files itself: a client such as Claude Code loads a tool's definition only once the agent looks for it. One line in the project's instruction file — `CLAUDE.md` for Claude Code, `AGENTS.md` for Codex and most other agents — settles it. **Tools › i18n Support Plus › Write Agent Instructions…** writes it for you, naming your translation folders:
 
 ```text
-For translation files (public/locales), use the i18n_* MCP tools instead of editing the JSON files.
+For translation files (public/locales), use the i18n_* MCP tools instead of editing the files.
 ```
+
+It goes to `AGENTS.md`, created if the project has none, or to the `CLAUDE.md` or `.github/copilot-instructions.md` you pick, after a preview. The line sits between two HTML comments, hidden once rendered: running the action again, after adding a module, replaces it instead of adding a second one, and leaves the rest of the file alone. One undo removes it.
 
 If you can't edit the project's instruction file, Claude Code can load the server's tools upfront instead: add `"alwaysLoad": true` to the `jetbrains` entry of your MCP configuration (`.mcp.json` or `--mcp-config`). This works just as well, but it loads every tool of the IDE's server, not only the `i18n_*` ones, into each session of the project, translation or not: about 32,000 more tokens of context on the first turn with the 73 tools of WebStorm 2026.3. The plugin can't mark only its own tools to load upfront: the IDE's MCP server gives plugins no way to.
 

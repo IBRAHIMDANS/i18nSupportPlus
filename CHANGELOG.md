@@ -11,6 +11,7 @@
 
 - [Machine translation] **Anthropic (Claude) and Google Gemini are ready to pick as engines**: the *Preset* list of the Machine Translation settings now fills their URL, key header and request, Claude Haiku 5.5 and Gemini 4 Hydrogen by default; paste your API key and they translate.
 - [i18next] **Keys written with the selector API are recognised**: `t($ => $.button.save)` is now checked, opens its translation on Ctrl+click and counts as a use of `button.save`, which is no longer reported as having no reference in code. The hook's namespaces and `keyPrefix` apply as to a string key.
+- [AI agents] **One action tells your agents to use the translation tools**: *Tools › i18n Support Plus › Write Agent Instructions…* adds to `AGENTS.md`, `CLAUDE.md` or `.github/copilot-instructions.md` the line that makes an agent translate through the `i18n_*` tools, with your translation folders, instead of editing the files by hand. Run again, it updates that line rather than adding another.
 
 ### Fixes
 
