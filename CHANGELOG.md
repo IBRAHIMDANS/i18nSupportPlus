@@ -5,6 +5,7 @@
 ### Features
 
 - [Inspections] **Translations that ignore your glossary are reported**: the new inspection *Translation not following the glossary* (`I18nGlossaryTerm`, off by default) flags a value that drops a term you keep as written, such as a product name, or translates a term otherwise than your glossary says, whether a person, an engine or an agent wrote it.
+- [Commit] **Told before committing a key that some locales did not follow**: turn on *Check translations of changed keys* in the commit options, and a commit that adds or changes a key of the reference locale without the other locales stops to say which keys and locales lag, with *Review* and *Commit Anyway*.
 
 ### Fixes
 

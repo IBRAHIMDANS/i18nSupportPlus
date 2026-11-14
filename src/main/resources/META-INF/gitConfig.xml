@@ -3,6 +3,8 @@
         <!-- Who signs a review when no name is configured: the repository's user.name / user.email. -->
         <projectService serviceInterface="com.ibrahimdans.i18n.plugin.review.VcsReviewerIdentity"
                         serviceImplementation="com.ibrahimdans.i18n.plugin.review.git.GitReviewerIdentity"/>
+        <!-- Commit option: warn when the locales do not follow the reference keys this commit changes. -->
+        <checkinHandlerFactory implementation="com.ibrahimdans.i18n.plugin.ide.diff.git.TranslationCheckinHandlerFactory"/>
     </extensions>
     <actions>
         <action id="com.ibrahimdans.i18n.CompareTranslationsWithBranch"
