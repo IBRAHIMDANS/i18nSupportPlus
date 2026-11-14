@@ -104,7 +104,7 @@ The actions on the key under the caret, or on the file; those working on many ke
 | Internationalize… | Project view context menu, editor context menu › *i18n* | Replace every hard-coded text of the selected JS/TS and Vue files and folders by a key, after a preview where texts are unchecked and keys edited |
 | Move i18n Key to Namespace… | editor context menu › *i18n*, `Ctrl+Alt+Shift+M` | Move a key to another namespace, updating every locale file and code reference |
 | Sort i18n Keys | editor context menu › *i18n*, in a translation file | Reorder the file's keys in the *Key order* of the settings, recursively |
-| Sort All Translation Files | **Tools › i18n Support Plus**, editor context menu › *i18n* | Reorder the keys of every JSON translation file of the project in the *Key order*, in one undoable step; files already in order are left untouched. Leave *Re-sort JSON files after each new key* off on large files and run this when it suits you |
+| Sort All Translation Files | **Tools › i18n Support Plus**, editor context menu › *i18n* | Reorder the keys of every JSON translation file of the project in the *Key order*, Flutter ARB catalogues included (each `@key` block stays after its key, `@@locale` first), in one undoable step; files already in order are left untouched. Leave *Re-sort JSON files after each new key* off on large files and run this when it suits you |
 
 ### Rename Refactoring
 

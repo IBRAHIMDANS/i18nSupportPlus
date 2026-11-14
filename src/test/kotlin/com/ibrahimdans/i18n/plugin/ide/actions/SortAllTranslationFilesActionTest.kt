@@ -75,7 +75,26 @@ class SortAllTranslationFilesActionTest : PlatformBaseTest() {
     }
 
     @Test
-    fun theActionShowsOutsideATranslationFile() = myFixture.runWithConfig(Config()) {
+    fun anArbCatalogueIsSortedWithItsMetadataNextToEachKey() = myFixture.runWithConfig(Config()) {
+        myFixture.addFileToProject(
+            "lib/l10n/app_en.arb",
+            """{"zebra": "Zebra", "@zebra": {"description": "An animal"}, "@@locale": "en", "apple": "Apple"}"""
+        )
+        myFixture.addFileToProject("lib/l10n/app_fr.arb", """{"@@locale": "fr", "apple": "Pomme", "zebra": "Zèbre"}""")
+
+        val unsorted = unsorted()
+
+        assertEquals(listOf("lib/l10n/app_en.arb"), unsorted.map { it.path.substringAfter("/src/") })
+        SortAllTranslationFilesAction.sortAll(project, unsorted)
+        assertEquals(
+            """{"@@locale": "en", "apple": "Apple", "zebra": "Zebra", "@zebra": {"description": "An animal"}}""",
+            documentText("lib/l10n/app_en.arb")
+        )
+        assertEquals("""{"@@locale": "fr", "apple": "Pomme", "zebra": "Zèbre"}""", text("lib/l10n/app_fr.arb"))
+    }
+
+    @Test
+    fun theActionShowsOutsideATranslationFile()= myFixture.runWithConfig(Config()) {
         myFixture.addFileToProject("locales/en/common.json", """{"a": "A"}""")
         val code = myFixture.configureByText("App.tsx", "export const App = () => null;")
         val action = ActionManager.getInstance().getAction("com.ibrahimdans.i18n.SortAllTranslationFiles")

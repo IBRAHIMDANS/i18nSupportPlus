@@ -44,11 +44,21 @@ import com.intellij.psi.codeStyle.CodeStyleManager
  */
 object JsonKeySorter {
 
+    /**
+     * True when [sort] would leave [file] as it is: its keys already in the project's order, an ARB
+     * catalogue's in its own (see [arbOrder]). A file without a top-level object counts as sorted.
+     * Needs a read action.
+     */
+    fun isSorted(file: JsonFile, project: Project): Boolean {
+        val root = file.topLevelValue as? JsonObject ?: return true
+        val arb = ArbMetadata.isArb(file)
+        return isSorted(root, orderOf(root, arb, project), nested = !arb)
+    }
+
     fun sort(file: JsonFile, project: Project) {
         val root = file.topLevelValue as? JsonObject ?: return
-        val keyOrder = Settings.getInstance(project).config().keyOrder.comparator
         val arb = ArbMetadata.isArb(file)
-        val order = if (arb) arbOrder(root, keyOrder) else compareBy(keyOrder) { it.name }
+        val order = orderOf(root, arb, project)
         if (isSorted(root, order, nested = !arb)) return
         val sorted = sortedText(root, order, nested = !arb)
         val documents = PsiDocumentManager.getInstance(project)
@@ -61,6 +71,11 @@ object JsonKeySorter {
         documents.doPostponedOperationsAndUnblockDocument(document)
         val newRoot = file.topLevelValue as? JsonObject ?: return
         carets.forEach { it.restore(newRoot) }
+    }
+
+    private fun orderOf(root: JsonObject, arb: Boolean, project: Project): Comparator<JsonProperty> {
+        val keyOrder = Settings.getInstance(project).config().keyOrder.comparator
+        return if (arb) arbOrder(root, keyOrder) else compareBy(keyOrder) { it.name }
     }
 
     /**
