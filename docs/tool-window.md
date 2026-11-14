@@ -19,6 +19,7 @@ The actions that work on many keys at once, from **Tools > i18n Support Plus** o
 | Generate i18next Types | **Tools > i18n Support Plus**, i18next modules only | Write `src/@types/i18next.d.ts` from the reference locale's keys, so that `tsc` rejects an unknown key, in CI too. Meant to be committed, regenerated on demand only |
 | Generate Pseudo-Locale… | **Tools > i18n Support Plus** | Write `en-XA`, an accented copy of the reference locale 30% longer, next to it: switched to it, the running application shows the text never extracted and the text that overflows |
 | Show Translation Changes | **Tools > i18n Support Plus**, Commit tool window | The keys the working copy adds, removes or changes, per locale, and the locales lagging behind the reference |
+| Check translations of changed keys | Commit options (the gear of the Commit tool window, or the commit dialog), off by default | Before the commit, when it changes a key of the reference locale that a locale does not follow in the same commit: says how many keys and which locales, with *Review* (the commit's translation changes) and *Commit Anyway*. Nothing is translated from there |
 | Compare Translations with Branch… | **Tools > i18n Support Plus**, Commit tool window | The same against a branch (`origin/main` by default), committed changes included: the translations of a pull request. Needs the Git plugin |
 
 ## Tool Window
