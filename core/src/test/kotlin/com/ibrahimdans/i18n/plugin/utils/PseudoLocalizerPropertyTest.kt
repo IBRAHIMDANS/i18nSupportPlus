@@ -22,9 +22,10 @@ import org.junit.jupiter.api.Test
  * Each case is built twice: as the message, and as the output the KDoc describes — the text
  * accented, everything else verbatim, `[` … ` ···]` around with one dot per 30 % of the letters.
  * The text never holds `{`, `}`, `%`, `<`, `>` or `&`: next to a placeholder they would form a
- * token of their own, which the KDoc leaves to the reader. i18next nesting (`$t(key)`) and vue-i18n
- * linked messages (`@:key`) are not in the KDoc's list and are left out. The seed is fixed: a
- * failure replays the same cases.
+ * token of their own, which the KDoc leaves to the reader. i18next nesting (`$t(key)`, options
+ * included) and vue-i18n linked messages (`@:key`, `@.lower:key`, `@:{'key'}`, `@:(key)`) are kept
+ * tokens too; a bare linked key is followed by a space, where vue-i18n ends it. The seed is fixed:
+ * a failure replays the same cases.
  */
 class PseudoLocalizerPropertyTest {
 
@@ -45,6 +46,8 @@ class PseudoLocalizerPropertyTest {
         "{{name}}", "{{- raw}}", "%{count}", "{user}", "%s", "%d", "%i", "%f", "%1\$s", "%2\$d",
         "<1>", "</1>", "<b>", "</b>", "<br/>", "<br />", "<a href='/x'>", "</a>", "&nbsp;", "&#39;", "&amp;",
         "{amount, number}", "{when, date, short}",
+        "\$t(common:save)", "\$t(key, {\"count\": {{count}} })", "\$t(other, {\"label\": \"(a) b\"})",
+        "@:common.save ", "@.lower:message.home ", "@.capitalize:{'day'}", "@:(a key)",
     )
 
     /** One part of a message: the text as written, the text expected out, its letter count. */

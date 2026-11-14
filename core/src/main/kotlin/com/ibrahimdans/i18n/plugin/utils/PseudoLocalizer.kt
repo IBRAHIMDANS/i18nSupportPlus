@@ -13,6 +13,12 @@ package com.ibrahimdans.i18n.plugin.utils
  * {# items}}` — the argument, the keywords and the selectors are kept and only the text of each
  * branch is accented.
  *
+ * A reference to another key is kept too, so the nested text still shows: i18next nesting with its
+ * default prefix and suffix — `$t(common:save)`, `$t(key, { "count": {{count}} })` — and vue-i18n
+ * linked messages — `@:common.save`, `@.lower:key`, `@:{'key'}`, and vue-i18n 8's `@:(key)`. A
+ * custom `nestingPrefix` / `nestingSuffix` is not known here: such a reference is accented as text.
+ * An `@` not followed by `:` or `.modifier:` (`user@example.com`) is text.
+ *
  * Deterministic: the same message always gives the same result, so regenerating an unchanged file
  * changes nothing.
  */
@@ -23,10 +29,18 @@ object PseudoLocalizer {
 
     private val ICU_TYPES = setOf("plural", "select", "selectordinal")
 
-    /** Placeholders, tags, entities and format specifiers outside braces: kept verbatim. */
+    /**
+     * Placeholders, tags, entities, format specifiers and vue-i18n linked references outside braces:
+     * kept verbatim. A linked key ends where vue-i18n's tokenizer ends it — at a space, `{`, `@`, `|`,
+     * `(` or `)` — and the `{…}` of `@:{'key'}` is kept as any brace group.
+     */
     private val PROTECTED = Regex(
-        """%\{[^{}]*}|%(?:\d+\$)?[sdif]|</?[A-Za-z0-9_.-]+(?:\s[^<>]*?)?\s*/?>|&#?\w+;"""
+        """%\{[^{}]*}|%(?:\d+\$)?[sdif]|</?[A-Za-z0-9_.-]+(?:\s[^<>]*?)?\s*/?>|&#?\w+;""" +
+            """|@(?:\.[\w$-]+)?:(?:\([^()]*\)|[^\s{}@|()]+)?"""
     )
+
+    /** i18next's default nesting prefix; the reference runs to its matching `)`. */
+    private const val NESTING_PREFIX = "\$t("
 
     private val ACCENTS: Map<Char, Char> = (
         "abcdefghijklmnopqrstuvwxyz".zip("áƀçđéƒĝĥîĵķļɱñöþǫŕšţûṽŵẋýž") +
@@ -51,6 +65,14 @@ object PseudoLocalizer {
         val out = StringBuilder()
         var index = 0
         while (index < text.length) {
+            if (text.startsWith(NESTING_PREFIX, index)) {
+                val end = nestingEnd(text, index)
+                if (end >= 0) {
+                    out.append(text, index, end + 1)
+                    index = end + 1
+                    continue
+                }
+            }
             if (text[index] == '{') {
                 val end = matchingBrace(text, index)
                 if (end < 0) {
@@ -61,7 +83,9 @@ object PseudoLocalizer {
                 index = end + 1
                 continue
             }
-            val next = text.indexOf('{', index).let { if (it < 0) text.length else it }
+            // From index + 1: a `$t(` at index was either kept above or is never closed, then text.
+            val next = listOf(text.indexOf('{', index), text.indexOf(NESTING_PREFIX, index + 1))
+                .filter { it >= 0 }.minOrNull() ?: text.length
             out.append(plain(text.substring(index, next), counter))
             index = next
         }
@@ -114,6 +138,28 @@ object PseudoLocalizer {
             if (char.isLetter()) counter.letters++
             ACCENTS[char] ?: char
         }.joinToString("")
+
+    /**
+     * The index of the `)` closing the `$t(` at [start], or -1 when it is never closed. A `)` inside
+     * the options' braces or a JSON string does not count.
+     */
+    private fun nestingEnd(text: String, start: Int): Int {
+        var braces = 0
+        var quoted = false
+        var index = start + NESTING_PREFIX.length
+        while (index < text.length) {
+            val char = text[index]
+            when {
+                quoted -> if (char == '\\') index++ else if (char == '"') quoted = false
+                char == '"' -> quoted = true
+                char == '{' -> braces++
+                char == '}' -> braces--
+                char == ')' && braces == 0 -> return index
+            }
+            index++
+        }
+        return -1
+    }
 
     /** The index of the `}` closing the `{` at [open], or -1 when it is never closed. */
     private fun matchingBrace(text: String, open: Int): Int {
