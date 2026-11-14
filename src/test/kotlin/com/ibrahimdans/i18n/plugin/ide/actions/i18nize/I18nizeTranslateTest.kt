@@ -15,6 +15,7 @@ import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.review.shown
 import com.ibrahimdans.i18n.plugin.translate.Cancellation
+import com.ibrahimdans.i18n.plugin.translate.SendEstimate
 import com.ibrahimdans.i18n.plugin.translate.TranslatedBy
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
@@ -252,5 +253,101 @@ class I18nizeTranslateTest : PlatformBaseTest() {
         write(preview.plan, accepted(proposals), null)
 
         Assertions.assertNull(root.findChild(ReviewLocation.DIRECTORY))
+    }
+
+    /** A component holding [SendEstimate.CONFIRM_FROM_TEXTS] texts, enough for the estimate to ask. */
+    private fun manyTexts(): PsiFile {
+        val words = listOf(
+            "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel", "India", "Juliett",
+            "Kilo", "Lima", "Mike", "November", "Oscar", "Papa", "Quebec", "Romeo", "Sierra", "Tango",
+        )
+        Assertions.assertEquals(SendEstimate.CONFIRM_FROM_TEXTS, words.size)
+        return myFixture.addFileToProject("src/Many.tsx", "export function Many() { return <div>${words.joinToString("") { "<p>$it</p>" }}</div>; }")
+    }
+
+    /** An engine that counts down [sent] once called, then answers only when cancelled — no preview dialog opens in a test. */
+    private fun waiting(sent: CountDownLatch) = object : TranslationProvider {
+        override fun translate(request: TranslationRequest, cancellation: Cancellation?): List<Translation> {
+            sent.countDown()
+            while (true) {
+                cancellation?.check()
+                if (Thread.currentThread().isInterrupted) return request.texts.map { Translation.Done("trop tard") }
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10))
+            }
+        }
+    }
+
+    /** [block] run with the estimate's question answered [answer], each question asked recorded in the list. */
+    private fun <T> answeringEstimate(answer: Boolean, block: (MutableList<SendEstimate>) -> T): T {
+        val asked = mutableListOf<SendEstimate>()
+        val previous = MachineFill.confirmSend
+        MachineFill.confirmSend = { _, _, estimate -> asked += estimate; answer }
+        try {
+            return block(asked)
+        } finally {
+            MachineFill.confirmSend = previous
+        }
+    }
+
+    /** [preview] translated by a [waiting] engine until it is called, then the job cancelled and waited for. */
+    private fun sendThenCancel(preview: I18nizeAction.Preview, sent: CountDownLatch) {
+        val job = I18nizeAction.translateThenApply(project, preview.plan, preview.existing, waiting(sent))
+        PlatformTestUtil.waitWithEventsDispatching("the engine was never called", { sent.count == 0L }, 30)
+        job.cancel()
+        PlatformTestUtil.waitWithEventsDispatching("the cancelled translation never ended", { job.isCompleted }, 30)
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+    }
+
+    @Test
+    fun underTheThresholdTheTextsAreSentWithoutAsking() = myFixture.runWithConfig(config) {
+        myFixture.addFileToProject("locales/en/common.json", "{}")
+        myFixture.addFileToProject("locales/fr/common.json", "{}")
+        val preview = preview(menu())
+
+        val asked = answeringEstimate(false) { asked -> sendThenCancel(preview, CountDownLatch(1)); asked }
+
+        Assertions.assertTrue(asked.isEmpty(), "no question for two texts")
+    }
+
+    @Test
+    fun fromTheThresholdTheEstimateAsksOnceWithTheVolume() = myFixture.runWithConfig(config) {
+        myFixture.addFileToProject("locales/en/common.json", "{}")
+        myFixture.addFileToProject("locales/fr/common.json", "{}")
+        myFixture.addFileToProject("locales/de/common.json", "{}")
+        val preview = preview(manyTexts())
+
+        val asked = answeringEstimate(true) { asked -> sendThenCancel(preview, CountDownLatch(1)); asked }
+
+        val estimate = asked.single()
+        Assertions.assertEquals(setOf("fr", "de"), estimate.byLocale.keys, "one line per other locale")
+        Assertions.assertEquals(SendEstimate.CONFIRM_FROM_TEXTS, estimate.byLocale.getValue("fr").texts)
+        Assertions.assertEquals(
+            listOf("Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel", "India", "Juliett",
+                "Kilo", "Lima", "Mike", "November", "Oscar", "Papa", "Quebec", "Romeo", "Sierra", "Tango").sumOf { it.length },
+            estimate.byLocale.getValue("fr").characters,
+        )
+    }
+
+    @Test
+    fun declinedAtTheEstimateTheReferenceIsWrittenAndNothingIsSent() = myFixture.runWithConfig(config) {
+        val en = myFixture.addFileToProject("locales/en/common.json", "{}")
+        val fr = myFixture.addFileToProject("locales/fr/common.json", "{}")
+        val many = manyTexts()
+        val before = textOf(many)
+        val preview = preview(many)
+        val sent = CountDownLatch(1)
+
+        val asked = answeringEstimate(false) { asked ->
+            val job = I18nizeAction.translateThenApply(project, preview.plan, preview.existing, waiting(sent))
+            PlatformTestUtil.waitWithEventsDispatching("the declined translation never ended", { job.isCompleted }, 30)
+            PlatformTestUtil.waitWithEventsDispatching("the reference values were never written", { textOf(en) != "{}" }, 30)
+            asked
+        }
+
+        Assertions.assertEquals(1, asked.size, "asked once")
+        Assertions.assertEquals(1L, sent.count, "nothing sent to the engine")
+        Assertions.assertTrue(textOf(en).contains("Alpha"), "the reference values are written")
+        Assertions.assertNotEquals(before, textOf(many), "the code is extracted")
+        Assertions.assertEquals("{}", textOf(fr), "no translation written")
     }
 }

@@ -18,7 +18,7 @@ Each engine's URL, headers, request body and the path of the translation in the 
 - *Create Translation* and *Edit Translation*: **Translate Empty Locales**, or *Translate* next to one locale, fills the fields from the reference locale; nothing is written before OK. An *Instruction* (formal tone, a length) is sent along to the LLM engines (OpenAI-compatible, Anthropic, Gemini).
 - **Fill Missing Translations…** (*Tools > i18n Support Plus*): the keys a locale lacks, translated from the reference locale, with a preview before writing. From 20 texts to send, it first tells how many texts and characters go to the engine, per locale, and waits for *Translate*: placeholders and tags are counted masked, as the engine receives them, while the context and the prompt are not counted.
 - **Retranslate Stale Translations…**: in a module keeping reviews, the values whose source changed since they were reviewed, next to the value each one replaces.
-- *Internationalize…* can translate the new keys into the module's other locales.
+- *Internationalize…* can translate the new keys into the module's other locales. From 20 texts it asks first, as *Fill* does; declined, the keys are extracted and nothing is sent.
 
 Variables, tags and the plural forms of the target language are kept; a proposal that lost a variable comes unchecked.
 An ICU plural (`{count, plural, one {# file} other {# files}}`) is sent with the branches of the target language — `few` and `many` added for Russian, `other` alone for Japanese —, `=0` and `offset:` kept; a branch the source lacks is translated from `other` and comes unchecked, to review. One nested in more than one other block, or without `other`, is not translated.
