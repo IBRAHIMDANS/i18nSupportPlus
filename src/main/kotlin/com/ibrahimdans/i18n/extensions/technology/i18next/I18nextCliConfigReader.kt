@@ -17,8 +17,8 @@ import com.intellij.psi.util.PsiTreeUtil
  * computed at runtime, or `false`, is left out — nothing here runs Node.
  *
  * [readForWizard] reads the other files stating the same things, under the same rule:
- * `next-i18next.config.js`, `lingui.config.*`, `transloco.config.*` and the `backend.loadPath` of an
- * i18next init.
+ * `next-i18next.config.js`, `lingui.config.*`, `transloco.config.*` and an i18next init: its
+ * `backend.loadPath`, and its defaults when it has none.
  */
 object I18nextCliConfigReader {
 
@@ -87,14 +87,16 @@ object I18nextCliConfigReader {
     }
 
     /**
-     * The `backend.loadPath` of an i18next init, with the options around it. A `loadPath` is a URL:
-     * its catalogues are on disk under `public/`, or at that path for a project serving its root.
-     * Neither folder existing, or a full URL, leaves the root to the scan.
+     * What an i18next init states: its defaults (`defaultNS`, `fallbackLng`, separators), and the
+     * folder of its `backend.loadPath`. A `loadPath` is a URL: its catalogues are on disk under
+     * `public/`, or at that path for a project serving its root. Neither folder existing, a full URL,
+     * a computed `loadPath` or none at all (`resources` given inline or imported) leaves the root to
+     * the scan, the defaults still read. Null when the init states neither.
      */
     private fun readBackend(file: PsiFile, relativePath: String, isDirectory: (String) -> Boolean): I18nextCliConfig? {
         val options = I18nextInitReader.optionsObject(file) ?: return null
-        val loadPath = (options.findProperty(BACKEND)?.value as? JSObjectLiteralExpression).string(LOAD_PATH) ?: return null
-        val path = loadPath.takeUnless { it.contains("://") }?.trimStart('/')
+        val loadPath = (options.findProperty(BACKEND)?.value as? JSObjectLiteralExpression).string(LOAD_PATH)
+        val path = loadPath?.takeUnless { it.contains("://") }?.trimStart('/')
         val served = path?.let { I18nextCliConfig(relativePath, output = it, fromProjectRoot = true).translationsRoot }
         val output = when {
             served == null -> null
@@ -102,8 +104,13 @@ object I18nextCliConfigReader {
             isDirectory(served) -> path
             else -> null
         }
-        return I18nextInitReader.readOptions(options).toConfig(relativePath, output).copy(fromProjectRoot = true)
+        val config = I18nextInitReader.readOptions(options).toConfig(relativePath, output).copy(fromProjectRoot = true)
+        return config.takeIf { loadPath != null || it.statesDefaults() }
     }
+
+    /** Whether [this], read without a `loadPath`, still states something the wizard proposes. */
+    private fun I18nextCliConfig.statesDefaults(): Boolean =
+        listOf(defaultNs, referenceLocale, keySeparator, nsSeparator).any { it != null }
 
     /** What i18next itself takes for the default namespace: `defaultNS`, else the first of `ns` without `translation`. */
     private fun I18nextInitOptions.toConfig(file: String, output: String?, fallbackLocale: String? = null) = I18nextCliConfig(
