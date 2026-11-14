@@ -21,6 +21,7 @@
 
 ### Fixes
 
+- [Refactoring] **Shift+F6 on a key constant renames the key**: with the caret on `save` in `t(KEYS.save)`, the rename used to change the JavaScript property and leave the key as it was. It now renames the key the constant holds, in its declaration and in every translation file, as from the key itself.
 - [AI agents] **Agent instructions name the right folder for an absolute translations root**: with a root set as a full path inside the project (`/home/me/app/locales`), *Write Agent Instructions…* named `home/me/app/locales`, a folder that does not exist. It now names `locales`, the folder as the plugin reads it.
 - [Editor] **`t(KEYS['save'])` no longer reads `save` as a key**: the string between the brackets of a member access passed to `t` names a property of your object, not a translation, yet it was annotated as an unknown key. It is now left alone, in the editor and in `i18n-check --code`.
 - [YAML] **A value holding an invisible control character no longer breaks the YAML file**: a translation pasted from a PDF or a Word document can carry a C1 control character (U+0080 to U+009F). Written as is, it made the whole YAML file unreadable, and a "next line" character (U+0085) on its own read back as an empty value. These characters are now written as escapes between double quotes, and read back as written.

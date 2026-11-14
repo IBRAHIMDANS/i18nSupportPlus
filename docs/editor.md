@@ -129,7 +129,7 @@ With the caret on an intermediate level of a key (`button` in `common:button.sav
 
 ### Keys held by constants
 
-A key held by a constant is followed one step: `t(SAVE_KEY)`, `t(KEYS.save)` (an object of a `const`, `as const` or not) and `t(Keys.Save)` (a string `enum` member) are annotated, hinted and Ctrl+clicked at the call, imported or not; each branch of `const titleKey = cond ? 'a' : 'b'` is annotated where it is written. The constant's literal is the usage *Find Usages* lists and Shift+F6 rewrites, once. A parameter, a reassigned variable or a value computed by a function stays unread.
+A key held by a constant is followed one step: `t(SAVE_KEY)`, `t(KEYS.save)` (an object of a `const`, `as const` or not) and `t(Keys.Save)` (a string `enum` member) are annotated, hinted and Ctrl+clicked at the call, imported or not; each branch of `const titleKey = cond ? 'a' : 'b'` is annotated where it is written. The constant's literal is the usage *Find Usages* lists and Shift+F6 rewrites, once — from the literal or from the constant's name at the call. A parameter, a reassigned variable or a value computed by a function stays unread.
 
 ### Wildcard Traversal
 
