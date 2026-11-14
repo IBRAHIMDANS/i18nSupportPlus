@@ -98,4 +98,25 @@ class SimilarKeysTest {
     fun `a key not written as it reads is not rewritten`() {
         assertNull(SimilarKeys.rewrite("other", key("buton.save"), emptyList(), key("button.save"), "."))
     }
+
+    @Test
+    fun `a namespace one typo away is found, the closest first`() {
+        assertEquals(listOf("common"), SimilarKeys.closestNamespaces("comon", listOf("common", "auth", "errors")))
+        assertEquals(listOf("errors", "error"), SimilarKeys.closestNamespaces("errros", listOf("error", "auth", "errors")))
+    }
+
+    @Test
+    fun `a namespace with no neighbour, or a short one, finds nothing`() {
+        assertEquals(emptyList<String>(), SimilarKeys.closestNamespaces("profile", listOf("common", "auth")))
+        assertEquals(emptyList<String>(), SimilarKeys.closestNamespaces("ui", listOf("ux", "common")))
+        assertEquals(emptyList<String>(), SimilarKeys.closestNamespaces("common", listOf("common")))
+    }
+
+    @Test
+    fun `the namespace is replaced and the key after it kept, with the project separator`() {
+        assertEquals("common:button.save", SimilarKeys.rewriteNamespace("comon:button.save", "comon", "common", ":"))
+        assertEquals("common::save", SimilarKeys.rewriteNamespace("comon::save", "comon", "common", "::"))
+        assertNull(SimilarKeys.rewriteNamespace("button.save", "comon", "common", ":"))
+        assertNull(SimilarKeys.rewriteNamespace("comon.save", "comon", "common", ":"))
+    }
 }

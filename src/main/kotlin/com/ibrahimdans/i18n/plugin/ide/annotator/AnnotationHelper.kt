@@ -62,11 +62,12 @@ class AnnotationHelper(
     }
 
     /**
-     * Annotates unresolved namespace
+     * Annotates unresolved namespace. [similarNamespaces] offer the namespaces a typo away, before
+     * *Create translation file*.
      */
-    fun unresolvedNs(fullKey: FullKey, ns: Literal) {
+    fun unresolvedNs(fullKey: FullKey, ns: Literal, similarNamespaces: List<IntentionAction> = emptyList()) {
         val message = PluginBundle.getMessage("annotator.unresolved.ns")
-        val fixes = listOf<IntentionAction>(OpenSettingsFix()) + Extensions.LOCALIZATION.extensionList.map {
+        val fixes = listOf<IntentionAction>(OpenSettingsFix()) + similarNamespaces + Extensions.LOCALIZATION.extensionList.map {
             CreateTranslationFileQuickFix(fullKey, it.contentGenerator(), ns.text)
         }
         report.problem(
