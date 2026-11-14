@@ -16,7 +16,7 @@ Off until a project turns it on, in *Settings | Tools | i18n Support Plus | Mach
 Each engine's URL, headers, request body and the path of the translation in the answer can be edited, and *Test* translates a sample. The glossary, one term per line, protects a name from translation (`Acme`) or gives a term's translations (`cart = fr: panier; de: Warenkorb`), sent to DeepL as a glossary and to the LLM engines in their prompt.
 
 - *Create Translation* and *Edit Translation*: **Translate Empty Locales**, or *Translate* next to one locale, fills the fields from the reference locale; nothing is written before OK. An *Instruction* (formal tone, a length) is sent along to the LLM engines (OpenAI-compatible, Anthropic, Gemini).
-- **Fill Missing Translations…** (*Tools > i18n Support Plus*): the keys a locale lacks, translated from the reference locale, with a preview before writing.
+- **Fill Missing Translations…** (*Tools > i18n Support Plus*): the keys a locale lacks, translated from the reference locale, with a preview before writing. From 20 texts to send, it first tells how many texts and characters go to the engine, per locale, and waits for *Translate*: placeholders and tags are counted masked, as the engine receives them, while the context and the prompt are not counted.
 - **Retranslate Stale Translations…**: in a module keeping reviews, the values whose source changed since they were reviewed, next to the value each one replaces.
 - *Internationalize…* can translate the new keys into the module's other locales.
 

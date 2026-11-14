@@ -20,6 +20,7 @@ import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.tree.PluralCategories
 import com.ibrahimdans.i18n.plugin.translate.MachineTranslationSettings
 import com.ibrahimdans.i18n.plugin.translate.PluralTranslationPlan
+import com.ibrahimdans.i18n.plugin.translate.SendEstimate
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslatedBy
 import com.ibrahimdans.i18n.plugin.translate.TranslationContext
@@ -196,9 +197,16 @@ internal object MachineFill {
     ): Job = PluginCoroutineScope.of(project).launch {
         val title = PluginBundle.message(pass.title)
         val label = targets.joinToString(", ")
+        val planned = withBackgroundProgress(project, title, cancellable = true) {
+            coroutineToIndicator { plannedFor(project, module, source, targets, itemsFor) }
+        }
+        val estimate = SendEstimate.of(
+            planned.items.mapValues { (target, items) -> sentOf(items, planned.translations, source, target).map { it.sent } }
+        )
+        if (!withContext(Dispatchers.EDT) { maySend(project, title, estimate) }) return@launch
         // Null when the user cancelled: nothing is then proposed, nor written.
         val proposals = withBackgroundProgress(project, title, cancellable = true) {
-            coroutineToIndicator { indicator -> proposalsFor(project, module, source, targets, provider, indicator, itemsFor) }
+            coroutineToIndicator { indicator -> proposalsFor(planned, source, provider, indicator) }
         } ?: return@launch
         if (proposals.isEmpty()) {
             PluginNotifications.notify(project, PluginBundle.message(pass.nothing, label), title = title)
@@ -217,24 +225,54 @@ internal object MachineFill {
         }
     }
 
-    /**
-     * The proposals of every locale of [targets], each one's items picked by [itemsFor] and translated,
-     * the module's translations read once for them all; null when [indicator] was cancelled.
-     */
-    private fun proposalsFor(
-        project: Project, module: ModuleConfig?, source: String, targets: List<String>, provider: TranslationProvider,
-        indicator: ProgressIndicator, itemsFor: (Map<String, Map<String, String>>, String) -> List<Item>,
-    ): List<Proposal>? {
+    /** What a pass works on: the module's [translations], read once, and the [items] of each target locale, in order. */
+    private class Planned(val translations: Map<String, Map<String, String>>, val config: Config, val items: Map<String, List<Item>>)
+
+    /** The items [itemsFor] picks in each locale of [targets], the module's translations read once for them all. */
+    private fun plannedFor(
+        project: Project, module: ModuleConfig?, source: String, targets: List<String>,
+        itemsFor: (Map<String, Map<String, String>>, String) -> List<Item>,
+    ): Planned {
         val translations = TranslationDataLoader.loadAllTranslations(project, module)
-        val config = Settings.getInstance(project).config()
+        return Planned(translations, Settings.getInstance(project).config(), targets.associateWith { itemsFor(translations, it) })
+    }
+
+    /** The proposals of every target of [planned], its items translated; null when [indicator] was cancelled. */
+    private fun proposalsFor(planned: Planned, source: String, provider: TranslationProvider, indicator: ProgressIndicator): List<Proposal>? {
         val proposals = mutableListOf<Proposal>()
-        for (target in targets) {
+        for ((target, items) in planned.items) {
             indicator.text = PluginBundle.message("action.fill.progress.locale", target)
-            val items = itemsFor(translations, target)
-            if (items.isNotEmpty()) proposals += translate(items, provider, source, target, indicator, translations, config) ?: return null
+            if (items.isNotEmpty()) {
+                proposals += translate(items, provider, source, target, indicator, planned.translations, planned.config) ?: return null
+            }
         }
         return proposals
     }
+
+    /**
+     * Whether the pass may send what [estimate] counts: at once under [SendEstimate.CONFIRM_FROM_TEXTS]
+     * texts, otherwise once the user agreed to the volume ([confirmSend]). On the EDT.
+     */
+    internal fun maySend(project: Project, title: String, estimate: SendEstimate): Boolean =
+        !estimate.needsConfirmation() || confirmSend(project, title, estimate)
+
+    /** Asks the user to send [estimate]'s texts, telling how many and their characters per locale; a test swaps it. */
+    internal var confirmSend: (Project, String, SendEstimate) -> Boolean = { project, title, estimate ->
+        Messages.showOkCancelDialog(
+            project, estimateMessage(estimate), title,
+            PluginBundle.message("action.fill.estimate.send"), Messages.getCancelButton(), Messages.getQuestionIcon(),
+        ) == Messages.OK
+    }
+
+    /** What [confirmSend] says of [estimate]: the totals, one line per locale, then what is not counted. */
+    internal fun estimateMessage(estimate: SendEstimate): String =
+        (
+            listOf(PluginBundle.message("action.fill.estimate", estimate.texts, estimate.characters)) +
+                estimate.byLocale.map { (locale, volume) ->
+                    PluginBundle.message("action.fill.estimate.locale", locale, volume.texts, volume.characters)
+                } +
+                PluginBundle.message("action.fill.estimate.note")
+            ).joinToString("\n")
 
     /**
      * A key to translate, with its [source] text. [needsReview]: a plural form translated from the
@@ -384,14 +422,7 @@ internal object MachineFill {
         items: List<Item>, provider: TranslationProvider, source: String, target: String, indicator: ProgressIndicator?,
         known: Map<String, Map<String, String>> = emptyMap(), config: Config = Config(),
     ): List<Proposal>? {
-        // Every item of the pass is left out of the examples: a stale value being retranslated
-        // must not be shown as the way the project says it.
-        val examples = known - items.map { it.key }.toSet()
-        val memory = TranslationMemory.of(examples, source, target)
-        val remembered = items.filter { it.skipped == null && !it.needsReview }
-            .mapNotNull { item -> memory.lookup(item.source)?.let { item to it } }
-            .toMap()
-        val sent = items.filter { it.skipped == null && it !in remembered }
+        val (examples, remembered, sent) = selectionOf(items, known, source, target)
         val calls = sent.chunked(KEYS_PER_CALL)
         val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("i18n machine translation", PARALLEL_REQUESTS)
         val stop = Stop()
@@ -431,6 +462,31 @@ internal object MachineFill {
         } finally {
             executor.shutdownNow()
         }
+    }
+
+    /**
+     * The items of [items] an engine is sent from [source] to [target]: neither skipped nor taken from
+     * the module's own translations ([TranslationMemory]) — what [translate] sends, counted before it.
+     */
+    fun sentOf(items: List<Item>, known: Map<String, Map<String, String>>, source: String, target: String): List<Item> =
+        selectionOf(items, known, source, target).sent
+
+    /** What [translate] does with items: the [examples] it shows, the items the memory fills, and those it [sent]. */
+    private data class Selection(
+        val examples: Map<String, Map<String, String>>,
+        val remembered: Map<Item, TranslationMemory.Match>,
+        val sent: List<Item>,
+    )
+
+    private fun selectionOf(items: List<Item>, known: Map<String, Map<String, String>>, source: String, target: String): Selection {
+        // Every item of the pass is left out of the examples: a stale value being retranslated
+        // must not be shown as the way the project says it.
+        val examples = known - items.map { it.key }.toSet()
+        val memory = TranslationMemory.of(examples, source, target)
+        val remembered = items.filter { it.skipped == null && !it.needsReview }
+            .mapNotNull { item -> memory.lookup(item.source)?.let { item to it } }
+            .toMap()
+        return Selection(examples, remembered, items.filter { it.skipped == null && it !in remembered })
     }
 
     /**

@@ -17,6 +17,7 @@ import com.ibrahimdans.i18n.plugin.review.ReviewStore
 import com.ibrahimdans.i18n.plugin.review.ShownReview
 import com.ibrahimdans.i18n.plugin.review.shown
 import com.ibrahimdans.i18n.plugin.translate.Cancellation
+import com.ibrahimdans.i18n.plugin.translate.SendEstimate
 import com.ibrahimdans.i18n.plugin.translate.TranslatedBy
 import com.ibrahimdans.i18n.plugin.translate.Translation
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
@@ -323,6 +324,69 @@ class FillMissingTranslationsActionTest : PlatformBaseTest() {
 
         Assertions.assertTrue(job.isCancelled, "the job ends cancelled")
         Assertions.assertEquals("{}", FileDocumentManager.getInstance().getDocument(fr.virtualFile)!!.text, "nothing written")
+    }
+
+    @Test
+    fun `a fill refused at the estimate sends nothing and writes nothing`() = myFixture.runWithConfig(config) {
+        val keys = (1..SendEstimate.CONFIRM_FROM_TEXTS).joinToString(", ") { "\"k$it\": \"Text $it\"" }
+        addFileToProject("locales/en/common.json", "{$keys}")
+        val fr = addFileToProject("locales/fr/common.json", "{}")
+        val asked = mutableListOf<SendEstimate>()
+        val previous = MachineFill.confirmSend
+        MachineFill.confirmSend = { _, _, estimate -> asked += estimate; false }
+        try {
+            val job = MachineFill.run(project, null, "en", "fr", engine { Translation.Done("x") })
+            PlatformTestUtil.waitWithEventsDispatching("the refused fill never ended", { job.isCompleted }, 30)
+        } finally {
+            MachineFill.confirmSend = previous
+        }
+
+        Assertions.assertEquals(SendEstimate.CONFIRM_FROM_TEXTS, asked.single().byLocale.getValue("fr").texts, "asked with the volume")
+        Assertions.assertTrue(requests.isEmpty(), "nothing sent")
+        Assertions.assertEquals("{}", FileDocumentManager.getInstance().getDocument(fr.virtualFile)!!.text, "nothing written")
+    }
+
+    @Test
+    fun `under the threshold a pass sends without asking, from it it asks and follows the answer`() {
+        val previous = MachineFill.confirmSend
+        var asked = 0
+        try {
+            MachineFill.confirmSend = { _, _, _ -> asked++; false }
+            val few = SendEstimate.of(mapOf("fr" to List(SendEstimate.CONFIRM_FROM_TEXTS - 1) { "Save" }))
+            val many = SendEstimate.of(mapOf("fr" to List(SendEstimate.CONFIRM_FROM_TEXTS) { "Save" }))
+
+            Assertions.assertTrue(MachineFill.maySend(project, "Fill", few))
+            Assertions.assertEquals(0, asked, "no question under the threshold")
+            Assertions.assertFalse(MachineFill.maySend(project, "Fill", many), "Cancel stops the pass")
+            MachineFill.confirmSend = { _, _, _ -> asked++; true }
+            Assertions.assertTrue(MachineFill.maySend(project, "Fill", many), "Translate lets it go")
+            Assertions.assertEquals(2, asked)
+        } finally {
+            MachineFill.confirmSend = previous
+        }
+    }
+
+    @Test
+    fun `the estimate counts what the engine is sent, not a skipped item nor one the memory fills`() {
+        val known = mapOf(
+            "common:save" to mapOf("en" to "Save", "fr" to "Enregistrer"),
+            "dialog:save" to mapOf("en" to "Save"),
+            "common:quit" to mapOf("en" to "Quit"),
+        )
+        val items = MachineFill.itemsOf(known, "en", "fr", ".") + MachineFill.Item("common:icu", "{n, plural}", skipped = "no")
+
+        val sent = MachineFill.sentOf(items, known, "en", "fr")
+
+        Assertions.assertEquals(listOf("common:quit"), sent.map { it.key })
+    }
+
+    @Test
+    fun `the estimate message gives the totals and one line per locale`() {
+        val message = MachineFill.estimateMessage(SendEstimate.of(mapOf("fr" to listOf("Save"), "de" to listOf("Save", "Quit"))))
+
+        Assertions.assertEquals(4, message.lines().size, message)
+        Assertions.assertTrue(message.lines()[0].startsWith("3 text(s), 12 character(s)"), message)
+        Assertions.assertTrue(message.lines()[1].contains("fr: 1 text(s), 4 character(s)"), message)
     }
 
     @Test
