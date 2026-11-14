@@ -243,6 +243,8 @@
                     icon="AllIcons.General.Modified"/>
             <action id="com.ibrahimdans.i18n.CleanupUnusedKeys"
                     class="com.ibrahimdans.i18n.plugin.ide.actions.CleanupUnusedKeysAction"/>
+            <action id="com.ibrahimdans.i18n.SortAllTranslationFiles"
+                    class="com.ibrahimdans.i18n.plugin.ide.actions.SortAllTranslationFilesAction"/>
             <separator/>
             <action id="com.ibrahimdans.i18n.FillMissingTranslations"
                     class="com.ibrahimdans.i18n.plugin.ide.actions.FillMissingTranslationsAction"/>
@@ -306,6 +308,7 @@
             <separator/>
             <!-- Internationalize sits here too, added by jsConfig.xml where the action is declared. -->
             <reference ref="com.ibrahimdans.i18n.SortI18nKeys"/>
+            <reference ref="com.ibrahimdans.i18n.SortAllTranslationFiles"/>
             <separator/>
             <reference ref="com.ibrahimdans.i18n.ToggleFolding"/>
             <reference ref="com.ibrahimdans.i18n.SwitchPreviewLocale"/>
