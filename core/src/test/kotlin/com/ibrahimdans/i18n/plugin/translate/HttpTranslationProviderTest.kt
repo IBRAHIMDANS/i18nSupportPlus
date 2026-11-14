@@ -80,6 +80,58 @@ class HttpTranslationProviderTest {
     }
 
     @Test
+    fun `Anthropic gets the native Messages request, thinking off and no sampling parameter`() {
+        val transport = FakeTransport { ok("""{"content":[{"type":"text","text":"Bonjour <x id=\"0\"/>"}],"stop_reason":"end_turn"}""") }
+
+        assertEquals(listOf(Translation.Done("Bonjour {{name}}")), translate(preset("anthropic"), transport))
+
+        val (url, headers, body) = transport.calls.single()
+        assertEquals("https://api.anthropic.com/v1/messages", url)
+        assertEquals(mapOf("x-api-key" to "secret", "anthropic-version" to "2026-10-21"), headers)
+        val json = JsonParser.parseString(body).asJsonObject
+        assertEquals("claude-haiku-5-5", json["model"].asString)
+        assertEquals("disabled", json["thinking"].asJsonObject["type"].asString, "the translation must be the first content block")
+        assertTrue(listOf("temperature", "top_p", "top_k").none(json::has), "API version 2026-10-21 rejects them")
+        val system = json["system"].asString
+        assertTrue("from en to fr" in system && "key greeting.hello" in system && "<x id=" in system, system)
+        assertEquals("""Hello <x id="0"/>""", json["messages"].asJsonArray.single().asJsonObject["content"].asString)
+    }
+
+    @Test
+    fun `Anthropic answers a batch with a JSON array in its text block`() {
+        val transport = FakeTransport { body ->
+            val json = JsonParser.parseString(body).asJsonObject
+            val sent = JsonParser.parseString(json["messages"].asJsonArray.single().asJsonObject["content"].asString).asJsonArray.map { it.asString }
+            assertEquals(listOf("""Hi <x id="0"/>""", "Bye"), sent, "the array travels as the user message")
+            assertEquals("disabled", json["thinking"].asJsonObject["type"].asString)
+            ok("""{"content":[{"type":"text","text":"[\"Salut <x id=\\\"0\\\"/>\", \"Au revoir\"]"}]}""")
+        }
+
+        val result = provider(preset("anthropic"), "k", transport).translate(request.copy(texts = listOf("Hi {{name}}", "Bye")))
+
+        assertEquals(listOf(Translation.Done("Salut {{name}}"), Translation.Done("Au revoir")), result)
+        assertEquals(1, transport.calls.size, "both texts in one request")
+    }
+
+    @Test
+    fun `Gemini goes through its OpenAI-compatible endpoint with a Bearer key`() {
+        val transport = FakeTransport { ok("""{"choices":[{"message":{"role":"assistant","content":"Bonjour <x id=\"0\"/>"}}]}""") }
+
+        assertEquals(listOf(Translation.Done("Bonjour {{name}}")), translate(preset("gemini"), transport))
+
+        val (url, headers, body) = transport.calls.single()
+        assertEquals("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", url, "the key never goes in the URL")
+        assertEquals(mapOf("Authorization" to "Bearer secret"), headers)
+        val json = JsonParser.parseString(body).asJsonObject
+        assertEquals("gemini-4-hydrogen", json["model"].asString)
+        assertEquals("low", json["reasoning_effort"].asString)
+        val messages = json["messages"].asJsonArray
+        assertEquals("system", messages[0].asJsonObject["role"].asString)
+        assertTrue("from en to fr" in messages[0].asJsonObject["content"].asString)
+        assertEquals("""Hello <x id="0"/>""", messages[1].asJsonObject["content"].asString)
+    }
+
+    @Test
     fun `quotes and newlines in the text keep the body valid JSON`() {
         val transport = FakeTransport { ok("""{"translations":[{"text":"x"}]}""") }
         provider(preset("deepl"), "k", transport).translate(request.copy(texts = listOf("Say \"hi\"\\\nnow")))
@@ -231,7 +283,7 @@ class HttpTranslationProviderTest {
 
     @Test
     fun `every preset is complete`() {
-        assertEquals(listOf("openai-compatible", "deepl", "libretranslate", "google-cloud"), TranslationEngines.presets.map { it.id })
+        assertEquals(listOf("openai-compatible", "deepl", "libretranslate", "google-cloud", "anthropic", "gemini"), TranslationEngines.presets.map { it.id })
         TranslationEngines.presets.forEach {
             assertTrue(it.name.isNotBlank() && it.url.startsWith("http") && it.responsePath.isNotBlank(), it.id)
             assertTrue("{text}" in it.body, "${it.id} never sends the text")

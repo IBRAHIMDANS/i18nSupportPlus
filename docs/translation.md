@@ -10,11 +10,12 @@ Off until a project turns it on, in *Settings | Tools | i18n Support Plus | Mach
 
 - **OpenAI-compatible**, pointing at a local Ollama (`http://localhost:11434`) — nothing leaves the machine — or at OpenAI, Mistral, Groq, OpenRouter or LM Studio;
 - **LibreTranslate**, local as well;
-- **DeepL** and **Google Cloud Translation**, with your API key, sent in a request header (`X-goog-api-key` for Google), never in the URL.
+- **DeepL** and **Google Cloud Translation**, with your API key, sent in a request header (`X-goog-api-key` for Google), never in the URL;
+- **Anthropic (Claude)**, through its Messages API with Claude Haiku 5.5, and **Google Gemini**, through its OpenAI-compatible endpoint with Gemini 4 Hydrogen, with your API key, in a header as well. The model is the `model` field of the request body. The Anthropic preset turns thinking off so the translation is read from the answer's first block: keep it off if you change the model, which rules out a model that always thinks, such as Claude Opus 5.5.
 
 Each engine's URL, headers, request body and the path of the translation in the answer can be edited, and *Test* translates a sample. The glossary, one term per line, protects a name from translation (`Acme`) or gives a term's translations (`cart = fr: panier; de: Warenkorb`), sent to DeepL as a glossary and to the LLM engines in their prompt.
 
-- *Create Translation* and *Edit Translation*: **Translate Empty Locales**, or *Translate* next to one locale, fills the fields from the reference locale; nothing is written before OK. An *Instruction* (formal tone, a length) is sent along to the OpenAI-compatible engines.
+- *Create Translation* and *Edit Translation*: **Translate Empty Locales**, or *Translate* next to one locale, fills the fields from the reference locale; nothing is written before OK. An *Instruction* (formal tone, a length) is sent along to the LLM engines (OpenAI-compatible, Anthropic, Gemini).
 - **Fill Missing Translations…** (*Tools > i18n Support Plus*): the keys a locale lacks, translated from the reference locale, with a preview before writing.
 - **Retranslate Stale Translations…**: in a module keeping reviews, the values whose source changed since they were reviewed, next to the value each one replaces.
 - *Internationalize…* can translate the new keys into the module's other locales.
