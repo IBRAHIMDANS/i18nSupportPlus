@@ -9,6 +9,7 @@
 - [Editor] **A mistyped key is offered the key it misses**: on a key no translation file holds, Alt+Enter now offers *Use 'button.save'* for up to three keys of the file a typo away (`buton.save`, `butotn.save`), and replaces the key in the call, its namespace kept.
 - [Editor] **A mistyped namespace is offered the one it misses**: on `t('comon:save')`, Alt+Enter now proposes *Use namespace 'common'* among the namespaces your module reads, before creating a new file; the key after it is kept.
 - [AI agents] **One action tells your agents to use the translation tools**: *Tools › i18n Support Plus › Write Agent Instructions…* adds to `AGENTS.md`, `CLAUDE.md` or `.github/copilot-instructions.md` the line that makes an agent translate through the `i18n_*` tools, with your translation folders, instead of editing the files by hand. Run again, it updates that line rather than adding another.
+- [Settings] **`i18n-check.json` is completed and checked as you type**: the setting names and their values are offered while you edit the file, and a misspelt name or a value of the wrong type is underlined at once, instead of being reported after you save.
 
 ### Improvements
 

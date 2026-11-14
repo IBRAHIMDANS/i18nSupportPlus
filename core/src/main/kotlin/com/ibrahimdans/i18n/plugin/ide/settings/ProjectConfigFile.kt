@@ -94,10 +94,19 @@ object ProjectConfigFile {
     )
 
     /** A module's code folders: a comma-separated string, or an array of folders. */
-    private const val CODE_ROOTS = "codeRoots"
+    const val CODE_ROOTS = "codeRoots"
 
     /** The setting names the file takes, [MODULES] aside. */
     val names: Set<String> get() = FIELDS.keys
+
+    /** What a setting of the file holds, for its schema: a boolean when [flag], else a string, one of [choices] when set. */
+    class Shape(val flag: Boolean, val choices: Set<String>?)
+
+    /** The [Shape] of each setting the file takes, [MODULES] aside, in the file's order. */
+    val shapes: Map<String, Shape> get() = FIELDS.mapValues { (_, field) -> Shape(field.flag, field.choices) }
+
+    /** The [Shape] of each field of a module, [CODE_ROOTS] included, in the file's order. */
+    val moduleShapes: Map<String, Shape> get() = MODULE_FIELDS.mapValues { (_, field) -> Shape(field.flag, null) }
 
     /**
      * What a file sets: the [options] it names, as strings, and its [modules], null when it names

@@ -17,6 +17,7 @@
     <depends optional="true" config-file="gitConfig.xml">Git4Idea</depends>
     <depends optional="true" config-file="mcpConfig.xml">com.intellij.mcpServer</depends>
     <depends optional="true" config-file="twigConfig.xml">com.jetbrains.twig</depends>
+    <depends optional="true" config-file="jsonConfig.xml">com.intellij.modules.json</depends>
     <resource-bundle>messages.I18nBundle</resource-bundle>
     <extensionPoints>
         <extensionPoint interface="com.ibrahimdans.i18n.Localization" name="localization" dynamic="true"/>

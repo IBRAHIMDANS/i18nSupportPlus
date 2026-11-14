@@ -1,0 +1,7 @@
+<idea-plugin>
+    <!-- Completion and validation of i18n-check.json, with the JSON plugin only -->
+    <extensions defaultExtensionNs="JavaScript">
+        <JsonSchema.ProviderFactory
+                implementation="com.ibrahimdans.i18n.plugin.ide.settings.ProjectConfigSchemaProviderFactory"/>
+    </extensions>
+</idea-plugin>
