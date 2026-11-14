@@ -9,6 +9,7 @@ import com.ibrahimdans.i18n.plugin.ide.settings.ModuleConfig
 import com.ibrahimdans.i18n.plugin.ide.settings.Settings
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.TranslationDataLoader
 import com.ibrahimdans.i18n.plugin.review.ReviewLocation
+import com.ibrahimdans.i18n.plugin.translate.SendEstimate
 import com.ibrahimdans.i18n.plugin.translate.TranslationProvider
 import com.ibrahimdans.i18n.plugin.utils.ModuleSources
 import com.ibrahimdans.i18n.plugin.utils.of
@@ -115,20 +116,29 @@ class I18nizeAction : AnAction() {
         /**
          * [plan]'s new keys translated in the background, previewed, then written with the reference
          * values in the same command. Its job, cancelled with the progress: cancelling the translation
-         * or its preview writes nothing.
+         * or its preview writes nothing. Before anything is sent, a large volume asks first, as *Fill
+         * Missing Translations* does ([MachineFill.maySend]): declined, the reference values are
+         * written and nothing is sent.
          */
         fun translateThenApply(project: Project, plan: I18nizePlan, existing: Map<PsiFile, Map<String, String>>, provider: TranslationProvider): Job =
             PluginCoroutineScope.of(project).launch {
-                // Null when the user cancelled: nothing is then proposed, nor written.
-                val proposals = withBackgroundProgress(project, PluginBundle.message("action.i18nize.title"), cancellable = true) {
+                val title = PluginBundle.message("action.i18nize.title")
+                val items = withBackgroundProgress(project, title, cancellable = true) {
                     coroutineToIndicator { indicator ->
                         indicator.text = PluginBundle.message("action.i18nize.progress.existing")
-                        val items = ReadAction.nonBlocking<Map<Pair<String, String>, List<MachineFill.Item>>> { translationItems(project, plan, existing) }
+                        ReadAction.nonBlocking<Map<Pair<String, String>, List<MachineFill.Item>>> { translationItems(project, plan, existing) }
                             .inSmartMode(project)
                             .wrapProgress(indicator)
                             .executeSynchronously()
-                        translate(items, provider, indicator)
                     }
+                }
+                if (!withContext(Dispatchers.EDT) { MachineFill.maySend(project, title, estimateOf(items)) }) {
+                    withContext(Dispatchers.EDT) { apply(project, plan) }
+                    return@launch
+                }
+                // Null when the user cancelled: nothing is then proposed, nor written.
+                val proposals = withBackgroundProgress(project, title, cancellable = true) {
+                    coroutineToIndicator { indicator -> translate(items, provider, indicator) }
                 } ?: return@launch
                 withContext(Dispatchers.EDT) {
                     if (proposals.isEmpty()) return@withContext apply(project, plan)
@@ -235,6 +245,14 @@ class I18nizeAction : AnAction() {
             val config = Settings.getInstance(project).config()
             return plan.files.map { moduleOf(project, config, it.file) }.distinct().mapNotNull { ReviewLocation.rootOf(project, it) }.distinct()
         }
+
+        /** What sending [items] would send, per target locale: the texts [MachineFill.translate] passes to the engine. */
+        fun estimateOf(items: Map<Pair<String, String>, List<MachineFill.Item>>): SendEstimate =
+            SendEstimate.of(
+                items.entries
+                    .groupBy({ it.key.second }) { (pair, list) -> MachineFill.sentOf(list, emptyMap(), pair.first, pair.second) }
+                    .mapValues { (_, sent) -> sent.flatten().map { it.sent } }
+            )
 
         /** [items] translated by [provider], locale pair after locale pair; null when the user cancelled. */
         fun translate(items: Map<Pair<String, String>, List<MachineFill.Item>>, provider: TranslationProvider, indicator: ProgressIndicator?): List<MachineFill.Proposal>? =
