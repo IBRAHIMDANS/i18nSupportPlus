@@ -8,7 +8,7 @@ package com.ibrahimdans.i18n.extensions.localization.yaml
  * nested mapping, `Save # now` a value `Save` and a comment, `yes` a boolean. A value is therefore
  * written plain only when a plain scalar reads back as the same string, single-quoted otherwise,
  * and double-quoted when it holds what only escapes can carry (line breaks, C0 and C1 control
- * characters, NEXT LINE).
+ * characters, NEXT LINE, half a surrogate pair).
  */
 object YamlScalars {
 
@@ -47,7 +47,7 @@ object YamlScalars {
         else -> Style.PLAIN
     }
 
-    private fun needsEscapes(value: String): Boolean = value.any(::isEscaped)
+    private fun needsEscapes(value: String): Boolean = value.indices.any { isEscaped(value, it) }
 
     /**
      * Characters a YAML reader does not take back as written: the C0 and C1 controls and DEL, which
@@ -55,6 +55,18 @@ object YamlScalars {
      * as a line break, and the noncharacters U+FFFE and U+FFFF. Only the escapes of double quotes carry them.
      */
     private fun isEscaped(c: Char): Boolean = c < ' ' || c in '\u007f'..'\u009f' || c == '￾' || c == '￿'
+
+    /**
+     * [isEscaped], or the half of a surrogate pair standing alone at [index] of [value] (a truncated
+     * paste, an engine's broken answer): the reader refuses it like a control, and encoding the file
+     * in UTF-8 turns it into `?`, which at the start of a value opens a mapping key.
+     */
+    private fun isEscaped(value: String, index: Int): Boolean {
+        val c = value[index]
+        return isEscaped(c) ||
+            c.isHighSurrogate() && value.getOrNull(index + 1)?.isLowSurrogate() != true ||
+            c.isLowSurrogate() && value.getOrNull(index - 1)?.isHighSurrogate() != true
+    }
 
     private fun isSafePlain(value: String): Boolean =
         value.isNotEmpty() &&
@@ -66,7 +78,7 @@ object YamlScalars {
 
     private fun doubleQuoted(value: String): String = buildString {
         append('"')
-        for (c in value) {
+        for ((index, c) in value.withIndex()) {
             when (c) {
                 '"' -> append("\\\"")
                 '\\' -> append("\\\\")
@@ -75,7 +87,7 @@ object YamlScalars {
                 '\r' -> append("\\r")
                 '\u0085' -> append("\\N")
                 else -> when {
-                    !isEscaped(c) -> append(c)
+                    !isEscaped(value, index) -> append(c)
                     c.code <= 0xff -> append("\\x%02x".format(c.code))
                     else -> append("\\u%04x".format(c.code))
                 }

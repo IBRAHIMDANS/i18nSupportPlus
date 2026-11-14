@@ -37,6 +37,8 @@ class YamlScalarsPropertyTest {
         "\n", "\r", "\r\n", "\t", ch(0x07), ch(0x7f), ch(0x2028), ch(0x2029),
         // NEXT LINE, a line break to the YAML reader, and C1 controls, which it refuses unescaped.
         ch(0x85), ch(0x80), ch(0x9f), ch(0xfffe),
+        // Each half of a surrogate pair alone: refused by the reader, turned into `?` by UTF-8.
+        ch(0xd800), ch(0xdbff), ch(0xdc00), ch(0xdfff),
     )
 
     private fun values(tokens: List<String>) = Arb.list(Arb.of(tokens), 0..6).map { it.joinToString("") }
@@ -64,7 +66,9 @@ class YamlScalarsPropertyTest {
 
     private fun assertReadsBack(value: String, preferred: Style) {
         val spelled = YamlScalars.spell(value, preferred)
-        val read = (loader.loadFromString("key: $spelled\n") as Map<*, *>)["key"]
+        // Through the file's UTF-8 bytes, as the IDE saves it: a character UTF-8 cannot encode is lost there.
+        val file = String("key: $spelled\n".toByteArray(Charsets.UTF_8), Charsets.UTF_8)
+        val read = (loader.loadFromString(file) as Map<*, *>)["key"]
 
         assertEquals(value, read, "${codes(value)} spelled as ${codes(spelled)}")
     }

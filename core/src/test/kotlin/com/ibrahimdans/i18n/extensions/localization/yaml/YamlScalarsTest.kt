@@ -51,6 +51,15 @@ class YamlScalarsTest {
     }
 
     @Test
+    fun `half a surrogate pair takes double quotes and an escape, a whole pair stays as it is`() {
+        // Written raw, the reader refuses it and UTF-8 turns it into `?`: alone, `?` opens a mapping key.
+        assertEquals("\"\\ud800\"", YamlScalars.spell("\ud800"))
+        assertEquals("\"a\\udfffb\"", YamlScalars.spell("a\udfffb"))
+        assertEquals("\"\\udfff\\ud800\"", YamlScalars.spell("\udfff\ud800"))
+        assertEquals("Save \ud83d\ude00", YamlScalars.spell("Save \ud83d\ude00"))
+    }
+
+    @Test
     fun `the preferred quotes are kept when they can carry the value`() {
         assertEquals("'Save'", YamlScalars.spell("Save", Style.SINGLE))
         assertEquals("\"Save\"", YamlScalars.spell("Save", Style.DOUBLE))
