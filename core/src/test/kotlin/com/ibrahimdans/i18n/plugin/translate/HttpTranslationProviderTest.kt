@@ -90,7 +90,7 @@ class HttpTranslationProviderTest {
         assertEquals(mapOf("x-api-key" to "secret", "anthropic-version" to "2026-10-21"), headers)
         val json = JsonParser.parseString(body).asJsonObject
         assertEquals("claude-haiku-5-5", json["model"].asString)
-        assertEquals("disabled", json["thinking"].asJsonObject["type"].asString, "the translation must be the first content block")
+        assertEquals("disabled", json["thinking"].asJsonObject["type"].asString, "a translation gains nothing from thinking")
         assertTrue(listOf("temperature", "top_p", "top_k").none(json::has), "API version 2026-10-21 rejects them")
         val system = json["system"].asString
         assertTrue("from en to fr" in system && "key greeting.hello" in system && "<x id=" in system, system)
@@ -111,6 +111,47 @@ class HttpTranslationProviderTest {
 
         assertEquals(listOf(Translation.Done("Salut {{name}}"), Translation.Done("Au revoir")), result)
         assertEquals(1, transport.calls.size, "both texts in one request")
+    }
+
+    @Test
+    fun `Anthropic skips a thinking block before the translation`() {
+        val transport = FakeTransport {
+            ok("""{"content":[{"type":"thinking","thinking":"A greeting.","signature":"s"},{"type":"text","text":"Bonjour <x id=\"0\"/>"}]}""")
+        }
+
+        assertEquals(listOf(Translation.Done("Bonjour {{name}}")), translate(preset("anthropic"), transport))
+    }
+
+    @Test
+    fun `Anthropic reads a batch after a thinking block`() {
+        val transport = FakeTransport {
+            ok("""{"content":[{"type":"thinking","thinking":"Two strings."},{"type":"text","text":"[\"Salut\", \"Au revoir\"]"}]}""")
+        }
+
+        val result = provider(preset("anthropic"), "k", transport).translate(request.copy(texts = listOf("Hi", "Bye")))
+
+        assertEquals(listOf(Translation.Done("Salut"), Translation.Done("Au revoir")), result)
+    }
+
+    @Test
+    fun `a path picks the first element of an array whose field holds a value`() {
+        val body = """{"content":[{"type":"thinking","text":"no"},"loose",{"type":"text","text":"first"},{"type":"text","text":"second"}]}"""
+
+        assertEquals("first", HttpTranslationProvider.read(body, "content[type=text].text"))
+        assertEquals("no", HttpTranslationProvider.read(body, "content[type=thinking].text"))
+        assertEquals("second", HttpTranslationProvider.read(body, "content[3].text"), "an index still reads by position")
+    }
+
+    @Test
+    fun `a filter that matches nothing leads nowhere`() {
+        val body = """{"content":[{"type":"thinking","thinking":"..."}],"count":2}"""
+
+        assertEquals(null, HttpTranslationProvider.read(body, "content[type=text].text"))
+        assertEquals(null, HttpTranslationProvider.read(body, "count[type=text].text"), "not an array")
+        assertEquals(null, HttpTranslationProvider.read("""{"content":[{"type":2}]}""", "content[type=2].text"), "only a string field matches")
+
+        val transport = FakeTransport { ok(body) }
+        assertTrue(translate(preset("anthropic"), transport).single() is Translation.Failed, "a reason, not an exception")
     }
 
     @Test
