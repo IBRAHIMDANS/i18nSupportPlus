@@ -8,8 +8,8 @@ name: Prepare Release
 #    after the latest tag is taken.
 #
 # The internal API report needs no person: the tag this workflow pushes starts the release workflow,
-# whose verify job fails on an internal API usage the Marketplace refuses, before anything is
-# published (scripts/check-internal-api.sh). The tag and the release PR then stay, without an upload.
+# whose verify job (verifyPlugin) fails on any internal API usage, before anything is published.
+# The tag and the release PR then stay, without an upload.
 on:
   schedule:
     - cron: '0 7 * * 2'

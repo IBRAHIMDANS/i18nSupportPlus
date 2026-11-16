@@ -44,14 +44,9 @@ jobs:
       - name: Build plugin
         run: ./gradlew buildPlugin -x test
 
+      # Fails on any compatibility problem or internal API usage: the Marketplace refuses an upload over either.
       - name: Verify compatibility (recommended IDEs + 2025.2 / 2025.3 + Community 2025.2 + Android Studio 2025.3, see build.gradle.kts)
         run: ./gradlew verifyPlugin
-
-      # The Marketplace refuses an upload over any internal API usage, whatever the "Compatible"
-      # verdict says (1.18.0). The script lets through the six usages it tolerates and fails on any
-      # other; the release workflow runs it too, before the upload.
-      - name: Fail on internal API usages the Marketplace refuses
-        run: scripts/check-internal-api.sh build/reports/pluginVerifier
 
       - name: Upload verification reports
         if: always()
