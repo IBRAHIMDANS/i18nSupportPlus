@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.22.0 - 2026-11-16
+
 ### Features
 
 - [Tools] **Sort every translation file in one go**: *Tools › i18n Support Plus › Sort All Translation Files* (also in the editor's *i18n* menu) puts the keys of every JSON translation file of the project in the *Key order*, Flutter ARB catalogues included with each `@key` block kept next to its key, with a progress bar and a single undo, leaving the files already in order untouched. On large files, keep *Re-sort JSON files after each new key* off and sort when it suits you.
