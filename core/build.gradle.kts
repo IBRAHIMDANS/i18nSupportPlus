@@ -20,15 +20,15 @@ dependencies {
     // The translation file parsers: the platform loads both in its core class loader
     // (intellij.libraries.jackson and intellij.libraries.snakeyaml.engine, loading="embedded"),
     // at these versions from 2025.3 to 2026.2. Use no API newer than them.
-    compileOnly("com.fasterxml.jackson.core:jackson-core:2.19.0")
+    compileOnly("com.fasterxml.jackson.core:jackson-core:2.23.0")
     compileOnly("org.snakeyaml:snakeyaml-engine:2.9")
 
     testImplementation("org.jetbrains.kotlin:kotlin-stdlib:2.4.21")
     testImplementation("com.google.code.gson:gson:2.11.0")
-    testImplementation("com.fasterxml.jackson.core:jackson-core:2.19.0")
+    testImplementation("com.fasterxml.jackson.core:jackson-core:2.23.0")
     testImplementation("org.snakeyaml:snakeyaml-engine:2.9")
     // Property tests only (checkAll inside plain JUnit tests): no kotest runner, JUnit stays the engine.
-    testImplementation("io.kotest:kotest-property:6.2.6")
+    testImplementation("io.kotest:kotest-property:6.2.7")
     testImplementation(platform("org.junit:junit-bom:6.1.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

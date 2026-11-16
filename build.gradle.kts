@@ -53,7 +53,7 @@ val uiTestStarterVersion = "253.32098.37"
 
 plugins {
     id("org.jetbrains.kotlin.jvm") version "2.4.21"
-    id("org.jetbrains.intellij.platform") version "2.19.0"
+    id("org.jetbrains.intellij.platform") version "2.20.1"
     id("org.jetbrains.changelog") version "2.5.0"
     id("org.gradle.test-retry") version "1.6.6"
     // 2.0 is the first line built on Kotlin 2.4: 1.23 parses with Kotlin 2.0 and refuses to run beside 2.4.
@@ -160,7 +160,7 @@ dependencies {
     testCompileOnly("org.junit.jupiter:junit-jupiter-api:6.1.3")
     testCompileOnly("org.junit.jupiter:junit-jupiter-params:6.1.3")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.3")
-    testImplementation("io.mockk:mockk:1.14.11")
+    testImplementation("io.mockk:mockk:1.14.12")
     testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
 
     testImplementation(platform("org.junit:junit-bom:6.1.3"))
