@@ -23,5 +23,7 @@
 // MCP tools (I18nMcpToolset, loaded by mcpConfig.xml only, optional dependency on com.intellij.mcpServer):
 //  - 2025.2.0 (252.23892) lacks McpCallInfoKt, ClientInfo and McpExpectedError(String, JsonObject), added by
 //    2025.2.6: I18nMcpToolset.caller() catches the LinkageError and the tool answers that the IDE needs an update.
-// Scoped to that package and to this plugin, so that any other missing class still fails the build.
-com.ibrahimdans.i18n:.*com\.intellij\.mcpserver.*
+// Scoped to those four names and to this plugin. The whole package was ignored until 1.22.0, which hid the
+// McpToolset.isEnabled/alwaysIncluded/isExperimental bridges Kotlin emitted against 2026.2: the Marketplace,
+// which reads none of this file, held that release back for them. Any other MCP gap must fail the build.
+com.ibrahimdans.i18n:.*com\.intellij\.mcpserver\.(ClientInfo|McpCallInfo|McpCallInfoKt|McpExpectedError\.<init>)(\W.*)?

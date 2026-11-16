@@ -203,6 +203,12 @@ kotlin {
     compilerOptions {
         languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_3)
         apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_3)
+        // The default mode (ENABLE) emits, in every class, a bridge for each default method of the platform
+        // interfaces it implements: `isEnabled() { return super.isEnabled() }`. Compiled against 2026.2, that
+        // put McpToolset.isEnabled/alwaysIncluded/isExperimental in I18nMcpToolset, methods 2025.2 to 2026.1 do
+        // not have: the Marketplace verifier reported them as "Method not found" and held 1.22.0 back.
+        // NO_COMPATIBILITY leaves the default bodies to the JVM, where the interface declares them.
+        jvmDefault.set(org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode.NO_COMPATIBILITY)
     }
 }
 
