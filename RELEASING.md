@@ -87,9 +87,7 @@ Before running it:
   every Monday): deprecated usages do not block anything, so a person reads them
 
 Internal API usages need no reading by hand: the release workflow fails on any of them before the
-upload (see below). The one exception it lets through is the six `ToolWindowFactory` usages
-(`getIcon`, `getAnchor`, `manage`) Kotlin emits on 2025.2, which the Marketplace tolerates: the
-comment above `failureLevel` in `build.gradle.kts` and `scripts/check-internal-api.sh` explain why.
+upload (see below), through `failureLevel` in `build.gradle.kts`.
 No local `verifyPlugin` is needed: it downloads every IDE of `build.gradle.kts` (about 25 GB).
 
 The workflow automatically:
@@ -101,8 +99,8 @@ The workflow automatically:
 
 The tag push automatically triggers the **Release** workflow, which:
 1. Verifies the plugin (job `verify`, about 20 min): `./gradlew verifyPlugin` on the IDEs of
-   `build.gradle.kts`, the same as *Plugin Compatibility*, then `scripts/check-internal-api.sh`, which
-   fails on any internal API usage the Marketplace refuses. The steps below run only if it passes.
+   `build.gradle.kts`, the same as *Plugin Compatibility*. It fails on any compatibility problem or
+   internal API usage. The steps below run only if it passes.
 2. Builds the plugin (`./gradlew buildPlugin`)
 3. Publishes to JetBrains Marketplace (`./gradlew publishPlugin`)
 4. Extracts release notes from `CHANGELOG.md` for the tagged version

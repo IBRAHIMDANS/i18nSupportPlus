@@ -44,11 +44,9 @@ jobs:
       - name: Build plugin
         run: ./gradlew buildPlugin -x test
 
+      # Fails on any compatibility problem or internal API usage, before anything is published.
       - name: Verify compatibility (the IDEs of build.gradle.kts, as in Plugin Compatibility)
         run: ./gradlew verifyPlugin
-
-      - name: Fail on internal API usages the Marketplace refuses
-        run: scripts/check-internal-api.sh build/reports/pluginVerifier
 
       - name: Upload verification reports
         if: always()
