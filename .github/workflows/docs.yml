@@ -1,6 +1,7 @@
 name: Docs
 
-# Relative links, orphan images and pinned releases of the guides (scripts/check-docs.sh).
+# Relative links, orphan images and pinned releases of the guides (scripts/check-docs.sh), and the
+# documentation site (mkdocs.yml): built on every pull request, published to GitHub Pages from main.
 # ci.yml skips documentation-only changes, so this is the only check they get.
 on:
   pull_request:
@@ -10,6 +11,9 @@ on:
       - 'docs/**'
       - 'src/uiTest/**'
       - 'scripts/check-docs.sh'
+      - 'mkdocs.yml'
+      - 'scripts/mkdocs_hooks.py'
+      - 'scripts/docs-requirements.txt'
       - '.github/workflows/docs.yml'
   push:
     branches: [ main ]
@@ -19,10 +23,18 @@ on:
       - 'docs/**'
       - 'src/uiTest/**'
       - 'scripts/check-docs.sh'
+      - 'mkdocs.yml'
+      - 'scripts/mkdocs_hooks.py'
+      - 'scripts/docs-requirements.txt'
       - '.github/workflows/docs.yml'
 
 permissions:
   contents: read
+
+# One deployment at a time; a newer push to main replaces the queued one.
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   docs:
@@ -32,3 +44,36 @@ jobs:
       - uses: actions/checkout@v7
       - name: Check the documentation
         run: bash scripts/check-docs.sh
+
+  site:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: scripts/docs-requirements.txt
+      - run: pip install -r scripts/docs-requirements.txt
+      # --strict: a broken link or a page missing from the nav fails the pull request.
+      - run: mkdocs build --strict
+      - if: github.event_name == 'push'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    if: github.event_name == 'push'
+    needs: [ docs, site ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

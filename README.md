@@ -62,7 +62,7 @@ Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-
 
 **Coming from I18n Support?** This plugin is the maintained successor of the original, which no longer installs on IDEs after 2023.1: install it next to the old one, it reads your project settings as they are — see [the migration notes](https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/docs/COMPARISON.md#coming-from-i18n-support).
 
-[Documentation](https://github.com/IBRAHIMDANS/i18nSupportPlus#readme) · [Compare with i18n Ally and Easy I18n](https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/docs/COMPARISON.md) · [Examples](https://github.com/IBRAHIMDANS/i18nSupportPlus/tree/main/examples) · [Changelog](https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/CHANGELOG.md)
+[Documentation](https://ibrahimdans.github.io/i18nSupportPlus/) · [Compare with i18n Ally and Easy I18n](https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/docs/COMPARISON.md) · [Examples](https://github.com/IBRAHIMDANS/i18nSupportPlus/tree/main/examples) · [Changelog](https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/CHANGELOG.md)
 <!-- Plugin description end -->
 
 ## Contents
@@ -72,7 +72,7 @@ Works with **i18next / react-i18next, vue-i18n (Nuxt), next-intl, lingui, react-
 
 New to the plugin? [Getting started](docs/getting-started.md) takes you from the installation to your first keys in ten minutes, and defines the words the pages below use.
 
-The reference, one page per topic, in [`docs/`](docs):
+The reference, one page per topic, in [`docs/`](docs), also published as a website: **[ibrahimdans.github.io/i18nSupportPlus](https://ibrahimdans.github.io/i18nSupportPlus/)**.
 
 - [Frameworks, languages and file formats](docs/frameworks.md): every syntax read, per framework, and the file formats
 - [In the editor](docs/editor.md): key status, navigation, completion, extraction, hints, folding, renaming, quick fixes

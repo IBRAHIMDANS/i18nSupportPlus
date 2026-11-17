@@ -1,0 +1,3 @@
+# Builds the documentation site (mkdocs.yml). Pinned: Dependabot does not watch this file.
+mkdocs==1.6.1
+mkdocs-material==9.5.49

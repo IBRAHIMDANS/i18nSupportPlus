@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Documentation
+
+- **The guides are now a website**: [ibrahimdans.github.io/i18nSupportPlus](https://ibrahimdans.github.io/i18nSupportPlus/), with search and dark mode, from getting started to every framework and setting.
+- **Security policy**: a vulnerability is reported privately from the repository's *Security* tab, as [SECURITY.md](SECURITY.md) explains.
+
 ### Fixes
 
 - [Editor] **No more "file text mismatch" error naming the plugin on a project opened through WSL**: when a file changed on the Linux side was out of step with its editor, counting the uses of a key read it anyway and made the IDE report an error against i18n Support Plus (seen in PhpStorm 2026.2 on `\\wsl.localhost`). Such a file is now skipped until the IDE has caught up, its uses counted as before.
