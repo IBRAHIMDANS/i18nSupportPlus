@@ -20,6 +20,9 @@ object WhatsNewPage {
     /** The plugin's reviews on the Marketplace. */
     const val REVIEWS_URL = "https://plugins.jetbrains.com/plugin/30971-i18n-support-plus/reviews"
 
+    /** The repository, where a star helps other developers find the plugin. */
+    const val REPOSITORY_URL = "https://github.com/IBRAHIMDANS/i18nSupportPlus"
+
     private const val RESOURCE = "/com/ibrahimdans/i18n/whats-new.html"
     private val MARKER = Regex("""<!-- whats-new-version: (\S+) -->\r?\n?""")
 
@@ -78,12 +81,13 @@ object WhatsNewPage {
         fullChangelog: String,
         feedback: String = "",
         review: String = "",
+        star: String = "",
     ): String? =
-        build(sections ?: return null, previousVersion, currentVersion, title, fullChangelog, feedback, review)
+        build(sections ?: return null, previousVersion, currentVersion, title, fullChangelog, feedback, review, star)
 
     /**
-     * [feedback] and [review] label the links to [FEEDBACK_URL] and [REVIEWS_URL] under the notes;
-     * an empty label leaves its link out.
+     * [feedback], [review] and [star] label the links to [FEEDBACK_URL], [REVIEWS_URL] and
+     * [REPOSITORY_URL] under the notes; an empty label leaves its link out.
      */
     fun build(
         sections: List<Section>,
@@ -93,10 +97,11 @@ object WhatsNewPage {
         fullChangelog: String,
         feedback: String = "",
         review: String = "",
+        star: String = "",
     ): String? {
         val shown = select(sections, previousVersion, currentVersion).ifEmpty { return null }
         val body = shown.joinToString("\n") { "<section data-version=\"${escape(it.version)}\">\n${sanitize(it.html)}\n</section>" }
-        val footer = listOf(feedback to FEEDBACK_URL, review to REVIEWS_URL)
+        val footer = listOf(feedback to FEEDBACK_URL, review to REVIEWS_URL, star to REPOSITORY_URL)
             .filter { (label, _) -> label.isNotBlank() }
             .joinToString("") { (label, url) -> "\n<p class=\"ask\"><a href=\"$url\">${escape(label)}</a></p>" }
         return """

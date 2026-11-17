@@ -83,16 +83,18 @@ class WhatsNewPageTest {
     }
 
     @Test
-    fun `the page asks for feedback and a review under the notes, each link only when labelled`() {
-        val html = WhatsNewPage.build(sections, "1.8.0", "1.10.0", "T", "Full", "Which <framework>?", "Review us")!!
+    fun `the page asks for feedback, a review and a star under the notes, each link only when labelled`() {
+        val html = WhatsNewPage.build(sections, "1.8.0", "1.10.0", "T", "Full", "Which <framework>?", "Review us", "Star us")!!
         assertTrue("href=\"${WhatsNewPage.FEEDBACK_URL}\">Which &lt;framework&gt;?</a>" in html, html)
         assertTrue("href=\"${WhatsNewPage.REVIEWS_URL}\">Review us</a>" in html, html)
         assertTrue(html.indexOf(WhatsNewPage.CHANGELOG_URL) < html.indexOf(WhatsNewPage.FEEDBACK_URL))
         assertTrue(html.indexOf(WhatsNewPage.FEEDBACK_URL) < html.indexOf(WhatsNewPage.REVIEWS_URL))
+        assertTrue("href=\"${WhatsNewPage.REPOSITORY_URL}\">Star us</a>" in html, html)
 
         val bare = WhatsNewPage.build(sections, "1.8.0", "1.10.0", "T", "Full")!!
         assertFalse(WhatsNewPage.FEEDBACK_URL in bare)
         assertFalse(WhatsNewPage.REVIEWS_URL in bare)
+        assertFalse(WhatsNewPage.REPOSITORY_URL in bare)
     }
 
     @Test
