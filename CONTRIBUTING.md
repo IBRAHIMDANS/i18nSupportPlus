@@ -86,6 +86,17 @@ as the repository secret `JETBRAINS_LICENSE_KEY`, and a personal license must no
 put license material in a Gradle property, checked-in file, or workflow input.
 The former `runWebStorm` + xdotool process remains the fallback for an image no scenario takes yet.
 
+## Documentation site
+
+The guides of `docs/` are also published to [GitHub Pages](https://ibrahimdans.github.io/i18nSupportPlus/) by `.github/workflows/docs.yml` when `main` changes. Write them for GitHub as before: relative links to files the site does not publish (`../README.md`, `../examples/`, `docs/dev/`) are rewritten to GitHub by `scripts/mkdocs_hooks.py`. A new guide also goes in the `nav` of `mkdocs.yml`, or the build fails.
+
+To preview the site:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r scripts/docs-requirements.txt
+.venv/bin/mkdocs serve   # http://127.0.0.1:8000/i18nSupportPlus/
+```
+
 ## Run tests
 
 ```bash
