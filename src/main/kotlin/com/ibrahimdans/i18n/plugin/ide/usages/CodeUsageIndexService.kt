@@ -48,6 +48,7 @@ import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.platform.ide.progress.withBackgroundProgress
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
@@ -544,10 +545,19 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
         pending.forEachIndexed { done, (file, marked) ->
             ProgressManager.checkCanceled()
             indicator?.fraction = done.toDouble() / pending.size
+            var desynced = false
             val read = readStep {
-                if (!file.isValid || !config.searchScope(project).contains(file)) null
-                else PsiManager.getInstance(project).findFile(file)?.let(indexer::sitesOf)
+                desynced = false
+                val psi = if (!file.isValid || !config.searchScope(project).contains(file)) null
+                else PsiManager.getInstance(project).findFile(file)
+                when {
+                    psi == null -> null
+                    isDesynced(psi) -> { desynced = true; null }
+                    else -> indexer.sitesOf(psi)
+                }
             }
+            // Its sites stay as they were, and it stays dirty: the next question reads it again.
+            if (desynced) return@forEachIndexed
             if (read != null) filesRead.incrementAndGet()
             synchronized(this) {
                 // Marked again while it was read: the next question reads it again.
@@ -594,6 +604,17 @@ internal class CodeUsageIndexService(private val project: Project) : Disposable 
         private fun isTranslationValueType(type: FileType): Boolean = type in translationValueTypes()
 
         private val LOG = logger<CodeUsageIndexService>()
+
+        /**
+         * Whether [file]'s trees no longer match its document although it is committed, as seen with a
+         * file changed under WSL: walking its injections asks the platform for its text, which then
+         * reports a "file text mismatch" naming the plugin. Lengths are compared: reading them asserts nothing.
+         */
+        internal fun isDesynced(file: PsiFile): Boolean {
+            val document = FileDocumentManager.getInstance().getCachedDocument(file.viewProvider.virtualFile) ?: return false
+            if (!PsiDocumentManager.getInstance(file.project).isCommitted(document)) return false
+            return file.viewProvider.allFiles.any { it.textLength != document.textLength }
+        }
 
         /** How long a question waits for another one's refresh before checking it was not cancelled. */
         private const val WAIT_MS = 50L
