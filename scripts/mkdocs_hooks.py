@@ -8,6 +8,9 @@ import posixpath
 import re
 
 REPO = "https://github.com/IBRAHIMDANS/i18nSupportPlus/blob/main/"
+# A blob page is HTML: an image left on GitHub is shown from its raw file.
+RAW = "https://raw.githubusercontent.com/IBRAHIMDANS/i18nSupportPlus/main/"
+IMAGE = re.compile(r"\.(gif|png|jpe?g|svg|webp)$", re.IGNORECASE)
 BACK_TO_README = re.compile(r"^\[← Back to the README\]\(\.\./README\.md\)[ \t]*\n", re.MULTILINE)
 # ](target) and src="target", leaving anchors, absolute URLs and mailto: alone.
 LINK = re.compile(r'(\]\(|src=")(?!#|[a-zA-Z][a-zA-Z0-9+.-]*:)([^)"\s]+)')
@@ -26,6 +29,7 @@ def on_page_markdown(markdown, page, config, files):
         if not in_docs.startswith("../") and published is not None and published.inclusion.is_included():
             return match.group(0)
         in_repo = posixpath.normpath(posixpath.join("docs", in_docs))
-        return f"{prefix}{REPO}{in_repo}{sep}{anchor}"
+        base = RAW if IMAGE.search(in_repo) else REPO
+        return f"{prefix}{base}{in_repo}{sep}{anchor}"
 
     return LINK.sub(rewrite, BACK_TO_README.sub("", markdown))
