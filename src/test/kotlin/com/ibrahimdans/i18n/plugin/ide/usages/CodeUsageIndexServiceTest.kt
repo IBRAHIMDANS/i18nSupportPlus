@@ -105,6 +105,28 @@ class CodeUsageIndexServiceTest : PlatformBaseTest() {
     }
 
     @Test
+    fun `a file matching its document is not desynced`() {
+        val menu = menu()
+        myFixture.getDocument(menu)
+
+        Assertions.assertFalse(CodeUsageIndexService.isDesynced(menu))
+    }
+
+    @Test
+    fun `a file edited but not committed yet is not desynced, and is read once committed`() {
+        val menu = menu()
+        count("menu.home")
+        WriteCommandAction.runWriteCommandAction(project) {
+            val document = myFixture.getDocument(menu)
+            document.insertString(document.textLength, "\nexport const back = () => i18n.t('menu.home');")
+            Assertions.assertFalse(CodeUsageIndexService.isDesynced(menu))
+            PsiDocumentManager.getInstance(project).commitDocument(document)
+        }
+
+        Assertions.assertEquals(2, count("menu.home"))
+    }
+
+    @Test
     fun `a deleted file leaves the index`() {
         val menu = menu()
         profile()

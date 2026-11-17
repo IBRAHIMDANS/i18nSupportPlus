@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- [Editor] **No more "file text mismatch" error naming the plugin on a project opened through WSL**: when a file changed on the Linux side was out of step with its editor, counting the uses of a key read it anyway and made the IDE report an error against i18n Support Plus (seen in PhpStorm 2026.2 on `\\wsl.localhost`). Such a file is now skipped until the IDE has caught up, its uses counted as before.
+
 ## 1.22.0 - 2026-11-16
 
 ### Features
