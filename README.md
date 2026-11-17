@@ -22,6 +22,10 @@
 </p>
 
 <p align="center">
+  <sub>If the plugin saves you time, a ⭐ on GitHub helps other developers find it.</sub>
+</p>
+
+<p align="center">
   <img src="docs/img/marketplace/extract-i18n-key.gif" alt="Extracting a JSX text into a key, its value written in every locale" width="720"><br>
   <sub>A hard-coded text becomes a key, written in every language at once.</sub>
 </p>
