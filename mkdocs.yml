@@ -1,0 +1,78 @@
+# Documentation site, published to GitHub Pages by .github/workflows/docs.yml.
+# The pages are the guides of docs/: edit them there, the site follows.
+# Preview: pip install -r scripts/docs-requirements.txt && mkdocs serve
+site_name: I18n Support Plus
+site_description: Translation keys as code symbols in WebStorm, IntelliJ IDEA Ultimate and PhpStorm.
+site_url: https://ibrahimdans.github.io/i18nSupportPlus/
+repo_url: https://github.com/IBRAHIMDANS/i18nSupportPlus
+repo_name: IBRAHIMDANS/i18nSupportPlus
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+# Contributor notes, spikes and Marketplace material stay on GitHub; links to them are rewritten.
+exclude_docs: |
+  dev/
+  spikes/
+  ci/
+  marketplace/
+
+hooks:
+  - scripts/mkdocs_hooks.py
+
+theme:
+  name: material
+  icon:
+    logo: material/translate
+    repo: fontawesome/brands/github
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - content.action.edit
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Light mode
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Reference:
+      - Frameworks and formats: frameworks.md
+      - In the editor: editor.md
+      - Tool window and bulk actions: tool-window.md
+      - Machine translation and AI agents: translation.md
+      - Checks, CI and command line: checks.md
+      - Setup and configuration: configuration.md
+  - Compare with other tools: COMPARISON.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      # GitHub's anchors, so that the links written for GitHub land on the same headings.
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.details
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/IBRAHIMDANS/i18nSupportPlus

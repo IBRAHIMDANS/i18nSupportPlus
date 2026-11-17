@@ -26,3 +26,6 @@ HANDOFF.md
 
 # IDE Starter test reports (generateUiScreenshots / verifyUiScreenshots)
 /allure-results/
+/site/
+/.venv/
+__pycache__/
