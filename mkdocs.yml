@@ -10,11 +10,12 @@ edit_uri: edit/main/docs/
 
 docs_dir: docs
 # Contributor notes, spikes and Marketplace material stay on GitHub; links to them are rewritten.
+# Anchored with "/": a bare "marketplace/" also excluded img/marketplace/, the GIFs of the guides.
 exclude_docs: |
-  dev/
-  spikes/
-  ci/
-  marketplace/
+  /dev/
+  /spikes/
+  /ci/
+  /marketplace/
 
 hooks:
   - scripts/mkdocs_hooks.py
