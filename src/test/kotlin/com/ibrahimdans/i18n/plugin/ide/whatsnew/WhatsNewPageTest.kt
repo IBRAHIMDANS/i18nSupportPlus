@@ -98,6 +98,27 @@ class WhatsNewPageTest {
     }
 
     @Test
+    fun `the page is drawn in the IDE theme, not the system one`() {
+        val html = WhatsNewPage.build(sections, "1.9.0", "1.10.0", "T", "Full")!!
+        val dark = WhatsNewPage.withColors(html, WhatsNewPage.Colors("#1e1f22", "#bcbec4", "#548af7", dark = true))
+
+        assertTrue("color-scheme: dark;" in dark, dark)
+        assertTrue("body { background: #1e1f22; color: #bcbec4; }" in dark, dark)
+        assertTrue("a { color: #548af7; }" in dark, dark)
+        // After the page's own rules, so that they win.
+        assertTrue(dark.indexOf("color-scheme: light dark") < dark.indexOf("color-scheme: dark;"))
+        assertTrue(dark.indexOf("color-scheme: dark;") < dark.indexOf("</style>"))
+
+        val light = WhatsNewPage.withColors(html, WhatsNewPage.Colors("#ffffff", "#000000", "#2a5db0", dark = false))
+        assertTrue("color-scheme: light;" in light, light)
+    }
+
+    @Test
+    fun `colors are written as CSS hex, alpha dropped`() {
+        assertEquals("#1e1f22", WhatsNewPage.cssColor(java.awt.Color(0x1e, 0x1f, 0x22, 0x80)))
+    }
+
+    @Test
     fun `scripts and inline handlers are dropped from the notes`() {
         val notes = listOf(Section("1.0.0", "<p onclick=\"alert(1)\">a</p><SCRIPT>alert(2)</script >b"))
         val html = WhatsNewPage.build(notes, null, "1.0.0", "T", "F")!!

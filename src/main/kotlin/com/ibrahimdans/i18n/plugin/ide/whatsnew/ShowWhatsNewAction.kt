@@ -5,10 +5,13 @@ import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.diagnostic.thisLogger
+import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.fileEditor.impl.HTMLEditorProvider
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
+import com.intellij.ui.JBColor
 import com.intellij.ui.jcef.JBCefApp
+import com.intellij.util.ui.JBUI
 
 /**
  * *Help | What's New in i18n Support Plus*: reopens the notes of the running version at any time.
@@ -57,12 +60,23 @@ class ShowWhatsNewAction : DumbAwareAction() {
             } else {
                 // Public and neither internal nor deprecated from 2025.1 to 2026.3. Links clicked in
                 // the page are sent to the browser by the editor itself.
-                HTMLEditorProvider.openEditor(project, PluginBundle.message("whatsNew.page.tab"), html)
+                HTMLEditorProvider.openEditor(project, PluginBundle.message("whatsNew.page.tab"), WhatsNewPage.withColors(html, ideColors()))
                 true
             }
         } catch (error: LinkageError) {
             thisLogger().info("HTML editor unavailable, opening the changelog in the browser", error)
             false
+        }
+
+        /** The editor's background and text, and the theme's link color, taken when the page opens. */
+        private fun ideColors(): WhatsNewPage.Colors {
+            val scheme = EditorColorsManager.getInstance().globalScheme
+            return WhatsNewPage.Colors(
+                background = WhatsNewPage.cssColor(scheme.defaultBackground),
+                foreground = WhatsNewPage.cssColor(scheme.defaultForeground),
+                link = WhatsNewPage.cssColor(JBUI.CurrentTheme.Link.Foreground.ENABLED),
+                dark = !JBColor.isBright(),
+            )
         }
     }
 }

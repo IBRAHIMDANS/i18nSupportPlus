@@ -128,6 +128,25 @@ object WhatsNewPage {
             |""".trimMargin()
     }
 
+    /** The IDE theme the page is drawn in, as CSS colors (see [cssColor]). */
+    data class Colors(val background: String, val foreground: String, val link: String, val dark: Boolean)
+
+    /**
+     * [html] drawn in the IDE theme. The page's own `color-scheme: light dark` follows the system
+     * preference in JCEF, not the IDE theme: a dark IDE on a light system showed a white page, and
+     * the other way round. The rules added after the page's own take precedence.
+     */
+    fun withColors(html: String, colors: Colors): String = html.replaceFirst(
+        "</style>",
+        """  :root { color-scheme: ${if (colors.dark) "dark" else "light"}; }
+            |  body { background: ${colors.background}; color: ${colors.foreground}; }
+            |  a { color: ${colors.link}; }
+            |</style>""".trimMargin(),
+    )
+
+    /** `#rrggbb`, alpha dropped. */
+    fun cssColor(color: java.awt.Color): String = "#%02x%02x%02x".format(color.red, color.green, color.blue)
+
     internal fun sanitize(html: String): String = html.replace(SCRIPT, "").replace(INLINE_HANDLER, "")
 
     private fun escape(text: String): String =
