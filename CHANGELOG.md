@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.22.1 - 2026-11-18
+
 ### Documentation
 
 - **The guides are now a website**: [ibrahimdans.github.io/i18nSupportPlus](https://ibrahimdans.github.io/i18nSupportPlus/), with search and dark mode, from getting started to every framework and setting.
