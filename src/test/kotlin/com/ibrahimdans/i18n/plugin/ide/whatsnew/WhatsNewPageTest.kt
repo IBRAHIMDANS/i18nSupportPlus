@@ -94,7 +94,8 @@ class WhatsNewPageTest {
         val bare = WhatsNewPage.build(sections, "1.8.0", "1.10.0", "T", "Full")!!
         assertFalse(WhatsNewPage.FEEDBACK_URL in bare)
         assertFalse(WhatsNewPage.REVIEWS_URL in bare)
-        assertFalse(WhatsNewPage.REPOSITORY_URL in bare)
+        // The changelog link starts with the repository URL: look for the link itself.
+        assertFalse("href=\"${WhatsNewPage.REPOSITORY_URL}\"" in bare, bare)
     }
 
     @Test
