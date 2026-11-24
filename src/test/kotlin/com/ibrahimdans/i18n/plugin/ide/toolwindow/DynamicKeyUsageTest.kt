@@ -151,6 +151,25 @@ class DynamicKeyUsageTest : PlatformBaseTest() {
         assertTrue(statusOf("common:status.ok") != UsageStatus.DYNAMIC)
     }
 
+    @Test
+    fun `a template key reaches the namespace and key prefix of its hook`() {
+        addFileToProject("locales/en/crm.json", """{"stages":{"won":"Won"},"title":"CRM"}""")
+        addFileToProject("locales/en/audit.json", """{"stages":{"won":"Won"}}""")
+        addFileToProject("locales/en/users.json", """{"table":{"name":"Name"},"title":"Users"}""")
+        addFileToProject(
+            "src/Crm.tsx",
+            "import { useTranslation } from 'react-i18next';\n" +
+                "export const A = ({ s }) => { const { t: tCrm } = useTranslation('crm'); return tCrm(`stages.\${s}`); };\n" +
+                "export const B = ({ c }) => { const { t } = useTranslation('users', { keyPrefix: 'table' }); return t(`\${c}`); };"
+        )
+
+        assertEquals(UsageStatus.DYNAMIC, statusOf("crm:stages.won"))
+        assertEquals(UsageStatus.DYNAMIC, statusOf("users:table.name"))
+        assertEquals(UsageStatus.ORPHAN, statusOf("audit:stages.won"))
+        assertEquals(UsageStatus.ORPHAN, statusOf("crm:title"))
+        assertEquals(UsageStatus.ORPHAN, statusOf("users:title"))
+    }
+
     // ── The rule the column applies, without the platform ─────────────────────
     // The shape of a literal and the keys it reaches are `DynamicReach`'s, shared with
     // `i18n-check`: its table is in `DynamicReachTest`; these two pin the column to that rule.

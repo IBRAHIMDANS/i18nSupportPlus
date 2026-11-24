@@ -6,6 +6,7 @@ import com.ibrahimdans.i18n.plugin.KeyUsage
 import com.ibrahimdans.i18n.plugin.ide.inspection.TranslationKeyUsages
 import com.ibrahimdans.i18n.plugin.ide.references.translation.LinkedMessages
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
+import com.ibrahimdans.i18n.plugin.key.Interpolation
 import com.ibrahimdans.i18n.plugin.parser.RawKey
 import com.ibrahimdans.i18n.plugin.parser.RawKeyParser
 import com.ibrahimdans.i18n.plugin.tree.ContextOption
@@ -59,7 +60,7 @@ internal class PrefixedSite(
     override val host: String,
 ) : CodeSite
 
-/** A key literal built at runtime, by its [text] unquoted and the [shape] of the keys it may produce. */
+/** A key literal built at runtime, by its [text] unquoted, its hook's namespace and key prefix written in, and the [shape] of the keys it may produce. */
 internal class DynamicSite(
     val text: String,
     val shape: DynamicReach.Shape,
@@ -121,9 +122,20 @@ internal class CodeUsageIndexer(private val project: Project, private val config
             textSite(element, text, angularId?.let { element } ?: literal!!, host, ownKey)?.let(sites::add)
         }
         if (literal != null && literals.add(literal)) {
-            prefixedSite(literal, host, if (literal === element) ownKey.value else rawKeyOf(literal))?.let(sites::add)
-            DynamicReach.shapeOf(literal.text.unQuote())?.let { sites += DynamicSite(literal.text.unQuote(), it, host) }
+            val rawKey = if (literal === element) ownKey.value else rawKeyOf(literal)
+            prefixedSite(literal, host, rawKey)?.let(sites::add)
+            dynamicSpellings(literal.text.unQuote(), rawKey)
+                .forEach { text -> DynamicReach.shapeOf(text)?.let { sites += DynamicSite(text, it, host) } }
         }
+    }
+
+    /** [text] as [DynamicReach.spellingsOf] spells it under its hook; as written without one, or when nothing in it is computed. */
+    private fun dynamicSpellings(text: String, rawKey: RawKey?): List<String> {
+        if (rawKey == null || (rawKey.arguments.isEmpty() && rawKey.keyPrefix.isEmpty())) return listOf(text)
+        // A key of nothing but its variable gets a static head from its hook's prefix.
+        if (!Interpolation.isIn(text)) return emptyList()
+        val key = parser.parse(rawKey) ?: return listOf(text)
+        return DynamicReach.spellingsOf(text, key, config.nsSeparator, config.keySeparator)
     }
 
     private fun rawKeyOf(element: PsiElement): RawKey? = languages.firstNotNullOfOrNull { it.extractRawKey(element) }
