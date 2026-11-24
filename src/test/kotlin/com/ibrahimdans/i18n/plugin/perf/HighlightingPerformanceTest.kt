@@ -33,7 +33,7 @@ import kotlin.math.roundToLong
  *
  * Opt-in: building the 500-file fixture for each scenario takes the class past a minute, too much
  * for every `./gradlew test`. Run it with
- * `I18N_PERF=true ./gradlew test --rerun --tests com.ibrahimdans.i18n.plugin.perf.HighlightingPerformanceTest`
+ * `I18N_PERF=true ./gradlew :test --rerun --tests com.ibrahimdans.i18n.plugin.perf.HighlightingPerformanceTest`
  * (`--rerun`: the variable is no task input, so Gradle would otherwise replay the skipped run),
  * and read the figures in `build/perf/results.md`. `I18N_PERF_FACTOR=<x>` replaces the ceiling
  * factor for one run: `0.1` makes the slow scenarios fail on purpose, to check the net still bites.
