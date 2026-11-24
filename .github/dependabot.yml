@@ -18,8 +18,8 @@ updates:
     # `core` compiles these compileOnly against the versions the IDE provides at runtime
     # (Gson 2.13.x, snakeyaml-engine 2.9 from 2025.2 to 2026.2): a newer version could bring APIs
     # the IDE lacks. The CLI ships its own jackson-core, but Dependabot cannot ignore one module
-    # only: `core` would move with it. The CLI's is raised by hand: check its advisories
-    # before a release that ships the CLI, Dependabot alerts being off on this repository.
+    # only: `core` would move with it. The CLI's is raised by hand. A security update of
+    # jackson-core, which these rules do not stop, is to be reduced to the CLI.
     ignore:
       - dependency-name: "com.google.code.gson:gson"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
