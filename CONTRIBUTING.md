@@ -104,7 +104,7 @@ python3 -m venv .venv && .venv/bin/pip install -r scripts/docs-requirements.txt
 ./gradlew test
 
 # one test class
-./gradlew test --tests com.ibrahimdans.i18n.plugin.ide.actions.ExtractI18nIntentionActionTest
+./gradlew :test --tests com.ibrahimdans.i18n.plugin.ide.actions.ExtractI18nIntentionActionTest
 
 # tests + coverage report (build/reports/jacoco/test/html/index.html)
 ./gradlew check
