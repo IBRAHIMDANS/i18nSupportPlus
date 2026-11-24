@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build"
+    "build": "vite build"
   },
   "dependencies": {
     "i18next": "^27.2.6",
@@ -16,7 +16,6 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.0.1",
-    "typescript": "~5.9.3",
     "vite": "^8.0.1"
   }
 }
