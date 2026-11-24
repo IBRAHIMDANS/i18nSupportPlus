@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.22.2 - 2026-11-24
+
 ### Fixes
 
 - [Completion] **Import paths are suggested again**: completing the path of an `import`, or any string that is not a translation key, listed your translation keys instead of the IDE's own suggestions. Keys are now offered only where a key is expected, in PHP too ([#1056](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/1056)).
