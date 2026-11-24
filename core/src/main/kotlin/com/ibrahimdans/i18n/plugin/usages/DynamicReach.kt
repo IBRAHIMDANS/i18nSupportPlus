@@ -1,5 +1,8 @@
 package com.ibrahimdans.i18n.plugin.usages
 
+import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
+import com.ibrahimdans.i18n.plugin.key.FullKey
+
 /**
  * Which translation keys a key the code builds at runtime can produce.
  *
@@ -46,6 +49,21 @@ object DynamicReach {
         val lastEnd = text.indexOf('}', text.lastIndexOf(INTERPOLATION))
         val tail = if (lastEnd < 0) "" else text.substring(lastEnd + 1)
         return Shape(text.substringBefore(INTERPOLATION), tail).takeIf { it.head.isNotEmpty() || it.tail.isNotEmpty() }
+    }
+
+    /**
+     * The ways the dynamic literal [text], read as [key], spells the keys it may produce: its own under the hook's
+     * key prefix and, when it writes no namespace, one more per namespace it is looked up in —
+     * `` t(`stages.${'$'}{s}`) `` under `useTranslation('crm')` also reads `crm:stages.${'$'}{s}`, which reaches the
+     * keys a bare head leaves out. Empty when nothing in it is static.
+     */
+    fun spellingsOf(text: String, key: FullKey, nsSeparator: String, keySeparator: String): List<String> {
+        val own = key.keyPrefix.joinToString("") { it.text + keySeparator } + text
+        if (shapeOf(own) == null) return emptyList()
+        if (key.ns != null) return listOf(own)
+        // The tool window and `i18n-check` spell a key with `:`, the inspection with the configured separator.
+        val separators = setOf(KeySpelling.NAMESPACE_SEPARATOR, nsSeparator).filter { it.isNotEmpty() }
+        return listOf(own) + key.lookupNamespaces().flatMap { ns -> separators.map { ns + it + own } }
     }
 
     /** The subset of [keys] one of [shapes] reaches ([Shape.reaches]). */

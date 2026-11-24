@@ -14,16 +14,16 @@ import com.ibrahimdans.i18n.plugin.utils.KeyElement
  * segment naming one of the others routes the rest of the path to it (i18next's `keysFromSelector`).
  * The path is joined with `.`, i18next's default key separator.
  */
-class SelectorCallKeyExtractor(private val functionNames: Set<String> = I18NEXT_FUNCTIONS) : CodeKeyExtractor {
+class SelectorCallKeyExtractor(functionNames: Set<String> = I18NEXT_FUNCTIONS) : CodeKeyExtractor {
 
     private val calls = TranslationCallKeyExtractor(functionNames)
 
-    override fun canExtract(node: CodeNode): Boolean = selectorPathOf(node) != null && translationCallOf(node, functionNames) != null
+    override fun canExtract(node: CodeNode): Boolean = selectorPathOf(node) != null && calls.callTo(node) != null
 
     override fun extract(node: CodeNode): RawKey? {
         val path = selectorPathOf(node) ?: return null
-        val call = translationCallOf(node, functionNames) ?: return null
-        val base = calls.keyAt(call, path.joinToString(SEPARATOR))
+        val call = calls.callTo(node) ?: return null
+        val base = calls.keyAt(call, listOf(KeyElement.literal(path.joinToString(SEPARATOR))))
         val routed = namespacesOption(call).isEmpty() && path.size > 1 && path.first() in base.arguments.drop(1)
         if (!routed) return base
         return base.copy(keyElements = listOf(KeyElement.literal(path.drop(1).joinToString(SEPARATOR))), arguments = listOf(path.first()))

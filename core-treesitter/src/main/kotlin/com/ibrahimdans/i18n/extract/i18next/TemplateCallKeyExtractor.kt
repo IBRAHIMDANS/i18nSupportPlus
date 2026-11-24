@@ -11,17 +11,19 @@ import com.ibrahimdans.i18n.plugin.utils.KeyElement
  *
  * The elements are those the plugin's `TemplateKeyExtractor` reads off the PSI tokens — the
  * backquotes, each `$`, `{` and `}`, the literal parts, each `${…}` expression as a template — so the
- * key parser's `ExpressionNormalizer` reduces both to the same key. Like the PSI extractor, it takes
- * the `{ ns }` option and never the hook's namespaces.
+ * key parser's `ExpressionNormalizer` reduces both to the same key. Like
+ * `ReactUseTranslationHookExtractor`, it takes the namespaces and key prefix of the call's hook.
  */
-class TemplateCallKeyExtractor(private val functionNames: Set<String> = I18NEXT_FUNCTIONS) : CodeKeyExtractor {
+class TemplateCallKeyExtractor(functionNames: Set<String> = I18NEXT_FUNCTIONS) : CodeKeyExtractor {
 
-    override fun canExtract(node: CodeNode): Boolean = node.type == TEMPLATE_STRING && translationCallOf(node, functionNames) != null
+    private val calls = TranslationCallKeyExtractor(functionNames)
+
+    override fun canExtract(node: CodeNode): Boolean = node.type == TEMPLATE_STRING && calls.callTo(node) != null
 
     override fun extract(node: CodeNode): RawKey? {
         if (node.type != TEMPLATE_STRING) return null
-        val call = translationCallOf(node, functionNames) ?: return null
-        return RawKey(elementsOf(node), namespacesOption(call))
+        val call = calls.callTo(node) ?: return null
+        return calls.keyAt(call, elementsOf(node))
     }
 
     /** One literal per run of fragments and escapes, as the PSI has one token per template part. */

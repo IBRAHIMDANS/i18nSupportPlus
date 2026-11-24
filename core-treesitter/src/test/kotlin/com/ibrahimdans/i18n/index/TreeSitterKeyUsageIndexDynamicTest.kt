@@ -52,4 +52,28 @@ class TreeSitterKeyUsageIndexDynamicTest {
             index.dynamicallyReached(listOf("errors/timeout", "auth::errors/timeout")),
         )
     }
+
+    @Test
+    fun `a template key reaches the namespaces and key prefix of its hook`() {
+        val index = indexOf(
+            "function A() { const { t } = useTranslation('crm'); return t(`stages.\${s}`); }\n" +
+                "function B() { const { t } = useTranslation('users', { keyPrefix: 'table' }); return t(`\${column}`); }",
+        )
+
+        Assertions.assertEquals(
+            setOf("crm:stages.NEW", "users:table.name"),
+            index.dynamicallyReached(listOf("crm:stages.NEW", "crm:title", "audit:stages.NEW", "users:table.name", "users:title")),
+        )
+    }
+
+    @Test
+    fun `static text beside an interpolation keeps the key dynamic`() {
+        val index = indexOf("const a = (b: string) => i18n.t(`verification.\${b}_short`);")
+
+        Assertions.assertEquals(emptyList<KeyCall>(), index.unknownUsages(listOf("verification.A_short")))
+        Assertions.assertEquals(
+            setOf("verification.A_short"),
+            index.dynamicallyReached(listOf("verification.A_short", "verification.A_long")),
+        )
+    }
 }

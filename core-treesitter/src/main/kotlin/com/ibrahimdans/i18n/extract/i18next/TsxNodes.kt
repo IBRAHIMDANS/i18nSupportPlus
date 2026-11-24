@@ -27,7 +27,10 @@ private const val CONTEXT = "context"
 private const val VARIABLE_DECLARATOR = "variable_declarator"
 private const val OBJECT_PATTERN = "object_pattern"
 private const val SHORTHAND_PATTERN = "shorthand_property_identifier_pattern"
+private const val PAIR_PATTERN = "pair_pattern"
 private const val IDENTIFIER = "identifier"
+/** The translation function in what the hook returns, which `{ t: tCommon }` renames. */
+private const val HOOK_FUNCTION = "t"
 private val USE_TRANSLATION = FrameworkPresets.I18NEXT_HOOK
 
 /** The tokens separating the items of an argument list, an array or an object, and comments. */
@@ -63,7 +66,10 @@ internal fun CodeNode.arguments(): List<CodeNode> = children.lastOrNull { it.typ
  * [node] may sit deeper than the argument itself, `t(cond ? 'a' : 'b')`, as the plugin's
  * `JsLang` accepts — but not inside a template literal of the argument, nor in a ternary's condition.
  */
-internal fun translationCallOf(node: CodeNode, names: Set<String>): CodeNode? {
+internal fun translationCallOf(node: CodeNode, names: Set<String>): CodeNode? = callOf(node)?.takeIf { it.calleeText() in names }
+
+/** The call whose first argument holds [node], whatever it calls, as [translationCallOf] looks for it. */
+internal fun callOf(node: CodeNode): CodeNode? {
     var child = node
     var current = node.parent
     while (current != null && current.type != ARGUMENTS) {
@@ -74,7 +80,7 @@ internal fun translationCallOf(node: CodeNode, names: Set<String>): CodeNode? {
         current = current.parent
     }
     if (current == null || current.items().firstOrNull() != child) return null
-    return current.parent?.takeIf { it.type == CALL_EXPRESSION && it.calleeText() in names }
+    return current.parent?.takeIf { it.type == CALL_EXPRESSION }
 }
 
 /**
@@ -150,6 +156,13 @@ internal class HookBindings(val root: CodeNode) {
         return scopes.firstNotNullOfOrNull { scope -> byScope.getOrPut(scope) { bindingsOf(scope) }[callee.text] }
     }
 
+    /** Whether [call] calls a `t` its hook's destructuring renames: `tCommon` of `const { t: tCommon } = useTranslation()`. */
+    fun isRenamed(call: CodeNode, scopes: List<CodeNode>): Boolean =
+        call.calleeText().let { it in renamed } && hookOf(call, scopes) != null
+
+    /** The names the file gives a renamed `t`, in any scope: the cheap test before looking the scopes up. */
+    private val renamed: Set<String> by lazy { renamedIn(root) }
+
     /** Each name a declarator of [scope] binds to a hook call, the first declarator winning. */
     private fun bindingsOf(scope: CodeNode): Map<String, CodeNode> {
         val bindings = mutableMapOf<String, CodeNode>()
@@ -177,10 +190,31 @@ private fun declaratorsOf(scope: CodeNode): Sequence<CodeNode> = sequence {
     }
 }
 
-/** The names `const { t, i18n } = useTranslation(…)` binds and its hook call, null for any other declarator. */
+/**
+ * The names `const { t, i18n } = useTranslation(…)` binds, a renamed `t` (`{ t: tCommon }`) by its
+ * local name, and its hook call; null for any other declarator.
+ */
 private fun hookBinding(declarator: CodeNode): Pair<List<String>, CodeNode>? {
     val parts = declarator.children
     val pattern = parts.firstOrNull()?.takeIf { it.type == OBJECT_PATTERN } ?: return null
     val hook = parts.lastOrNull()?.takeIf { it.type == CALL_EXPRESSION && it.calleeText() == USE_TRANSLATION } ?: return null
-    return pattern.children.filter { it.type == SHORTHAND_PATTERN }.map { it.text } to hook
+    return pattern.children.mapNotNull { if (it.type == SHORTHAND_PATTERN) it.text else renamedFunction(it) } to hook
+}
+
+/** `tCommon` of `t: tCommon`, null for any other part of a pattern. */
+private fun renamedFunction(node: CodeNode): String? {
+    if (node.type != PAIR_PATTERN || node.children.firstOrNull()?.text != HOOK_FUNCTION) return null
+    return node.children.lastOrNull()?.takeIf { it.type == IDENTIFIER }?.text
+}
+
+/** The names a renamed `t` takes anywhere under [root]. */
+private fun renamedIn(root: CodeNode): Set<String> {
+    val names = mutableSetOf<String>()
+    val pending = ArrayDeque(listOf(root))
+    while (pending.isNotEmpty()) {
+        val node = pending.removeFirst()
+        if (node.type == PAIR_PATTERN) renamedFunction(node)?.let(names::add)
+        pending.addAll(node.children)
+    }
+    return names
 }

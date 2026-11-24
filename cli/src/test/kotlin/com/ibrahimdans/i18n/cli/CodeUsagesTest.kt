@@ -439,4 +439,16 @@ class CodeUsagesTest {
         assertEquals(listOf("beta"), unknown.map { it.asJsonObject["key"].asString })
         assertEquals(1, unknown.single().asJsonObject["line"].asInt)
     }
+
+    @Test
+    fun `code - keptKeys are not unused, a dead key beside them still is`(@TempDir project: Path) {
+        fun write(path: String, text: String) = project.resolve(path).also { Files.createDirectories(it.parent) }.let { Files.writeString(it, text) }
+        write("i18n-check.json", """{ "defaultNs": "common", "keptKeys": "settings:tabs.*, errors.offline" }""")
+        write("locales/en/common.json", """{ "errors": { "offline": "Offline", "dead": "Dead" } }""")
+        write("locales/en/settings.json", """{ "tabs": { "ia": "AI" }, "title": "Settings" }""")
+        write("src/App.tsx", "export const x = 1;")
+
+        val unused = JsonParser.parseString(check(project.toString(), "--code", "--format", "json").out).asJsonObject["unused"].asJsonArray.map { it.asString }
+        assertEquals(listOf("errors.dead", "settings:title"), unused)
+    }
 }
