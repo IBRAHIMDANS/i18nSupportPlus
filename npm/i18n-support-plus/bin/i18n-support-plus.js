@@ -29,11 +29,12 @@ const key = `${process.platform}-${process.arch}`;
 const platform = platforms[key];
 if (!platform) fail(`no native i18n-check for ${key}; there is one for ${Object.keys(platforms).join(', ')}.`);
 
+const packageName = `@ibrahimdans/i18n-support-plus-${key}`;
 let binary;
 try {
-  binary = require.resolve(`i18n-support-plus-${key}/bin/${platform.binary}`);
+  binary = require.resolve(`${packageName}/bin/${platform.binary}`);
 } catch {
-  fail(`the package i18n-support-plus-${key} is not installed: it is an optional dependency, which ` +
+  fail(`the package ${packageName} is not installed: it is an optional dependency, which ` +
     '--no-optional, --omit=optional or a lockfile made on another platform leaves out.');
 }
 
