@@ -45,15 +45,25 @@ abstract class CompositeKeyCompletionContributor(private val lang: Lang): Comple
         val resultSet = result.caseInsensitive()
         val fullKey = lang.extractRawKey(parameters.position)?.let{RawKeyParser(parameters.position.project).parse(it, parameters.position)}
         if (fullKey == null) {
-            if (lang.canExtractKey(parameters.position.parent, Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() })) {
+            if (isKey(parameters.position.parent)) {
                 resultSet.addAllElements(findCompletions("", emptyList(), emptyList(), parameters.position))
                 resultSet.stopHere()
             }
-        } else {
+        } else if (isKeyPosition(parameters.position)) {
             resultSet.addAllElements(processKey(fullKey, parameters.position))
             resultSet.stopHere()
         }
     }
+
+    /**
+     * Whether the string at the caret is one the annotator would read as a key. [Lang.extractRawKey]
+     * alone does not tell: it reads any string literal, an import path included, and answering there
+     * hid every other suggestion.
+     */
+    protected open fun isKeyPosition(position: PsiElement): Boolean = isKey(position) || isKey(position.parent)
+
+    private fun isKey(element: PsiElement): Boolean =
+        lang.canExtractKey(element, Extensions.TECHNOLOGY.extensionList.flatMap { it.translationFunctionNames() })
 
     /**
      * Groups plural forms under their base key, so that a plural is offered once.
