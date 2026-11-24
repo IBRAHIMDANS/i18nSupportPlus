@@ -123,17 +123,17 @@ jobs:
           path: cli/build/distributions/*.zip
 
   # The native binaries and their npm packages, built and compared with the JVM on each platform. Only
-  # when npm publishing is on (NPM_PUBLISH), which it is not until someone asks for `npx`: five runners
-  # for forty minutes otherwise, for packages that go nowhere.
+  # when npm publishing is on (the repository variable NPM_PUBLISH).
   cli-native:
     if: vars.NPM_PUBLISH == 'true'
     uses: ./.github/workflows/cli-native.yml
     permissions:
       contents: read
 
-  # `npx i18n-support-plus`: the packages cli-native packed, published after the release. Off until the
-  # repository variable NPM_PUBLISH is `true`: the packages are first published by hand, then each one
-  # trusts this workflow (npm trusted publishing), which then needs no token and signs the provenance.
+  # `npx i18n-support-plus`: the packages cli-native packed, published after the release. Runs when the
+  # repository variable NPM_PUBLISH is `true`. npm trusted publishing needs a package that exists, so the
+  # first publication uses NPM_TOKEN; once each package trusts this workflow, drop NODE_AUTH_TOKEN below
+  # and the secret. The provenance is signed with the workflow's OIDC token either way.
   npm:
     needs: [ release, cli-native ]
     if: vars.NPM_PUBLISH == 'true'
@@ -145,7 +145,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # npm 11.5.1 or later publishes with the workflow's OIDC token.
+      # npm 11.5.1 or later publishes with the workflow's OIDC token where the package trusts it.
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
@@ -158,11 +158,12 @@ jobs:
 
       - name: Publish to npm
         run: npm/publish.sh "$RUNNER_TEMP/npm" --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # `ghcr.io/ibrahimdans/i18n-check`, for CI systems other than GitHub Actions. A job of its own, after the
-  # release: an image that fails to build or to start leaves the plugin and the zip published. Off until
-  # the repository variable DOCKER_PUBLISH is `true`: the image was published from 1.17.0 to 1.19.1 and
-  # no pull or issue asked for it; `:latest` stays at the last published version until someone does.
+  # release: an image that fails to build or to start leaves the plugin and the zip published. Runs
+  # when the repository variable DOCKER_PUBLISH is `true`.
   cli-image:
     needs: release
     if: vars.DOCKER_PUBLISH == 'true'

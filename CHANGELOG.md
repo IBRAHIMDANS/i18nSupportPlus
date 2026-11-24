@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [CLI] **The Docker image of `i18n-check` is published with each release again**: `ghcr.io/ibrahimdans/i18n-check`, with Java included.
+
 ## 1.22.2 - 2026-11-24
 
 ### Fixes

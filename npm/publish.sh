@@ -4,7 +4,7 @@
 # registry is skipped, so a release whose publication failed half-way can be run again.
 #
 # usage: npm/publish.sh <dir> [npm publish options...]
-#   In release.yml with --provenance (trusted publishing); by hand, the first time, without it.
+#   In release.yml with --provenance; by hand, without it.
 # A prerelease version (1.20.0-beta.1) goes under the `next` tag: `latest` stays on the last release.
 set -euo pipefail
 

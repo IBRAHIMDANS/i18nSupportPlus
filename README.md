@@ -144,7 +144,7 @@ Details: [Machine translation and AI agents](docs/translation.md).
 
 ### Catch the problems in the IDE and in CI
 
-Twenty-five inspections check the translations and the code: unknown keys in the code, missing, orphan, empty and duplicate keys, placeholders, markup, ICU messages, plural forms, stale translations and hard-coded text. `i18n-check` runs the same checks in CI, as a GitHub Action or from the command line, and annotates the pull request; a Docker image is published on request.
+Twenty-five inspections check the translations and the code: unknown keys in the code, missing, orphan, empty and duplicate keys, placeholders, markup, ICU messages, plural forms, stale translations and hard-coded text. `i18n-check` runs the same checks in CI, as a GitHub Action or from the command line, and annotates the pull request. A Docker image is published with each release after 1.22.2.
 
 Details: [Checks: inspections, CI and the command line](docs/checks.md).
 
