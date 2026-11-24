@@ -165,4 +165,26 @@ class I18nextExtractorsTest {
             keys("const A = () => <><Trans i18nKey=\"common:title\" values={{ a: 'x' }} /><Other i18nKey='b'>c</Other><p title=\"d\" /></>;"),
         )
     }
+
+    @Test
+    fun `a t the hook renames is read under its own hook, in its scope only`() {
+        val source = """
+            function A() {
+              const { t } = useTranslation('crm');
+              const { t: tCommon, i18n: other } = useTranslation('common', { keyPrefix: 'actions' });
+              return [t('title'), tCommon('save'), other('no')];
+            }
+            function B() { return tCommon('elsewhere'); }
+        """.trimIndent()
+
+        assertEquals(listOf(literal("title", listOf("crm")), literal("save", listOf("common"), "actions")), keys(source))
+    }
+
+    @Test
+    fun `a template key and a selector take the hook of a renamed t`() {
+        val found = keys("const { t: tCrm } = useTranslation('crm', { keyPrefix: 'p' }); tCrm(`stages.\${s}`); tCrm($ => $.a.b)")
+
+        assertEquals(listOf(listOf("crm"), listOf("crm")), found.map { it.arguments })
+        assertEquals(listOf(listOf(KeyElement.literal("p")), listOf(KeyElement.literal("p"))), found.map { it.keyPrefix })
+    }
 }

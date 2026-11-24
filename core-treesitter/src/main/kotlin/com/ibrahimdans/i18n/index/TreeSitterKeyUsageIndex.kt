@@ -8,6 +8,7 @@ import com.ibrahimdans.i18n.plugin.KeyUsage
 import com.ibrahimdans.i18n.plugin.KeyUsageIndex
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.ide.toolwindow.KeySpelling
+import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.parser.CodeKeyExtractor
 import com.ibrahimdans.i18n.plugin.parser.KeyContext
 import com.ibrahimdans.i18n.plugin.parser.KeyResolver
@@ -68,11 +69,23 @@ class TreeSitterKeyUsageIndex(
                 key.lookupNamespaces(),
                 // As the code writes it: the literal's text, or the msgid built for a source-text `<Trans>`.
                 if (key.isDynamic) null else rawKey.keyElements.joinToString("") { it.text },
-                if (key.isDynamic) DynamicReach.shapeOf(node.text.unQuote()) else null,
+                if (key.isDynamic) shapesOf(node.text.unQuote(), key) else emptyList(),
                 key.context,
             )
         }
         this.sites.update(path, sites)
+    }
+
+    /**
+     * The shapes of the keys the dynamic literal [text], read as [key], may produce: its own under the hook's
+     * key prefix and, when it writes no namespace, one more per namespace it is looked up in —
+     * `` t(`stages.${'$'}{s}`) `` under `useTranslation('crm')` reaches `crm:stages.*`, which a bare head leaves out.
+     */
+    private fun shapesOf(text: String, key: FullKey): List<DynamicReach.Shape> {
+        val prefix = key.keyPrefix.joinToString("") { it.text + config.keySeparator }
+        val shape = DynamicReach.shapeOf(prefix + text) ?: return emptyList()
+        if (key.ns != null) return listOf(shape)
+        return listOf(shape) + key.lookupNamespaces().map { shape.copy(head = it + KeySpelling.NAMESPACE_SEPARATOR + shape.head) }
     }
 
     /** Drops the file at [path] from the index, if it was indexed. */
@@ -128,7 +141,7 @@ class TreeSitterKeyUsageIndex(
      */
     @Synchronized
     override fun dynamicallyReached(keys: Collection<String>): Set<String> {
-        val shapes = sites.sites().mapNotNullTo(mutableSetOf()) { it.shape }
+        val shapes = sites.sites().flatMapTo(mutableSetOf()) { it.shapes }
         return DynamicReach.reached(keys, shapes, config.nsSeparator, config.keySeparator)
     }
 
@@ -160,15 +173,15 @@ class TreeSitterKeyUsageIndex(
 
     /**
      * A call site whose literal resolves to [path] in [namespaces] — none when it writes none and
-     * sits under no hook — with its [key] as written, or, for a key built at runtime, the [shape] of
-     * the keys it may produce ([DynamicReach.shapeOf]) — and the i18next [context] it reads the key under.
+     * sits under no hook — with its [key] as written, or, for a key built at runtime, the [shapes]
+     * of the keys it may produce ([shapesOf]) — and the i18next [context] it reads the key under.
      */
     private inner class CallSite(
         val usage: KeyUsage,
         override val path: List<String>,
         val namespaces: List<String>,
         val key: String?,
-        val shape: DynamicReach.Shape?,
+        val shapes: List<DynamicReach.Shape>,
         val context: ContextOption?,
     ) : CallSiteIndex.Site {
 

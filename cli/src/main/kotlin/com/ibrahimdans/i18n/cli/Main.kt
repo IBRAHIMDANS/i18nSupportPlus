@@ -1,5 +1,6 @@
 package com.ibrahimdans.i18n.cli
 
+import com.ibrahimdans.i18n.plugin.ide.inspection.KeepList
 import com.ibrahimdans.i18n.plugin.ide.settings.Config
 import com.ibrahimdans.i18n.plugin.utils.LocaleMatching
 import com.ibrahimdans.i18n.plugin.utils.ReferenceLocale
@@ -162,11 +163,13 @@ object I18nCheck {
         val referenceKeys = scopes.zip(results) { scope, result ->
             scope.module to scope.translations.filterValues { result.reference in it }.keys
         }
+        // What the project declares used although no code names it: `keptKeys`.
+        val kept = KeepList.of(config)
         // The keys of a format whose code is not read (ARB, `.properties`) are never unused, as the IDE leaves them out.
         return ProjectResult(
             results.mapIndexed { i, result ->
                 val (module, keys) = referenceKeys[i]
-                result.copy(unused = code.unused(keys - scopes[i].codeUnread, module))
+                result.copy(unused = code.unused(keys - scopes[i].codeUnread, module).filterNot(kept::matches))
             },
             code.unknown(referenceKeys),
         )
