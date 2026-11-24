@@ -4,6 +4,7 @@
 
 ### Fixes
 
+- [Completion] **Import paths are suggested again**: completing the path of an `import`, or any string that is not a translation key, listed your translation keys instead of the IDE's own suggestions. Keys are now offered only where a key is expected, in PHP too ([#1056](https://github.com/IBRAHIMDANS/i18nSupportPlus/issues/1056)).
 - [CLI] **`i18n-check --code` no longer reports used keys of a React project as unused**: it follows a `t` renamed by its hook (`const { t: tCommon } = useTranslation("common")`), reads a key built at runtime under the hook's namespace and key prefix, and honours the `keptKeys` of `i18n-check.json`, as the IDE does.
 - [Tool window] **A key built at runtime under a hook's namespace is no longer an orphan**: `` t(`stages.${s}`) `` under `useTranslation("crm")` keeps `crm:stages.*` out of the unused keys and of *Clean Up*, the hook's `keyPrefix` included.
 - [CLI] [Editor] **A key built at runtime with text after its variable is no longer taken for a fixed key**: `` t(`badge.${name}_short`) `` was reported as unknown by `i18n-check --code`, and offered for creation in the editor.

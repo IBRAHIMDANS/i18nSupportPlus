@@ -6,7 +6,6 @@ import com.ibrahimdans.i18n.extensions.lang.js.extractors.NgxTranslateDirectiveE
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.TranslocoDirectiveExtractor
 import com.ibrahimdans.i18n.extensions.lang.js.extractors.TranslocoPipeExtractor
 import com.ibrahimdans.i18n.plugin.factory.ReferenceAssistant
-import com.ibrahimdans.i18n.plugin.ide.completion.CompositeKeyCompletionContributor
 import com.ibrahimdans.i18n.plugin.ide.references.code.ReferenceContributorBase
 import com.ibrahimdans.i18n.plugin.key.FullKey
 import com.ibrahimdans.i18n.plugin.parser.KeyExtractor
@@ -120,7 +119,7 @@ internal class AngularDirectiveReferenceAssistant : ReferenceAssistant {
  * Completion in Angular templates, with [AngularLang] — the pipes and directives included — rather
  * than [JsLang], which knows neither: `{{ '<caret>' | translate }}` offered nothing.
  */
-class AngularCompletionContributor : CompositeKeyCompletionContributor(CaretAngularLang())
+class AngularCompletionContributor : JsKeyCompletionContributor(CaretAngularLang())
 
 /**
  * [AngularLang] asked about the completion caret, which sits on a leaf token: the key of a directive
