@@ -50,7 +50,7 @@ i18n-check-<version>/bin/i18n-check [project] [--locales <dir> | --code] [--refe
 
 `./gradlew :cli:installDist` builds it from this repository instead, in `cli/build/install/i18n-check/`.
 
-From the release after 1.22.2, `npx i18n-support-plus` runs it as a native binary, without Java, on Linux x64 and arm64 (glibc), macOS x64 and arm64, and Windows x64. On Alpine, use the Docker image below or the zip.
+A machine without Java can run the Docker image below.
 
 It runs the plugin's own checks in CI, with the plugin's settings, whatever the framework. An i18next project that also wants to write the keys the code uses into its files, sync its locales or generate types can pair it with the official [i18next-cli](https://github.com/i18next/i18next-cli) (`extract`, `sync`, `types`).
 
