@@ -266,6 +266,8 @@ internal class IdentifierKeyImports(project: Project) : ModificationTracker, Dis
     private fun onChange(event: PsiTreeChangeEvent) {
         val file = event.file ?: return
         val virtualFile = file.viewProvider.virtualFile
+        // A font or an image replaced on disk is reported too: it has no text, reading it throws.
+        if (virtualFile.fileType.isBinary) return
         val now = IndirectKeyUsages.importsIdentifierKeyLibrary(file.viewProvider.contents)
         val before = imports.put(virtualFile, now)
         // A file seen for the first time counts only when it imports: the answer may have been false.
