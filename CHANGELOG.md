@@ -5,6 +5,7 @@
 ### Fixes
 
 - [CLI] **`i18n-check --code` no longer reports used keys of a React project as unused**: it follows a `t` renamed by its hook (`const { t: tCommon } = useTranslation("common")`), reads a key built at runtime under the hook's namespace and key prefix, and honours the `keptKeys` of `i18n-check.json`, as the IDE does.
+- [Tool window] **A key built at runtime under a hook's namespace is no longer an orphan**: `` t(`stages.${s}`) `` under `useTranslation("crm")` keeps `crm:stages.*` out of the unused keys and of *Clean Up*, the hook's `keyPrefix` included.
 - [CLI] [Editor] **A key built at runtime with text after its variable is no longer taken for a fixed key**: `` t(`badge.${name}_short`) `` was reported as unknown by `i18n-check --code`, and offered for creation in the editor.
 
 ## 1.22.1 - 2026-11-18

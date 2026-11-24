@@ -76,17 +76,9 @@ class TreeSitterKeyUsageIndex(
         this.sites.update(path, sites)
     }
 
-    /**
-     * The shapes of the keys the dynamic literal [text], read as [key], may produce: its own under the hook's
-     * key prefix and, when it writes no namespace, one more per namespace it is looked up in —
-     * `` t(`stages.${'$'}{s}`) `` under `useTranslation('crm')` reaches `crm:stages.*`, which a bare head leaves out.
-     */
-    private fun shapesOf(text: String, key: FullKey): List<DynamicReach.Shape> {
-        val prefix = key.keyPrefix.joinToString("") { it.text + config.keySeparator }
-        val shape = DynamicReach.shapeOf(prefix + text) ?: return emptyList()
-        if (key.ns != null) return listOf(shape)
-        return listOf(shape) + key.lookupNamespaces().map { shape.copy(head = it + KeySpelling.NAMESPACE_SEPARATOR + shape.head) }
-    }
+    /** The shapes of the keys the dynamic literal [text], read as [key], may produce. */
+    private fun shapesOf(text: String, key: FullKey): List<DynamicReach.Shape> =
+        DynamicReach.spellingsOf(text, key, config.nsSeparator, config.keySeparator).mapNotNull(DynamicReach::shapeOf)
 
     /** Drops the file at [path] from the index, if it was indexed. */
     @Synchronized
