@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- [CLI] **`i18n-check` runs without Java**: `npx i18n-support-plus` installs a native binary for Linux, macOS and Windows, and the Docker image `ghcr.io/ibrahimdans/i18n-check` is published with each release again.
+
 ## 1.22.2 - 2026-11-24
 
 ### Fixes
