@@ -17,10 +17,14 @@ updates:
         update-types: ["minor", "patch"]
     # `core` compiles these compileOnly against the versions the IDE provides at runtime
     # (Gson 2.13.x, snakeyaml-engine 2.9 from 2025.2 to 2026.2): a newer version could bring APIs
-    # the IDE lacks. jackson-core is not listed: the CLI ships its own and takes its security fixes.
+    # the IDE lacks. The CLI ships its own jackson-core, but Dependabot cannot ignore one module
+    # only: `core` would move with it. The CLI's is raised by hand: check its advisories
+    # before a release that ships the CLI, Dependabot alerts being off on this repository.
     ignore:
       - dependency-name: "com.google.code.gson:gson"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "com.fasterxml.jackson.core:jackson-core"
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
       - dependency-name: "org.snakeyaml:snakeyaml-engine"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
       # The `uiTest` source set pins these to the dependencies of IDE Starter (`uiTestStarterVersion`
