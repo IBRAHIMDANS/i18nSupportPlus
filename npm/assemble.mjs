@@ -1,5 +1,6 @@
 // Assembles the npm packages of a version: `i18n-support-plus`, whose optional dependencies are the
-// platform packages at that same version, and `i18n-support-plus-<platform>` for each binary built.
+// platform packages at that same version, and `@ibrahimdans/i18n-support-plus-<platform>` for
+// each binary built: under a scope, as npm's spam filter refuses a family of unscoped lookalike names.
 //
 // usage: node npm/assemble.mjs <version> <binaries> <out> [--all]
 //   <binaries> holds a folder `i18n-check-<platform>` per platform built, the binary in it, as
@@ -22,16 +23,18 @@ const license = join(npm, '..', 'LICENSE');
 const platforms = JSON.parse(readFileSync(join(main, 'platforms.json'), 'utf8'));
 const manifest = JSON.parse(readFileSync(join(main, 'package.json'), 'utf8'));
 
+const platformPackage = (key) => `@ibrahimdans/${manifest.name}-${key}`;
+
 rmSync(out, { recursive: true, force: true });
 
 for (const [key, platform] of Object.entries(platforms)) {
-  const name = `${manifest.name}-${key}`;
+  const name = platformPackage(key);
   const binary = join(binaries, `i18n-check-${key}`, platform.binary);
   if (!existsSync(binary)) {
     if (all) throw new Error(`no binary for ${key}: ${binary}`);
     continue;
   }
-  const dir = join(out, name);
+  const dir = join(out, `${manifest.name}-${key}`);
   mkdirSync(join(dir, 'bin'), { recursive: true });
   copyFileSync(binary, join(dir, 'bin', platform.binary));
   // An artifact download loses the mode; npm packs the one the file has.
@@ -60,5 +63,5 @@ copyFileSync(join(main, 'bin', 'i18n-support-plus.js'), join(dir, 'bin', 'i18n-s
 chmodSync(join(dir, 'bin', 'i18n-support-plus.js'), 0o755);
 for (const file of ['platforms.json', 'README.md']) copyFileSync(join(main, file), join(dir, file));
 copyFileSync(license, join(dir, 'LICENSE'));
-const optionalDependencies = Object.fromEntries(Object.keys(platforms).map((key) => [`${manifest.name}-${key}`, version]));
+const optionalDependencies = Object.fromEntries(Object.keys(platforms).map((key) => [platformPackage(key), version]));
 writeFileSync(join(dir, 'package.json'), JSON.stringify({ ...manifest, version, optionalDependencies }, null, 2) + '\n');

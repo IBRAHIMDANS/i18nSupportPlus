@@ -149,7 +149,7 @@ jobs:
           mkdir npx-test/project
           cd npx-test/project
           npm init -y > /dev/null
-          npm install --no-audit --no-fund ../npm/i18n-support-plus-${{ matrix.platform }}-[0-9]*.tgz ../npm/i18n-support-plus-[0-9]*.tgz
+          npm install --no-audit --no-fund ../npm/ibrahimdans-i18n-support-plus-${{ matrix.platform }}-[0-9]*.tgz ../npm/i18n-support-plus-[0-9]*.tgz
 
       # The example's problems are not the point: --max-problems lets it exit 0, while a missing binary
       # or a crash does not.

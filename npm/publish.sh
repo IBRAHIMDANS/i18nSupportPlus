@@ -26,7 +26,7 @@ publish() {
   npm publish "$tarball" --access public ${tag[@]+"${tag[@]}"} "$@"
 }
 
-for tarball in "$dir"/i18n-support-plus-*.tgz; do
-  [ "$tarball" = "$main" ] || publish "$tarball" "$@"
+for tarball in "$dir"/ibrahimdans-i18n-support-plus-*.tgz; do
+  publish "$tarball" "$@"
 done
 publish "$main" "$@"
